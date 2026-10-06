@@ -9,3 +9,6 @@ require OAI from "../oai/lean"
 
 @[default_target]
 lean_lib HindmanSumsProducts
+
+-- The target statement (Comparator challenge module).
+lean_lib Challenge
