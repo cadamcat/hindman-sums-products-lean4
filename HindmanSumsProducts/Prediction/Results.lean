@@ -3,6 +3,7 @@ import HindmanSumsProducts.CubeCornerCharted
 import HindmanSumsProducts.Prediction.PkgB
 import HindmanSumsProducts.Prediction.PkgC
 import HindmanSumsProducts.Prediction.PkgD
+import HindmanSumsProducts.Prediction.PkgB2
 
 /-!
 # Dual-test pseudorandomness, bounded dense models, nilsequence testing (§5.1–§5.2)
