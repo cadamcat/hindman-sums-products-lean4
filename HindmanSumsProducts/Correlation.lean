@@ -232,7 +232,50 @@ theorem additive_elimination_auxiliary_moments {m q r : ℕ} (Sh : RowShape m q 
         atTop
         (𝓝 ((2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
           2 * (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1))))) := by
-  sorry
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0
+  obtain ⟨B, hconclusions⟩ := row_directions_integer Sh dirs hdirs tests htests hdt
+  rcases hconclusions S ι hlisted C a ha with ⟨hbad, hmodulus, hfactsEvent⟩
+  let hGlobalEvent :=
+    AdditiveMoment.pkgElim_momentGlobalData_eventually S C a ha Sh dirs tests J0 B hJ0 hfactsEvent
+  let h : ℕ := Fintype.card (AdditiveMoment.Occurrence Sh)
+  let d : ℕ := Fintype.card (AdditiveMoment.Coordinate Sh)
+  let eO : AdditiveMoment.Occurrence Sh ≃ Fin h := Fintype.equivFin _
+  let eX : AdditiveMoment.Coordinate Sh ≃ Fin d := Fintype.equivFin _
+  have hEach (F : Finset (AdditiveMoment.Occurrence Sh)) :
+      Tendsto (AdditiveMoment.pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F)
+        atTop (𝓝 1) :=
+    AdditiveMoment.pkgElim_expandedAuxiliaryMoment_tendsto_one S ι C a ha Sh dirs tests hlisted
+      J0 hJ0 B hbad hfactsEvent eO eX F
+  have hmoment (k : ℕ) (hk : k ≤ 2) :
+      Tendsto
+        (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
+          targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u ^ k)
+        atTop (𝓝 ((2 : ℝ) ^ (AdditiveMoment.activeOccurrences Sh k).card)) := by
+    have hsum : Tendsto
+        (fun N => ∑ F ∈ (AdditiveMoment.activeOccurrences Sh k).powerset,
+          AdditiveMoment.pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N)
+        atTop (𝓝 ((2 : ℝ) ^ (AdditiveMoment.activeOccurrences Sh k).card)) := by
+      apply tendsto_powerset_sum_of_tendsto_one
+      intro F hF
+      exact hEach F
+    exact (tendsto_congr'
+      (AdditiveMoment.pkgElim_eliminationMoment_eq_powersetSum S ι C a Sh dirs tests J0 hJ0 B
+        hGlobalEvent (h := h) eX k hk)).2 hsum
+  have hcard0 : (AdditiveMoment.activeOccurrences Sh 0).card = 2 ^ Fintype.card (NonTarget Sh) := by
+    simpa using AdditiveMoment.pkgElim_activeOccurrences_card Sh 0 (by omega)
+  have hcard1 : (AdditiveMoment.activeOccurrences Sh 1).card =
+      2 ^ Fintype.card (NonTarget Sh) +
+        Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1) := by
+    simpa using AdditiveMoment.pkgElim_activeOccurrences_card Sh 1 (by omega)
+  have hcard2 : (AdditiveMoment.activeOccurrences Sh 2).card =
+      2 ^ Fintype.card (NonTarget Sh) +
+        2 * (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) := by
+    rw [AdditiveMoment.pkgElim_activeOccurrences_card Sh 2 (by omega)]
+    ring
+  refine ⟨?_, ⟨?_, ?_⟩⟩
+  · simpa [hcard0] using hmoment 0 (by omega)
+  · simpa [hcard1] using hmoment 1 (by omega)
+  · simpa [hcard2] using hmoment 2 (by omega)
 
 /-- Lemma `lem:additive-elimination`, equation `eq:additive-elimination-output`: under the
 normalized good-tuple law, `|E∏_I f_I(ℓ_I(z))|^{2^d} ≤ C_m|E∏_{ω∈{0,1}^d}
