@@ -1779,6 +1779,61 @@ private theorem momentTailProductLaw_eq_divisorTemplateLaw {K sl : ℕ} {As : Fi
     _ = divisorTemplateLaw MS.core.parameters N (momentTailDivisorTemplate B) σ := by
       rfl
 
+private theorem momentUnitDivisorLaw_eq {K : ℕ} (A : Parameters K) (N σ : ℕ) :
+    divisorTemplateLaw A N (momentUnitDivisorTemplate K) σ =
+      if σ = 1 then 1 else 0 := by
+  classical
+  unfold divisorTemplateLaw harmonicProductLaw
+  change (∑' t : Fin 0 → ℕ,
+      (if (∏ i, t i) = σ then (1 : ℝ) else 0) *
+        ∏ i, harmonicNatLaw (A.X N (Fin.elim0 i)) (primorial (N + 1)) (t i)) = _
+  rw [tsum_eq_single (default : Fin 0 → ℕ)]
+  · have hprod : ∏ i : Fin 0, (default : Fin 0 → ℕ) i = 1 := Fintype.prod_empty _
+    have hraw : ∏ i : Fin 0,
+        harmonicNatLaw (A.X N (Fin.elim0 i)) (primorial (N + 1))
+          ((default : Fin 0 → ℕ) i) = 1 := Fintype.prod_empty _
+    rw [hprod, hraw]
+    simp [eq_comm]
+  · intro t ht
+    apply False.elim
+    apply ht
+    funext i
+    exact Fin.elim0 i
+
+private theorem momentUnitDivisorNu_eq_one {K : ℕ} (A : Parameters K) (N : ℕ)
+    (z : ℤ) : nuB (divisorTemplateLaw A N (momentUnitDivisorTemplate K)) z = 1 := by
+  classical
+  unfold nuB
+  simp_rw [momentUnitDivisorLaw_eq A N]
+  rw [tsum_eq_single 1]
+  · norm_num
+  · intro σ hσ
+    simp [hσ]
+
+private theorem momentTailDivisorNu_eq_nu {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (N : ℕ) (z : ℤ) :
+    nuB (divisorTemplateLaw MS.core.parameters N (momentTailDivisorTemplate B)) z =
+      nu MS.core.parameters N B z := by
+  classical
+  unfold nu nuB
+  apply tsum_congr
+  intro σ
+  rw [← momentTailProductLaw_eq_divisorTemplateLaw MS N B σ]
+
+private theorem momentDivisorFamilyNu_eq {K sl b d : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (active : Finset (Fin (Fintype.card (MomentRowIndex b d))))
+    (u : Fin (Fintype.card (MomentRowIndex b d))) (N : ℕ) (z : ℤ) :
+    nuB (divisorTemplateLaw MS.core.parameters N (momentDivisorFamily B active u)) z =
+      if u ∈ active then nu MS.core.parameters N B z else 1 := by
+  classical
+  by_cases ha : u ∈ active
+  · simpa [momentDivisorFamily, ha] using
+      (momentTailDivisorNu_eq_nu MS B N z)
+  · simpa [momentDivisorFamily, ha] using
+      (momentUnitDivisorNu_eq_one MS.core.parameters N z)
+
 private theorem momentHarmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
     (hH : 0 < harmonicNormalizer X W) :
     ∑' y : ℤ, harmonicLaw X W y = 1 := by
