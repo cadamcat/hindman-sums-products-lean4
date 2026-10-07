@@ -4,6 +4,9 @@ import HindmanSumsProducts.Prediction.PkgB
 import HindmanSumsProducts.Prediction.PkgC
 import HindmanSumsProducts.Prediction.PkgD
 import HindmanSumsProducts.Prediction.PkgB2
+import HindmanSumsProducts.Prediction.PkgOpusDpo
+import HindmanSumsProducts.Prediction.PkgDFlat
+import HindmanSumsProducts.Prediction.PkgDPre
 
 /-!
 # Dual-test pseudorandomness, bounded dense models, nilsequence testing (§5.1–§5.2)
@@ -103,6 +106,311 @@ theorem direction_integers (d : ℕ) (ω : Finset (Fin d)) (hω : ω.Nonempty) :
     apply hneZero
     linarith
 
+/-! ### Parts of `dual_products_orthogonal` (lane opus-dpo split)
+
+The proof of (eq:prediction-dual-products) is assembled below from these part lemmas.  The
+nonflat case uses the `PkgB2` state machinery: independent prime replicas in disjoint master
+slots, the occurrence rows after inserting translation directions, and the normalized state
+average `pkgB2_stateAverage … E N I` after eliminating the directions in `E`.  The shared
+definitions `opus_dpo_untranslatedAverage` and `opus_dpo_prefactor` are in `PkgOpusDpo.lean`.
+
+* `opus_dpo_root_mean`: `E_{μ_i}(ν − 1) = o(1)` (the case `b = 0`, 05:162–163).
+* `opus_dpo_flat_case`: every type has dimension `0`, so every test is constant in `y`.
+* `opus_dpo_replica_identity`: the original pairing is the untranslated replica average.
+* `opus_dpo_translation_error`: inserting the averaged translations changes it by `o(1)`
+  (05:118–135).
+* `opus_dpo_cs_step`: one weighted Cauchy–Schwarz elimination step (05:137–148).
+* `opus_dpo_prefactor_bound`: the step prefactor is eventually bounded (linear forms).
+* `opus_dpo_terminal`: the final state is `o(1)` (05:159–163). -/
+
+/-- Part: the root mean `E_{μ_i}(ν − 1) → 0` (05:162–163). -/
+theorem opus_dpo_root_mean (MS : MasterScales K As sl Dm) (B : Block K) :
+    ∀ ε0 > 0, ∀ᶠ N in atTop,
+      |Emu MS.core.parameters N B.1 (fun y => nu MS.core.parameters N B y - 1)| ≤ ε0 := by
+  intro ε0 hε0
+  classical
+  let A := MS.core.parameters
+  let Tail : ℕ → ℕ → ℝ := fun N σ => parameterTailProductLaw A N B.2.val σ
+  let Ref : ℕ → ℕ → ℝ := fun N σ =>
+    ∑' y : ℤ, dilationReference
+      (harmonicLaw (A.X N B.1) (primorial (N + 1))) σ y * 1
+  let V : ℕ → ℕ := fun N => masterScaleV A N B.1
+  let Bound : ℕ → ℕ := fun N => ∏ j ∈ B.2.val, (A.X N j) ^ 2
+  let Sig : ℕ → Finset ℕ := fun N => Finset.range (Bound N + 1)
+  have hNorm (N : ℕ) (j : Fin K) :
+      0 < harmonicNormalizer (A.X N j) (primorial (N + 1)) :=
+    harmonicNormalizer_pos (A.X N j) (primorial (N + 1)) (primorial_pos _)
+      (MS.gapStage.valid_raw_cutoffs N j)
+  have hTailZero (N σ : ℕ) (hσ : σ ∉ Sig N) : Tail N σ = 0 := by
+    apply parameterTailProductLaw_zero_of_gt A N B.2.val σ
+    have hnot : ¬ σ < Bound N + 1 := by
+      simpa [Sig, Finset.mem_range] using hσ
+    change (∏ j ∈ B.2.val, (A.X N j) ^ 2) < σ
+    dsimp [Bound] at hnot ⊢
+    omega
+  have hTailNonneg (N σ : ℕ) : 0 ≤ Tail N σ := by
+    dsimp [Tail]
+    exact pkgD_parameterTailProductLaw_nonneg A N B.2.val (fun j => hNorm N j) σ
+  have hTailSum (N : ℕ) : ∑ σ ∈ Sig N, Tail N σ = 1 := by
+    have htotal := parameterTailProductLaw_tsum_one A N B.2.val
+      (fun j => A.Xpos N j) (fun j => hNorm N j)
+    rw [tsum_eq_sum (s := Sig N) (fun σ hσ => by
+      have hz := hTailZero N σ hσ
+      simpa [Tail] using hz)] at htotal
+    simpa [Tail] using htotal
+  have hMuOne (N : ℕ) : Emu A N B.1 (fun _ => 1) = 1 := by
+    have hNatSum :
+        (∑ n ∈ harmonicNatSupport (A.X N B.1) (primorial (N + 1)),
+          harmonicNatLaw (A.X N B.1) (primorial (N + 1)) n) = 1 := by
+      have h := harmonicNatLaw_tsum_one (A.X N B.1) (primorial (N + 1))
+        (A.Xpos N B.1) (hNorm N B.1)
+      rw [tsum_eq_sum
+        (s := harmonicNatSupport (A.X N B.1) (primorial (N + 1)))
+        (fun n hn => harmonicNatLaw_zero_of_not_mem (A.X N B.1)
+          (primorial (N + 1)) n hn)] at h
+      exact h
+    rw [Emu_eq_harmonicNat_sum]
+    simpa using hNatSum
+  have hTailCut (N σ : ℕ) (hMass : Tail N σ ≠ 0) :
+      0 < σ ∧ Nat.Coprime σ (primorial (N + 1)) ∧ σ ≤ V N := by
+    have hprop := parameterTailProductLaw_support_properties A N B.2.val σ (by simpa [Tail] using hMass)
+      (fun j => A.Xpos N j)
+    refine ⟨hprop.1, hprop.2.1, ?_⟩
+    have hprod : (∏ j ∈ B.2.val, (A.X N j) ^ 2) ≤ pkgB2_blockScale A B N := by
+      dsimp [pkgB2_blockScale]
+      omega
+    exact hprop.2.2.trans (hprod.trans (pkgB2_blockScale_le_masterScaleV A B B.1 (fun j hj => B.2.property.2 j hj) N))
+  have hRefBound (N : ℕ) (hX2 : 2 ≤ A.X N B.1)
+      (hlog : Real.log (A.X N B.1 : ℝ) >
+        (primorial (N + 1) : ℝ) / (A.X N B.1 : ℝ))
+      (hVX : V N ≤ A.X N B.1) (σ : ℕ) (hMass : Tail N σ ≠ 0) :
+      |Ref N σ - 1| ≤ 2 * harmonicDilationUniformError (A.X N B.1)
+        (primorial (N + 1)) (V N) := by
+    have hcut := hTailCut N σ hMass
+    rcases hcut with ⟨hσpos, hcop, hσV⟩
+    have hσone : 1 ≤ σ := Nat.one_le_iff_ne_zero.mpr (Nat.ne_of_gt hσpos)
+    have hσX : σ ≤ A.X N B.1 := hσV.trans hVX
+    have hsamp := sampling_pointwise_claim (A.X N B.1) (primorial (N + 1))
+      (primorial_pos _) hX2 hlog
+    have hD := hsamp.dilation hX2 hlog σ hσone hσX hcop
+    have hden : 0 < Real.log (A.X N B.1 : ℝ) -
+        (primorial (N + 1) : ℝ) / (A.X N B.1 : ℝ) := by linarith
+    have hVone : 1 ≤ V N := by
+      dsimp [V, masterScaleV]
+      omega
+    have hres := harmonicResidueError_le_two_dilation
+      (A.X N B.1) (primorial (N + 1)) σ (V N) (A.Xpos N B.1)
+      hVone hσV hden
+    have hRefErr : |Ref N σ - 1| ≤
+        harmonicResidueError (A.X N B.1) (primorial (N + 1)) σ := by
+      simpa [Ref] using hD.2
+    exact hRefErr.trans hres
+  have hNuPair (N : ℕ) :
+      Emu A N B.1 (fun y => nu A N B y) =
+        ∑' σ : ℕ, Tail N σ * Ref N σ := by
+    have h := nuWeightedPairing_eq A N B (fun _ : ℤ => (1 : ℝ))
+    simpa [Tail, Ref] using h
+  have hOuter (N : ℕ) :
+      (∑' σ : ℕ, Tail N σ * Ref N σ) =
+        ∑ σ ∈ Sig N, Tail N σ * Ref N σ := by
+    rw [tsum_eq_sum (s := Sig N) (fun σ hσ => by
+      have hz := hTailZero N σ hσ
+      simp [Tail, hz])]
+  have hEsub (N : ℕ) :
+      Emu A N B.1 (fun y => nu A N B y - 1) =
+        Emu A N B.1 (fun y => nu A N B y) - 1 := by
+    have hsub := pkgD_Emu_add A N B.1 (fun y => nu A N B y - 1) (fun _ => 1)
+    have heq : (fun y => (nu A N B y - 1) + 1) = fun y => nu A N B y := by
+      funext y; ring
+    rw [heq] at hsub
+    rw [hMuOne N] at hsub
+    linarith
+  have hError : ∀ᶠ N in atTop,
+      2 * harmonicDilationUniformError (A.X N B.1) (primorial (N + 1)) (V N) ≤ ε0 := by
+    have h := (pivotDilationError_tendsto A B.1).1
+    have hmul : Tendsto (fun N => 2 * harmonicDilationUniformError (A.X N B.1) (primorial (N + 1)) (V N))
+        atTop (𝓝 (2 * 0)) := h.const_mul 2
+    rw [mul_zero] at hmul
+    filter_upwards [hmul.eventually_lt_const hε0] with N hN
+    exact hN.le
+  have hVle : ∀ᶠ N in atTop, V N ≤ A.X N B.1 := (pivotDilationError_tendsto A B.1).2
+  filter_upwards [pivotSamplingEventually MS B.1, hVle, hError] with N ⟨hX2, hlog⟩ hVX hErr
+  rw [hEsub N, hNuPair N, hOuter N]
+  have hDiff : (∑ σ ∈ Sig N, Tail N σ * Ref N σ) - 1 =
+      ∑ σ ∈ Sig N, Tail N σ * (Ref N σ - 1) := by
+    conv_lhs => rw [← hTailSum N]
+    rw [← Finset.sum_sub_distrib]
+    apply Finset.sum_congr rfl
+    intro σ hσ
+    ring
+
+
+  rw [hDiff]
+  calc
+    |∑ σ ∈ Sig N, Tail N σ * (Ref N σ - 1)| ≤
+        ∑ σ ∈ Sig N, |Tail N σ * (Ref N σ - 1)| := Finset.abs_sum_le_sum_abs _ _
+    _ = ∑ σ ∈ Sig N, Tail N σ * |Ref N σ - 1| := by
+      apply Finset.sum_congr rfl
+      intro σ hσ
+      rw [abs_mul, abs_of_nonneg (hTailNonneg N σ)]
+    _ ≤ ∑ σ ∈ Sig N, Tail N σ * (2 * harmonicDilationUniformError (A.X N B.1) (primorial (N + 1)) (V N)) := by
+      apply Finset.sum_le_sum
+      intro σ hσ
+      by_cases hz : Tail N σ = 0
+      · simp [hz]
+      · exact mul_le_mul_of_nonneg_left (hRefBound N hX2 hlog hVX σ hz) (hTailNonneg N σ)
+    _ = (∑ σ ∈ Sig N, Tail N σ) * (2 * harmonicDilationUniformError (A.X N B.1) (primorial (N + 1)) (V N)) := by
+      rw [Finset.sum_mul]
+    _ = 2 * harmonicDilationUniformError (A.X N B.1) (primorial (N + 1)) (V N) := by
+      rw [hTailSum N, one_mul]
+    _ ≤ ε0 := hErr
+
+
+/-- Part: flat types.  If every type has dimension `0`, every dual test is independent of `y` and
+bounded by `1` in absolute value, so the claim reduces to `opus_dpo_root_mean`.  (This covers
+`b = 0`.) -/
+theorem opus_dpo_flat_case (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (hflat : ∀ k, (T k).d = 0) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
+        ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y)| ≤ ε := by
+  intro ε hε
+  have hroot := opus_dpo_root_mean MS B ε hε
+  filter_upwards [hroot] with N hroot
+  intro I
+  let c : ℝ := ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) 0
+  have hfactor (k : Fin b) :
+      |dualTest MS B (T k) (gap k) (J0 k) N (I k) 0| ≤ 1 :=
+    l_dflat_dualTest_abs_le_one MS B (T k) (gap k) (J0 k) N (I k) (hflat k) 0
+  have hc : |c| ≤ 1 := by
+    dsimp [c]
+    rw [Finset.abs_prod]
+    apply Finset.prod_le_one₀
+    · intro k hk
+      exact abs_nonneg _
+    · intro k hk
+      exact hfactor k
+  have hproduct (y : ℤ) :
+      (∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y) = c := by
+    dsimp [c]
+    apply Finset.prod_congr rfl
+    intro k hk
+    rw [l_dflat_dualTest_eq_goodSlotAverage MS B (T k) (gap k) (J0 k) N (I k)
+      (hflat k) y]
+    rw [l_dflat_dualTest_eq_goodSlotAverage MS B (T k) (gap k) (J0 k) N (I k)
+      (hflat k) 0]
+  have hfun :
+      (fun y : ℤ => (nu MS.core.parameters N B y - 1) *
+        ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y) =
+      (fun y => c * (nu MS.core.parameters N B y - 1)) := by
+    funext y
+    rw [hproduct y]
+    ring
+  calc
+    |Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
+        ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y)| =
+      |c * Emu MS.core.parameters N B.1 (fun y => nu MS.core.parameters N B y - 1)| := by
+        rw [hfun, Emu_mul_left]
+    _ = |c| * |Emu MS.core.parameters N B.1
+        (fun y => nu MS.core.parameters N B y - 1)| := abs_mul _ _
+    _ ≤ 1 * |Emu MS.core.parameters N B.1
+        (fun y => nu MS.core.parameters N B y - 1)| :=
+          mul_le_mul_of_nonneg_right hc (abs_nonneg _)
+    _ ≤ ε := by simpa using hroot
+
+/-- Part: replica expansion (05:87–90).  Eventually, for all inputs, the original pairing equals
+the untranslated replica average: independent primes for each test in disjoint master-slot
+blocks (unused slots integrate to one; the joint good probability is the product of the
+per-test good probabilities), the pivot `y ∼ μ_i` and the original shifts as signed uniform
+interval coordinates, every translation coordinate set to zero. -/
+theorem opus_dpo_replica_identity (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ) :
+    ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
+        ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y) =
+      opus_dpo_untranslatedAverage MS B gap T J0 hT direction N I := by
+  exact opus_dpo_replica_identity_proof MS B gap T J0 hgap hT hJ0 direction
+
+/-- Part: translation insertion (05:118–135).  Inserting the averaged translations along the
+fixed directions changes the untranslated average by `o(1)`, uniformly over the inputs: the
+integrand is bounded by `(1 + V_B)^{1 + #rows}`, while the harmonic and interval translation
+errors are super-polynomially small in `V_B`. -/
+theorem opus_dpo_translation_error (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |opus_dpo_untranslatedAverage MS B gap T J0 hT direction N I -
+        pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 ∅ N I| ≤ ε := by
+  exact opus_dpo_translation_error_proof MS B gap T J0 hgap hT hJ0 direction hdir k0
+
+/-- Part: one weighted Cauchy–Schwarz elimination step (05:137–148).  Eliminating the direction
+of the nonroot row `s ∉ E`: the copies of row `s` do not depend on its translation coordinate,
+they are bounded by their `(1 + ν)` weights `Ω`, and squaring duplicates that coordinate. -/
+theorem opus_dpo_cs_step (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T)) (s : pkgB2_Nonroot T) (hs : s ∉ E) :
+    ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 E N I| ^ 2 ≤
+        opus_dpo_prefactor MS B gap T J0 hT direction E s N *
+          pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (insert s E) N I := by
+  exact opus_dpo_cs_step_proof MS B gap T J0 hgap hT hJ0 direction hdir k0 E s hs
+
+/-- Part: the elimination prefactor is eventually nonnegative and bounded (expand `Ω` into
+`ν`-monomials over the copies of row `s` and apply the weighted linear-forms estimate,
+`pkgB2_weightedGoodMonomial_tendsto_one`; the limit is `2^{#copies}`). -/
+theorem opus_dpo_prefactor_bound (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T)) (s : pkgB2_Nonroot T) (hs : s ∉ E) :
+    ∃ C : ℝ, ∀ᶠ N in atTop,
+      0 ≤ opus_dpo_prefactor MS B gap T J0 hT direction E s N ∧
+        opus_dpo_prefactor MS B gap T J0 hT direction E s N ≤ C := by
+  classical
+  let L : ℝ := (2 : ℝ) ^ (Finset.univ.filter
+    (fun o : Fin (Fintype.card (pkgB2_Occurrence T E)) =>
+      (pkgB2_occurrenceEnum T E o).1 = Sum.inr s)).card
+  have hlim := l_dpre_prefactor_tendsto MS B gap T J0 hgap hT hJ0
+    direction hdir k0 E s
+  have hclose : ∀ᶠ N : ℕ in atTop,
+      dist (opus_dpo_prefactor MS B gap T J0 hT direction E s N) L < 1 := by
+    have h := hlim.eventually
+      (Metric.ball_mem_nhds L (show (0 : ℝ) < 1 by norm_num))
+    filter_upwards [h] with N hN
+    simpa only [Metric.mem_ball] using hN
+  refine ⟨L + 1, ?_⟩
+  filter_upwards [hclose] with N hN
+  refine ⟨l_dpre_prefactor_nonneg MS B gap T J0 hT direction E s N, ?_⟩
+  have habs :
+      |opus_dpo_prefactor MS B gap T J0 hT direction E s N - L| < 1 := by
+    simpa [Real.dist_eq] using hN
+  have := abs_lt.mp habs
+  dsimp [L]
+  linarith
+
+/-- Part: the terminal state, with every direction eliminated, is `o(1)` uniformly over the
+inputs (05:159–163; `pkgB2_terminalState_tendsto_zero` for input sequences, here uniform and
+without `0 < sl`). -/
+theorem opus_dpo_terminal (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (hNonroot : Nonempty (pkgB2_Nonroot T)) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 Finset.univ N I| ≤ ε := by
+  exact opus_dpo_terminal_proof MS B gap T J0 hgap hT hJ0 direction hdir k0 hNonroot
+
 /-- (eq:prediction-dual-products), 05:68–74 and 129–164: for every fixed `b` and fixed tests at
 the same block (possibly different valid gaps, allowed types and `J₀`),
 `E_{μ_i}(ν − 1) ∏_{k<b} 𝒟_k = o(1)` uniformly over their inputs. -/
@@ -112,7 +420,103 @@ theorem dual_products_orthogonal (MS : MasterScales K As sl Dm) (B : Block K) (b
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
       |Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
         ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y)| ≤ ε := by
-  sorry
+  classical
+  by_cases hflat : ∀ k, (T k).d = 0
+  · exact opus_dpo_flat_case MS B gap T J0 hgap hT hJ0 hflat
+  push_neg at hflat
+  obtain ⟨k0, hk0⟩ := hflat
+  have hNonroot : Nonempty (pkgB2_Nonroot T) :=
+    ⟨⟨k0, ⟨Finset.univ, Finset.univ_nonempty_iff.mpr ⟨⟨0, Nat.pos_of_ne_zero hk0⟩⟩⟩⟩⟩
+  -- Fixed direction integers for every nonroot row (05:92–101).
+  let direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ := fun s =>
+    Classical.choose (direction_integers (T s.1).d s.2.1 s.2.2)
+  have hdir : pkgB2_directionSpec T direction := fun s =>
+    Classical.choose_spec (direction_integers (T s.1).d s.2.1 s.2.2)
+  -- Eliminate the directions in a fixed order: `Ej j` holds the first `j` of them.
+  let n := Fintype.card (pkgB2_Nonroot T)
+  let e : Fin n ≃ pkgB2_Nonroot T := (Fintype.equivFin _).symm
+  let Ej : ℕ → Finset (pkgB2_Nonroot T) := fun j =>
+    (Finset.univ.filter fun i : Fin n => i.val < j).image e
+  let a : ℕ → (N : ℕ) → ((k : Fin b) → DualInput MS B (T k) N) → ℝ := fun j N I =>
+    pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (Ej j) N I
+  have hEsucc (j : ℕ) (hj : j < n) : Ej (j + 1) = insert (e ⟨j, hj⟩) (Ej j) := by
+    ext t
+    simp only [Ej, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and,
+      Finset.mem_insert]
+    constructor
+    · rintro ⟨i, hi, rfl⟩
+      by_cases hij : i.val = j
+      · left
+        congr 1
+        exact Fin.ext hij
+      · right
+        exact ⟨i, by omega, rfl⟩
+    · rintro (rfl | ⟨i, hi, rfl⟩)
+      · exact ⟨⟨j, hj⟩, by simp, rfl⟩
+      · exact ⟨i, by omega, rfl⟩
+  have hEnot (j : ℕ) (hj : j < n) : e ⟨j, hj⟩ ∉ Ej j := by
+    intro hmem
+    obtain ⟨i, hi, heq⟩ := Finset.mem_image.mp hmem
+    have hij := e.injective heq
+    have hlt := (Finset.mem_filter.mp hi).2
+    rw [hij] at hlt
+    exact lt_irrefl _ hlt
+  have hE0 : Ej 0 = ∅ := by
+    simp [Ej]
+  have hEn : Ej n = Finset.univ := by
+    ext t
+    simp only [Ej, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and, iff_true]
+    exact ⟨e.symm t, (e.symm t).isLt, e.apply_symm_apply t⟩
+  -- One Cauchy–Schwarz step per direction, with an input-free bounded prefactor.
+  have hstep : ∀ j < n, ∃ C : ℝ, 0 ≤ C ∧ ∀ᶠ N in atTop,
+      ∀ I : (k : Fin b) → DualInput MS B (T k) N, |a j N I| ^ 2 ≤ C * |a (j + 1) N I| := by
+    intro j hj
+    obtain ⟨C, hC⟩ := opus_dpo_prefactor_bound MS B gap T J0 hgap hT hJ0 direction hdir k0
+      (Ej j) (e ⟨j, hj⟩) (hEnot j hj)
+    have hcs := opus_dpo_cs_step MS B gap T J0 hgap hT hJ0 direction hdir k0
+      (Ej j) (e ⟨j, hj⟩) (hEnot j hj)
+    refine ⟨max C 0, le_max_right _ _, ?_⟩
+    filter_upwards [hC, hcs] with N hCN hcsN I
+    have h1 := hcsN I
+    rw [← hEsucc j hj] at h1
+    obtain ⟨hP0, hPC⟩ := hCN
+    calc |a j N I| ^ 2 ≤ opus_dpo_prefactor MS B gap T J0 hT direction (Ej j) (e ⟨j, hj⟩) N *
+          a (j + 1) N I := h1
+      _ ≤ opus_dpo_prefactor MS B gap T J0 hT direction (Ej j) (e ⟨j, hj⟩) N *
+          |a (j + 1) N I| := mul_le_mul_of_nonneg_left (le_abs_self _) hP0
+      _ ≤ max C 0 * |a (j + 1) N I| :=
+          mul_le_mul_of_nonneg_right (hPC.trans (le_max_left _ _)) (abs_nonneg _)
+  have hlast : ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |a n N I| ≤ ε := by
+    intro ε hε
+    filter_upwards [opus_dpo_terminal MS B gap T J0 hgap hT hJ0 direction hdir k0 hNonroot
+      ε hε] with N hN I
+    show |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (Ej n) N I| ≤ ε
+    rw [hEn]
+    exact hN I
+  have hzero := opus_dpo_iterate (X := fun N => (k : Fin b) → DualInput MS B (T k) N)
+    n a hstep hlast
+  -- Replica expansion, translation insertion, and the iterated elimination.
+  intro ε hε
+  have hε2 : 0 < ε / 2 := by linarith
+  filter_upwards [opus_dpo_replica_identity MS B gap T J0 hgap hT hJ0 direction,
+    opus_dpo_translation_error MS B gap T J0 hgap hT hJ0 direction hdir k0 (ε / 2) hε2,
+    hzero (ε / 2) hε2] with N hid htr hz I
+  rw [hid I]
+  have h0 : a 0 N I =
+      pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 ∅ N I := by
+    show pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (Ej 0) N I = _
+    rw [hE0]
+  have hz' := hz I
+  rw [h0] at hz'
+  have htr' := htr I
+  calc _ = |(opus_dpo_untranslatedAverage MS B gap T J0 hT direction N I -
+          pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 ∅ N I) +
+          pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 ∅ N I| := by
+        rw [sub_add_cancel]
+    _ ≤ _ := abs_add_le _ _
+    _ ≤ ε / 2 + ε / 2 := add_le_add htr' hz'
+    _ = ε := by ring
 
 /-- (eq:prediction-dual-moments), 05:74–79 and 166–175: for every fixed `b ≥ 1` and a type of
 dimension `≤ d_*`, `E_{μ_i}(1 + ν)|𝒟|^b ≤ 2 A_*^b + o(1)` uniformly over the inputs. -/
