@@ -4673,6 +4673,86 @@ private theorem harmonicLaw_zero_of_not_mem_support (X W : ℕ) (z : ℤ)
   rw [Int.toNat_of_nonneg hcond.1] at hmem
   exact hmem
 
+theorem pkgMask_poolAverage_tsum_pivot_interchange {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (l : Fin K) (N X W : ℕ)
+    (F : ℕ → ℤ → ℝ) :
+    poolAverage S l N (fun p =>
+      ∑' y : ℤ, harmonicLaw X W y * F p y) =
+        ∑' y : ℤ, harmonicLaw X W y * poolAverage S l N (fun p => F p y) := by
+  classical
+  let P := primePoolSupport (S.primeStage.pool N l).lower
+    (S.primeStage.pool N l).upper
+  let Y := harmonicLawSupport X W
+  have hPzero (p : ℕ) (hp : p ∉ P) :
+      primePoolLaw (S.primeStage.pool N l).lower
+        (S.primeStage.pool N l).upper p = 0 := by
+    exact primePoolLaw_zero_of_not_mem_support _ _ p hp
+  have hpoolEq (y : ℤ) : poolAverage S l N (fun p => F p y) =
+      ∑ p ∈ P, primePoolLaw (S.primeStage.pool N l).lower
+        (S.primeStage.pool N l).upper p * F p y := by
+    unfold poolAverage
+    apply tsum_eq_sum (s := P)
+    intro p hp
+    simp [hPzero p hp]
+  have hYzero (y : ℤ) (hy : y ∉ Y) : harmonicLaw X W y = 0 :=
+    harmonicLaw_zero_of_not_mem_support X W y hy
+  have hleftZero (p : ℕ) (hp : p ∉ P) :
+      primePoolLaw (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper p *
+        ∑' y : ℤ, harmonicLaw X W y * F p y = 0 := by
+    rw [hPzero p hp]
+    simp
+  have hrightZero (y : ℤ) (hy : y ∉ Y) :
+      harmonicLaw X W y * poolAverage S l N (fun p => F p y) = 0 := by
+    rw [hYzero y hy]
+    simp
+  calc
+    poolAverage S l N (fun p => ∑' y : ℤ, harmonicLaw X W y * F p y) =
+        ∑ p ∈ P, primePoolLaw (S.primeStage.pool N l).lower
+          (S.primeStage.pool N l).upper p *
+          ∑ y ∈ Y, harmonicLaw X W y * F p y := by
+      unfold poolAverage
+      rw [tsum_eq_sum (s := P) hleftZero]
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [tsum_eq_sum (s := Y) (fun y hy => by simp [hYzero y hy])]
+    _ = ∑ y ∈ Y, harmonicLaw X W y *
+          ∑ p ∈ P, primePoolLaw (S.primeStage.pool N l).lower
+            (S.primeStage.pool N l).upper p * F p y := by
+      calc
+        (∑ p ∈ P, primePoolLaw (S.primeStage.pool N l).lower
+            (S.primeStage.pool N l).upper p *
+            ∑ y ∈ Y, harmonicLaw X W y * F p y) =
+            ∑ p ∈ P, ∑ y ∈ Y,
+              primePoolLaw (S.primeStage.pool N l).lower
+                (S.primeStage.pool N l).upper p * harmonicLaw X W y * F p y := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro y hy
+          ring
+        _ = ∑ y ∈ Y, ∑ p ∈ P,
+              harmonicLaw X W y *
+                (primePoolLaw (S.primeStage.pool N l).lower
+                  (S.primeStage.pool N l).upper p * F p y) := by
+          rw [Finset.sum_comm]
+          apply Finset.sum_congr rfl
+          intro y hy
+          apply Finset.sum_congr rfl
+          intro p hp
+          ring
+        _ = _ := by
+          apply Finset.sum_congr rfl
+          intro y hy
+          rw [Finset.mul_sum]
+    _ = ∑' y : ℤ, harmonicLaw X W y * poolAverage S l N (fun p => F p y) := by
+      symm
+      rw [tsum_eq_sum (s := Y) hrightZero]
+      apply Finset.sum_congr rfl
+      intro y hy
+      rw [hpoolEq y]
+
 noncomputable def pivotMassSupport {K s m : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) : Finset (Fin m → ℤ) :=
@@ -4746,6 +4826,21 @@ theorem pkgMask_coordinateJoin_other {m : ℕ} (u : Fin m) (y : ℤ)
     pkgMask_coordinateJoin u y w i.1 = w i := by
   have h := (pkgMask_coordinateSplit u).apply_symm_apply (y, w)
   exact congrFun (congrArg Prod.snd h) i
+
+theorem pkgMask_coordinateJoin_update {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) (p : ℕ) :
+    Function.update (pkgMask_coordinateJoin u y w) u ((p : ℤ) * y) =
+      pkgMask_coordinateJoin u ((p : ℤ) * y) w := by
+  funext k
+  by_cases hk : k = u
+  · subst k
+    simp [Function.update_self, pkgMask_coordinateJoin_at]
+  · let i : finsetComplement ({u} : Finset (Fin m)) :=
+      ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+        intro hmem
+        exact hk (Finset.mem_singleton.mp hmem)⟩⟩
+    rw [Function.update_of_ne hk, pkgMask_coordinateJoin_other u y w i,
+      pkgMask_coordinateJoin_other u ((p : ℤ) * y) w i]
 
 theorem pkgMask_pivotMass_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
@@ -7897,6 +7992,62 @@ theorem gapPivotMass_tsum_one {K s m q : ℕ} {Aset : Finset ℚ}
       exact gapPivotMass_zero_of_not_mem_support S C N x hx
     _ = 1 := hfinite
 
+theorem pkgMask_gapPivotTsum_fubini {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ)
+    (F : (Fin q → ℕ) × (Fin m → ℤ) → ℝ) :
+    ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
+      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F (p, z) =
+        ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 * F x := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let Z := pivotMassSupport S C N
+  let D := P ×ˢ Z
+  have hPzero (p : Fin q → ℕ) (hp : p ∉ P) : gapSlotMass S C.gap N p = 0 := by
+    unfold gapSlotMass
+    exact independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) p hp
+  have hZzero (z : Fin m → ℤ) (hz : z ∉ Z) :
+      pivotMass S.core.parameters C N z = 0 :=
+    pivotMass_zero_of_not_mem_support S C N z hz
+  have hOuterZero (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S C.gap N p *
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F (p, z) = 0 := by
+    rw [hPzero p hp]
+    simp
+  have hDzero (x : (Fin q → ℕ) × (Fin m → ℤ)) (hx : x ∉ D) :
+      gapPivotMass S C N x.1 x.2 * F x = 0 := by
+    rw [gapPivotMass_zero_of_not_mem_support S C N x hx]
+    simp
+  calc
+    (∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F (p, z)) =
+        ∑ p ∈ P, gapSlotMass S C.gap N p *
+          ∑ z ∈ Z, pivotMass S.core.parameters C N z * F (p, z) := by
+      rw [tsum_eq_sum (s := P) hOuterZero]
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [tsum_eq_sum (s := Z) (fun z hz => by simp [hZzero z hz])]
+    _ = ∑ p ∈ P, ∑ z ∈ Z,
+          (gapSlotMass S C.gap N p * pivotMass S.core.parameters C N z) * F (p, z) := by
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro z hz
+      ring
+    _ = ∑ x ∈ D, gapPivotMass S C N x.1 x.2 * F x := by
+      dsimp [D, gapPivotMass]
+      symm
+      exact Finset.sum_product' P Z (fun p z =>
+        (gapSlotMass S C.gap N p * pivotMass S.core.parameters C N z) * F (p, z))
+    _ = ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 * F x := by
+      symm
+      exact tsum_eq_sum (s := D) hDzero
+
 noncomputable def initialMaskShape {m : ℕ} (Jstar : Finset (Fin m))
     (hJ : 2 ≤ Jstar.card) : RowShape m 0 (maskCount m) := by
   classical
@@ -8145,6 +8296,121 @@ noncomputable def pkgMask_stateCoordinatePrimeInsertion {m q r K s : ℕ}
             pkgMask_stateIntegrand st S C a N x.1
               (pkgMask_coordinateJoin u ((p : ℤ) * y) x.2))
 
+theorem pkgMask_stateCoordinatePrimeInsertion_joint {m q r K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (u : Fin m) :
+    pkgMask_stateCoordinatePrimeInsertion st S C a N u =
+      ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N x.1 x.2 *
+          poolAverage S C.gap N (fun p =>
+            pkgMask_stateIntegrand st S C a N x.1
+              (Function.update x.2 u ((p : ℤ) * x.2 u))) := by
+  classical
+  let Rest := ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ
+  let Outer := (Fin q → ℕ) × Rest
+  let G : (Fin q → ℕ) → (Fin m → ℤ) → ℝ := fun p z =>
+    poolAverage S C.gap N (fun p' =>
+      pkgMask_stateIntegrand st S C a N p
+        (Function.update z u ((p' : ℤ) * z u)))
+  have hJoinAverage (pOld : Fin q → ℕ) (w : Rest) (y : ℤ) :
+      poolAverage S C.gap N (fun pNew =>
+        pkgMask_stateIntegrand st S C a N pOld
+          (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w)) =
+      G pOld (pkgMask_coordinateJoin u y w) := by
+    unfold G
+    congr 1
+    funext pNew
+    rw [pkgMask_coordinateJoin_at, pkgMask_coordinateJoin_update]
+  have hInner (pOld : Fin q → ℕ) :
+      ∑' w : Rest, pkgMask_pivotRestMass S C N u w *
+        poolAverage S C.gap N (fun pNew =>
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y *
+            pkgMask_stateIntegrand st S C a N pOld
+              (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w)) =
+      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * G pOld z := by
+    have hswap (w : Rest) :
+        poolAverage S C.gap N (fun pNew =>
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y *
+            pkgMask_stateIntegrand st S C a N pOld
+              (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w)) =
+        ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+          (primorial (N + 1)) y *
+          poolAverage S C.gap N (fun pNew =>
+            pkgMask_stateIntegrand st S C a N pOld
+              (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w)) :=
+      pkgMask_poolAverage_tsum_pivot_interchange S C.gap N
+        (S.core.parameters.X N (C.block u).1) (primorial (N + 1))
+        (fun pNew y => pkgMask_stateIntegrand st S C a N pOld
+          (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w))
+    calc
+      (∑' w : Rest, pkgMask_pivotRestMass S C N u w *
+          poolAverage S C.gap N (fun pNew =>
+            ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+              (primorial (N + 1)) y *
+              pkgMask_stateIntegrand st S C a N pOld
+                (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w))) =
+          ∑' w : Rest, pkgMask_pivotRestMass S C N u w *
+            ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+              (primorial (N + 1)) y *
+              poolAverage S C.gap N (fun pNew =>
+                pkgMask_stateIntegrand st S C a N pOld
+                  (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w)) := by
+        apply tsum_congr
+        intro w
+        rw [hswap w]
+      _ = ∑' w : Rest, pkgMask_pivotRestMass S C N u w *
+            ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+              (primorial (N + 1)) y * G pOld (pkgMask_coordinateJoin u y w) := by
+        apply tsum_congr
+        intro w
+        apply congrArg (fun t : ℝ => pkgMask_pivotRestMass S C N u w * t)
+        apply tsum_congr
+        intro y
+        exact congrArg (fun t : ℝ => harmonicLaw
+          (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y * t)
+          (hJoinAverage pOld w y)
+      _ = ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * G pOld z :=
+        (pkgMask_pivotTsum_coordinate_split S C N u (G pOld)).symm
+  have hOuter := pkgMask_gapRestTsum_fubini S C N u (fun x : Outer =>
+    poolAverage S C.gap N (fun pNew =>
+      ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+        (primorial (N + 1)) y *
+        pkgMask_stateIntegrand st S C a N x.1
+          (pkgMask_coordinateJoin u ((pNew : ℤ) * y) x.2)))
+  have hStep :
+      pkgMask_stateCoordinatePrimeInsertion st S C a N u =
+        ∑' pOld : Fin q → ℕ, gapSlotMass S C.gap N pOld *
+          ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * G pOld z := by
+    calc
+      pkgMask_stateCoordinatePrimeInsertion st S C a N u =
+          ∑' pOld : Fin q → ℕ, gapSlotMass S C.gap N pOld *
+            ∑' w : Rest, pkgMask_pivotRestMass S C N u w *
+              poolAverage S C.gap N (fun pNew =>
+                ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+                  (primorial (N + 1)) y *
+                  pkgMask_stateIntegrand st S C a N pOld
+                    (pkgMask_coordinateJoin u ((pNew : ℤ) * y) w)) := by
+        unfold pkgMask_stateCoordinatePrimeInsertion
+        exact hOuter.symm
+      _ = ∑' pOld : Fin q → ℕ, gapSlotMass S C.gap N pOld *
+            ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * G pOld z := by
+        apply tsum_congr
+        intro pOld
+        apply congrArg (fun t : ℝ => gapSlotMass S C.gap N pOld * t)
+        exact hInner pOld
+  calc
+    pkgMask_stateCoordinatePrimeInsertion st S C a N u =
+        ∑' pOld : Fin q → ℕ, gapSlotMass S C.gap N pOld *
+          ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * G pOld z := hStep
+    _ = _ := by
+      exact pkgMask_gapPivotTsum_fubini S C N (fun x =>
+        poolAverage S C.gap N (fun pNew =>
+          pkgMask_stateIntegrand st S C a N x.1
+            (Function.update x.2 u ((pNew : ℤ) * x.2 u))))
+
 theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -8196,6 +8462,42 @@ theorem pkgMask_stateCoordinateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset
       (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) :=
   pkgMask_stateIntegrand_abs_le st S C a N Jstar gstar hvalid p
     (pkgMask_coordinateJoin u y w)
+
+theorem pkgMask_stateIntegrand_outsideFactor {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (U : Finset (Fin m)) (u : Fin m) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (prime : ℕ) (Ω : ℝ)
+    (hU : U ∈ st.masks) (hu : u ∉ U) (hΩ : Ω ≠ 0) :
+    pkgMask_stateIntegrand st S C a N p
+        (Function.update z u ((prime : ℤ) * z u)) =
+      st.maskFunction U p (∏ k ∈ U, z k) * Ω *
+        (((∏ V ∈ st.masks.erase U, st.maskFunction V p
+            (∏ k ∈ V, Function.update z u ((prime : ℤ) * z u) k)) *
+          ∏ R, atQ (st.rowFunction R p)
+            (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+              fun k => ((Function.update z u ((prime : ℤ) * z u) k : ℤ) : ℚ))) / Ω) := by
+  let z' : Fin m → ℤ := Function.update z u ((prime : ℤ) * z u)
+  let masks' : ℝ := ∏ V ∈ st.masks.erase U,
+    st.maskFunction V p (∏ k ∈ V, z' k)
+  let rows' : ℝ := ∏ R, atQ (st.rowFunction R p)
+    (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+      fun k => (z' k : ℚ))
+  have hmaskFactor :
+      (∏ V ∈ st.masks, st.maskFunction V p (∏ k ∈ V, z' k)) =
+        st.maskFunction U p (∏ k ∈ U, z' k) * masks' := by
+    dsimp [masks']
+    exact (Finset.mul_prod_erase st.masks
+      (fun V => st.maskFunction V p (∏ k ∈ V, z' k)) hU).symm
+  have hselected : (∏ k ∈ U, z' k) = ∏ k ∈ U, z k := by
+    dsimp [z']
+    exact mask_product_update_outside U u hu z ((prime : ℤ) * z u)
+  unfold pkgMask_stateIntegrand
+  change ((∏ V ∈ st.masks, st.maskFunction V p (∏ k ∈ V, z' k)) * rows') = _
+  rw [hmaskFactor, hselected]
+  dsimp [masks', rows']
+  field_simp [hΩ]
+  ring
 
 end MaskRemovalState
 
