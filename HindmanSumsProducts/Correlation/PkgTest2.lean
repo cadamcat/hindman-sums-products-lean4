@@ -7,6 +7,7 @@ namespace HindmanSumsProducts
 
 attribute [local instance] Classical.propDecidable
 
+open scoped BigOperators Topology
 open Filter
 
 theorem c_test2_nonTarget_card {m q r : ℕ} (Sh : RowShape m q r) :
@@ -44,6 +45,404 @@ theorem c_test2_eventually_forall_of_sequences {α : Type*} [Inhabited α]
     · simp only [dif_neg hN]
       exact False.elim (hN ⟨x, hx⟩)
   exact hnot hp
+
+private def c_test2_harmonicIntSupport (X : ℕ) : Finset ℤ :=
+  Finset.Ico (X : ℤ) (X ^ 2 : ℤ)
+
+theorem c_test2_harmonicLaw_support {X W : ℕ} {z : ℤ}
+    (hz : harmonicLaw X W z ≠ 0) :
+    0 ≤ z ∧ (X : ℤ) ≤ z ∧ z < (X ^ 2 : ℤ) := by
+  unfold harmonicLaw at hz
+  by_cases hc : 0 ≤ z ∧ X ≤ z.toNat ∧ z.toNat < X ^ 2 ∧ Nat.Coprime z.toNat W
+  · rcases hc with ⟨hz0, hX, htop, _⟩
+    have hcast : (z.toNat : ℤ) = z := Int.toNat_of_nonneg hz0
+    have hX' : (X : ℤ) ≤ (z.toNat : ℤ) := by exact_mod_cast hX
+    have htop' : (z.toNat : ℤ) < (X ^ 2 : ℤ) := by exact_mod_cast htop
+    exact ⟨hz0, hcast ▸ hX', hcast ▸ htop'⟩
+  · simp [hc] at hz
+
+private theorem c_test2_harmonicLaw_zero_outside {X W : ℕ} {z : ℤ}
+    (hz : z ∉ c_test2_harmonicIntSupport X) : harmonicLaw X W z = 0 := by
+  by_contra hne
+  have hs := c_test2_harmonicLaw_support hne
+  have hm : z ∈ c_test2_harmonicIntSupport X := by
+    simp only [c_test2_harmonicIntSupport, Finset.mem_Ico]
+    exact ⟨hs.2.1, hs.2.2⟩
+  exact hz hm
+
+theorem c_test2_harmonicLaw_nonneg_of_normalizer_pos {X W : ℕ}
+    (hZ : 0 < harmonicNormalizer X W) (z : ℤ) : 0 ≤ harmonicLaw X W z := by
+  unfold harmonicLaw
+  split_ifs <;> positivity
+
+private theorem c_test2_sum_intIco_natCast (A B : ℕ) (f : ℤ → ℝ) :
+    (∑ z ∈ Finset.Ico (A : ℤ) (B : ℤ), f z) =
+      ∑ n ∈ Finset.Ico A B, f (n : ℤ) := by
+  classical
+  have hmap : (Finset.Ico A B).map Nat.castEmbedding = Finset.Ico (A : ℤ) (B : ℤ) := by
+    simpa [Nat.ModEq, Int.ModEq, Nat.mod_one, Int.emod_one] using
+      (Nat.Ico_filter_modEq_cast A B (r := 1) (v := 0))
+  rw [← hmap]
+  simp
+
+private theorem c_test2_tsum_intIco_natCast (A B : ℕ) (f : ℤ → ℝ)
+    (hzero : ∀ z, z ∉ Finset.Ico (A : ℤ) (B : ℤ) → f z = 0) :
+    (∑' z : ℤ, f z) = ∑ n ∈ Finset.Ico A B, f (n : ℤ) := by
+  calc
+    (∑' z : ℤ, f z) = ∑ z ∈ Finset.Ico (A : ℤ) (B : ℤ), f z :=
+      tsum_eq_sum (s := Finset.Ico (A : ℤ) (B : ℤ)) hzero
+    _ = ∑ n ∈ Finset.Ico A B, f (n : ℤ) := c_test2_sum_intIco_natCast A B f
+
+theorem c_test2_harmonicLaw_tsum_one {X W : ℕ} (hX : 0 < X)
+    (hZ : 0 < harmonicNormalizer X W) :
+    ∑' z : ℤ, harmonicLaw X W z = 1 := by
+  have hzero : ∀ z, z ∉ c_test2_harmonicIntSupport X → harmonicLaw X W z = 0 :=
+    fun z hz => c_test2_harmonicLaw_zero_outside hz
+  calc
+    (∑' z : ℤ, harmonicLaw X W z) =
+        ∑ n ∈ Finset.Ico X (X ^ 2), harmonicLaw X W (n : ℤ) := by
+          simpa [c_test2_harmonicIntSupport] using
+            c_test2_tsum_intIco_natCast X (X ^ 2) (harmonicLaw X W) hzero
+    _ = ∑ n ∈ (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W),
+          1 / ((n : ℝ) * harmonicNormalizer X W) := by
+        calc
+          _ = ∑ n ∈ Finset.Ico X (X ^ 2),
+                if Nat.Coprime n W then
+                  1 / ((n : ℝ) * harmonicNormalizer X W) else 0 := by
+            apply Finset.sum_congr rfl
+            intro n hn
+            have hn' := Finset.mem_Ico.mp hn
+            have hformula : harmonicLaw X W (n : ℤ) =
+                if Nat.Coprime n W then
+                  1 / ((n : ℝ) * harmonicNormalizer X W) else 0 := by
+              unfold harmonicLaw
+              simp [hn'.1, hn'.2, Int.toNat_natCast]
+            exact hformula
+          _ = ∑ n ∈ (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W),
+                1 / ((n : ℝ) * harmonicNormalizer X W) := by
+            rw [← Finset.sum_filter]
+    _ = (1 / harmonicNormalizer X W) *
+          ∑ n ∈ (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W),
+            1 / (n : ℝ) := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro n hn
+      have hnI : n ∈ Finset.Ico X (X ^ 2) := (Finset.mem_filter.mp hn).1
+      have hnpos : 0 < (n : ℝ) := by
+        exact_mod_cast (lt_of_lt_of_le hX (Finset.mem_Ico.mp hnI).1)
+      field_simp [ne_of_gt hZ, ne_of_gt hnpos]
+    _ = 1 := by
+      change (1 / harmonicNormalizer X W) * harmonicNormalizer X W = 1
+      field_simp [ne_of_gt hZ]
+
+private def c_test2_piFinsetSubtypeEquiv {α : Type*} [Fintype α] [DecidableEq α]
+    {β : Type*} (S : α → Finset β) :
+    {f : α → β // f ∈ Fintype.piFinset S} ≃ (∀ i, {x : β // x ∈ S i}) where
+  toFun f i := ⟨f.1 i, (Fintype.mem_piFinset.mp f.2 i)⟩
+  invFun f := ⟨fun i => (f i).1, Fintype.mem_piFinset.mpr (fun i => (f i).2)⟩
+  left_inv := by
+    intro f
+    apply Subtype.ext
+    funext i
+    rfl
+  right_inv := by
+    intro f
+    funext i
+    apply Subtype.ext
+    rfl
+
+theorem c_test2_harmonicProductMass_tsum_one {α : Type*} [Fintype α] [DecidableEq α]
+    (X : α → ℕ) (W : ℕ) (hX : ∀ i, 0 < X i)
+    (hZ : ∀ i, 0 < harmonicNormalizer (X i) W) :
+    ∑' z : α → ℤ, ∏ i, harmonicLaw (X i) W (z i) = 1 := by
+  classical
+  let support : α → Finset ℤ := fun i => c_test2_harmonicIntSupport (X i)
+  let domain : Finset (α → ℤ) := Fintype.piFinset support
+  have hzero : ∀ z ∉ domain, ∏ i, harmonicLaw (X i) W (z i) = 0 := by
+    intro z hz
+    have hnot : ¬ ∀ i, z i ∈ support i := by
+      intro hall
+      exact hz (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hLaw : harmonicLaw (X i) W (z i) = 0 :=
+      c_test2_harmonicLaw_zero_outside (by simpa [support] using hi)
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+  have hsum :
+      (∑' z : α → ℤ, ∏ i, harmonicLaw (X i) W (z i)) =
+        ∑ z ∈ domain, ∏ i, harmonicLaw (X i) W (z i) :=
+    tsum_eq_sum (s := domain) hzero
+  have hattach : (∑ z ∈ domain, ∏ i, harmonicLaw (X i) W (z i)) =
+      ∑ z : domain, ∏ i, harmonicLaw (X i) W (z.1 i) := by
+    rw [← Finset.sum_attach]
+    simp
+  rw [hsum, hattach]
+  let e := c_test2_piFinsetSubtypeEquiv support
+  have htransport :
+      (∑ z : domain, ∏ i, harmonicLaw (X i) W (z.1 i)) =
+        ∑ z : (∀ i, {x : ℤ // x ∈ support i}),
+          ∏ i, harmonicLaw (X i) W (z i).1 := by
+    apply Fintype.sum_equiv e
+    intro z
+    simp [e, c_test2_piFinsetSubtypeEquiv]
+  rw [htransport]
+  have hfactor : ∀ i, (∑ x : {x : ℤ // x ∈ support i},
+      harmonicLaw (X i) W x.1) = 1 := by
+    intro i
+    let f : ℤ → ℝ := harmonicLaw (X i) W
+    have hsumi : (∑ x : {x : ℤ // x ∈ support i}, f x.1) =
+        ∑ x ∈ support i, f x := by
+      rw [← Finset.sum_subtype (s := support i) (h := fun _ => Iff.rfl)]
+    have htsum : (∑' x : ℤ, f x) = ∑ x ∈ support i, f x := by
+      apply tsum_eq_sum (s := support i)
+      intro x hx
+      exact c_test2_harmonicLaw_zero_outside (by simpa [f, support] using hx)
+    rw [hsumi, ← htsum]
+    exact c_test2_harmonicLaw_tsum_one (hX i) (hZ i)
+  calc
+    (∑ x : ∀ i, {x : ℤ // x ∈ support i},
+        ∏ i, harmonicLaw (X i) W (x i).1) =
+      ∏ i, ∑ x : {x : ℤ // x ∈ support i}, harmonicLaw (X i) W x.1 := by
+        symm
+        exact Fintype.prod_sum fun i (x : {x : ℤ // x ∈ support i}) =>
+          harmonicLaw (X i) W x.1
+    _ = 1 := by
+      have hfactorAttach : ∀ i, (∑ x ∈ (support i).attach,
+          harmonicLaw (X i) W x.1) = 1 := by
+        intro i
+        simpa using hfactor i
+      simp [hfactorAttach]
+
+private theorem c_test2_productMass_tsum_one {α : Type*} [Fintype α] [DecidableEq α]
+    (f : α → ℕ → ℝ) (S : α → Finset ℕ)
+    (hzero : ∀ i n, n ∉ S i → f i n = 0)
+    (hmass : ∀ i, ∑' n : ℕ, f i n = 1) :
+    ∑' z : α → ℕ, ∏ i, f i (z i) = 1 := by
+  classical
+  let domain : Finset (α → ℕ) := Fintype.piFinset S
+  have hzeroProd : ∀ z ∉ domain, ∏ i, f i (z i) = 0 := by
+    intro z hz
+    have hnot : ¬ ∀ i, z i ∈ S i := by
+      intro hall
+      exact hz (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hzero i (z i) hi)
+  have hsum : (∑' z : α → ℕ, ∏ i, f i (z i)) =
+      ∑ z ∈ domain, ∏ i, f i (z i) := tsum_eq_sum (s := domain) hzeroProd
+  have hattach : (∑ z ∈ domain, ∏ i, f i (z i)) =
+      ∑ z : domain, ∏ i, f i (z.1 i) := by
+    rw [← Finset.sum_attach]
+    simp
+  rw [hsum, hattach]
+  let e := c_test2_piFinsetSubtypeEquiv S
+  have htransport :
+      (∑ z : domain, ∏ i, f i (z.1 i)) =
+        ∑ z : (∀ i, {x : ℕ // x ∈ S i}), ∏ i, f i (z i).1 := by
+    apply Fintype.sum_equiv e
+    intro z
+    simp [e, c_test2_piFinsetSubtypeEquiv]
+  rw [htransport]
+  have hfactor : ∀ i, (∑ x : {x : ℕ // x ∈ S i}, f i x.1) = 1 := by
+    intro i
+    have hsumI : (∑ x : {x : ℕ // x ∈ S i}, f i x.1) =
+        ∑ x ∈ S i, f i x := by
+      rw [← Finset.sum_subtype (s := S i) (h := fun _ => Iff.rfl)]
+    have htsum : (∑' x : ℕ, f i x) = ∑ x ∈ S i, f i x := by
+      apply tsum_eq_sum (s := S i)
+      intro x hx
+      exact hzero i x hx
+    rw [hsumI, ← htsum]
+    exact hmass i
+  calc
+    (∑ x : ∀ i, {x : ℕ // x ∈ S i}, ∏ i, f i (x i).1) =
+      ∏ i, ∑ x : {x : ℕ // x ∈ S i}, f i x.1 := by
+        symm
+        exact Fintype.prod_sum fun i (x : {x : ℕ // x ∈ S i}) => f i x.1
+    _ = 1 := by
+      have hfactorAttach : ∀ i, (∑ x ∈ (S i).attach, f i x.1) = 1 := by
+        intro i
+        simpa using hfactor i
+      simp [hfactorAttach]
+
+private theorem c_test2_primePoolLaw_zero_outside (lo hi p : ℕ)
+    (hp : p ∉ Finset.Ico lo hi) : primePoolLaw lo hi p = 0 := by
+  unfold primePoolLaw
+  split_ifs with h
+  · exact (hp (Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩)).elim
+  · rfl
+
+private theorem c_test2_primePoolLaw_tsum_one (lo hi : ℕ)
+    (hpos : 0 < primePoolMass lo hi) :
+    ∑' p : ℕ, primePoolLaw lo hi p = 1 := by
+  have hzero : ∀ p, p ∉ Finset.Ico lo hi → primePoolLaw lo hi p = 0 :=
+    fun p hp => c_test2_primePoolLaw_zero_outside lo hi p hp
+  calc
+    (∑' p : ℕ, primePoolLaw lo hi p) =
+        ∑ p ∈ Finset.Ico lo hi, primePoolLaw lo hi p :=
+      tsum_eq_sum (s := Finset.Ico lo hi) hzero
+    _ = ∑ p ∈ (Finset.Ico lo hi).filter Nat.Prime,
+          (1 / (p : ℝ)) / primePoolMass lo hi := by
+      calc
+        _ = ∑ p ∈ Finset.Ico lo hi,
+              if p.Prime then (1 / (p : ℝ)) / primePoolMass lo hi else 0 := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          simp [primePoolLaw, Finset.mem_Ico.mp hp]
+        _ = ∑ p ∈ (Finset.Ico lo hi).filter Nat.Prime,
+              (1 / (p : ℝ)) / primePoolMass lo hi := by
+          rw [← Finset.sum_filter]
+    _ = (∑ p ∈ (Finset.Ico lo hi).filter Nat.Prime, 1 / (p : ℝ)) /
+          primePoolMass lo hi := by rw [Finset.sum_div]
+    _ = 1 := by
+      change primePoolMass lo hi / primePoolMass lo hi = 1
+      exact div_self (ne_of_gt hpos)
+
+private theorem c_test2_primePoolLaw_nonneg (lo hi p : ℕ)
+    (hpos : 0 < primePoolMass lo hi) : 0 ≤ primePoolLaw lo hi p := by
+  unfold primePoolLaw
+  split_ifs with h
+  · rcases h with ⟨_, _, hp⟩
+    have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+    exact div_nonneg (div_nonneg (by positivity) (le_of_lt hpR)) (le_of_lt hpos)
+  · simp
+
+private theorem c_test2_primePoolMass_nonneg (lo hi : ℕ) :
+    0 ≤ primePoolMass lo hi := by
+  unfold primePoolMass
+  apply Finset.sum_nonneg
+  intro p hp
+  exact one_div_nonneg.mpr (Nat.cast_nonneg p)
+
+private theorem c_test2_primePoolLaw_nonneg_any (lo hi p : ℕ) :
+    0 ≤ primePoolLaw lo hi p := by
+  unfold primePoolLaw
+  split_ifs with h
+  · exact div_nonneg (one_div_nonneg.mpr (Nat.cast_nonneg p))
+      (c_test2_primePoolMass_nonneg lo hi)
+  · simp
+
+theorem c_test2_independentPrimePoolMass_zero_outside {q : ℕ}
+    (lo hi : Fin q → ℕ) (p : Fin q → ℕ)
+    (hp : p ∉ Fintype.piFinset (fun i => Finset.Ico (lo i) (hi i))) :
+    independentPrimePoolMass lo hi p = 0 := by
+  classical
+  have hnot : ¬ ∀ i, p i ∈ Finset.Ico (lo i) (hi i) := by
+    intro hall
+    exact hp (Fintype.mem_piFinset.mpr hall)
+  obtain ⟨i, hidx⟩ := not_forall.mp hnot
+  unfold independentPrimePoolMass
+  apply Finset.prod_eq_zero (Finset.mem_univ i)
+  exact c_test2_primePoolLaw_zero_outside (lo i) (hi i) (p i) hidx
+
+private theorem c_test2_independentMass_nonneg {q : ℕ}
+    (lo hi : Fin q → ℕ) (hpos : ∀ i, 0 < primePoolMass (lo i) (hi i))
+    (p : Fin q → ℕ) : 0 ≤ independentPrimePoolMass lo hi p := by
+  unfold independentPrimePoolMass
+  apply Finset.prod_nonneg
+  intro i _
+  exact c_test2_primePoolLaw_nonneg (lo i) (hi i) (p i) (hpos i)
+
+theorem c_test2_independentPrimePoolProbability_nonneg {q : ℕ}
+    (lo hi : Fin q → ℕ) (E : (Fin q → ℕ) → Prop) :
+    0 ≤ independentPrimePoolProbability lo hi E := by
+  classical
+  unfold independentPrimePoolProbability
+  apply tsum_nonneg
+  intro p
+  unfold independentPrimePoolMass
+  apply mul_nonneg
+  · apply Finset.prod_nonneg
+    intro i _
+    exact c_test2_primePoolLaw_nonneg_any (lo i) (hi i) (p i)
+  · split_ifs <;> positivity
+
+private theorem c_test2_independentProbability_summable {q : ℕ}
+    (lo hi : Fin q → ℕ) (E : (Fin q → ℕ) → Prop) :
+    Summable (fun p => independentPrimePoolMass lo hi p * if E p then 1 else 0) := by
+  classical
+  apply summable_of_ne_finset_zero
+    (s := Fintype.piFinset (fun i => Finset.Ico (lo i) (hi i)))
+  intro p hp
+  rw [c_test2_independentPrimePoolMass_zero_outside lo hi p hp]
+  simp
+
+private theorem c_test2_independentMass_tsum_one {q : ℕ}
+    (lo hi : Fin q → ℕ) (hpos : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
+    ∑' p : Fin q → ℕ, independentPrimePoolMass lo hi p = 1 := by
+  let f : Fin q → ℕ → ℝ := fun i n => primePoolLaw (lo i) (hi i) n
+  let S : Fin q → Finset ℕ := fun i => Finset.Ico (lo i) (hi i)
+  have hzero : ∀ i n, n ∉ S i → f i n = 0 := by
+    intro i n hn
+    exact c_test2_primePoolLaw_zero_outside (lo i) (hi i) n (by simpa [S] using hn)
+  have hsum : ∀ i, ∑' n : ℕ, f i n = 1 := by
+    intro i
+    exact c_test2_primePoolLaw_tsum_one (lo i) (hi i) (hpos i)
+  simpa [independentPrimePoolMass, f] using c_test2_productMass_tsum_one f S hzero hsum
+
+private theorem c_test2_independentProbability_add_compl {q : ℕ}
+    (lo hi : Fin q → ℕ) (hpos : ∀ i, 0 < primePoolMass (lo i) (hi i))
+    (E : (Fin q → ℕ) → Prop) :
+    independentPrimePoolProbability lo hi E +
+      independentPrimePoolProbability lo hi (fun p => ¬ E p) = 1 := by
+  classical
+  letI : DecidablePred E := fun p => Classical.propDecidable (E p)
+  letI : DecidablePred (fun p : Fin q → ℕ => ¬ E p) :=
+    fun p => Classical.propDecidable (¬ E p)
+  have hE := c_test2_independentProbability_summable lo hi E
+  have hNot := c_test2_independentProbability_summable lo hi (fun p => ¬ E p)
+  calc
+    independentPrimePoolProbability lo hi E +
+        independentPrimePoolProbability lo hi (fun p => ¬ E p) =
+      ∑' p, ((independentPrimePoolMass lo hi p * if E p then 1 else 0) +
+        (independentPrimePoolMass lo hi p * if ¬ E p then 1 else 0)) := by
+          unfold independentPrimePoolProbability
+          exact (hE.tsum_add hNot).symm
+    _ = ∑' p, independentPrimePoolMass lo hi p := by
+      apply tsum_congr
+      intro p
+      by_cases hp : E p <;> simp [hp]
+    _ = 1 := c_test2_independentMass_tsum_one lo hi hpos
+
+theorem c_test2_goodSlotProbability_pos_eventually {K s q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K)
+    (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q)
+    (hbad : Tendsto (fun N => gapSlotProbability S l N
+      (fun p => ¬ GoodTuple S l N tests Dpoly p)) atTop (𝓝 0)) :
+    ∀ᶠ N in atTop, 0 < gapSlotProbability S l N
+      (fun p => GoodTuple S l N tests Dpoly p) := by
+  have hpool : ∀ᶠ N in atTop,
+      0 < primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper := by
+    have hlarge :=
+      (S.primeStage.pool_harmonic_mass_dominates l 1 (by norm_num)).eventually_ge_atTop 1
+    filter_upwards [hlarge] with N hN
+    have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+      unfold FromArithmetic.masterScaleV
+      positivity
+    have hratio : 1 ≤ (primePoolMass (S.primeStage.pool N l).lower
+        (S.primeStage.pool N l).upper : ℝ) /
+        (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+      simpa [Real.rpow_one] using hN
+    have hm := (le_div_iff₀ hV).mp hratio
+    have hm' : (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ≤
+        primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper := by
+      simpa using hm
+    have hmpos : 0 < (primePoolMass (S.primeStage.pool N l).lower
+        (S.primeStage.pool N l).upper : ℝ) := lt_of_lt_of_le hV hm'
+    exact_mod_cast hmpos
+  have hbadlt : ∀ᶠ N in atTop,
+      gapSlotProbability S l N (fun p => ¬ GoodTuple S l N tests Dpoly p) < 1 := by
+    have h := hbad.eventually (Iio_mem_nhds (by norm_num : (0 : ℝ) < 1))
+    exact h
+  filter_upwards [hpool, hbadlt] with N hpoolN hbadN
+  have hsplit := c_test2_independentProbability_add_compl
+    (fun _ : Fin q => (S.primeStage.pool N l).lower)
+    (fun _ => (S.primeStage.pool N l).upper) (fun _ => hpoolN)
+    (fun p => GoodTuple S l N tests Dpoly p)
+  have hsplit' :
+      gapSlotProbability S l N (fun p => GoodTuple S l N tests Dpoly p) +
+        gapSlotProbability S l N (fun p => ¬ GoodTuple S l N tests Dpoly p) = 1 := by
+    simpa [gapSlotProbability] using hsplit
+  linarith
 
 /-- A one-row witness can be padded by a harmless singleton row. The singleton support differs
 from the distinguished support, which has at least two coordinates. -/
@@ -437,7 +836,7 @@ private theorem c_test2_scaleRatioNat {K s m : ℕ}
   have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
   exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
 
-private theorem c_test2_masterSize_le_pivotGap_eventually {K s m : ℕ}
+theorem c_test2_masterSize_le_pivotGap_eventually {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (d : Fin m) (hgap : C.gap < (C.block d).1) :
@@ -462,7 +861,7 @@ private theorem c_test2_masterSize_le_pivotGap_eventually {K s m : ℕ}
     S.gapStage.earlier_gaps_divide N C.gap (C.block d).1 hgap
   exact hsizeLe.trans (Nat.le_of_dvd (A.Hpos N (C.block d).1) hdiv)
 
-private theorem c_test2_previous_le_gap_eventually {n : ℕ}
+theorem c_test2_previous_le_gap_eventually {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (i : Fin n) :
     ∀ᶠ N in atTop,
       OAI.SourceAdmissible.previous (A.X N) i ≤ A.H N i := by
@@ -482,7 +881,7 @@ private theorem c_test2_previous_le_gap_eventually {n : ℕ}
     linarith
   exact_mod_cast hprev
 
-private theorem c_test2_pivot_cutoff_le_previous {n m : ℕ}
+theorem c_test2_pivot_cutoff_le_previous {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m)
     (u d : Fin m) (hud : u < d) (N : ℕ) :
     A.X N (C.block u).1 ≤ OAI.SourceAdmissible.previous (A.X N) (C.block d).1 := by
@@ -815,6 +1214,68 @@ theorem c_test2_alphaFromGoodTuple_spec {K s m q : ℕ}
     ⟨_, _, hkpos, hbpos, hWb, hkW, hbk, hkbound, hbBound, _⟩
   exact ⟨hkpos, hbpos, hWb, hkW, hbk, hkbound, hbBound⟩
 
+theorem c_test2_alphaFromGoodTuple_coefficients {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) (T : RowTemplate m q)
+    (Jstar : Finset (Fin m)) (hstar : T.support = Jstar)
+    (j : Fin m) (hj : j ∈ Jstar) (hja : j < T.anchor)
+    (p : Fin q → ℕ) (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q)
+    (hgood : GoodTuple S C.gap N tests Dpoly p)
+    (hpool : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+      (S.primeStage.pool N C.gap).lower)
+    (hscale : c_test2_ScaleData S C a N) :
+    (∀ i, c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+        hgood hpool hscale i ≤
+      ((S.primeStage.pool N C.gap).upper +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap) ^
+          (c_test2_rowExponent T + 1)) ∧
+    (∀ i, i < T.anchor → primorial (N + 1) ∣
+      c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+        hgood hpool hscale i) ∧
+    ∀ i, (Classical.choose hscale i : ℚ) /
+        (Classical.choose hscale T.anchor : ℚ) * T.value p i =
+          (c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+            hgood hpool hscale i : ℚ) := by
+  classical
+  rw [c_test2_alphaFromGoodTuple_eq_choose]
+  let hcoeff := c_test2_goodTupleCoeffData S C a N T Jstar hstar j hj hja p tests Dpoly
+    hgood hpool (Classical.choose hscale)
+      (Classical.choose_spec hscale).2.1 (Classical.choose_spec hscale).2.2.1
+      (Classical.choose_spec hscale).2.2.2
+  rcases Classical.choose_spec hcoeff with
+    ⟨hbound, hdiv, _, _, _, _, _, _, _, hidentity⟩
+  exact ⟨hbound, hdiv, hidentity⟩
+
+theorem c_test2_rowForm_eq_coeff_sum {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (z : Fin m → ℤ)
+    (alpha : Fin m → ℕ)
+    (hcoeff : ∀ i, c i / c T.anchor * T.value p i = (alpha i : ℚ)) :
+    rowForm c T p (fun i => (z i : ℚ)) =
+      ∑ i, (alpha i : ℚ) * (z i : ℚ) := by
+  unfold rowForm
+  apply Finset.sum_congr rfl
+  intro i hi
+  rw [hcoeff i]
+
+theorem c_test2_targetAlpha_zero_after_anchor {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (c : Fin m → ℚ) (alpha : Fin m → ℕ)
+    (hcoeff : ∀ i, c i / c T.anchor * T.value p i = (alpha i : ℚ))
+    (i : Fin m) (hi : T.anchor < i) : alpha i = 0 := by
+  have hnone : T.entry i = none := by
+    by_contra hsome
+    obtain ⟨e, he⟩ : ∃ e, T.entry i = some e := by
+      cases h : T.entry i with
+      | none => exact (hsome h).elim
+      | some e => exact ⟨e, rfl⟩
+    have hmem : i ∈ T.support := by
+      simpa [RowTemplate.support, he]
+    have hle : i ≤ T.anchor := Finset.le_max' T.support i hmem
+    omega
+  have hval : T.value p i = 0 := by simp [RowTemplate.value, hnone]
+  have hcast : (alpha i : ℚ) = 0 := by simpa [hval] using (hcoeff i).symm
+  exact_mod_cast hcast
+
 structure CTest2RootPair {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
@@ -888,8 +1349,9 @@ noncomputable def c_test2_rootPairAt {K s m q : ℕ}
           p tests Dpoly hg hp hs
         have hspec := c_test2_alphaFromGoodTuple_spec S C a N T Jstar hstar j hj hja
           p tests Dpoly hg hp hs
-        rcases hspec with ⟨hkpos, hbpos, hWb, hkW, hbk, hkbound, hbBound⟩
-        exact ⟨alpha T.anchor, alpha j, hkpos, hbpos, hWb, hkW, hbk, hkbound, hbBound⟩
+        exact ⟨alpha T.anchor, alpha j, hspec.1, hspec.2.1, hspec.2.2.1,
+          hspec.2.2.2.1, hspec.2.2.2.2.1, hspec.2.2.2.2.2.1,
+          hspec.2.2.2.2.2.2⟩
       · exact c_test2_defaultRootPair S C T T.anchor j N p
     · exact c_test2_defaultRootPair S C T T.anchor j N p
   · exact c_test2_defaultRootPair S C T T.anchor j N p
@@ -923,6 +1385,290 @@ theorem c_test2_rootPairAt_properties {K s m q : ℕ}
     (c_test2_rootPairAt S C a T Jstar hstar j hj hja tests Dpoly N p).b_coprime_k,
     (c_test2_rootPairAt S C a T Jstar hstar j hj hja tests Dpoly N p).k_bound,
     (c_test2_rootPairAt S C a T Jstar hstar j hj hja tests Dpoly N p).b_bound⟩
+
+theorem c_test2_rootPairAt_matches_good_alpha {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (T : RowTemplate m q) (Jstar : Finset (Fin m))
+    (hstar : T.support = Jstar) (j : Fin m) (hj : j ∈ Jstar) (hja : j < T.anchor)
+    (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q)
+    (N : ℕ) (p : Fin q → ℕ) (hgood : GoodTuple S C.gap N tests Dpoly p)
+    (hscale : c_test2_ScaleData S C a N)
+    (hpool : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+      (S.primeStage.pool N C.gap).lower) :
+    (c_test2_rootPairAt S C a T Jstar hstar j hj hja tests Dpoly N p).k =
+        c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+          hgood hpool hscale T.anchor ∧
+      (c_test2_rootPairAt S C a T Jstar hstar j hj hja tests Dpoly N p).b =
+        c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+          hgood hpool hscale j := by
+  simp [c_test2_rootPairAt, hgood, hscale, hpool]
+
+abbrev CTest2OtherPivot {m : ℕ} (a j : Fin m) :=
+  {i : Fin m // i ≠ a ∧ i ≠ j}
+
+noncomputable def c_test2_pivotIndexEquiv {m : ℕ} (a j : Fin m) (haj : a ≠ j) :
+    Fin m ≃ Fin 2 ⊕ CTest2OtherPivot a j := by
+  classical
+  let encode : Fin m → Fin 2 ⊕ CTest2OtherPivot a j := fun i =>
+    if ha : i = a then Sum.inl 0
+    else if hj : i = j then Sum.inl 1
+    else Sum.inr ⟨i, ha, hj⟩
+  refine {
+    toFun := encode
+    invFun := fun x => match x with
+      | Sum.inl b => if b = 0 then a else j
+      | Sum.inr i => i.1
+    left_inv := ?_
+    right_inv := ?_ }
+  · intro i
+    by_cases hia : i = a
+    · simp [encode, hia]
+    · by_cases hij : i = j
+      · subst i
+        simp [encode, haj.symm]
+      · simp [encode, hia, hij]
+  · intro x
+    rcases x with b | i
+    · fin_cases b <;> simp [encode, haj.symm]
+    · simp [encode, i.2.1, i.2.2]
+
+noncomputable def c_test2_pivotPairRestEquiv {m : ℕ} (a j : Fin m) (haj : a ≠ j) :
+    (Fin m → ℤ) ≃ ((ℤ × ℤ) × (CTest2OtherPivot a j → ℤ)) := by
+  let idx := c_test2_pivotIndexEquiv a j haj
+  exact (Equiv.arrowCongr idx (Equiv.refl ℤ)).trans
+    ((Equiv.sumArrowEquivProdArrow (Fin 2) (CTest2OtherPivot a j) ℤ).trans
+      ((piFinTwoEquiv (fun _ : Fin 2 => ℤ)).prodCongr (Equiv.refl _)))
+
+@[simp]
+theorem c_test2_pivotPairRestEquiv_apply_anchor {m : ℕ} (a j : Fin m) (haj : a ≠ j)
+    (z : Fin m → ℤ) :
+    (c_test2_pivotPairRestEquiv a j haj z).1.1 = z a := by
+  simp [c_test2_pivotPairRestEquiv, c_test2_pivotIndexEquiv, haj]
+
+@[simp]
+theorem c_test2_pivotPairRestEquiv_apply_j {m : ℕ} (a j : Fin m) (haj : a ≠ j)
+    (z : Fin m → ℤ) :
+    (c_test2_pivotPairRestEquiv a j haj z).1.2 = z j := by
+  simp [c_test2_pivotPairRestEquiv, c_test2_pivotIndexEquiv, haj]
+
+@[simp]
+theorem c_test2_pivotPairRestEquiv_apply_other {m : ℕ} (a j : Fin m) (haj : a ≠ j)
+    (z : Fin m → ℤ) (i : CTest2OtherPivot a j) :
+    (c_test2_pivotPairRestEquiv a j haj z).2 i = z i.1 := by
+  simp [c_test2_pivotPairRestEquiv, c_test2_pivotIndexEquiv, i.2]
+
+theorem c_test2_pivotMass_factor {n m : ℕ} (A : OAI.SourceAdmissible.Parameters n)
+    (C : MasterChain n m) (N : ℕ) (a j : Fin m) (haj : a ≠ j)
+    (z : Fin m → ℤ) :
+    pivotMass A C N z =
+      harmonicLaw (A.X N (C.block a).1) (primorial (N + 1)) (z a) *
+        harmonicLaw (A.X N (C.block j).1) (primorial (N + 1)) (z j) *
+          ∏ i : CTest2OtherPivot a j,
+            harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+  classical
+  let idx := c_test2_pivotIndexEquiv a j haj
+  unfold pivotMass
+  rw [← idx.symm.prod_comp (fun i : Fin m =>
+    harmonicLaw (A.X N (C.block i).1) (primorial (N + 1)) (z i))]
+  rw [Fintype.prod_sum_type]
+  simp [idx, c_test2_pivotIndexEquiv, haj, Fin.prod_univ_two]
+
+theorem c_test2_alphaWeightedSum_split {m : ℕ} (a j : Fin m) (haj : a ≠ j)
+    (alpha : Fin m → ℕ) (z : Fin m → ℤ) :
+    (∑ i : Fin m, (alpha i : ℤ) * z i) =
+      (alpha a : ℤ) * z a + (alpha j : ℤ) * z j +
+        ∑ i : CTest2OtherPivot a j, (alpha i.1 : ℤ) * z i.1 := by
+  classical
+  let idx := c_test2_pivotIndexEquiv a j haj
+  rw [← Equiv.sum_comp idx.symm (fun i : Fin m => (alpha i : ℤ) * z i)]
+  rw [Fintype.sum_sum_type]
+  simp [idx, c_test2_pivotIndexEquiv, haj, Fin.sum_univ_two, add_assoc, add_comm, add_left_comm]
+
+noncomputable def c_test2_restPivotMass {n m : ℕ} (A : OAI.SourceAdmissible.Parameters n)
+    (C : MasterChain n m) (N : ℕ) (a j : Fin m)
+    (r : CTest2OtherPivot a j → ℤ) : ℝ :=
+  ∏ i : CTest2OtherPivot a j,
+    harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (r i)
+
+theorem c_test2_restPivotMass_tsum_one {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (a j : Fin m) (haj : a ≠ j)
+    (hZ : ∀ i : CTest2OtherPivot a j,
+      0 < harmonicNormalizer (A.X N (C.block i.1).1) (primorial (N + 1))) :
+    ∑' r : CTest2OtherPivot a j → ℤ, c_test2_restPivotMass A C N a j r = 1 := by
+  unfold c_test2_restPivotMass
+  apply c_test2_harmonicProductMass_tsum_one
+  · intro i
+    exact A.Xpos N (C.block i.1).1
+  · exact hZ
+
+theorem c_test2_restPivotMass_nonneg {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (a j : Fin m) (haj : a ≠ j)
+    (hZ : ∀ i : CTest2OtherPivot a j,
+      0 < harmonicNormalizer (A.X N (C.block i.1).1) (primorial (N + 1)))
+    (r : CTest2OtherPivot a j → ℤ) : 0 ≤ c_test2_restPivotMass A C N a j r := by
+  unfold c_test2_restPivotMass
+  apply Finset.prod_nonneg
+  intro i _
+  exact c_test2_harmonicLaw_nonneg_of_normalizer_pos (hZ i) (r i)
+
+theorem c_test2_restPivotMass_summable {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (a j : Fin m) (haj : a ≠ j) :
+    Summable (c_test2_restPivotMass A C N a j) := by
+  classical
+  let support : CTest2OtherPivot a j → Finset ℤ := fun i =>
+    c_test2_harmonicIntSupport (A.X N (C.block i.1).1)
+  apply summable_of_ne_finset_zero (s := Fintype.piFinset support)
+  intro r hr
+  have hnot : ¬ ∀ i, r i ∈ support i := by
+    intro hall
+    exact hr (Fintype.mem_piFinset.mpr hall)
+  obtain ⟨i, hi⟩ := not_forall.mp hnot
+  have hLaw : harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (r i) = 0 :=
+    c_test2_harmonicLaw_zero_outside (by simpa [support] using hi)
+  unfold c_test2_restPivotMass
+  exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+
+theorem c_test2_pivotMass_tsum_split {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (a j : Fin m) (haj : a ≠ j) (F : (Fin m → ℤ) → ℝ) :
+    (∑' z : Fin m → ℤ, pivotMass A C N z * F z) =
+      ∑' r : CTest2OtherPivot a j → ℤ,
+        c_test2_restPivotMass A C N a j r *
+          ∑' za : ℤ, ∑' zj : ℤ,
+            harmonicLaw (A.X N (C.block a).1) (primorial (N + 1)) za *
+              harmonicLaw (A.X N (C.block j).1) (primorial (N + 1)) zj *
+                F ((c_test2_pivotPairRestEquiv a j haj).symm ((za, zj), r)) := by
+  classical
+  let Rest := CTest2OtherPivot a j
+  let e0 := c_test2_pivotPairRestEquiv a j haj
+  let e : (Fin m → ℤ) ≃ ((Rest → ℤ) × (ℤ × ℤ)) :=
+    e0.trans (Equiv.prodComm _ _)
+  let μa : ℤ → ℝ := harmonicLaw (A.X N (C.block a).1) (primorial (N + 1))
+  let μj : ℤ → ℝ := harmonicLaw (A.X N (C.block j).1) (primorial (N + 1))
+  let μr : (Rest → ℤ) → ℝ := c_test2_restPivotMass A C N a j
+  let supportR : Finset (Rest → ℤ) := Fintype.piFinset fun i : Rest =>
+    c_test2_harmonicIntSupport (A.X N (C.block i.1).1)
+  let supportA := c_test2_harmonicIntSupport (A.X N (C.block a).1)
+  let supportJ := c_test2_harmonicIntSupport (A.X N (C.block j).1)
+  let support : Finset ((Rest → ℤ) × (ℤ × ℤ)) :=
+    supportR.product (supportA.product supportJ)
+  let integrand : (Rest → ℤ) × (ℤ × ℤ) → ℝ := fun t =>
+    μr t.1 * μa t.2.1 * μj t.2.2 * F (e.symm t)
+  have hcoords (r : Rest → ℤ) (za zj : ℤ) :
+      e0 (e.symm (r, (za, zj))) = ((za, zj), r) := by
+    have h := e.apply_symm_apply (r, (za, zj))
+    have h' : Equiv.prodComm (ℤ × ℤ) (Rest → ℤ)
+        (e0 (e.symm (r, (za, zj)))) = (r, (za, zj)) := by
+      simpa [e] using h
+    exact (Equiv.prodComm (ℤ × ℤ) (Rest → ℤ)).injective h'
+  have hfactor (r : Rest → ℤ) (za zj : ℤ) :
+      pivotMass A C N (e.symm (r, (za, zj))) =
+        μr r * μa za * μj zj := by
+    calc
+      pivotMass A C N (e.symm (r, (za, zj))) = μa za * μj zj * μr r := by
+        rw [c_test2_pivotMass_factor A C N a j haj]
+        have h := hcoords r za zj
+        have hza : (e.symm (r, (za, zj))) a = za := by
+          have h' := congrArg (fun x => x.1.1) h
+          change (c_test2_pivotPairRestEquiv a j haj (e.symm (r, (za, zj)))).1.1 = za at h'
+          simpa using h'
+        have hzj : (e.symm (r, (za, zj))) j = zj := by
+          have h' := congrArg (fun x => x.1.2) h
+          change (c_test2_pivotPairRestEquiv a j haj (e.symm (r, (za, zj)))).1.2 = zj at h'
+          simpa using h'
+        have hrest (i : Rest) : (e.symm (r, (za, zj))) i.1 = r i := by
+          have h' := congrArg (fun x => x.2 i) h
+          change (c_test2_pivotPairRestEquiv a j haj (e.symm (r, (za, zj)))).2 i = r i at h'
+          simpa using h'
+        simp [μa, μj, μr, hza, hzj, hrest, c_test2_restPivotMass]
+      _ = μr r * μa za * μj zj := by ring
+  have hzeroR (r : Rest → ℤ) (hr : r ∉ supportR) : μr r = 0 := by
+    have hnot : ¬ ∀ i : Rest, r i ∈ c_test2_harmonicIntSupport
+        (A.X N (C.block i.1).1) := by
+      intro hall
+      exact hr (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hLaw : harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (r i) = 0 :=
+      c_test2_harmonicLaw_zero_outside hi
+    change c_test2_restPivotMass A C N a j r = 0
+    unfold c_test2_restPivotMass
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+  have hzero : ∀ t ∉ support, integrand t = 0 := by
+    intro t ht
+    by_cases hr : t.1 ∉ supportR
+    · simp [integrand, hzeroR t.1 hr]
+    · have hnotPair : t.2 ∉ supportA.product supportJ := by
+        have hrmem : t.1 ∈ supportR := by
+          by_contra hnotR
+          exact hr hnotR
+        intro hmem
+        exact ht (Finset.mem_product.mpr ⟨hrmem, hmem⟩)
+      have hnotAJ : t.2.1 ∉ supportA ∨ t.2.2 ∉ supportJ := by
+        have hmem : ¬ (t.2.1 ∈ supportA ∧ t.2.2 ∈ supportJ) := by
+          simpa [Finset.mem_product] using hnotPair
+        exact not_and_or.mp hmem
+      rcases hnotAJ with hA | hJ
+      · have hLaw : μa t.2.1 = 0 := by
+          exact c_test2_harmonicLaw_zero_outside (by simpa [μa, supportA] using hA)
+        simp [integrand, hLaw]
+      · have hLaw : μj t.2.2 = 0 := by
+          exact c_test2_harmonicLaw_zero_outside (by simpa [μj, supportJ] using hJ)
+        simp [integrand, hLaw]
+  have hsum : Summable integrand := summable_of_ne_finset_zero (s := support) hzero
+  have hpairSummable (r : Rest → ℤ) :
+      Summable (fun pair : ℤ × ℤ => μa pair.1 * μj pair.2 *
+        F (e.symm (r, pair))) := by
+    apply summable_of_ne_finset_zero (s := supportA.product supportJ)
+    intro pair hp
+    have hnotPair : pair.1 ∉ supportA ∨ pair.2 ∉ supportJ := by
+      have hmem : ¬ (pair.1 ∈ supportA ∧ pair.2 ∈ supportJ) := by
+        simpa [Finset.mem_product] using hp
+      exact not_and_or.mp hmem
+    rcases hnotPair with hA | hJ
+    · have hLaw : μa pair.1 = 0 := by
+        exact c_test2_harmonicLaw_zero_outside (by simpa [μa, supportA] using hA)
+      simp [hLaw]
+    · have hLaw : μj pair.2 = 0 := by
+        exact c_test2_harmonicLaw_zero_outside (by simpa [μj, supportJ] using hJ)
+      simp [hLaw]
+  have hinner (r : Rest → ℤ) :
+      (∑' pair : ℤ × ℤ, integrand (r, pair)) =
+        μr r * ∑' za : ℤ, ∑' zj : ℤ,
+          μa za * μj zj * F (e.symm (r, (za, zj))) := by
+    calc
+      _ = ∑' pair : ℤ × ℤ,
+          μr r * (μa pair.1 * μj pair.2 * F (e.symm (r, pair))) := by
+            apply tsum_congr
+            intro pair
+            simp only [integrand]
+            ring
+      _ = μr r * ∑' pair : ℤ × ℤ,
+          μa pair.1 * μj pair.2 * F (e.symm (r, pair)) := by
+            rw [tsum_mul_left]
+      _ = μr r * ∑' za : ℤ, ∑' zj : ℤ,
+          μa za * μj zj * F (e.symm (r, (za, zj))) := by
+            rw [(hpairSummable r).tsum_prod]
+  calc
+    (∑' z : Fin m → ℤ, pivotMass A C N z * F z) =
+        ∑' t : (Rest → ℤ) × (ℤ × ℤ),
+          pivotMass A C N (e.symm t) * F (e.symm t) := by
+            simpa [e] using (e.symm.tsum_eq (fun z => pivotMass A C N z * F z)).symm
+    _ = ∑' t : (Rest → ℤ) × (ℤ × ℤ), integrand t := by
+      apply tsum_congr
+      intro t
+      rcases t with ⟨r, za, zj⟩
+      simpa [integrand, μa, μj, μr] using congrArg
+        (fun x => x * F (e.symm (r, (za, zj)))) (hfactor r za zj)
+    _ = ∑' r : Rest → ℤ, ∑' pair : ℤ × ℤ, integrand (r, pair) := hsum.tsum_prod
+    _ = ∑' r : Rest → ℤ, μr r * ∑' za : ℤ, ∑' zj : ℤ,
+          μa za * μj zj * F (e.symm (r, (za, zj))) := by
+        apply tsum_congr
+        intro r
+        simpa [e, e0, c_test2_pivotPairRestEquiv] using hinner r
 
 theorem c_test2_chainWeight_nonneg {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
@@ -1563,5 +2309,87 @@ theorem c_test2_cubeProduct_reindex {d : ℕ} (g : ℤ → ℝ) (y M : ℤ)
   congr 2
   have hs : e.symm v = Finset.univ.filter fun j => v j = 1 := rfl
   rw [hs, Finset.sum_filter]
+
+theorem c_test2_cubeProduct_reindex_equiv {α : Type*} [Fintype α] [DecidableEq α]
+    {d : ℕ} (e : α ≃ Fin d) (g : ℤ → ℝ) (y M : ℤ)
+    (u : α → Fin 2 → ℕ) :
+    (∏ v : α → Fin 2,
+      g (y + M * ∑ i : α,
+        if v i = 1 then (u i 1 : ℤ) - u i 0 else 0)) =
+      ∏ s : Finset (Fin d),
+        g (y + M * ∑ j ∈ s, ((u (e.symm j) 1 : ℤ) - u (e.symm j) 0)) := by
+  classical
+  let eFun : (α → Fin 2) ≃ (Fin d → Fin 2) :=
+    Equiv.piCongrLeft (fun _ : Fin d => Fin 2) e
+  let eTotal : (α → Fin 2) ≃ Finset (Fin d) :=
+    eFun.trans (c_test2_subsetBitsEquiv d).symm
+  have hsum (v : α → Fin 2) :
+      (∑ i : α, if v i = 1 then (u i 1 : ℤ) - u i 0 else 0) =
+        ∑ j : Fin d, if v (e.symm j) = 1 then
+          (u (e.symm j) 1 : ℤ) - u (e.symm j) 0 else 0 := by
+    apply Fintype.sum_equiv e
+    intro i
+    simp [e.left_inv i]
+  apply Fintype.prod_equiv eTotal
+  intro v
+  congr 2
+  have hs : eTotal v = Finset.univ.filter fun j => v (e.symm j) = 1 := by
+    ext j
+    simp [eTotal, eFun, Equiv.piCongrLeft, c_test2_subsetBitsEquiv,
+      c_test2_bitsToSubset]
+  rw [hs, Finset.sum_filter, ← hsum]
+
+theorem c_test2_weighted_tsum_error {α : Type*} (μ F G : α → ℝ) (δ : ℝ)
+    (hμnonneg : ∀ x, 0 ≤ μ x) (hμsum : Summable μ)
+    (hμone : ∑' x, μ x = 1) (hF : Summable (fun x => μ x * F x))
+    (hG : Summable (fun x => μ x * G x))
+    (hpoint : ∀ x, |F x - G x| ≤ δ) (hδ : 0 ≤ δ) :
+    |(∑' x, μ x * F x) - ∑' x, μ x * G x| ≤ δ := by
+  have hdiff : Summable (fun x => μ x * (F x - G x)) := by
+    simpa only [mul_sub] using hF.sub hG
+  have hsum :
+      (∑' x, μ x * F x) - ∑' x, μ x * G x =
+        ∑' x, μ x * (F x - G x) := by
+    rw [← hF.tsum_sub hG]
+    exact tsum_congr fun x => by ring
+  have hdom : Summable (fun x => μ x * δ) := hμsum.mul_right δ
+  have hterm : ∀ x, ‖μ x * (F x - G x)‖ ≤ μ x * δ := by
+    intro x
+    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hμnonneg x)]
+    exact mul_le_mul_of_nonneg_left (hpoint x) (hμnonneg x)
+  calc
+    |(∑' x, μ x * F x) - ∑' x, μ x * G x| =
+        |∑' x, μ x * (F x - G x)| := by rw [hsum]
+    _ ≤ ∑' x, ‖μ x * (F x - G x)‖ := by
+      simpa [Real.norm_eq_abs] using norm_tsum_le_tsum_norm hdiff.norm
+    _ ≤ ∑' x, μ x * δ := hdiff.norm.tsum_le_tsum hterm hdom
+    _ = δ := by rw [tsum_mul_right, hμone]; ring
+
+theorem c_test2_shiftAverage_error {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (L : ℕ) (F G : (ι → Fin 2 → ℕ) → ℝ) (δ : ℝ) (hL : 0 < L)
+    (hpoint : ∀ u, |F u - G u| ≤ δ) :
+    |shiftAverage ι L F - shiftAverage ι L G| ≤ δ := by
+  classical
+  let U := Fintype.piFinset (fun _ : ι => Fintype.piFinset fun _ : Fin 2 => Finset.range L)
+  have hcard : (U.card : ℝ) = (L : ℝ) ^ (2 * Fintype.card ι) := by
+    simp [U, Fintype.card_piFinset, pow_mul]
+  have hden : 0 < (L : ℝ) ^ (2 * Fintype.card ι) := by positivity
+  have hsum :
+      |(∑ u ∈ U, F u) - ∑ u ∈ U, G u| ≤ (U.card : ℝ) * δ := by
+    rw [← Finset.sum_sub_distrib]
+    calc
+      |∑ u ∈ U, (F u - G u)| ≤ ∑ u ∈ U, |F u - G u| :=
+        Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ u ∈ U, δ := Finset.sum_le_sum fun u hu => hpoint u
+      _ = (U.card : ℝ) * δ := by simp
+  unfold shiftAverage
+  rw [← mul_sub]
+  rw [abs_mul, abs_of_nonneg (inv_nonneg.mpr hden.le)]
+  calc
+    ((L : ℝ) ^ (2 * Fintype.card ι))⁻¹ *
+        |(∑ u ∈ U, F u) - ∑ u ∈ U, G u| ≤
+      ((L : ℝ) ^ (2 * Fintype.card ι))⁻¹ * ((U.card : ℝ) * δ) :=
+        mul_le_mul_of_nonneg_left hsum (inv_nonneg.mpr hden.le)
+    _ = δ := by rw [hcard]; field_simp [ne_of_gt hden]
 
 end HindmanSumsProducts
