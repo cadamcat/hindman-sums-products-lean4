@@ -2519,6 +2519,14 @@ theorem weighted_cauchy_schwarz_aux {α : Type*} (μ Ω H₀ H₁ : α → ℝ)
     _ = (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2) := by
       simp [w, mul_assoc]
 
+theorem abs_mul_div_le_of_abs_le {W f g : ℝ} (hW : 1 ≤ W)
+    (hf : |f| ≤ W) (hg : |g| ≤ W) : |f * g / W| ≤ W := by
+  have hWpos : 0 < W := lt_of_lt_of_le zero_lt_one hW
+  have hprod : |f| * |g| ≤ W * W :=
+    mul_le_mul hf hg (abs_nonneg _) (by positivity)
+  rw [abs_div, abs_mul, abs_of_pos hWpos]
+  exact (div_le_iff₀ hWpos).2 hprod
+
 theorem gapPivot_weighted_cauchy_schwarz {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ)
