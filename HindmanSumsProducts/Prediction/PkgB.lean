@@ -15,6 +15,23 @@ private abbrev MomentBaseIndex (b d : ℕ) := Unit ⊕ (Fin b × (Fin d × Fin 2
 private abbrev MomentRowIndex (b d : ℕ) :=
   Unit ⊕ (Fin b × {ω : Finset (Fin d) // ω.Nonempty})
 
+private abbrev MomentShiftIntegerTuple (b d : ℕ) := Fin b → Fin d → Fin 2 → ℤ
+
+private noncomputable def momentBaseValuesEquiv (b d : ℕ) :
+    (MomentBaseIndex b d → ℤ) ≃ (ℤ × MomentShiftIntegerTuple b d) where
+  toFun x := (x (.inl ()), fun k j side => x (.inr (k, (j, side))))
+  invFun v i := match i with
+    | .inl _ => v.1
+    | .inr (k, (j, side)) => v.2 k j side
+  left_inv x := by
+    funext i
+    cases i with
+    | inl u => rfl
+    | inr idx => rcases idx with ⟨k, ⟨j, side⟩⟩; rfl
+  right_inv v := by
+    rcases v with ⟨y, u⟩
+    congr 1
+
 private noncomputable def momentPrimeEnum (b q : ℕ) :
     Fin (Fintype.card (MomentPrimeIndex b q)) ≃ MomentPrimeIndex b q :=
   (Fintype.equivFin _).symm
@@ -22,6 +39,27 @@ private noncomputable def momentPrimeEnum (b q : ℕ) :
 private noncomputable def momentBaseEnum (b d : ℕ) :
     Fin (Fintype.card (MomentBaseIndex b d)) ≃ MomentBaseIndex b d :=
   (Fintype.equivFin _).symm
+
+private noncomputable def momentBaseCoordEquiv (b d : ℕ) :
+    (Fin (Fintype.card (MomentBaseIndex b d)) → ℤ) ≃
+      (ℤ × MomentShiftIntegerTuple b d) :=
+  (momentBaseEnum b d).arrowCongr (Equiv.refl ℤ) |>.trans
+    (momentBaseValuesEquiv b d)
+
+private noncomputable def momentBaseEncode {b d : ℕ} (y : ℤ)
+    (u : Fin b → Fin d → Fin 2 → ℕ) :
+    Fin (Fintype.card (MomentBaseIndex b d)) → ℤ :=
+  (momentBaseCoordEquiv b d).symm (y, fun k j side => (u k j side : ℤ))
+
+private theorem momentBaseEncode_root {b d : ℕ} (y : ℤ)
+    (u : Fin b → Fin d → Fin 2 → ℕ) :
+    momentBaseEncode y u ((momentBaseEnum b d).symm (.inl ())) = y := by
+  simp [momentBaseEncode, momentBaseCoordEquiv, momentBaseValuesEquiv]
+
+private theorem momentBaseEncode_shift {b d : ℕ} (y : ℤ)
+    (u : Fin b → Fin d → Fin 2 → ℕ) (k : Fin b) (j : Fin d) (side : Fin 2) :
+    momentBaseEncode y u ((momentBaseEnum b d).symm (.inr (k, (j, side)))) = u k j side := by
+  simp [momentBaseEncode, momentBaseCoordEquiv, momentBaseValuesEquiv]
 
 private noncomputable def momentRowEnum (b d : ℕ) :
     Fin (Fintype.card (MomentRowIndex b d)) ≃ MomentRowIndex b d :=
