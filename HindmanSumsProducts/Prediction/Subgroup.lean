@@ -1,5 +1,6 @@
 import HindmanSumsProducts.Prediction.Projections
 import HindmanSumsProducts.Concatenation
+import HindmanSumsProducts.Prediction.PkgG
 
 /-!
 # Subgroup cubes and the inverse theorem (§5.3, `05_prediction.tex` 432–683)

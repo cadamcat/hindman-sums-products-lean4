@@ -1,4 +1,6 @@
 import HindmanSumsProducts.Prediction.Results
+import HindmanSumsProducts.Prediction.PkgE
+import HindmanSumsProducts.Prediction.PkgF
 
 /-!
 # Nilsequence projections and the Ramsey selection of gap energies (§5.2, 05:355–430)

@@ -1,4 +1,5 @@
 import HindmanSumsProducts.Prediction.Subgroup
+import HindmanSumsProducts.Prediction.PkgH
 
 /-!
 # Completion of the Prediction Principle (§5.4, `05_prediction.tex` 685–783)

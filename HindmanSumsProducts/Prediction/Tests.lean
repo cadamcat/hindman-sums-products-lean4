@@ -1,4 +1,5 @@
 import HindmanSumsProducts.Prediction.Defs
+import HindmanSumsProducts.Prediction.PkgA
 
 /-!
 # Cube types and dual tests (§5.1, `05_prediction.tex` 38–61)
