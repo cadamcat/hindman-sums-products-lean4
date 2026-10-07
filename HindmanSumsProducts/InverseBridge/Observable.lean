@@ -354,7 +354,7 @@ private theorem realTranslationCoordinate_lieBCH {L : Type*} [LieRing L] [LieAlg
     _ = realTranslationCoordinate F x + realTranslationCoordinate F y := by
           rw [(TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ).map_add, ← hcoord, ← hcoord]
 
-private noncomputable def realTranslationElement {L : Type*} [LieRing L]
+noncomputable def realTranslationElement {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
     (c : ℝ) : (weightFiltration F hs).realification.Group :=
   ⟨c • realDhat F⟩
@@ -513,7 +513,7 @@ private theorem linearizedObservablePoint_factor {L : Type*} [LieRing L]
   change QuotientGroup.mk (a * b) = QuotientGroup.mk a
   exact hquot
 
-private theorem linearizedObservableLift_invariant {L : Type*} [LieRing L]
+theorem linearizedObservableLift_invariant {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s d : ℕ}
     (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
     (B : ℕ) (GammaHat : Subgroup (weightFiltration D.filtration hs).Group)
@@ -853,7 +853,7 @@ private theorem continuous_linearizedObservablePoint {L : Type*} [LieRing L]
   exact QuotientGroup.continuous_mk.comp
     (NilpotentLieBCHGroup.continuous_mk.comp hev)
 
-private theorem linearizedObservableLift_locally_equi {L : Type*} [LieRing L]
+theorem linearizedObservableLift_locally_equi {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s d : ℕ}
     (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
     [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
@@ -1091,7 +1091,7 @@ private theorem realTranslationElement_zpow {L : Type*} [LieRing L]
 
 /-- At an integer orbit point the interpolation selects exactly the matching
 evaluation of the adapted polynomial log. -/
-private theorem linearizedObservableLift_orbit_eval {L : Type*} [LieRing L]
+theorem linearizedObservableLift_orbit_eval {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s d : ℕ}
     (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
     (H : D.Space → ℝ)
