@@ -334,6 +334,46 @@ private theorem c_test2_chainCoefficientData_eventually {K s m : ℕ}
   · simpa [chainScale] using hc
   · exact hdiv m C a ha c hc
 
+private theorem c_test2_scaleRatioNat {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (c : Fin m → ℤ)
+    (hpos : ∀ d, 0 < c d)
+    (hratio : ∀ u d, u < d → ∃ t : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (t : ℤ) * c d)
+    (hmod : ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))
+    (i d : Fin m) (hid : i < d) :
+    ∃ ρ : ℕ, 0 < ρ ∧ (ρ : ℚ) = (c i : ℚ) / (c d : ℚ) ∧
+      primorial (N + 1) ∣ ρ ∧ ρ ∣ S.core.parameters.M N := by
+  obtain ⟨t, ht⟩ := hratio i d hid
+  have htpos : 0 < t := by
+    by_contra h
+    have ht0 : t = 0 := by omega
+    rw [ht0] at ht
+    simp at ht
+    exact (ne_of_gt (hpos i)) ht
+  let ρ : ℕ := primorial (N + 1) * t
+  have hρpos : 0 < ρ := Nat.mul_pos (primorial_pos _) htpos
+  have hrel : c i = (ρ : ℤ) * c d := by
+    dsimp [ρ]
+    rw [ht]
+  have hrelQ : (c i : ℚ) = (ρ : ℚ) * (c d : ℚ) := by exact_mod_cast hrel
+  have hcd : (c d : ℚ) ≠ 0 := by exact_mod_cast ne_of_gt (hpos d)
+  have hratioQ : (ρ : ℚ) = (c i : ℚ) / (c d : ℚ) := by
+    rw [hrelQ]
+    field_simp [hcd]
+  have hW : primorial (N + 1) ∣ ρ := ⟨t, rfl⟩
+  have hciM : c i ∣ (S.core.parameters.M N : ℤ) := by
+    have hdvd : c i ∣
+        ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c i :=
+      ⟨(primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ), by ring⟩
+    exact hdvd.trans (hmod i)
+  have hρci : (ρ : ℤ) ∣ c i := ⟨c d, hrel⟩
+  have hρMInt : (ρ : ℤ) ∣ (S.core.parameters.M N : ℤ) := hρci.trans hciM
+  have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
+  exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
+
 theorem c_test2_chainWeight_nonneg {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
     (d : Fin m) (y : ℤ) : 0 ≤ chainWeight A C N d y := by
