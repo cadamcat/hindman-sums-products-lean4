@@ -3961,6 +3961,76 @@ theorem pivotBaseResidueErrorSum_superPolynomialSmall
     simp [pivotBaseResidueErrorSum, Finset.sum_mul]
   simpa [Vseq] using hsumError
 
+noncomputable def maskRowDivisorTemplate {K m q r : ℕ}
+    (C : MasterChain K m) (Sh : RowShape m q r) (R : Fin r) :
+    DivisorTemplate K K := by
+  classical
+  let T : Finset (Fin K) := (C.block (Sh.row R).anchor).2.val
+  have hT : T.card ≤ K := by
+    calc
+      T.card ≤ Fintype.card (Fin K) := Finset.card_le_univ T
+      _ = K := by simp
+  exact divisorTemplateOfFinset T hT
+
+noncomputable def maskEmptyDivisorTemplate {K : ℕ} : DivisorTemplate K K :=
+  divisorTemplateOfFinset (∅ : Finset (Fin K)) (by simp)
+
+def MaskRowDataGoodDomain {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (N : ℕ) (p : Fin s → ℕ) : Prop :=
+  (∀ i : Fin m, Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+      (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) ∧
+  (∀ (R : Fin r) (p' : Fin s → ℕ) (x : Fin m → ℤ),
+      (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+      (fun j => p' (ι j)) (fun j => (x j : ℚ))).den = 1) ∧
+  (∀ (R : Fin r) (j : Fin m), (rowShapeLinearCoefficients Sh ι
+      (chainScale S.core.parameters C a N) N p R j).den = 1) ∧
+  p ∈ independentPrimePoolSupport
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) ∧
+  ∀ j, masterScaleV S.core.parameters N C.gap < p j
+
+theorem maskRowDivisorTemplate_law_eq_tail {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (R : Fin r) (N σ : ℕ) :
+    divisorTemplateLaw S.core.parameters N (maskRowDivisorTemplate C Sh R) σ =
+      parameterTailProductLaw S.core.parameters N (C.block (Sh.row R).anchor).2.val σ := by
+  classical
+  let T : Finset (Fin K) := (C.block (Sh.row R).anchor).2.val
+  have hT : T.card ≤ K := by
+    calc
+      T.card ≤ Fintype.card (Fin K) := Finset.card_le_univ T
+      _ = K := by simp
+  have hX : ∀ j, 0 < S.core.parameters.X N j := S.core.parameters.Xpos N
+  have hNorm : ∀ j, 0 < harmonicNormalizer (S.core.parameters.X N j)
+      (primorial (N + 1)) := by
+    intro j
+    exact harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N j)
+  have hbridge := parameterTailProductLaw_eq_divisorTemplateLaw_ofFinset
+    S.core.parameters N T hT hX hNorm σ
+  simpa [maskRowDivisorTemplate, T, divisorTemplateLaw] using hbridge.symm
+
+theorem maskEmptyDivisorTemplate_law {K : ℕ}
+    (A : OAI.SourceAdmissible.Parameters K) (N σ : ℕ) :
+    divisorTemplateLaw A N (maskEmptyDivisorTemplate (K := K)) σ =
+      if σ = 1 then 1 else 0 := by
+  classical
+  have hformula (X : Fin 0 → ℕ) :
+      harmonicProductLaw (primorial (N + 1)) X σ = if σ = 1 then 1 else 0 := by
+    unfold harmonicProductLaw
+    let t₀ : Fin 0 → ℕ := fun i => Fin.elim0 i
+    rw [tsum_eq_single t₀]
+    · simp [t₀, eq_comm]
+    · intro t ht
+      have hEq : t = t₀ := Subsingleton.elim _ _
+      exact (ht hEq).elim
+  change harmonicProductLaw (primorial (N + 1))
+      (fun i : Fin 0 => A.X N ((maskEmptyDivisorTemplate (K := K)).cutoff i)) σ = _
+  exact hformula _
+
 theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
