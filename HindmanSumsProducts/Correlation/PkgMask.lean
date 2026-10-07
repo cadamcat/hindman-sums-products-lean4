@@ -3007,6 +3007,46 @@ theorem RowTemplate.rowForm_eq_monomial_scale_of_parallel {m q : ℕ}
     _ = scale * ∑ k, c k / c T.anchor * T.value p k * z k := by
           rw [Finset.mul_sum]
 
+def dropPrimeTuple2 {q : ℕ} (p : Fin (q + 2) → ℕ) : Fin q → ℕ :=
+  fun i => p i.succ.succ
+
+theorem dropPrimeTuple2_extend {q : ℕ} (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
+    dropPrimeTuple2 (extendPrimeTuple (extendPrimeTuple p p₁) p₀) = p := by
+  funext i
+  simp [dropPrimeTuple2, extendPrimeTuple]
+
+noncomputable def combineParallelRowFunction {q : ℕ}
+    (f : (Fin q → ℕ) → ℤ → ℝ) (scale : (Fin (q + 2) → ℕ) → ℚ)
+    (W : ℤ → ℝ) (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
+  f (dropPrimeTuple2 p) y *
+    atQ (f (dropPrimeTuple2 p)) (scale p * (y : ℚ)) / W y
+
+theorem combineParallelRowFunction_abs_le {q : ℕ}
+    (f : (Fin q → ℕ) → ℤ → ℝ) (scale : (Fin (q + 2) → ℕ) → ℚ)
+    (W : ℤ → ℝ) (p : Fin (q + 2) → ℕ)
+    (hW : ∀ y, 0 ≤ W y) (hWpos : ∀ y, 0 < W y)
+    (hf : ∀ p y, |f p y| ≤ W y)
+    (hinv : ∀ y : ℤ, (scale p * (y : ℚ)).den = 1 →
+      W ((scale p * (y : ℚ)).num) = W y) (y : ℤ) :
+    |combineParallelRowFunction f scale W p y| ≤ W y := by
+  unfold combineParallelRowFunction
+  by_cases hden : (scale p * (y : ℚ)).den = 1
+  · rw [atQ, if_pos hden]
+    have h1 : |f (dropPrimeTuple2 p) y| ≤ W y := hf _ _
+    have h2 : |f (dropPrimeTuple2 p) (scale p * (y : ℚ)).num| ≤
+        W (scale p * (y : ℚ)).num := hf _ _
+    rw [hinv y hden] at h2
+    have hw : 0 < W y := hWpos y
+    rw [abs_div, abs_mul, abs_of_nonneg (hW y)]
+    calc
+      (|f (dropPrimeTuple2 p) y| * |f (dropPrimeTuple2 p) (scale p * (y : ℚ)).num|) / W y ≤
+          (W y * W y) / W y := by
+            apply div_le_div_of_nonneg_right
+            · exact mul_le_mul h1 h2 (abs_nonneg _) (hW y)
+            · exact hW y
+      _ = W y := by field_simp [ne_of_gt hw]
+  · simp [atQ, hden, hW y]
+
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
     evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) = T.valueNat p k := by
