@@ -3052,6 +3052,69 @@ theorem c_elim2_normalized_product_measure {P Z : Type*} [Fintype P] [Fintype Z]
         _ = _ := by ring
     _ = 1 := by rw [hP, hZ]; field_simp
 
+theorem c_elim2_fintype_outer_average_abs_le
+    {P Z U : Type*} [Fintype P] [Fintype Z] [Fintype U]
+    (wP : P → ℝ) (wZ : Z → ℝ) (wU : U → ℝ)
+    (F : P → Z → U → ℝ) (δ : ℝ)
+    (hPnonneg : ∀ p, 0 ≤ wP p) (hPsum : ∑ p, wP p = 1)
+    (hUnonneg : ∀ u, 0 ≤ wU u) (hUsum : ∑ u, wU u = 1)
+    (hinner : ∀ p u, |∑ z, wZ z * F p z u| ≤ δ) :
+    |∑ p, ∑ z, ∑ u, wP p * wZ z * wU u * F p z u| ≤ δ := by
+  classical
+  have hregroup :
+      (∑ p, ∑ z, ∑ u, wP p * wZ z * wU u * F p z u) =
+        ∑ p, ∑ u, wP p * wU u * ∑ z, wZ z * F p z u := by
+    apply Finset.sum_congr rfl
+    intro p hp
+    rw [Finset.sum_comm]
+    apply Finset.sum_congr rfl
+    intro u hu
+    calc
+      (∑ z, wP p * wZ z * wU u * F p z u) =
+          ∑ z, (wP p * wU u) * (wZ z * F p z u) := by
+            apply Finset.sum_congr rfl
+            intro z hz
+            ring
+      _ = wP p * wU u * ∑ z, wZ z * F p z u := by rw [Finset.mul_sum]
+  have hweights : ∑ p, ∑ u, wP p * wU u = 1 := by
+    calc
+      _ = ∑ p, wP p * ∑ u, wU u := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        rw [Finset.mul_sum]
+      _ = (∑ p, wP p) * ∑ u, wU u := by rw [Finset.sum_mul]
+      _ = 1 := by rw [hPsum, hUsum]; ring
+  rw [hregroup]
+  calc
+    |∑ p : P, ∑ u : U, wP p * wU u * ∑ z, wZ z * F p z u| ≤
+        ∑ p : P, |∑ u : U, wP p * wU u * ∑ z, wZ z * F p z u| :=
+          by simpa using (Finset.abs_sum_le_sum_abs
+            (fun p : P => ∑ u : U, wP p * wU u * ∑ z, wZ z * F p z u)
+            (Finset.univ : Finset P))
+    _ ≤ ∑ p : P, ∑ u : U, |wP p * wU u * ∑ z, wZ z * F p z u| := by
+      apply Finset.sum_le_sum
+      intro p hp
+      simpa using (Finset.abs_sum_le_sum_abs
+        (fun u : U => wP p * wU u * ∑ z, wZ z * F p z u)
+        (Finset.univ : Finset U))
+    _ ≤ ∑ p, ∑ u, (wP p * wU u) * δ := by
+      apply Finset.sum_le_sum
+      intro p hp
+      apply Finset.sum_le_sum
+      intro u hu
+      rw [abs_mul, abs_of_nonneg (mul_nonneg (hPnonneg p) (hUnonneg u))]
+      exact mul_le_mul_of_nonneg_left (hinner p u)
+        (mul_nonneg (hPnonneg p) (hUnonneg u))
+    _ = δ := by
+      calc
+        _ = ∑ p, ∑ u, (wP p * wU u) * δ := rfl
+        _ = ∑ p, (∑ u, wP p * wU u) * δ := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          rw [Finset.sum_mul]
+        _ = (∑ p, ∑ u, wP p * wU u) * δ := by rw [Finset.sum_mul]
+        _ = δ := by rw [hweights]; ring
+
 theorem c_elim2_arithmeticL1_product_le_sum
     {ι : Type*} [Fintype ι] [DecidableEq ι]
     (μ ν : ι → ℤ → ℝ) (S : Finset ℤ)
