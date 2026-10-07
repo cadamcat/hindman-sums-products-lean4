@@ -2099,6 +2099,66 @@ theorem chainScale_pos_eventually {K s m : ℕ} {Aset : Finset ℚ}
   rw [← hcEq d]
   exact_mod_cast hcPos d
 
+theorem chainScale_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ d, (chainScale S.core.parameters C a N d).den = 1 := by
+  filter_upwards [S.core.chain_coefficients] with N hcoeff
+  obtain ⟨c, hcEq, hcPos, _⟩ := hcoeff m C a ha
+  intro d
+  have hscale : chainScale S.core.parameters C a N d = (c d : ℚ) :=
+    (hcEq d).symm
+  rw [hscale]
+  exact Rat.den_intCast _
+
+theorem chainScale_ratio_num_coprime_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ (J : Finset (Fin m)) (hJ : J.Nonempty) k, k ∈ J → ∀ r, r.Prime →
+      N + 1 < r →
+      Nat.Coprime
+        (chainScale S.core.parameters C a N k /
+          chainScale S.core.parameters C a N (J.max' hJ)).num.natAbs r := by
+  filter_upwards [chainScale_ratio_den_one_eventually S C a ha,
+      chainScale_den_one_eventually S C a ha,
+      chainScale_pos_eventually S C a ha,
+      chainScale_num_coprime_of_prime_gt_eventually S C a ha]
+    with N hratio hden hpos hunit
+  intro J hJ k hk r hr hNr
+  let d := J.max' hJ
+  let x := chainScale S.core.parameters C a N k
+  let y := chainScale S.core.parameters C a N d
+  let t := x / y
+  have htden : t.den = 1 := by simpa [t, x, y, d] using hratio J hJ k hk
+  have hxden : x.den = 1 := hden k
+  have hyden : y.den = 1 := hden d
+  have htNum : (t.num : ℚ) = t := (Rat.den_eq_one_iff _).mp htden
+  have hyNum : (y.num : ℚ) = y := (Rat.den_eq_one_iff _).mp hyden
+  have hxNum : (x.num : ℚ) = x := (Rat.den_eq_one_iff _).mp hxden
+  have hprod : t.num * y.num = x.num := by
+    have hcast : ((t.num * y.num : ℤ) : ℚ) = x := by
+      calc
+        ((t.num * y.num : ℤ) : ℚ) = (t.num : ℚ) * (y.num : ℚ) := by norm_cast
+        _ = t * y := by rw [htNum, hyNum]
+        _ = x := by
+          dsimp [t]
+          exact div_mul_cancel₀ x (ne_of_gt (hpos d))
+    have hcast' : ((t.num * y.num : ℤ) : ℚ) = (x.num : ℚ) :=
+      hcast.trans hxNum.symm
+    exact_mod_cast hcast'
+  have hnot : ¬ r ∣ t.num.natAbs := by
+    intro hdiv
+    have hdivInt : (r : ℤ) ∣ t.num := Int.natCast_dvd.mpr hdiv
+    have hkdivInt : (r : ℤ) ∣ x.num := by
+      rw [← hprod]
+      exact dvd_mul_of_dvd_left hdivInt _
+    have hkdivNat : r ∣ x.num.natAbs := Int.natCast_dvd.mp hkdivInt
+    have hxcoprime : Nat.Coprime x.num.natAbs r := hunit k r hr hNr
+    exact (Nat.Prime.coprime_iff_not_dvd hr).mp hxcoprime.symm hkdivNat
+  have hcop : Nat.Coprime r t.num.natAbs :=
+    (Nat.Prime.coprime_iff_not_dvd hr).2 hnot
+  simpa [t, x, y, d] using hcop.symm
+
 theorem pool_lower_gt_masterScaleV_eventually {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
     ∀ᶠ N in atTop, masterScaleV S.core.parameters N l <
