@@ -10,6 +10,7 @@ import HindmanSumsProducts.Correlation.PkgTest2
 import HindmanSumsProducts.Correlation.PkgOpusCorr
 import HindmanSumsProducts.Correlation.PkgVarS
 import HindmanSumsProducts.Correlation.PkgMsoS
+import HindmanSumsProducts.Correlation.PkgRootS
 
 /-!
 # Removing multiplicative masks and detecting a shifted error (§4)
@@ -403,7 +404,45 @@ theorem opus_corr_elim_root {m q r : ℕ} (Sh : RowShape m q r)
               (targetVertex (chainScale S.core.parameters C a N) Sh p
                 (directionModulus S N dirs.poly p) z u ω)) *
               averagedRetainedWeights S C a N dirs p z u| ≤ ε := by
-  sorry
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0 ε hε
+  obtain ⟨B, hcore⟩ := row_directions_integer Sh dirs hdirs tests htests hdt
+  obtain ⟨hbad, _, hfacts⟩ := hcore S ι hlisted C a ha
+  let d := Fintype.card (NonTarget Sh)
+  let e := 2 ^ d + d * 2 ^ (d - 1)
+  have hgood := gapSlotProbability_tendsto_one_of_bad S C.gap
+    (fun N p => GoodTuple S C.gap N tests dirs.poly p) hbad
+  have hpos : ∀ᶠ N in atTop,
+      0 < gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly) :=
+    hgood.eventually (Ioi_mem_nhds (by norm_num : (0 : ℝ) < 1))
+  have hmod : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      directionModulus S N dirs.poly p ≤
+        ((S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B := by
+    filter_upwards [hfacts] with N hN p hp
+    exact (hN p hp).2.2.1
+  have hlower := shiftLength_lower_pow_of_modulus_bound S C J0 B q hJ0 dirs tests hmod
+  have hlen : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      0 < shiftLength S C.gap J0 N dirs.poly p := by
+    filter_upwards [hlower] with N hN p hp
+    have hV : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
+      omega
+    have hT : 1 ≤ (S.primeStage.pool N C.gap).upper +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap := by omega
+    exact lt_of_lt_of_le Nat.zero_lt_one
+      ((Nat.one_le_pow q _ hT).trans (hN p hp))
+  have hsmall : ∀ᶠ N in atTop,
+      (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) ^ e *
+        (m : ℝ) * sol_root_error S C N d B < ε :=
+    (sol_root_sampling_cost S C d B e).eventually (Iio_mem_nhds hε)
+  filter_upwards [hpos, hfacts, hlen, hsmall] with N hposN hfactsN hlenN hsmallN
+  intro h hh
+  rw [abs_sub_comm]
+  refine le_trans (sol_root_elimination_error_average S C N dirs tests J0
+    hposN hlenN _ _ _ ?_) hsmallN.le
+  intro p hp u
+  exact sol_root_pivot_root_step S C a N B dirs tests p (hfactsN p hp) u
+    (h p) (hh p)
 
 /-- Part of Lemma `lem:additive-elimination` (04:530–572): the weighted replacement
 `|E G(H-2^t)| ≤ (E B)^{1/2}(E B(H-2^t)²)^{1/2} = o(1)`, from `|G| ≤ B` and the moments
