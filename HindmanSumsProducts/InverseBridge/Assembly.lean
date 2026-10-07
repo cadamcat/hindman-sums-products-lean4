@@ -136,6 +136,40 @@ theorem inverse_bridge_assembly (t : ℕ) (ht : 2 ≤ t) (δ : ℝ) (hδ : 0 < �
         δ ≤ gowersNorm t (fun x => (v x : ℂ)) →
         ∃ P : CosetPiece 𝔐 K,
           c ≤ 𝔼 x, v x * (2 * P.eval ((x.val : ℕ) : ℤ) - 1) := by
-  sorry
+  obtain ⟨C, hC, hmodels⟩ := exists_inverse_native_model t ht δ hδ
+  let K₀ : ℝ := (inverseInputBudget δ + C) ^ C
+  have hK₀ : 0 ≤ K₀ := by
+    dsimp [K₀, inverseInputBudget]
+    positivity
+  obtain ⟨𝔐, K, hM, hrep⟩ := exists_bridgeMenu (t - 1) K₀ hK₀
+  refine ⟨𝔐, K, Real.exp (-K₀), hM, Real.exp_pos _, ?_⟩
+  intro N hN v hv hG
+  obtain ⟨g, F, hcor⟩ := hmodels N v hv hG
+  let z : ℂ := 𝔼 x, (v x : ℂ) * star (g x)
+  have hcz : Real.exp (-K₀) ≤ ‖z‖ := by simpa [z, K₀] using hcor
+  have hz : 0 < ‖z‖ := lt_of_lt_of_le (Real.exp_pos _) hcz
+  obtain ⟨u, hu, hphase⟩ := exists_unit_phase z hz
+  letI := F.lie
+  letI := F.algebra
+  letI := F.topology
+  letI := F.topologicalAdd
+  letI := F.continuousSMul
+  letI := F.hausdorff
+  obtain ⟨P, hP⟩ := hrep F.model F.test F.norm F.complexity u hu
+  have hPcyc (x : ZMod N) :
+      2 * P.eval ((x.val : ℕ) : ℤ) - 1 = (u * g x).re := by
+    rw [hP ((x.val : ℕ) : ℤ), F.eval x]
+    rfl
+  refine ⟨P, ?_⟩
+  calc
+    Real.exp (-K₀) ≤ ‖z‖ := hcz
+    _ = 𝔼 x, v x * (u * g x).re := by
+      symm
+      rw [expect_real_rotated]
+      simpa [z] using hphase
+    _ = 𝔼 x, v x * (2 * P.eval ((x.val : ℕ) : ℤ) - 1) := by
+      apply Finset.expect_congr rfl
+      intro x _
+      rw [hPcyc x]
 
 end HindmanSumsProducts.InverseBridge
