@@ -249,6 +249,27 @@ theorem c_test2_natSamplerTargetBound {x c e : ℕ} (hx : 4 ≤ x) (hc : c + 2 �
     _ ≤ x * x ^ (e + 3) := Nat.mul_le_mul_right _ hc
     _ = x ^ (e + 4) := by rw [pow_succ]; ring
 
+theorem c_test2_cutoffLog_dominates_powerTarget {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (i : Fin n)
+    (T : ℕ → ℕ) (hTpos : ∀ N, 0 < T N) (P : ℕ) (hP : 0 < P)
+    (hbound : ∀ᶠ N in atTop, T N ≤ (A.H N i) ^ P) :
+    OAI.MicrocellScale.Dominates (fun N => Real.log (A.X N i : ℝ))
+      (fun N => (T N : ℝ)) := by
+  have hF : ∀ N, 0 ≤ Real.log (A.X N i : ℝ) := by
+    intro N
+    obtain ⟨e, he⟩ := A.Xpow N i
+    rw [he]
+    have hone : 1 ≤ 2 ^ e := Nat.one_le_pow e 2 (by norm_num)
+    exact Real.log_nonneg (by exact_mod_cast hone)
+  have hS : ∀ N, 0 < (A.H N i : ℝ) := fun N => by exact_mod_cast A.Hpos N i
+  have hT : ∀ N, 0 < (T N : ℝ) := fun N => by exact_mod_cast hTpos N
+  have hboundR : ∀ᶠ N in atTop,
+      (T N : ℝ) ≤ (A.H N i : ℝ) ^ (P : ℝ) := by
+    filter_upwards [hbound] with N hN
+    exact_mod_cast hN
+  exact c_test2_dominates_of_power_bound hF hS hT (P : ℝ)
+    (by exact_mod_cast hP) hboundR (A.Xdom i)
+
 def c_test2_rowExponent {m q : ℕ} (T : RowTemplate m q) : ℕ :=
   ∑ k : Fin m, ∑ i : Fin q, (T.entry k).elim 0 fun e => e i
 
