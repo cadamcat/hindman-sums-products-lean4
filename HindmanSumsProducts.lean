@@ -5,3 +5,4 @@ import HindmanSumsProducts.Arithmetic
 import HindmanSumsProducts.Concatenation
 import HindmanSumsProducts.Framework
 import HindmanSumsProducts.CubeCornerCharted
+import HindmanSumsProducts.InverseBridge
