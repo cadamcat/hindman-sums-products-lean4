@@ -636,6 +636,207 @@ theorem opus_dpo_average_sub_le {K sl b : ℕ} {As : Finset ℚ}
         mul_le_mul_of_nonneg_left hsum (inv_nonneg.mpr hP0)
       _ = δ := by field_simp
 
+
+/-! ### Translation insertion: the inserted translations as a coordinate shift -/
+
+/-- The displacement of the pivot and of the upper original shifts produced by the inserted
+translations, as a function of the structured coordinates (only the side-`0` translation
+coordinates are read). -/
+def opus_dpo_shiftS {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (X : pkgB2_Coord T → ℤ) : pkgB2_Coord T → ℤ :=
+  Sum.elim
+    (Sum.elim
+      (fun _ => ∑ r : pkgB2_Nonroot T,
+        pkgB2_directionLift (T r.1).d (direction r) 0 * (M r.1 : ℤ) * X (.inr (r, 0)))
+      (fun kjs => if kjs.2.2 = 1 then
+        ∑ r : pkgB2_Nonroot T, (if r.1 = kjs.1 then
+          pkgB2_directionLift (T r.1).d (direction r) (kjs.2.1.val + 1) else 0) *
+            X (.inr (r, 0))
+        else 0))
+    (fun _ => 0)
+
+/-- The same displacement on enumerated coordinate vectors. -/
+def opus_dpo_shift {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) : Fin (Fintype.card (pkgB2_Coord T)) → ℤ :=
+  fun i => opus_dpo_shiftS T M direction (fun c => x ((pkgB2_coordEnum T).symm c))
+    (pkgB2_coordEnum T i)
+
+theorem opus_dpo_sum_coord {b : ℕ} (T : Fin b → CubeTemplate) (f : pkgB2_Coord T → ℤ) :
+    ∑ c, f c = (∑ old : pkgB2_OldCoord T, f (.inl old)) +
+      ∑ tr : pkgB2_Nonroot T × Fin 2, f (.inr tr) := by
+  rw [← Fintype.sum_sum_type]
+  refine Finset.sum_congr ?_ (fun c _ => by cases c <;> rfl)
+  ext c
+  simp only [Finset.mem_univ]
+
+theorem opus_dpo_oldCoeff_same {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℤ)
+    (s : pkgB2_Nonroot T) (j : Fin (T s.1).d) (side : Fin 2) :
+    pkgB2_oldCoefficient T M (.inr s) (.inr ⟨s.1, (j, side)⟩) =
+      if j ∈ s.2.1 then (if side.val = 0 then -M s.1 else M s.1) else 0 := by
+  unfold pkgB2_oldCoefficient
+  exact dif_pos rfl
+
+theorem opus_dpo_oldCoeff_ne {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℤ)
+    (s : pkgB2_Nonroot T) (k : Fin b) (hk : k ≠ s.1) (j : Fin (T k).d) (side : Fin 2) :
+    pkgB2_oldCoefficient T M (.inr s) (.inr ⟨k, (j, side)⟩) = 0 := by
+  unfold pkgB2_oldCoefficient
+  exact dif_neg hk
+
+/-- The inserted translations act on every stage-`∅` row as the coordinate shift. -/
+theorem opus_dpo_coeff_shift {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (o : pkgB2_Occurrence T ∅) (X : pkgB2_Coord T → ℤ) :
+    ∑ c, pkgB2_occurrenceCoefficientInt T M direction ∅ o c * X c =
+      ∑ c, pkgB2_occurrenceCoefficientInt T M direction ∅ o c *
+        Sum.elim (fun old => X (.inl old) + opus_dpo_shiftS T M direction X (.inl old))
+          (fun _ => 0) c := by
+  classical
+  have h01 : (0 : Fin 2) ≠ 1 := by decide
+  have h1v : (1 : Fin 2).val ≠ 0 := by decide
+  have hcoeffT (r : pkgB2_Nonroot T) (side : Fin 2) :
+      pkgB2_occurrenceCoefficientInt T M direction ∅ o (.inr (r, side)) =
+        if side = 0 then pkgB2_response T (fun k => (M k : ℤ)) r
+          (pkgB2_directionLift (T r.1).d (direction r)) o.1 else 0 := by
+    simp [pkgB2_occurrenceCoefficientInt, pkgB2_copyCoeffInt]
+  have hcoeffO (old : pkgB2_OldCoord T) :
+      pkgB2_occurrenceCoefficientInt T M direction ∅ o (.inl old) =
+        pkgB2_oldCoefficient T (fun k => (M k : ℤ)) o.1 old := by
+    simp [pkgB2_occurrenceCoefficientInt, pkgB2_copyCoeffInt]
+  rw [opus_dpo_sum_coord, opus_dpo_sum_coord]
+  simp only [Sum.elim_inl, Sum.elim_inr, mul_zero, Finset.sum_const_zero, add_zero, mul_add,
+    Finset.sum_add_distrib]
+  congr 1
+  rw [Fintype.sum_prod_type]
+  simp only [Fin.sum_univ_two, hcoeffT, hcoeffO, if_pos rfl, h01.symm, if_false, zero_mul,
+    add_zero]
+  rcases o with ⟨t, η⟩
+  cases t with
+  | inl u =>
+    simp [pkgB2_oldCoefficient, opus_dpo_shiftS, pkgB2_response, mul_comm, mul_left_comm,
+      mul_assoc]
+  | inr s =>
+    change ∑ r : pkgB2_Nonroot T, pkgB2_response T (fun k => (M k : ℤ)) r
+        (pkgB2_directionLift (T r.1).d (direction r)) (.inr s) * X (.inr (r, 0)) =
+      ∑ old : pkgB2_OldCoord T, pkgB2_oldCoefficient T (fun k => (M k : ℤ)) (.inr s) old *
+        opus_dpo_shiftS T M direction X (.inl old)
+    rw [Fintype.sum_sum_type, Fintype.sum_sigma]
+    rw [Finset.sum_eq_single s.1 (fun k _ hk => by
+      apply Finset.sum_eq_zero
+      intro js _
+      rw [opus_dpo_oldCoeff_ne T _ s k hk js.1 js.2, zero_mul]) (by simp)]
+    have hU : (∑ u : Unit, pkgB2_oldCoefficient T (fun k => (M k : ℤ)) (.inr s) (.inl u) *
+        opus_dpo_shiftS T M direction X (.inl (.inl u))) =
+        ∑ r : pkgB2_Nonroot T,
+          pkgB2_directionLift (T r.1).d (direction r) 0 * (M r.1 : ℤ) * X (.inr (r, 0)) := by
+      simp [pkgB2_oldCoefficient, opus_dpo_shiftS]
+    have hJ : (∑ js : Fin (T s.1).d × Fin 2,
+        pkgB2_oldCoefficient T (fun k => (M k : ℤ)) (.inr s) (.inr ⟨s.1, js⟩) *
+          opus_dpo_shiftS T M direction X (.inl (.inr ⟨s.1, js⟩))) =
+        ∑ r : pkgB2_Nonroot T, (if r.1 = s.1 then (M s.1 : ℤ) *
+          ∑ j ∈ s.2.1, pkgB2_directionLift (T r.1).d (direction r) (j.val + 1) else 0) *
+            X (.inr (r, 0)) := by
+      rw [Fintype.sum_prod_type]
+      simp only [Fin.sum_univ_two, opus_dpo_oldCoeff_same, opus_dpo_shiftS, Sum.elim_inl,
+        Sum.elim_inr, Fin.val_zero, h01, h1v, if_false, mul_zero, zero_add, if_true, eq_self_iff_true]
+      have hj (j : Fin (T s.1).d) :
+          (if j ∈ s.2.1 then (M s.1 : ℤ) else 0) *
+            ∑ r : pkgB2_Nonroot T, (if r.1 = s.1 then
+              pkgB2_directionLift (T r.1).d (direction r) (j.val + 1) else 0) *
+                X (.inr (r, 0)) =
+          ∑ r : pkgB2_Nonroot T, (if j ∈ s.2.1 then (if r.1 = s.1 then (M s.1 : ℤ) *
+              pkgB2_directionLift (T r.1).d (direction r) (j.val + 1) else 0) else 0) *
+                X (.inr (r, 0)) := by
+        rw [Finset.mul_sum]
+        apply Finset.sum_congr rfl
+        intro r _
+        by_cases hjm : j ∈ s.2.1 <;> by_cases hr : r.1 = s.1 <;> simp [hjm, hr, mul_assoc]
+      simp only [hj]
+      rw [Finset.sum_comm]
+      apply Finset.sum_congr rfl
+      intro r _
+      rw [← Finset.sum_mul]
+      congr 1
+      by_cases hr : r.1 = s.1
+      · simp [hr, Finset.mul_sum]
+      · simp [hr]
+    rw [hU, hJ, ← Finset.sum_add_distrib]
+    apply Finset.sum_congr rfl
+    intro r _
+    rw [← add_mul]
+    congr 1
+    by_cases hr : r.1 = s.1
+    · have hM : (M r.1 : ℤ) = M s.1 := by rw [hr]
+      simp only [pkgB2_response, dif_pos hr.symm, if_pos hr, hM]
+      rw [pkgB2_directionLift_zero]
+      ring
+    · have hr' : ¬ s.1 = r.1 := fun h => hr h.symm
+      simp only [pkgB2_response, dif_neg hr', if_neg hr, add_zero]
+
+
+/-- Stage-`∅` row values are unchanged when the inserted translations are replaced by the
+coordinate shift and the translation coordinates are set to zero. -/
+theorem opus_dpo_rowValue_shift {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k))
+    (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ)
+    (p : Fin (b * sl) → ℕ) (o : Fin (Fintype.card (pkgB2_Occurrence T ∅)))
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :
+    pkgB2_stateRowValue MS T hT J0 gap direction ∅ N p o x =
+      pkgB2_stateRowValue MS T hT J0 gap direction ∅ N p o
+        (opus_dpo_zeroTranslations T (x + opus_dpo_shift T
+          (fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k))
+            direction x)) := by
+  classical
+  set M : Fin b → ℕ := fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k)
+    with hM
+  set e := pkgB2_coordEnum T
+  set cI := pkgB2_occurrenceCoefficientInt T M direction ∅ (pkgB2_occurrenceEnum T ∅ o)
+  unfold pkgB2_stateRowValue
+  congr 1
+  unfold linearRowValue pkgB2_rowCoefficientArray pkgB2_occurrenceCoefficient
+  have hre (y : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :
+      (∑ j, ((cI (e j) : ℤ) : ℚ) * (y j : ℚ)) = ((∑ c, cI c * y (e.symm c) : ℤ) : ℚ) := by
+    rw [← e.sum_comp (fun c => cI c * y (e.symm c))]
+    push_cast
+    simp
+  change (∑ j, ((cI (e j) : ℤ) : ℚ) * (x j : ℚ)) =
+    ∑ j, ((cI (e j) : ℤ) : ℚ) *
+      ((opus_dpo_zeroTranslations T (x + opus_dpo_shift T M direction x) j : ℤ) : ℚ)
+  rw [hre, hre]
+  congr 1
+  rw [opus_dpo_coeff_shift T M direction (pkgB2_occurrenceEnum T ∅ o)
+    (fun c => x (e.symm c))]
+  apply Finset.sum_congr rfl
+  intro c _
+  congr 1
+  cases c with
+  | inl old =>
+    simp [opus_dpo_zeroTranslations, opus_dpo_shift, e]
+  | inr tr =>
+    simp [opus_dpo_zeroTranslations, e]
+
+theorem opus_dpo_stateIntegrand_shift {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p x =
+      pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+        (opus_dpo_zeroTranslations T (x + opus_dpo_shift T
+          (fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k))
+            direction x)) := by
+  unfold pkgB2_stateIntegrand
+  congr 1
+  apply Finset.prod_congr rfl
+  intro o _
+  simp only [pkgB2_stateFactor]
+  rw [← opus_dpo_rowValue_shift MS T hT J0 gap direction N p o x]
+
 end
 
 end Prediction
