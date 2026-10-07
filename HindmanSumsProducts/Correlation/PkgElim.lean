@@ -109,7 +109,7 @@ theorem harmonicNatLaw_sum_units {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
       by_cases hc : Nat.Coprime n W <;> simp [harmonicNatLaw, hn, hc]
     _ = 1 := hnat
 
-theorem harmonicLaw_tsum_one {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
+theorem pkgElim_harmonicLaw_tsum_one {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
     ∑' z : ℤ, harmonicLaw X W z = 1 := by
   classical
   let s : Finset ℤ := (Finset.Ico X (X ^ 2)).image fun n : ℕ => (n : ℤ)
@@ -162,7 +162,7 @@ theorem harmonicLaw_sum_support {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
   change (∑ z ∈ s, harmonicLaw X W z) = 1
   rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
     (f := harmonicLaw X W) (s := s) hsupp]
-  exact harmonicLaw_tsum_one hW hX
+  exact pkgElim_harmonicLaw_tsum_one hW hX
 
 theorem harmonicNatProduct_tsum_one {ι : Type*} [Fintype ι] [DecidableEq ι]
     {W : ℕ} (X : ι → ℕ) (hW : 0 < W) (hX : ∀ i, 4 * W ≤ X i) :
@@ -1161,7 +1161,7 @@ theorem productBaseResidueLaw_finiteL1_le {d K : ℕ} (hK : 0 < K)
       intro i hi
       exact hcoord_error i
 
-theorem pivotMass_tsum_one {n m : ℕ}
+theorem pkgElim_pivotMass_tsum_one {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
     (hW : 0 < primorial (N + 1))
     (hX : ∀ k, 4 * primorial (N + 1) ≤ A.X N (C.block k).1) :
@@ -1295,7 +1295,7 @@ theorem shiftAverage_eq_uniformIntervalSum {ι : Type*} [Fintype ι] [DecidableE
   intro u hu
   rw [hweight u hu]
 
-theorem primePoolLaw_tsum_one {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) :
+theorem pkgElim_primePoolLaw_tsum_one {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) :
     ∑' p : ℕ, primePoolLaw lo hi p = 1 := by
   classical
   let s : Finset ℕ := (Finset.Ico lo hi).filter Nat.Prime
@@ -1391,7 +1391,7 @@ theorem uniformUnitResidueLaw_nonneg {Q : ℕ} (hQ : 0 < Q) (a : Fin Q) :
   · exact div_nonneg (by norm_num) (Nat.cast_nonneg _)
   · exact le_rfl
 
-theorem primePoolLaw_nonneg {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) (p : ℕ) :
+theorem pkgElim_primePoolLaw_nonneg {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) (p : ℕ) :
     0 ≤ primePoolLaw lo hi p := by
   unfold primePoolLaw
   split_ifs with hp
@@ -2337,7 +2337,7 @@ theorem primePoolCRTLaw_probability {w V Q lo hi : ℕ}
   · intro r
     apply tsum_nonneg
     intro n
-    have hμ := primePoolLaw_nonneg hmass n
+    have hμ := pkgElim_primePoolLaw_nonneg hmass n
     split_ifs <;> positivity
   · calc
       _ = ∑ r : FromArithmetic.CRTResidues w V,
@@ -2443,7 +2443,7 @@ theorem primeTupleCRTLaw_finiteL1_le {s w e V lo hi : ℕ}
     _ = (s : ℝ) * finiteL1
           (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q) := by simp
 
-theorem independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
+theorem pkgElim_independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
     (hmass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
     ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
   classical
@@ -2452,7 +2452,7 @@ theorem independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
   have hcoord (i : Fin m) : ∑ p ∈ I i, primePoolLaw (lo i) (hi i) p = 1 := by
     rw [← tsum_eq_sum (L := SummationFilter.unconditional ℕ)
       (f := primePoolLaw (lo i) (hi i)) (s := I i)]
-    · exact primePoolLaw_tsum_one (hmass i)
+    · exact pkgElim_primePoolLaw_tsum_one (hmass i)
     · intro p hp
       unfold primePoolLaw
       rw [if_neg]
@@ -2509,7 +2509,7 @@ theorem independentPrimePoolProbability_compl {m : ℕ} (lo hi : Fin m → ℕ)
       simp [hz]
     change (∏ j, primePoolLaw (lo j) (hi j) (p j)) = 0
     exact Finset.prod_eq_zero (Finset.mem_univ i) hzi
-  have htotal := independentPrimePoolMass_tsum_one lo hi hmass
+  have htotal := pkgElim_independentPrimePoolMass_tsum_one lo hi hmass
   have hsumE : independentPrimePoolProbability lo hi E =
       ∑ p ∈ S, independentPrimePoolMass lo hi p * (if E p then 1 else 0) := by
     unfold independentPrimePoolProbability
@@ -3280,7 +3280,105 @@ noncomputable def coordinateProductLaw {K m q r s d : ℕ} {Aset : Finset ℚ}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) : ℝ :=
-  ∏ v : Coordinate Sh, coordinateLaw S C Sh dirs J0 N p v (x (eX v))
+  ∏ i : Fin d, coordinateLaw S C Sh dirs J0 N p (eX.symm i) (x i)
+
+noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) : Finset ℤ :=
+  match v with
+  | .inl k => Finset.Ico (S.core.parameters.X N (C.block k).1 : ℤ)
+      ((S.core.parameters.X N (C.block k).1 ^ 2 : ℕ) : ℤ)
+  | .inr (.inl _) => Finset.Ico 0
+      ((max 1 (shiftLength S C.gap J0 N dirs.poly p) : ℕ) : ℤ)
+  | .inr (.inr _) => Finset.Ico 0 (S.core.parameters.H N C.gap : ℤ)
+
+theorem pkgElim_coordinateLaw_zero_of_not_mem {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ)
+    (hz : z ∉ pkgElim_coordinateSupport S C Sh dirs J0 N p v) :
+    coordinateLaw S C Sh dirs J0 N p v z = 0 := by
+  cases v with
+  | inl k =>
+    change harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) z = 0
+    change z ∉ Finset.Ico (S.core.parameters.X N (C.block k).1 : ℤ)
+      ((S.core.parameters.X N (C.block k).1 ^ 2 : ℕ) : ℤ) at hz
+    unfold harmonicLaw
+    rw [if_neg]
+    intro h
+    apply hz
+    have hcast : (z.toNat : ℤ) = z := Int.toNat_of_nonneg h.1
+    have hlow : (S.core.parameters.X N (C.block k).1 : ℤ) ≤ z := by
+      calc
+        _ ≤ (z.toNat : ℤ) := by exact_mod_cast h.2.1
+        _ = z := hcast
+    have hhigh : z <
+        ((S.core.parameters.X N (C.block k).1 ^ 2 : ℕ) : ℤ) := by
+      calc
+        z = (z.toNat : ℤ) := hcast.symm
+        _ < _ := by exact_mod_cast h.2.2.1
+    exact Finset.mem_Ico.mpr ⟨hlow, hhigh⟩
+  | inr v =>
+    cases v with
+    | inl old =>
+      change FromArithmetic.uniformIntegerIntervalLaw 0
+        (max 1 (shiftLength S C.gap J0 N dirs.poly p)) z = 0
+      change z ∉ Finset.Ico 0
+        ((max 1 (shiftLength S C.gap J0 N dirs.poly p) : ℕ) : ℤ) at hz
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      rw [if_neg]
+      intro h
+      apply hz
+      exact Finset.mem_Ico.mpr (by simpa using h)
+    | inr root =>
+      change FromArithmetic.uniformIntegerIntervalLaw 0
+        (S.core.parameters.H N C.gap) z = 0
+      change z ∉ Finset.Ico 0 (S.core.parameters.H N C.gap : ℤ) at hz
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      rw [if_neg]
+      intro h
+      apply hz
+      exact Finset.mem_Ico.mpr (by simpa using h)
+
+theorem pkgElim_coordinateLaw_tsum_one {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) :
+    ∑' z : ℤ, coordinateLaw S C Sh dirs J0 N p v z = 1 := by
+  cases v with
+  | inl k =>
+    simpa [coordinateLaw] using pkgElim_harmonicLaw_tsum_one (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block k).1)
+  | inr v =>
+    cases v with
+    | inl old =>
+      apply uniformIntegerIntervalLaw_tsum_one
+      exact lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left _ _)
+    | inr root =>
+      exact uniformIntegerIntervalLaw_tsum_one (S.core.parameters.Hpos N C.gap)
+
+theorem pkgElim_coordinateProductLaw_tsum_one {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) :
+    ∑' x : Fin d → ℤ, coordinateProductLaw S C Sh dirs J0 N p eX x = 1 := by
+  classical
+  let μ : Fin d → ℤ → ℝ := fun i => coordinateLaw S C Sh dirs J0 N p (eX.symm i)
+  let T : Fin d → Finset ℤ := fun i => pkgElim_coordinateSupport S C Sh dirs J0 N p (eX.symm i)
+  have hsupp : ∀ i z, z ∉ T i → μ i z = 0 := by
+    intro i z hz
+    exact pkgElim_coordinateLaw_zero_of_not_mem S C Sh dirs J0 N p (eX.symm i) z hz
+  have hnorm (i : Fin d) : ∑ z ∈ T i, μ i z = 1 := by
+    rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+      (f := μ i) (s := T i) (fun z hz => hsupp i z hz)]
+    exact pkgElim_coordinateLaw_tsum_one S C Sh dirs J0 N p (eX.symm i)
+  simpa [coordinateProductLaw, μ] using
+    (productLaw_tsum_one_of_finite_support μ T hsupp hnorm)
 
 noncomputable def occurrenceDivisorTemplate {K m q r : ℕ}
     (C : MasterChain K m) (Sh : RowShape m q r) (o : Occurrence Sh) :
