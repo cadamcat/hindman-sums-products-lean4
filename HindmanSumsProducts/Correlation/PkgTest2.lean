@@ -836,6 +836,66 @@ private theorem c_test2_scaleRatioNat {K s m : ℕ}
   have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
   exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
 
+theorem c_test2_rowCoefficientRepresentation {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) (hscale : c_test2_ScaleData S C a N)
+    (T : RowTemplate m q) (p : Fin q → ℕ) :
+    ∃ alpha : Fin m → ℕ, ∀ i,
+      chainScale S.core.parameters C a N i / chainScale S.core.parameters C a N T.anchor *
+        T.value p i = (alpha i : ℚ) := by
+  classical
+  rcases Classical.choose_spec hscale with ⟨hc, hcpos, hratio, hmod⟩
+  let cint := Classical.choose hscale
+  let c : Fin m → ℚ := chainScale S.core.parameters C a N
+  let rho : Fin m → ℕ := fun i =>
+    if hi : i < T.anchor then
+      Classical.choose (c_test2_scaleRatioNat S N cint hcpos hratio hmod i T.anchor hi)
+    else 1
+  let alpha : Fin m → ℕ := fun i =>
+    if hi : i < T.anchor then rho i * c_test2_rowValueNat T p i
+    else if i = T.anchor then c_test2_rowValueNat T p i else 0
+  have hrho (i : Fin m) (hi : i < T.anchor) :
+      (rho i : ℚ) = (cint i : ℚ) / (cint T.anchor : ℚ) := by
+    simpa [rho, hi] using (Classical.choose_spec
+      (c_test2_scaleRatioNat S N cint hcpos hratio hmod i T.anchor hi)).2.1
+  have hnone (i : Fin m) (hi : T.anchor < i) : T.entry i = none := by
+    by_contra hsome
+    obtain ⟨e, he⟩ : ∃ e, T.entry i = some e := by
+      cases h : T.entry i with
+      | none => exact (hsome h).elim
+      | some e => exact ⟨e, rfl⟩
+    have hmem : i ∈ T.support := by simpa [RowTemplate.support, he]
+    have hle := Finset.le_max' T.support i hmem
+    change i ≤ T.anchor at hle
+    omega
+  refine ⟨alpha, ?_⟩
+  intro i
+  have hc' (j : Fin m) : (cint j : ℚ) = c j := by
+    simpa [c, cint, chainScale] using hc j
+  by_cases hi : i < T.anchor
+  · calc
+      c i / c T.anchor * T.value p i =
+          ((cint i : ℚ) / (cint T.anchor : ℚ)) * T.value p i := by
+            rw [hc' i, hc' T.anchor]
+      _ = (rho i : ℚ) * (c_test2_rowValueNat T p i : ℚ) := by
+            rw [hrho i hi, c_test2_rowValue_eq_cast]
+      _ = (alpha i : ℚ) := by simp [alpha, hi]
+  · by_cases hEq : i = T.anchor
+    · subst i
+      have hcne : c T.anchor ≠ 0 := by
+        rw [← hc' T.anchor]
+        exact_mod_cast ne_of_gt (hcpos T.anchor)
+      calc
+        c T.anchor / c T.anchor * T.value p T.anchor = T.value p T.anchor := by
+          field_simp
+        _ = (c_test2_rowValueNat T p T.anchor : ℚ) := c_test2_rowValue_eq_cast T p T.anchor
+        _ = (alpha T.anchor : ℚ) := by simp [alpha]
+    · have hgt : T.anchor < i := by omega
+      have hval : T.value p i = 0 := by simp [RowTemplate.value, hnone i hgt]
+      rw [hval]
+      simp [alpha, hi, hEq]
+
 theorem c_test2_masterSize_le_pivotGap_eventually {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
@@ -2878,5 +2938,474 @@ theorem c_test2_pivotBaseResidueLaw_finiteL1_bound {n m K : ℕ}
             simp_rw [hFactorLaw r, hFactorUnif r]
     _ ≤ ∑ i, finiteL1 (law i) (unif i) := htel'
     _ ≤ ∑ i, hErr i := Finset.sum_le_sum fun i hi => herr i
+
+theorem c_test2_natCutoff_dominates_of_log {X V : ℕ → ℕ}
+    (hX : ∀ᶠ N in atTop, 1 ≤ X N)
+    (hDom : OAI.MicrocellScale.Dominates
+      (fun N => Real.log (X N : ℝ)) (fun N => (V N : ℝ))) :
+    OAI.MicrocellScale.Dominates (fun N => (X N : ℝ)) (fun N => (V N : ℝ)) := by
+  intro C hC
+  have h := hDom C hC
+  have hle : (fun N => Real.log (X N : ℝ) / (V N : ℝ) ^ C) ≤ᶠ[atTop]
+      (fun N => (X N : ℝ) / (V N : ℝ) ^ C) := by
+    filter_upwards [hX] with N hXN
+    have hXpos : (0 : ℝ) < (X N : ℝ) := by exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one hXN)
+    have hlog : Real.log (X N : ℝ) ≤ (X N : ℝ) := by
+      have h := Real.log_le_sub_one_of_pos hXpos
+      linarith
+    exact div_le_div_of_nonneg_right hlog (Real.rpow_nonneg (by positivity) C)
+  exact Filter.tendsto_atTop_mono' atTop hle h
+
+theorem c_test2_samplingResidueError_superpoly {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (i : Fin m) (R : ℕ) :
+    SuperPolynomialSmall
+      (fun N => FromArithmetic.harmonicResidueUniformError
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)
+          ) ((FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ R))
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
+  classical
+  let A := S.core.parameters
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV A N C.gap
+  let Ksam : ℕ → ℕ := fun N => V N ^ R
+  let Hsam : ℕ → ℕ := fun _ => 1
+  let Xsam : ℕ → ℕ := fun N => A.X N (C.block i).1
+  let logTarget : ℕ → ℕ := fun N => 2 + primorial (N + 1) + Ksam N + V N
+  let target : ℕ → ℕ := fun N => 2 + primorial (N + 1) + Ksam N + Hsam N + V N
+  have hV4 : ∀ᶠ N in atTop, 4 ≤ V N := by
+    filter_upwards [eventually_ge_atTop 1] with N hN
+    have hW2 : 2 ≤ primorial (N + 1) := by
+      calc
+        2 = primorial 2 := by norm_num
+        _ ≤ primorial (N + 1) := primorial_mono (by omega)
+    have hM := A.Wle N
+    dsimp [V, FromArithmetic.masterScaleV]
+    omega
+  have hVpos (N : ℕ) : 1 ≤ V N := by
+    dsimp [V, FromArithmetic.masterScaleV]
+    have hM := A.Mpos N
+    omega
+  have hWleV (N : ℕ) : primorial (N + 1) ≤ V N := by
+    dsimp [V, FromArithmetic.masterScaleV]
+    exact (A.Wle N).trans (by omega)
+  have hsize : ∀ᶠ N in atTop,
+      (S.primeStage.pool N C.gap).upper + V N ≤ A.H N (C.block i).1 :=
+    c_test2_masterSize_le_pivotGap_eventually S C i (C.pivots_after_gap i)
+  have htarget : ∀ᶠ N in atTop, target N ≤ V N ^ (R + 4) := by
+    filter_upwards [hV4] with N hV
+    dsimp [target, logTarget, Ksam, Hsam]
+    have hV1 := hVpos N
+    have hW := hWleV N
+    have hWplus : primorial (N + 1) + 1 ≤ V N := by
+      dsimp [V, FromArithmetic.masterScaleV]
+      have hM := A.Wle N
+      omega
+    have hsmall : 2 + primorial (N + 1) + V N ^ R + 1 + V N ≤
+        2 + 2 * V N + V N ^ R := by
+      omega
+    calc
+      _ ≤ 2 + 2 * V N + V N ^ R := hsmall
+      _ ≤ V N ^ (R + 4) := by
+        simpa using c_test2_natSamplerTargetBound (x := V N) (c := 0) (e := R) hV (by omega)
+  have htargetPos (N : ℕ) : 0 < target N := by
+    dsimp [target, Ksam, Hsam]
+    omega
+  have hHpos : ∀ N, 0 < A.H N (C.block i).1 := fun N => A.Hpos N (C.block i).1
+  have hVleH : ∀ᶠ N in atTop, V N ≤ A.H N (C.block i).1 := by
+    filter_upwards [hsize] with N hN
+    have : V N ≤ (S.primeStage.pool N C.gap).upper + V N := Nat.le_add_left _ _
+    exact this.trans hN
+  have hlogV : OAI.MicrocellScale.Dominates
+      (fun N => Real.log (Xsam N : ℝ)) (fun N => (V N : ℝ)) := by
+    exact c_test2_dominates_of_power_bound
+      (fun N => by
+        have hX : 1 ≤ Xsam N := by
+          have hraw := S.gapStage.valid_raw_cutoffs N (C.block i).1
+          have hWpos : 1 ≤ primorial (N + 1) := by
+            exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+          have hXfour : 4 ≤ A.X N (C.block i).1 := by
+            calc
+              4 = 4 * 1 := by norm_num
+              _ ≤ 4 * primorial (N + 1) := Nat.mul_le_mul_left 4 hWpos
+              _ ≤ A.X N (C.block i).1 := hraw
+          have hXone : 1 ≤ A.X N (C.block i).1 := by omega
+          simpa [Xsam] using hXone
+        have hXreal : (1 : ℝ) ≤ (Xsam N : ℝ) := by exact_mod_cast hX
+        exact Real.log_nonneg hXreal)
+      (fun N => by exact_mod_cast hHpos N)
+      (fun N => by exact_mod_cast hVpos N)
+      1 (by norm_num)
+      (by
+        filter_upwards [hVleH] with N hN
+        have hN' : (V N : ℝ) ≤ (A.H N (C.block i).1 : ℝ) := by exact_mod_cast hN
+        simpa [Real.rpow_one] using hN')
+      (A.Xdom (C.block i).1)
+  have hlogTargetBound : ∀ᶠ N in atTop, logTarget N ≤ V N ^ (R + 4) := by
+    filter_upwards [htarget] with N hN
+    dsimp [logTarget, target, Hsam] at *
+    omega
+  have hlogTargetPos (N : ℕ) : 0 < logTarget N := by
+    dsimp [logTarget]
+    omega
+  have hlogTarget : OAI.MicrocellScale.Dominates
+      (fun N => Real.log (Xsam N : ℝ)) (fun N => (logTarget N : ℝ)) := by
+    exact c_test2_dominates_of_power_bound
+      (fun N => by
+        have hX : 1 ≤ Xsam N := by
+          have hraw := S.gapStage.valid_raw_cutoffs N (C.block i).1
+          have hWpos : 1 ≤ primorial (N + 1) := by
+            exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+          have hXfour : 4 ≤ A.X N (C.block i).1 := by
+            calc
+              4 = 4 * 1 := by norm_num
+              _ ≤ 4 * primorial (N + 1) := Nat.mul_le_mul_left 4 hWpos
+              _ ≤ A.X N (C.block i).1 := hraw
+          have hXone : 1 ≤ A.X N (C.block i).1 := by omega
+          simpa [Xsam] using hXone
+        have hXreal : (1 : ℝ) ≤ (Xsam N : ℝ) := by exact_mod_cast hX
+        exact Real.log_nonneg hXreal)
+      (fun N => by exact_mod_cast hVpos N)
+      (fun N => by exact_mod_cast (hlogTargetPos N))
+      (R + 4) (by positivity)
+      (by
+        filter_upwards [hlogTargetBound] with N hN
+        exact_mod_cast hN)
+      hlogV
+  have htargetLeLogTargetSq (N : ℕ) : target N ≤ (logTarget N) ^ 2 := by
+    have hlog2 : 2 ≤ logTarget N := by dsimp [logTarget]; omega
+    have hmul : 2 * logTarget N ≤ logTarget N * logTarget N :=
+      Nat.mul_le_mul_right (logTarget N) hlog2
+    have hrel : target N = logTarget N + 1 := by
+      dsimp [target, logTarget, Hsam, Ksam]
+      omega
+    rw [hrel, pow_two]
+    exact (by omega : logTarget N + 1 ≤ 2 * logTarget N).trans hmul
+  have htargetLeLogTargetSqEventually : ∀ᶠ N in atTop,
+      target N ≤ (logTarget N) ^ 2 := Filter.Eventually.of_forall htargetLeLogTargetSq
+  have hlogFull : OAI.MicrocellScale.Dominates
+      (fun N => Real.log (Xsam N : ℝ)) (fun N => (target N : ℝ)) := by
+    exact c_test2_dominates_of_power_bound
+      (fun N => by
+        have hraw := S.gapStage.valid_raw_cutoffs N (C.block i).1
+        have hWpos : 1 ≤ primorial (N + 1) := by
+          exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+        have hXfour : 4 ≤ A.X N (C.block i).1 := by
+          calc
+            4 = 4 * 1 := by norm_num
+            _ ≤ 4 * primorial (N + 1) := Nat.mul_le_mul_left 4 hWpos
+            _ ≤ A.X N (C.block i).1 := hraw
+        have hXone : 1 ≤ Xsam N := by dsimp [Xsam]; omega
+        have hXreal : (1 : ℝ) ≤ (Xsam N : ℝ) := by exact_mod_cast hXone
+        exact Real.log_nonneg hXreal)
+      (fun N => by exact_mod_cast hlogTargetPos N)
+      (fun N => by exact_mod_cast htargetPos N)
+      2 (by norm_num)
+      (by
+        filter_upwards [htargetLeLogTargetSqEventually] with N hN
+        exact_mod_cast hN)
+      hlogTarget
+  have hDomX : OAI.MicrocellScale.Dominates (fun N => (Xsam N : ℝ))
+      (fun N => (target N : ℝ)) :=
+    c_test2_natCutoff_dominates_of_log (by
+      filter_upwards [] with N
+      have hraw := S.gapStage.valid_raw_cutoffs N (C.block i).1
+      have hWpos : 1 ≤ primorial (N + 1) := by
+        exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+      have hXfour : 4 ≤ A.X N (C.block i).1 := by
+        calc
+          4 = 4 * 1 := by norm_num
+          _ ≤ 4 * primorial (N + 1) := Nat.mul_le_mul_left 4 hWpos
+          _ ≤ A.X N (C.block i).1 := hraw
+      have hXone : 1 ≤ A.X N (C.block i).1 := by omega
+      simpa [Xsam] using hXone) hlogFull
+  have hXevent : ∀ᶠ N in atTop, 2 ≤ Xsam N := by
+    filter_upwards [] with N
+    have hraw := S.gapStage.valid_raw_cutoffs N (C.block i).1
+    have hWpos : 1 ≤ primorial (N + 1) := by
+      exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+    have hXfour : 4 ≤ A.X N (C.block i).1 := by
+      calc
+        4 = 4 * 1 := by norm_num
+        _ ≤ 4 * primorial (N + 1) := Nat.mul_le_mul_left 4 hWpos
+        _ ≤ A.X N (C.block i).1 := hraw
+    have hXtwo : 2 ≤ A.X N (C.block i).1 := by omega
+    simpa [Xsam] using hXtwo
+  have hden : ∀ᶠ N in atTop,
+      Real.log (Xsam N : ℝ) > (primorial (N + 1) : ℝ) / Xsam N := by
+    have hlogH := (A.Xdom (C.block i).1) 1 (by norm_num)
+    have hgt : ∀ᶠ N in atTop, (A.H N (C.block i).1 : ℝ) <
+        Real.log (Xsam N : ℝ) := by
+      filter_upwards [hlogH.eventually (eventually_gt_atTop 1)] with N hN
+      have hHp : (0 : ℝ) < (A.H N (C.block i).1 : ℝ) := by exact_mod_cast hHpos N
+      have hN' : 1 < Real.log (Xsam N : ℝ) / (A.H N (C.block i).1 : ℝ) := by
+        simpa [Xsam, Real.rpow_one] using hN
+      have hlt : (A.H N (C.block i).1 : ℝ) < Real.log (Xsam N : ℝ) := by
+        simpa using (lt_div_iff₀ hHp).mp hN'
+      exact hlt
+    filter_upwards [hgt, hsize] with N hN hSN
+    have hW : primorial (N + 1) ≤ V N := hWleV N
+    have hVH : V N ≤ A.H N (C.block i).1 :=
+      (Nat.le_add_left _ _).trans hSN
+    have hWX : (primorial (N + 1) : ℝ) / (Xsam N : ℝ) ≤
+        (A.H N (C.block i).1 : ℝ) := by
+      have hXge : (1 : ℝ) ≤ (Xsam N : ℝ) := by
+        have hraw := S.gapStage.valid_raw_cutoffs N (C.block i).1
+        have hWpos : 1 ≤ primorial (N + 1) := by
+          exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+        have hXfour : 4 ≤ A.X N (C.block i).1 := by
+          calc
+            4 = 4 * 1 := by norm_num
+            _ ≤ 4 * primorial (N + 1) := Nat.mul_le_mul_left 4 hWpos
+            _ ≤ A.X N (C.block i).1 := hraw
+        have hXnat : 1 ≤ Xsam N := by dsimp [Xsam]; omega
+        exact_mod_cast hXnat
+      have hdiv : (primorial (N + 1) : ℝ) / (Xsam N : ℝ) ≤
+          (primorial (N + 1) : ℝ) := by
+        exact div_le_self (by positivity) hXge
+      exact hdiv.trans (by exact_mod_cast hW.trans hVH)
+    exact lt_of_le_of_lt hWX hN
+  have hK : ∀ N, 1 ≤ Ksam N := by
+    intro N
+    dsimp [Ksam]
+    exact Nat.one_le_pow R (V N) (hVpos N)
+  have hH : ∀ N, 1 ≤ Hsam N := by intro N; simp [Hsam]
+  have hV : ∀ N, 1 ≤ V N := hVpos
+  have hW : ∀ N, (fun n => primorial (n + 1)) N = primorial (N + 1) := by intro N; rfl
+  have hsamp := FromArithmetic.sampling_asymptotics
+    (fun N => primorial (N + 1)) Ksam Hsam V Xsam hK hH hV hW hXevent hden
+    (by simpa [target, logTarget, Ksam, Hsam] using hDomX)
+    (by simpa [logTarget, Ksam] using hlogTarget)
+  change SuperPolynomialSmall
+    (fun N => FromArithmetic.harmonicResidueUniformError
+      (Xsam N) (primorial (N + 1)) (Ksam N)) (fun N => (V N : ℝ))
+  exact hsamp.1
+
+abbrev CTest2TailIndex {n : ℕ} (T : Finset (Fin n)) := {i : Fin n // i ∈ T}
+abbrev CTest2RestIndex {n : ℕ} (T : Finset (Fin n)) := {i : Fin n // i ∉ T}
+
+noncomputable def c_test2_finsetPartitionEquiv {n : ℕ} (T : Finset (Fin n)) :
+    Fin n ≃ CTest2TailIndex T ⊕ CTest2RestIndex T := by
+  classical
+  let code : Fin n → CTest2TailIndex T ⊕ CTest2RestIndex T := fun i =>
+    if hi : i ∈ T then Sum.inl ⟨i, hi⟩ else Sum.inr ⟨i, hi⟩
+  refine {
+    toFun := code
+    invFun := fun x => match x with | Sum.inl i => i.1 | Sum.inr i => i.1
+    left_inv := ?_
+    right_inv := ?_ }
+  · intro i
+    by_cases hi : i ∈ T <;> simp [code, hi]
+  · intro x
+    rcases x with i | i
+    · simp [code, i.2]
+    · simp [code, i.2]
+
+noncomputable def c_test2_divisorTemplateOfTail {n : ℕ} (T : Finset (Fin n)) :
+    FromArithmetic.DivisorTemplate n n := by
+  classical
+  let Tail := CTest2TailIndex T
+  let e : Tail ≃ Fin (Fintype.card Tail) := Fintype.equivFin Tail
+  have hcard := Fintype.card_le_of_injective (fun i : Tail => i.1) Subtype.val_injective
+  have hcard' : Fintype.card Tail ≤ n := by simpa [Tail, Fintype.card_fin] using hcard
+  exact ⟨Fintype.card Tail, hcard', fun i => (e.symm i).1⟩
+
+theorem c_test2_parameterTailProductLaw_eq_harmonicProductLaw {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n))
+    (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1))) (σ : ℕ) :
+    FromArithmetic.parameterTailProductLaw A N T σ =
+      harmonicProductLaw (primorial (N + 1))
+        (fun i => A.X N ((Fintype.equivFin (CTest2TailIndex T)).symm i).1) σ := by
+  classical
+  let Tail := CTest2TailIndex T
+  let Rest := CTest2RestIndex T
+  let part := c_test2_finsetPartitionEquiv T
+  let eFun : (Fin n → ℕ) ≃ ((Tail → ℕ) × (Rest → ℕ)) :=
+    (Equiv.arrowCongr part (Equiv.refl ℕ)).trans
+      (Equiv.sumArrowEquivProdArrow Tail Rest ℕ)
+  let W := primorial (N + 1)
+  let law : Fin n → ℕ → ℝ := fun j x => harmonicNatLaw (A.X N j) W x
+  let tailLaw : Tail → ℕ → ℝ := fun j x => law j.1 x
+  let restLaw : Rest → ℕ → ℝ := fun j x => law j.1 x
+  let tailSupport : Tail → Finset ℕ := fun j => Finset.range ((A.X N j.1) ^ 2)
+  let restSupport : Rest → Finset ℕ := fun j => Finset.range ((A.X N j.1) ^ 2)
+  let tailMass : (Tail → ℕ) → ℝ := fun x => ∏ j, tailLaw j (x j)
+  let restMass : (Rest → ℕ) → ℝ := fun x => ∏ j, restLaw j (x j)
+  let tailTerm : (Tail → ℕ) → ℝ := fun x =>
+    (if (∏ j, x j) = σ then 1 else 0) * tailMass x
+  let integrand : (Tail → ℕ) × (Rest → ℕ) → ℝ := fun x => tailTerm x.1 * restMass x.2
+  let tailDomain : Finset (Tail → ℕ) := Fintype.piFinset tailSupport
+  let restDomain : Finset (Rest → ℕ) := Fintype.piFinset restSupport
+  let pairDomain : Finset ((Tail → ℕ) × (Rest → ℕ)) := tailDomain.product restDomain
+  have hzeroLaw (j : Fin n) (x : ℕ) (hx : x ∉ Finset.range ((A.X N j) ^ 2)) :
+      law j x = 0 := by
+    simp [law, harmonicNatLaw, Finset.mem_range] at hx ⊢
+    omega
+  have hzeroTail (x : Tail → ℕ) (hx : x ∉ tailDomain) : tailMass x = 0 := by
+    have hnot : ¬ ∀ j : Tail, x j ∈ tailSupport j := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨j, hj⟩ := not_forall.mp hnot
+    have hz := hzeroLaw j.1 (x j) (by simpa [tailSupport] using hj)
+    unfold tailMass
+    exact Finset.prod_eq_zero (Finset.mem_univ j) (by simpa [tailLaw] using hz)
+  have hzeroRest (x : Rest → ℕ) (hx : x ∉ restDomain) : restMass x = 0 := by
+    have hnot : ¬ ∀ j : Rest, x j ∈ restSupport j := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨j, hj⟩ := not_forall.mp hnot
+    have hz := hzeroLaw j.1 (x j) (by simpa [restSupport] using hj)
+    unfold restMass
+    exact Finset.prod_eq_zero (Finset.mem_univ j) (by simpa [restLaw] using hz)
+  have hzeroPair (x : (Tail → ℕ) × (Rest → ℕ)) (hx : x ∉ pairDomain) :
+      integrand x = 0 := by
+    have hnot : ¬ (x.1 ∈ tailDomain ∧ x.2 ∈ restDomain) := by
+      simpa [pairDomain, Finset.mem_product] using hx
+    have hnot' : x.1 ∉ tailDomain ∨ x.2 ∉ restDomain := not_and_or.mp hnot
+    rcases hnot' with h | h
+    · simp [integrand, tailTerm, hzeroTail x.1 h]
+    · simp [integrand, tailTerm, hzeroRest x.2 h]
+  have hsumRest : ∑' x : Rest → ℕ, restMass x = 1 := by
+    apply c_test2_productMass_tsum_one restLaw restSupport
+    · intro j x hx
+      exact hzeroLaw j.1 x (by simpa [restSupport] using hx)
+    · intro j
+      exact c_test2_harmonicNatLaw_tsum_one_of_normalizer_pos
+        (A.X N j.1) W (A.Xpos N j.1) (hNorm j.1)
+  have hsumTail : Summable tailTerm := by
+    apply summable_of_ne_finset_zero (s := tailDomain)
+    intro x hx
+    simp [tailTerm, hzeroTail x hx]
+  have hsumRestSummable : Summable restMass := by
+    exact summable_of_ne_finset_zero (s := restDomain) (by
+      intro x hx
+      simp [hzeroRest x hx])
+  have hsumPair : Summable integrand := summable_of_ne_finset_zero (s := pairDomain) hzeroPair
+  have htailSplit : ∀ x : Tail → ℕ,
+      (∑' y : Rest → ℕ, integrand (x, y)) = tailTerm x := by
+    intro x
+    calc
+      _ = ∑' y : Rest → ℕ, tailTerm x * restMass y := by
+        apply tsum_congr
+        intro y
+        rfl
+      _ = tailTerm x * ∑' y : Rest → ℕ, restMass y := by
+        rw [tsum_mul_left]
+      _ = tailTerm x := by simp [hsumRest]
+  have htailLawReindex :
+      (∑' x : Tail → ℕ, tailTerm x) =
+        harmonicProductLaw W
+          (fun i => A.X N ((Fintype.equivFin Tail).symm i).1) σ := by
+    let eFin : Tail ≃ Fin (Fintype.card Tail) := Fintype.equivFin Tail
+    let ePi : (Tail → ℕ) ≃ (Fin (Fintype.card Tail) → ℕ) :=
+      Equiv.arrowCongr eFin (Equiv.refl ℕ)
+    have hreindex :
+        (∑' x : Tail → ℕ, tailTerm x) =
+          ∑' y : Fin (Fintype.card Tail) → ℕ, tailTerm (ePi.symm y) :=
+      (ePi.symm.tsum_eq (fun x : Tail → ℕ => tailTerm x)).symm
+    have hprod (y : Fin (Fintype.card Tail) → ℕ) :
+        tailMass (ePi.symm y) =
+          ∏ i : Fin (Fintype.card Tail),
+            harmonicNatLaw (A.X N (eFin.symm i).1) W (y i) := by
+      unfold tailMass tailLaw
+      apply Fintype.prod_equiv eFin
+      intro j
+      simp [law, ePi, Equiv.arrowCongr, eFin]
+    have hprodCoord (y : Fin (Fintype.card Tail) → ℕ) :
+        (∏ j : Tail, ePi.symm y j) = ∏ i : Fin (Fintype.card Tail), y i := by
+      apply Fintype.prod_equiv eFin
+      intro j
+      simp [ePi, Equiv.arrowCongr]
+    have hprodCoord (y : Fin (Fintype.card Tail) → ℕ) :
+        (∏ j : Tail, ePi.symm y j) = ∏ i : Fin (Fintype.card Tail), y i := by
+      apply Fintype.prod_equiv eFin
+      intro j
+      simp [ePi, Equiv.arrowCongr]
+    unfold harmonicProductLaw
+    calc
+      _ = ∑' y : Fin (Fintype.card Tail) → ℕ, tailTerm (ePi.symm y) := hreindex
+      _ = ∑' y : Fin (Fintype.card Tail) → ℕ,
+            (if (∏ i, y i) = σ then (1 : ℝ) else 0) *
+              ∏ i, harmonicNatLaw (A.X N (eFin.symm i).1) W (y i) := by
+          apply tsum_congr
+          intro y
+          unfold tailTerm
+          rw [hprodCoord y, hprod y]
+  have hparamReindex :
+      FromArithmetic.parameterTailProductLaw A N T σ = ∑' x, integrand x := by
+    unfold FromArithmetic.parameterTailProductLaw
+    let term : (Fin n → ℕ) → ℝ := fun t =>
+      (if (∏ j ∈ T, t j) = σ then (1 : ℝ) else 0) * ∏ j, law j (t j)
+    have hprodT (t : Fin n → ℕ) :
+        (∏ j ∈ T, t j) = ∏ j : Tail, t j.1 := by
+      rw [← Finset.prod_subtype (s := T) (h := fun _ => Iff.rfl)]
+    have hpartL (j : Tail) : part.symm (Sum.inl j) = j.1 := by
+      simp [part, c_test2_finsetPartitionEquiv]
+    have hpartR (j : Rest) : part.symm (Sum.inr j) = j.1 := by
+      simp [part, c_test2_finsetPartitionEquiv]
+    have htailMap (t : Fin n → ℕ) (j : Tail) : (eFun t).1 j = t j.1 := by
+      change t (part.symm (Sum.inl j)) = t j.1
+      rw [hpartL]
+    have hrestMap (t : Fin n → ℕ) (j : Rest) : (eFun t).2 j = t j.1 := by
+      change t (part.symm (Sum.inr j)) = t j.1
+      rw [hpartR]
+    have htailProdMap (t : Fin n → ℕ) :
+        (∏ j : Tail, t j.1) = (∏ j : Tail, (eFun t).1 j) := by
+      apply Finset.prod_congr rfl
+      intro j hj
+      rw [htailMap]
+    have hrestProdMap (t : Fin n → ℕ) :
+        (∏ j : Rest, t j.1) = (∏ j : Rest, (eFun t).2 j) := by
+      apply Finset.prod_congr rfl
+      intro j hj
+      rw [hrestMap]
+    have hprodLaw (t : Fin n → ℕ) :
+        (∏ j : Fin n, law j (t j)) =
+          tailMass (eFun t).1 * restMass (eFun t).2 := by
+      unfold tailMass restMass tailLaw restLaw
+      calc
+        _ = ∏ j : Tail ⊕ Rest, law (part.symm j) (t (part.symm j)) := by
+          apply Fintype.prod_equiv part
+          intro j
+          rw [part.symm_apply_apply]
+        _ = (∏ j : Tail, law j.1 (t j.1)) *
+              ∏ j : Rest, law j.1 (t j.1) := by
+          let f : Tail → ℝ := fun j => law j.1 (t j.1)
+          let g : Rest → ℝ := fun j => law j.1 (t j.1)
+          have heq : (fun j : Tail ⊕ Rest => law (part.symm j) (t (part.symm j))) =
+              Sum.elim f g := by
+            funext j
+            rcases j with j | j
+            · simp [f, hpartL]
+            · simp [g, hpartR]
+          rw [heq]
+          simp [Finset.prod_sumElim, f, g]
+        _ = _ := by
+          congr 1
+    have hterm (t : Fin n → ℕ) : term t = integrand (eFun t) := by
+      change (if (∏ j ∈ T, t j) = σ then (1 : ℝ) else 0) *
+          ∏ j, law j (t j) =
+        (if (∏ j : Tail, (eFun t).1 j) = σ then (1 : ℝ) else 0) *
+          tailMass (eFun t).1 * restMass (eFun t).2
+      rw [hprodT t, htailProdMap t, hprodLaw t]
+      simp [integrand, tailTerm]
+    change (∑' t : Fin n → ℕ, term t) = ∑' x, integrand x
+    calc
+      _ = ∑' x : (Tail → ℕ) × (Rest → ℕ), term (eFun.symm x) := by
+        simpa [eFun] using (eFun.symm.tsum_eq (fun t : Fin n → ℕ => term t)).symm
+      _ = ∑' x : (Tail → ℕ) × (Rest → ℕ), integrand x := by
+        apply tsum_congr
+        intro x
+        simpa only [Equiv.apply_symm_apply] using hterm (eFun.symm x)
+  calc
+    FromArithmetic.parameterTailProductLaw A N T σ = ∑' x, integrand x := hparamReindex
+    _ = ∑' x : Tail → ℕ, tailTerm x := by
+      calc
+        _ = ∑' x : Tail → ℕ, ∑' y : Rest → ℕ, integrand (x, y) := hsumPair.tsum_prod
+        _ = ∑' x : Tail → ℕ, tailTerm x := by
+          apply tsum_congr
+          intro x
+          exact htailSplit x
+    _ = harmonicProductLaw W (fun i => A.X N ((Fintype.equivFin Tail).symm i).1) σ := htailLawReindex
 
 end HindmanSumsProducts
