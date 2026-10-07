@@ -4681,13 +4681,13 @@ theorem maskWeightedLinearFormsData_goodDomain_eventually
       MaskRowDataGoodDomain S C a Sh ι N p :=
   maskRowDataGoodDomain_eventually S C a ha Sh ι hlisted
 
-def masterCRTOptionFactor (w e V : ℕ) : Option (FromArithmetic.CRTPrimeRange w V) → ℕ
+def pkgMask_masterCRTOptionFactor (w e V : ℕ) : Option (FromArithmetic.CRTPrimeRange w V) → ℕ
   | none => primorial w ^ e
   | some p => p.val
 
 theorem masterCRTModulus_eq_option_prod (w e V : ℕ) :
     FromArithmetic.masterCRTModulus w e V =
-      ∏ o : Option (FromArithmetic.CRTPrimeRange w V), masterCRTOptionFactor w e V o := by
+      ∏ o : Option (FromArithmetic.CRTPrimeRange w V), pkgMask_masterCRTOptionFactor w e V o := by
   classical
   have hattach :
       (∏ p : FromArithmetic.CRTPrimeRange w V, p.val) =
@@ -4696,12 +4696,12 @@ theorem masterCRTModulus_eq_option_prod (w e V : ℕ) :
       (Finset.prod_attach ((Finset.Ioc w (V + 1)).filter Nat.Prime) (fun p => p))
   unfold FromArithmetic.masterCRTModulus
   rw [← hattach]
-  simp [masterCRTOptionFactor, Fintype.prod_option]
+  simp [pkgMask_masterCRTOptionFactor, Fintype.prod_option]
 
 theorem masterCRTOptionFactor_none_coprime {w e V : ℕ}
     (p : FromArithmetic.CRTPrimeRange w V) :
-    Nat.Coprime (masterCRTOptionFactor w e V none)
-      (masterCRTOptionFactor w e V (some p)) := by
+    Nat.Coprime (pkgMask_masterCRTOptionFactor w e V none)
+      (pkgMask_masterCRTOptionFactor w e V (some p)) := by
   have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
   have hpw : w < p.val :=
     (Finset.mem_Ioc.mp (Finset.mem_filter.mp p.property).1).1
@@ -4714,11 +4714,11 @@ theorem masterCRTOptionFactor_none_coprime {w e V : ℕ}
     exact hnot (hp.dvd_of_dvd_pow hdiv)
   have hcop : Nat.Coprime p.val ((primorial w) ^ e) :=
     (Nat.Prime.coprime_iff_not_dvd hp).2 hnotPow
-  simpa [masterCRTOptionFactor] using hcop.symm
+  simpa [pkgMask_masterCRTOptionFactor] using hcop.symm
 
 theorem masterCRTOptionFactor_pairwise_coprime (w e V : ℕ) :
-    Pairwise (fun a b => Nat.Coprime (masterCRTOptionFactor w e V a)
-      (masterCRTOptionFactor w e V b)) := by
+    Pairwise (fun a b => Nat.Coprime (pkgMask_masterCRTOptionFactor w e V a)
+      (pkgMask_masterCRTOptionFactor w e V b)) := by
   classical
   intro a b hab
   cases a with
@@ -4741,7 +4741,7 @@ theorem masterCRTOptionFactor_pairwise_coprime (w e V : ℕ) :
             apply (Nat.Prime.coprime_iff_not_dvd hp).2
             intro hdvd
             exact hpq ((Nat.prime_dvd_prime_iff_eq hp hq).mp hdvd)
-          simpa [masterCRTOptionFactor] using hcop
+          simpa [pkgMask_masterCRTOptionFactor] using hcop
 
 theorem zmod_finEquiv_val {Q : ℕ} [NeZero Q] (a : Fin Q) :
     (ZMod.finEquiv Q a).val = a.val := by
@@ -4763,7 +4763,7 @@ noncomputable def masterCRTDecompositionEquiv (w e V : ℕ) :
     ZMod (FromArithmetic.masterCRTModulus w e V) ≃+*
       ZMod (primorial w ^ e) × (∀ p : FromArithmetic.CRTPrimeRange w V, ZMod p.val) := by
   classical
-  let f := masterCRTOptionFactor w e V
+  let f := pkgMask_masterCRTOptionFactor w e V
   have hprod := masterCRTModulus_eq_option_prod w e V
   have eProduct : ZMod (FromArithmetic.masterCRTModulus w e V) ≃+*
       (∀ o : Option (FromArithmetic.CRTPrimeRange w V), ZMod (f o)) := by
@@ -4815,7 +4815,7 @@ theorem masterCRTFinResidueEquiv_snd (w e V : ℕ)
   have hsmall : 0 < primorial w ^ e := pow_pos (primorial_pos w) e
   letI : NeZero (primorial w ^ e) := ⟨hsmall.ne'⟩
   have hprod := masterCRTModulus_eq_option_prod w e V
-  letI : NeZero (∏ o : Option (FromArithmetic.CRTPrimeRange w V), masterCRTOptionFactor w e V o) := by
+  letI : NeZero (∏ o : Option (FromArithmetic.CRTPrimeRange w V), pkgMask_masterCRTOptionFactor w e V o) := by
     refine ⟨?_⟩
     rw [← hprod]
     exact hQ.ne'
@@ -4825,14 +4825,14 @@ theorem masterCRTFinResidueEquiv_snd (w e V : ℕ)
         (a.val % p.val : ZMod p.val) := by
     have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
     letI : NeZero p.val := ⟨hp.pos.ne'⟩
-    change (ZMod.prodEquivPi (masterCRTOptionFactor w e V)
+    change (ZMod.prodEquivPi (pkgMask_masterCRTOptionFactor w e V)
         (masterCRTOptionFactor_pairwise_coprime w e V)
         ((ZMod.ringEquivCongr (masterCRTModulus_eq_option_prod w e V))
           ((ZMod.finEquiv (FromArithmetic.masterCRTModulus w e V)) a)) (some p)) = _
     rw [ZMod.prodEquivPi_apply, ZMod.castHom_apply]
     rw [ZMod.cast_eq_val, ZMod.ringEquivCongr_val]
     rw [zmod_finEquiv_val]
-    simp [masterCRTOptionFactor]
+    simp [pkgMask_masterCRTOptionFactor]
     rfl
   funext p
   have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
@@ -4953,7 +4953,7 @@ theorem finCoprimeIndicator_sum_eq_totient (n : ℕ) :
           simp [Fintype.card_subtype]
     _ = (Nat.totient n : ℝ) := by exact_mod_cast hcard
 
-theorem masterCRTModulus_totient (w e V : ℕ) :
+theorem pkgMask_masterCRTModulus_totient (w e V : ℕ) :
     Nat.totient (FromArithmetic.masterCRTModulus w e V) =
       Nat.totient (primorial w ^ e) *
         ∏ p : FromArithmetic.CRTPrimeRange w V, (p.val - 1) := by
@@ -5190,7 +5190,7 @@ theorem uniformUnitResidueLaw_pushforward {w e V : ℕ}
     have htotR : (Nat.totient Q : ℝ) =
         (Nat.totient n : ℝ) *
           (∏ p : FromArithmetic.CRTPrimeRange w V, ((p.val - 1 : ℕ) : ℝ)) := by
-      exact_mod_cast masterCRTModulus_totient w e V
+      exact_mod_cast pkgMask_masterCRTModulus_totient w e V
     have hprodR : (∏ p : FromArithmetic.CRTPrimeRange w V, ((p.val - 1 : ℕ) : ℝ)) ≠ 0 :=
       hprodRpos.ne'
     rw [htotR]
@@ -5211,7 +5211,7 @@ theorem uniformUnitResidueLaw_pushforward {w e V : ℕ}
       simp [hp]
     rw [hLaw]
 
-theorem finiteL1_pushforward_le {α β : Type*} [Fintype α] [Fintype β] [DecidableEq β]
+theorem pkgMask_finiteL1_pushforward_le {α β : Type*} [Fintype α] [Fintype β] [DecidableEq β]
     (f : α → β) (μ ν : α → ℝ) :
     finiteL1 (finitePushforwardLaw f μ) (finitePushforwardLaw f ν) ≤ finiteL1 μ ν := by
   classical
@@ -5280,7 +5280,7 @@ theorem finModIndicator_sum_eq_one {Q p : ℕ} [NeZero Q] :
           simp [hcond]
     _ = 1 := by simp
 
-theorem primePoolResidueLaw_sum_one {lo hi Q : ℕ} [NeZero Q]
+theorem pkgMask_primePoolResidueLaw_sum_one {lo hi Q : ℕ} [NeZero Q]
     (hMass : 0 < primePoolMass lo hi) :
     (∑ a : Fin Q, primePoolResidueLaw lo hi Q a) = 1 := by
   classical
@@ -5335,7 +5335,7 @@ theorem primePoolResidueLaw_abs_sum_le_one {lo hi Q : ℕ} [NeZero Q] :
     by_cases hM : M = 0
     · simp [M, hM, primePoolResidueLaw]
     · have hMpos : 0 < M := lt_of_le_of_ne hMnonneg (Ne.symm hM)
-      simp [M, hM, primePoolResidueLaw_sum_one hMpos]
+      simp [M, hM, pkgMask_primePoolResidueLaw_sum_one hMpos]
   calc
     (∑ a : Fin Q, |primePoolResidueLaw lo hi Q a|) =
         ∑ a : Fin Q, primePoolResidueLaw lo hi Q a := by
@@ -5497,11 +5497,11 @@ theorem uniformPrimeTupleCRTLaw_eq_prod_single {m w V : ℕ}
 theorem primeCRTModulus_dvd_of_range {w e V : ℕ}
     (p : FromArithmetic.CRTPrimeRange w V) : p.val ∣ FromArithmetic.masterCRTModulus w e V := by
   have hprod := masterCRTModulus_eq_option_prod w e V
-  have hdvd : masterCRTOptionFactor w e V (some p) ∣
-      ∏ o : Option (FromArithmetic.CRTPrimeRange w V), masterCRTOptionFactor w e V o :=
+  have hdvd : pkgMask_masterCRTOptionFactor w e V (some p) ∣
+      ∏ o : Option (FromArithmetic.CRTPrimeRange w V), pkgMask_masterCRTOptionFactor w e V o :=
     Finset.dvd_prod_of_mem _ (Finset.mem_univ (some p))
   rw [← hprod] at hdvd
-  simpa [masterCRTOptionFactor] using hdvd
+  simpa [pkgMask_masterCRTOptionFactor] using hdvd
 
 theorem integerCRTResidues_mod_masterCRTModulus {w e V : ℕ} (n : ℕ) :
     FromArithmetic.integerCRTResidues w V (n % FromArithmetic.masterCRTModulus w e V) = FromArithmetic.integerCRTResidues w V n := by
@@ -5947,7 +5947,7 @@ noncomputable def maskWeightedLinearFormsData
                 (finitePushforwardLaw f (uniformUnitResidueLaw Q)) := by
                   rw [hμeq i, hνeq i]
           _ ≤ Err := by
-                exact finiteL1_pushforward_le f
+                exact pkgMask_finiteL1_pushforward_le f
                   (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q)
       have htel := FromArithmetic.finite_product_l1_telescoping μ ν
       have hmax (i : Fin s) :
