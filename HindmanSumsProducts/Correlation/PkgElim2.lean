@@ -1472,6 +1472,181 @@ theorem c_elim2_boxActiveProduct_insert_endpoint {α β : Type u}
       simpa [rowFactor] using c_elim2_fintype_prod_comm rowFactor
     _ = _ := rfl
 
+theorem c_elim2_boxRetainedRowArgument_insert_endpoint {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β)
+    (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E)
+    (b : β) (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) (η : c_elim2_BoxRetainedBranch E I)
+    (bit : Fin 2) :
+    c_elim2_boxRowArgument D (insert R E) b I
+      (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+      (c_elim2_boxRetainedBranchFull (insert R E) I
+        ((c_elim2_boxRetainedBranchInsertEquiv E R I hR hI).symm (η, bit))) =
+    c_elim2_boxRowArgument D E b I
+      (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+        (c_elim2_boxEndpointChoice t₀ t₁ bit))
+      (c_elim2_boxRetainedBranchFull E I η) := by
+  classical
+  let ω : c_elim2_BoxBranch E := fun j =>
+    if hj : j.val ∈ E.erase I then η ⟨j.val, hj⟩ else 0
+  let η' := (c_elim2_boxRetainedBranchInsertEquiv E R I hR hI).symm (η, bit)
+  let ω' := (c_elim2_boxBranchInsertEquiv E R hR).symm (ω, bit)
+  have hω (j : α) :
+      c_elim2_boxBranchFull E ω j = c_elim2_boxRetainedBranchFull E I η j := by
+    by_cases hjE : j ∈ E
+    · by_cases hjErase : j ∈ E.erase I
+      · have hjNotI : j ≠ I := (Finset.mem_erase.mp hjErase).1
+        simp [c_elim2_boxBranchFull, c_elim2_boxRetainedBranchFull, ω,
+          hjE, hjErase, hjNotI]
+      · have hji : j = I := by
+          by_contra hne
+          exact hjErase (Finset.mem_erase.mpr ⟨hne, hjE⟩)
+        simp [c_elim2_boxBranchFull, c_elim2_boxRetainedBranchFull, ω,
+          hjE, hjErase, hji]
+    · have hjErase : j ∉ E.erase I := by
+        intro h
+        exact hjE (Finset.mem_erase.mp h).2
+      simp [c_elim2_boxBranchFull, c_elim2_boxRetainedBranchFull, ω,
+        hjE, hjErase]
+  have hbranch (j : α) (hjI : j ≠ I) :
+      c_elim2_boxRetainedBranchFull (insert R E) I η' j =
+        c_elim2_boxBranchFull (insert R E) ω' j := by
+    by_cases hjIns : j ∈ insert R E
+    · have hjErase : j ∈ (insert R E).erase I :=
+        Finset.mem_erase.mpr ⟨hjI, hjIns⟩
+      rcases Finset.mem_insert.mp hjIns with hjR | hjE
+      · subst j
+        have hleft : η' ⟨R, hjErase⟩ = bit := by
+          simpa [η'] using
+            c_elim2_boxRetainedBranchInsertEquiv_symm_apply_new
+              E R I hR hI η bit
+        have hright : ω' ⟨R, Finset.mem_insert_self R E⟩ = bit := by
+          simpa [ω'] using c_elim2_boxBranchInsertEquiv_symm_apply_new
+            E R hR ω bit
+        simp [c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull,
+          η', ω', hjErase, hjIns, hleft, hright]
+      · have hjEraseE : j ∈ E.erase I :=
+          Finset.mem_erase.mpr ⟨hjI, hjE⟩
+        have hleft : η' ⟨j, hjErase⟩ = η ⟨j, hjEraseE⟩ := by
+          simpa [η'] using
+            c_elim2_boxRetainedBranchInsertEquiv_symm_apply_old
+              E R I hR hI η bit ⟨j, hjEraseE⟩
+        have hright : ω' ⟨j, Finset.mem_insert_of_mem hjE⟩ =
+            ω ⟨j, hjE⟩ := by
+          simpa [ω'] using c_elim2_boxBranchInsertEquiv_symm_apply_old
+            E R hR ω bit ⟨j, hjE⟩
+        have hωj : ω ⟨j, hjE⟩ = η ⟨j, hjEraseE⟩ := by
+          have hjNotI : j ≠ I := (Finset.mem_erase.mp hjEraseE).1
+          simp [ω, hjEraseE, hjNotI]
+        simp [c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull,
+          η', ω', hjErase, hjIns, hleft, hright, hωj]
+    · have hjErase : j ∉ (insert R E).erase I := by
+        simp [Finset.mem_erase, hjIns]
+      simp [c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull,
+        η', ω', hjErase, hjIns]
+  have hbranchAtI :
+      c_elim2_boxRetainedBranchFull (insert R E) I η' I =
+        c_elim2_boxBranchFull (insert R E) ω' I := by
+    have hIerase : I ∉ (insert R E).erase I := by simp
+    have hproj : ω' ⟨I, Finset.mem_insert_of_mem hI⟩ = ω ⟨I, hI⟩ := by
+      simpa [ω'] using c_elim2_boxBranchInsertEquiv_symm_apply_old
+        E R hR ω bit ⟨I, hI⟩
+    have hw : ω ⟨I, hI⟩ = 0 := by simp [ω]
+    simp [c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull,
+      η', ω', hIerase, hI, hproj, hw]
+  have hbranchFun :
+      c_elim2_boxRetainedBranchFull (insert R E) I η' =
+        c_elim2_boxBranchFull (insert R E) ω' := by
+    funext j
+    by_cases hjI : j = I
+    · subst j
+      exact hbranchAtI
+    · exact hbranch j hjI
+  have hωFun : c_elim2_boxBranchFull E ω =
+      c_elim2_boxRetainedBranchFull E I η := by
+    funext j
+    exact hω j
+  unfold c_elim2_boxRowArgument
+  congr 1
+  apply Finset.sum_congr rfl
+  intro j hj
+  have hjI : j ≠ I := (Finset.mem_erase.mp hj).1
+  calc
+    (D.rowCoefficient I j b : ℚ) *
+        (c_elim2_boxShiftValue (insert R E)
+        (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+        (c_elim2_boxRetainedBranchFull (insert R E) I η') j : ℚ) =
+      (D.rowCoefficient I j b : ℚ) *
+        (c_elim2_boxShiftValue (insert R E)
+        (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+        (c_elim2_boxBranchFull (insert R E) ω') j : ℚ) := by rw [hbranchFun]
+    _ = (D.rowCoefficient I j b : ℚ) *
+        (c_elim2_boxShiftValue E
+        (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+          (c_elim2_boxEndpointChoice t₀ t₁ bit))
+        (c_elim2_boxBranchFull E ω) j : ℚ) := by
+          rw [c_elim2_boxShiftValue_endpoint E R hR (D.shiftLength b) o t₀ t₁ ω bit j]
+    _ = (D.rowCoefficient I j b : ℚ) *
+        (c_elim2_boxShiftValue E
+        (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+          (c_elim2_boxEndpointChoice t₀ t₁ bit))
+        (c_elim2_boxRetainedBranchFull E I η) j : ℚ) := by rw [hωFun]
+
+theorem c_elim2_boxRetainedRowFactor_insert_endpoint {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β)
+    (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E)
+    (b : β) (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) :
+    (∏ η : c_elim2_BoxRetainedBranch (insert R E) I,
+      D.rowWeight I b
+        (c_elim2_boxRowArgument D (insert R E) b I
+          (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+          (c_elim2_boxRetainedBranchFull (insert R E) I η))) =
+    ∏ bit : Fin 2, ∏ η : c_elim2_BoxRetainedBranch E I,
+      D.rowWeight I b
+        (c_elim2_boxRowArgument D E b I
+          (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+            (c_elim2_boxEndpointChoice t₀ t₁ bit))
+          (c_elim2_boxRetainedBranchFull E I η)) := by
+  classical
+  let e := c_elim2_boxRetainedBranchInsertEquiv E R I hR hI
+  calc
+    _ = ∏ p : c_elim2_BoxRetainedBranch E I × Fin 2,
+        D.rowWeight I b
+          (c_elim2_boxRowArgument D (insert R E) b I
+            (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+            (c_elim2_boxRetainedBranchFull (insert R E) I (e.symm p))) := by
+      exact Fintype.prod_equiv e _ _ (by intro η; simp [e])
+    _ = ∏ bit : Fin 2, ∏ η : c_elim2_BoxRetainedBranch E I,
+        D.rowWeight I b
+          (c_elim2_boxRowArgument D (insert R E) b I
+            (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+            (c_elim2_boxRetainedBranchFull (insert R E) I (e.symm (η, bit)))) := by
+      calc
+        ∏ p : c_elim2_BoxRetainedBranch E I × Fin 2,
+            D.rowWeight I b
+              (c_elim2_boxRowArgument D (insert R E) b I
+                (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+                (c_elim2_boxRetainedBranchFull (insert R E) I (e.symm p)))
+            = ∏ p : Fin 2 × c_elim2_BoxRetainedBranch E I,
+              D.rowWeight I b
+                (c_elim2_boxRowArgument D (insert R E) b I
+                  (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+                  (c_elim2_boxRetainedBranchFull (insert R E) I (e.symm (p.2, p.1)))) := by
+              exact Fintype.prod_equiv (Equiv.prodComm _ _) _ _ (by intro p; rfl)
+        _ = _ := Fintype.prod_prod_type _
+    _ = ∏ bit : Fin 2, ∏ η : c_elim2_BoxRetainedBranch E I,
+        D.rowWeight I b
+          (c_elim2_boxRowArgument D E b I
+            (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+              (c_elim2_boxEndpointChoice t₀ t₁ bit))
+            (c_elim2_boxRetainedBranchFull E I η)) := by
+      apply Fintype.prod_congr
+      intro bit
+      apply Fintype.prod_congr
+      intro η
+      rw [c_elim2_boxRetainedRowArgument_insert_endpoint]
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
