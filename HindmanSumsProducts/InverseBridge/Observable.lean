@@ -58,6 +58,8 @@ Lipschitz constant.  This is IB.a10. -/
 theorem exists_observable_menuMetric {G : Type*} [Group G] [TopologicalSpace G]
     [IsTopologicalGroup G] {Γ : Subgroup G} [MetricSpace (G ⧸ Γ)]
     [CompactSpace (G ⧸ Γ)] [T2Space (G ⧸ Γ)] {Y : Type*} [MetricSpace Y]
+    (hcompat : QuotientGroup.instTopologicalSpace Γ =
+      (inferInstance : MetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace)
     (O : ObservableDescent G Γ Y)
     (heq : ∀ x ε, 0 < ε →
       ∃ U : Set (G ⧸ Γ), U ∈ 𝓝 x ∧
@@ -69,15 +71,6 @@ theorem exists_observable_menuMetric {G : Type*} [Group G] [TopologicalSpace G]
         LipschitzWith K₁ H →
           letI := d
           LipschitzWith (max 1 K₁) (O.desc H) := by
-  /-
-  The hypotheses do not require the supplied metric on `G ⧸ Γ` to induce
-  `QuotientGroup.instTopologicalSpace Γ`.  The requested conclusion implies
-  that this topology is metrizable, which fails for compact nonmetrizable
-  quotient groups (for example an uncountable product of two-element groups)
-  with the trivial observable descent.  The missing compatibility hypothesis
-  is `QuotientGroup.instTopologicalSpace Γ =
-    (inferInstance : PseudoMetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace`.
-  -/
   sorry
 
 end HindmanSumsProducts.InverseBridge
