@@ -48,6 +48,40 @@ theorem c_elim2_rowForm_add {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate m q
       rw [← Finset.mul_sum]
     _ = _ := by simp [w]
 
+theorem c_elim2_rowForm_finset_sum {m q : ℕ} {ι : Type*} [DecidableEq ι]
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (U : Finset ι) (a : ι → ℚ)
+    (v : ι → Fin m → ℚ) :
+    rowForm c T p (fun k => z k + ∑ i ∈ U, a i * v i k) =
+      rowForm c T p z + ∑ i ∈ U, a i * rowForm c T p (v i) := by
+  classical
+  let w : Fin m → ℚ := fun k => c k / c T.anchor * T.value p k
+  change (∑ k, w k * (z k + ∑ i ∈ U, a i * v i k)) =
+    (∑ k, w k * z k) + ∑ i ∈ U, a i * ∑ k, w k * v i k
+  have hswap :
+      (∑ k : Fin m, w k * ∑ i ∈ U, a i * v i k) =
+        ∑ i ∈ U, a i * ∑ k : Fin m, w k * v i k := by
+    calc
+      _ = ∑ k : Fin m, ∑ i ∈ U, a i * (w k * v i k) := by
+        apply Finset.sum_congr rfl
+        intro k hk
+        rw [Finset.mul_sum]
+        apply Finset.sum_congr rfl
+        intro i hi
+        ring
+      _ = ∑ i ∈ U, ∑ k : Fin m, a i * (w k * v i k) := by
+        exact Finset.sum_comm
+      _ = ∑ i ∈ U, a i * ∑ k : Fin m, w k * v i k := by
+        apply Finset.sum_congr rfl
+        intro i hi
+        rw [← Finset.mul_sum]
+  calc
+    _ = (∑ k, w k * z k) + ∑ k : Fin m, w k * ∑ i ∈ U, a i * v i k := by
+      simp only [mul_add, Finset.sum_add_distrib]
+    _ = (∑ k, w k * z k) + ∑ i ∈ U, a i * ∑ k : Fin m, w k * v i k := by
+      rw [hswap]
+    _ = _ := by simp [rowForm, w]
+
 theorem c_elim2_targetVertex_add {m q r : ℕ} (c : Fin m → ℚ)
     (Sh : RowShape m q r) (p : Fin q → ℕ) (Mp : ℕ)
     (z v : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ)
@@ -341,12 +375,14 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
             ∑ p : PSub, ∑ z : ZSub, g p.1 z.1 := by
         simpa only [Finset.attach_eq_univ] using
           (Finset.sum_attach Psupport (fun p => ∑ z : ZSub, g p z.1)).symm
-      calc
-        _ = ∑ p ∈ Psupport, ∑ z : ZSub, g p z.1 := by
-          apply Finset.sum_congr rfl
-          intro p hp
-          exact hZsum p
-        _ = _ := hPsum
+      have hfinite :
+          (∑ p ∈ Psupport, ∑ z ∈ Zsupport, g p z) =
+            ∑ p ∈ Psupport, ∑ z : ZSub, g p z.1 := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        exact hZsum p
+      rw [hfinite]
+      exact hPsum
 
 noncomputable def c_elim2_shiftRangeEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (L : ℕ) :
