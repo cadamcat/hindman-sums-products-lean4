@@ -1499,5 +1499,470 @@ theorem opus_corr_balanced_pointwise {r' : ℕ}
 
 end BalancedNext
 
+
+/-! ## The invariant-weight average (copied from lane c-mask 124a319, names `opus_corr_`) -/
+
+theorem opus_corr_independentPrimePoolMass_eq_zero {q : ℕ} (lo hi : Fin q → ℕ)
+    (p : Fin q → ℕ) (hp : p ∉ independentPrimePoolSupport lo hi) :
+    independentPrimePoolMass lo hi p = 0 := by
+  have hnot : ¬ ∀ i, p i ∈ primePoolSupport (lo i) (hi i) :=
+    fun hall => hp (Fintype.mem_piFinset.mpr hall)
+  obtain ⟨i, hi'⟩ := not_forall.mp hnot
+  unfold independentPrimePoolMass
+  exact Finset.prod_eq_zero (Finset.mem_univ i) (opus_corr_primePoolLaw_eq_zero _ _ _ hi')
+
+theorem opus_corr_finiteIndexPrimeLaw_tsum_one {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : α → ℕ)
+    (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
+    ∑' p : α → ℕ, ∏ i, primePoolLaw (lo i) (hi i) (p i) = 1 := by
+  classical
+  let D : Finset (α → ℕ) := Fintype.piFinset fun i => primePoolSupport (lo i) (hi i)
+  have hzero (p : α → ℕ) (hp : p ∉ D) :
+      ∏ i, primePoolLaw (lo i) (hi i) (p i) = 0 := by
+    have hnot : ¬ ∀ i, p i ∈ primePoolSupport (lo i) (hi i) := by
+      intro hall
+      apply hp
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hnot_i⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (s := Finset.univ)
+      (f := fun i => primePoolLaw (lo i) (hi i) (p i))
+      (Finset.mem_univ i)
+      (opus_corr_primePoolLaw_eq_zero (lo i) (hi i) (p i) hnot_i)
+  have hcoord (i : α) :
+      (∑ p ∈ primePoolSupport (lo i) (hi i), primePoolLaw (lo i) (hi i) p) = 1 := by
+    calc
+      (∑ p ∈ primePoolSupport (lo i) (hi i), primePoolLaw (lo i) (hi i) p) =
+          ∑' p : ℕ, primePoolLaw (lo i) (hi i) p := by
+        symm
+        apply tsum_eq_sum
+        intro p hp
+        exact opus_corr_primePoolLaw_eq_zero (lo i) (hi i) p hp
+      _ = 1 := primePoolLaw_tsum_one (lo i) (hi i) (hMass i)
+  have hfinite :
+      (∑ p ∈ D, ∏ i, primePoolLaw (lo i) (hi i) (p i)) = 1 := by
+    calc
+      (∑ p ∈ D, ∏ i, primePoolLaw (lo i) (hi i) (p i)) =
+          ∏ i, ∑ p ∈ primePoolSupport (lo i) (hi i), primePoolLaw (lo i) (hi i) p := by
+        unfold D
+        symm
+        exact Finset.prod_univ_sum
+          (t := fun i => primePoolSupport (lo i) (hi i))
+          (f := fun i p => primePoolLaw (lo i) (hi i) p)
+      _ = ∏ i, 1 := by
+        apply Finset.prod_congr rfl
+        intro i hi
+        exact hcoord i
+      _ = 1 := by simp
+  calc
+    (∑' p : α → ℕ, ∏ i, primePoolLaw (lo i) (hi i) (p i)) =
+        ∑ p ∈ D, ∏ i, primePoolLaw (lo i) (hi i) (p i) := tsum_eq_sum (s := D) hzero
+    _ = 1 := hfinite
+
+theorem opus_corr_gapSlotAverage_restrict {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
+    (l : Fin K) (N : ℕ) {q : ℕ} (ι : Fin q ↪ Fin s)
+    (F : (Fin q → ℕ) → ℝ)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N l).lower
+      (S.primeStage.pool N l).upper) :
+    gapSlotAverage S l N F =
+      gapSlotAverage S l N (fun p : Fin s → ℕ => F (fun i => p (ι i))) := by
+  classical
+  let lo := (S.primeStage.pool N l).lower
+  let hi := (S.primeStage.pool N l).upper
+  let T := Finset.univ.image ι
+  let Tcomp := finsetComplement T
+  let enc : Fin q → T := fun i =>
+    ⟨ι i, Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩⟩
+  have hencInj : Function.Injective enc := by
+    intro i j hij
+    exact ι.injective (congrArg Subtype.val hij)
+  have hencSurj : Function.Surjective enc := by
+    intro j
+    rcases Finset.mem_image.mp j.property with ⟨i, _, h⟩
+    exact ⟨i, Subtype.ext h⟩
+  let eι : Fin q ≃ T := Equiv.ofBijective enc ⟨hencInj, hencSurj⟩
+  let ePi : (Fin q → ℕ) ≃ (∀ j : T, ℕ) :=
+    Equiv.piCongrLeft (fun _ : T => ℕ) eι
+  let eSplit := piFinsetSplit T
+  let eFull : ((Fin q → ℕ) × (∀ j : Tcomp, ℕ)) ≃ (Fin s → ℕ) :=
+    (Equiv.prodCongr ePi (Equiv.refl _)).trans eSplit.symm
+  let Pq := independentPrimePoolSupport (fun _ : Fin q => lo) (fun _ => hi)
+  let Ps := independentPrimePoolSupport (fun _ : Fin s => lo) (fun _ => hi)
+  let Pc := Fintype.piFinset fun j : Tcomp => primePoolSupport lo hi
+  let μc : (∀ j : Tcomp, ℕ) → ℝ := fun r => ∏ j, primePoolLaw lo hi (r j)
+  have hdisj : Disjoint T Tcomp := by
+    apply Finset.disjoint_left.mpr
+    intro i hiT hiC
+    exact (Finset.mem_filter.mp hiC).2 hiT
+  have hunion : T ∪ Tcomp = Finset.univ := by
+    ext i
+    constructor
+    · intro _
+      exact Finset.mem_univ i
+    · intro _
+      by_cases hiT : i ∈ T
+      · exact Finset.mem_union.mpr (Or.inl hiT)
+      · exact Finset.mem_union.mpr
+          (Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hiT⟩))
+  have hsplit (p : Fin q → ℕ) (r : ∀ j : Tcomp, ℕ) :
+      eSplit (eFull (p, r)) = (ePi p, r) := by
+    simp [eFull]
+  have hselected (p : Fin q → ℕ) (r : ∀ j : Tcomp, ℕ) (i : Fin q) :
+      eFull (p, r) (ι i) = p i := by
+    let j : T := enc i
+    calc
+      eFull (p, r) (ι i) = (eSplit (eFull (p, r))).1 j :=
+        (piFinsetSplit_left_apply T (eFull (p, r)) j).symm
+      _ = (ePi p) j := by rw [hsplit]
+      _ = p i := by
+        change (Equiv.piCongrLeft (fun _ : T => ℕ) eι) p (eι i) = p i
+        simp [Equiv.piCongrLeft]
+  have hcomplement (p : Fin q → ℕ) (r : ∀ j : Tcomp, ℕ) (j : Tcomp) :
+      eFull (p, r) j.val = r j := by
+    calc
+      eFull (p, r) j.val = (eSplit (eFull (p, r))).2 j :=
+        (piFinsetSplit_right_apply T (eFull (p, r)) j).symm
+      _ = r j := by rw [hsplit]
+  have hmassFactor (p : Fin q → ℕ) (r : ∀ j : Tcomp, ℕ) :
+      gapSlotMass S l N (eFull (p, r)) = gapSlotMass S l N p * μc r := by
+    change independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi) (eFull (p, r)) =
+      independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) p * μc r
+    unfold independentPrimePoolMass
+    have hTprod :
+        (∏ j : T, primePoolLaw lo hi (eFull (p, r) j.val)) =
+          ∏ i : Fin q, primePoolLaw lo hi (p i) := by
+      symm
+      apply Finset.prod_bij (fun i _ => enc i)
+      · intro i hiI
+        exact Finset.mem_univ _
+      · intro i hiI j hj hEq
+        exact hencInj hEq
+      · intro j hj
+        exact ⟨eι.symm j, Finset.mem_univ _, by
+          change eι (eι.symm j) = j
+          exact eι.apply_symm_apply j⟩
+      · intro i hiI
+        rw [hselected]
+    have hCprod :
+        (∏ j : Tcomp, primePoolLaw lo hi (eFull (p, r) j.val)) = μc r := by
+      apply Finset.prod_congr rfl
+      intro j hj
+      rw [hcomplement]
+    have hTattach :
+        (∏ i ∈ T, primePoolLaw lo hi (eFull (p, r) i)) =
+          ∏ j : T, primePoolLaw lo hi (eFull (p, r) j.val) := by
+      simpa using (Finset.prod_attach T
+        (fun i => primePoolLaw lo hi (eFull (p, r) i))).symm
+    have hCattach :
+        (∏ i ∈ Tcomp, primePoolLaw lo hi (eFull (p, r) i)) =
+          ∏ j : Tcomp, primePoolLaw lo hi (eFull (p, r) j.val) := by
+      simpa using (Finset.prod_attach Tcomp
+        (fun i => primePoolLaw lo hi (eFull (p, r) i))).symm
+    calc
+      (∏ i : Fin s, primePoolLaw lo hi (eFull (p, r) i)) =
+          ∏ i ∈ Finset.univ, primePoolLaw lo hi (eFull (p, r) i) := by simp
+      _ = ∏ i ∈ T ∪ Tcomp, primePoolLaw lo hi (eFull (p, r) i) := by rw [hunion]
+      _ = (∏ i ∈ T, primePoolLaw lo hi (eFull (p, r) i)) *
+          ∏ i ∈ Tcomp, primePoolLaw lo hi (eFull (p, r) i) := Finset.prod_union hdisj
+      _ = (∏ j : T, primePoolLaw lo hi (eFull (p, r) j.val)) *
+          ∏ j : Tcomp, primePoolLaw lo hi (eFull (p, r) j.val) := by
+        rw [hTattach, hCattach]
+      _ = _ := by rw [hTprod, hCprod]
+  have hmassFactorInd (p : Fin q → ℕ) (r : ∀ j : Tcomp, ℕ) :
+      independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi) (eFull (p, r)) =
+        gapSlotMass S l N p * μc r := by
+    simpa [gapSlotMass] using hmassFactor p r
+  have hqzero (p : Fin q → ℕ) (hp : p ∉ Pq) : gapSlotMass S l N p = 0 := by
+    simpa [Pq, gapSlotMass] using
+      opus_corr_independentPrimePoolMass_eq_zero
+        (fun _ : Fin q => lo) (fun _ => hi) p hp
+  have hczero (r : ∀ j : Tcomp, ℕ) (hr : r ∉ Pc) : μc r = 0 := by
+    have hnot : ¬ ∀ j : Tcomp, r j ∈ primePoolSupport lo hi := by
+      intro hall
+      apply hr
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨j, hnotJ⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (s := Finset.univ) (f := fun j => primePoolLaw lo hi (r j))
+      (Finset.mem_univ j) (opus_corr_primePoolLaw_eq_zero lo hi (r j) hnotJ)
+  have hczeroSum : (∑ r ∈ Pc, μc r) = 1 := by
+    calc
+      (∑ r ∈ Pc, μc r) = ∑' r : ∀ j : Tcomp, ℕ, μc r :=
+        (tsum_eq_sum (s := Pc) hczero).symm
+      _ = 1 := opus_corr_finiteIndexPrimeLaw_tsum_one
+        (fun _ : Tcomp => lo) (fun _ => hi) (fun _ => hMass)
+  have hpairZero (x : (Fin q → ℕ) × (∀ j : Tcomp, ℕ)) (hx : x ∉ Pq ×ˢ Pc) :
+      (gapSlotMass S l N x.1 * μc x.2) * F x.1 = 0 := by
+    have hx' : x.1 ∉ Pq ∨ x.2 ∉ Pc := by
+      by_contra h
+      push_neg at h
+      exact hx (Finset.mem_product.mpr h)
+    rcases hx' with hp | hr
+    · simp [hqzero x.1 hp]
+    · simp [hczero x.2 hr]
+  have hfullSum :
+      gapSlotAverage S l N (fun p : Fin s → ℕ => F (fun i => p (ι i))) =
+        ∑' x : (Fin q → ℕ) × (∀ j : Tcomp, ℕ),
+          (gapSlotMass S l N x.1 * μc x.2) * F x.1 := by
+    unfold gapSlotAverage
+    calc
+      (∑' p : Fin s → ℕ,
+          independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi) p *
+            F (fun i => p (ι i))) =
+        ∑' x : (Fin q → ℕ) × (∀ j : Tcomp, ℕ),
+          independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi)
+            (eFull x) * F (fun i => eFull x (ι i)) := by
+        symm
+        exact eFull.tsum_eq (fun p =>
+          independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi) p *
+            F (fun i => p (ι i)))
+      _ = _ := by
+        apply tsum_congr
+        intro x
+        rw [hmassFactorInd]
+        congr 1
+        congr 1
+        funext i
+        exact hselected x.1 x.2 i
+  have hpairSum :
+      (∑' x : (Fin q → ℕ) × (∀ j : Tcomp, ℕ),
+          (gapSlotMass S l N x.1 * μc x.2) * F x.1) = gapSlotAverage S l N F := by
+    calc
+      _ = ∑ x ∈ Pq ×ˢ Pc, (gapSlotMass S l N x.1 * μc x.2) * F x.1 :=
+        tsum_eq_sum (s := Pq ×ˢ Pc) hpairZero
+      _ = ∑ p ∈ Pq, ∑ r ∈ Pc,
+          (gapSlotMass S l N p * μc r) * F p := by
+        exact Finset.sum_product' Pq Pc
+          (fun p r => (gapSlotMass S l N p * μc r) * F p)
+      _ = ∑ p ∈ Pq, ∑ r ∈ Pc,
+          (gapSlotMass S l N p * F p) * μc r := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        apply Finset.sum_congr rfl
+        intro r hr
+        ring
+      _ = ∑ p ∈ Pq, (gapSlotMass S l N p * F p) * ∑ r ∈ Pc, μc r := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        rw [Finset.mul_sum]
+      _ = ∑ p ∈ Pq, gapSlotMass S l N p * F p := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        rw [hczeroSum]
+        ring
+      _ = gapSlotAverage S l N F := by
+        unfold gapSlotAverage
+        symm
+        exact tsum_eq_sum (s := Pq) (fun p hp => by simp [hqzero p hp])
+  exact (hfullSum.trans hpairSum).symm
+
+theorem opus_corr_prod_one_add_eq_sum_powerset {α : Type*} [DecidableEq α]
+    (A : Finset α) (f : α → ℝ) :
+    (∏ i ∈ A, (1 + f i)) = ∑ J ∈ A.powerset, ∏ i ∈ J, f i := by
+  classical
+  induction A using Finset.induction with
+  | empty => simp
+  | @insert a A ha ih =>
+    rw [Finset.prod_insert ha, Finset.sum_powerset_insert ha, ih]
+    have hterms : ∀ J ∈ A.powerset,
+        (∏ i ∈ insert a J, f i) = f a * ∏ i ∈ J, f i := by
+      intro J hJ
+      have hnot : a ∉ J := fun hmem => ha ((Finset.mem_powerset.mp hJ) hmem)
+      rw [Finset.prod_insert hnot]
+    rw [Finset.mul_sum]
+    calc
+      (∑ J ∈ A.powerset, (1 + f a) * ∏ i ∈ J, f i) =
+          ∑ J ∈ A.powerset,
+            (∏ i ∈ J, f i + ∏ i ∈ insert a J, f i) := by
+        apply Finset.sum_congr rfl
+        intro J hJ
+        rw [hterms J hJ]
+        ring
+      _ = _ := Finset.sum_add_distrib
+
+theorem opus_corr_stateRowWeightAverage_eq_maskRowSubsetAverage_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm)
+    (J : Finset (Fin r)) :
+    ∀ᶠ N in atTop,
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N x.1 x.2 *
+          ∏ R ∈ J,
+            chainWeight S.core.parameters C N (Sh.row R).anchor
+              (rowForm (chainScale S.core.parameters C a N) (Sh.row R) x.1
+                (fun k => (x.2 k : ℚ))).num) =
+        maskRowSubsetAverage S C a N Sh ι J := by
+  have hMass := primePoolMass_pos_eventually S C.gap
+  have hden := rowForm_den_one_eventually (q := q) S C a ha
+  filter_upwards [hMass, hden] with N hMass hden
+  let G : (Fin q → ℕ) × (Fin m → ℤ) → ℝ := fun x =>
+    ∏ R ∈ J,
+      chainWeight S.core.parameters C N (Sh.row R).anchor
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row R) x.1
+          (fun k => (x.2 k : ℚ))).num
+  let Fq : (Fin q → ℕ) → ℝ := fun p =>
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * G (p, z)
+  let Fs : (Fin s → ℕ) → ℝ := fun p =>
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+      ∏ R ∈ J,
+        atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i)) (fun k => (z k : ℚ)))
+  have hjoint :
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 * G x) =
+        gapSlotAverage S C.gap N Fq := by
+    symm
+    exact pkgMask_gapPivotTsum_fubini S C N G
+  have hrowAt (p : Fin s → ℕ) (z : Fin m → ℤ) (R : Fin r) :
+      atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i)) (fun k => (z k : ℚ))) =
+        chainWeight S.core.parameters C N (Sh.row R).anchor
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i)) (fun k => (z k : ℚ))).num := by
+    have hd := hden (Sh.row R) (fun i => p (ι i)) z
+    simp [atQ, hd]
+  have hFs : Fs = fun p => Fq (fun i => p (ι i)) := by
+    funext p
+    dsimp [Fs, Fq]
+    apply tsum_congr
+    intro z
+    congr 1
+    apply Finset.prod_congr rfl
+    intro R hR
+    exact hrowAt p z R
+  calc
+    (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 * G x) =
+        gapSlotAverage S C.gap N Fq := hjoint
+    _ = gapSlotAverage S C.gap N Fs := by
+        rw [opus_corr_gapSlotAverage_restrict S C.gap N ι Fq hMass, hFs]
+    _ = maskRowSubsetAverage S C a N Sh ι J := by rfl
+
+theorem opus_corr_invariantRowWeight_average_le_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm)
+    (I : Fin r → Prop) :
+    ∀ᶠ N in atTop,
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        pkgMask_invariantRowWeight
+          (⟨Sh, ∅, (fun _ _ _ => 1), (fun _ _ _ => 1)⟩ : MaskRemovalState m q r)
+          S C a N I x.1 x.2) ≤ (2 : ℝ) ^ (r + 1) := by
+  classical
+  let st : MaskRemovalState m q r :=
+    ⟨Sh, ∅, (fun _ _ _ => 1), (fun _ _ _ => 1)⟩
+  let Iset : Finset (Fin r) := Finset.univ.filter I
+  let Pset := Iset.powerset
+  let rowTerm (N : ℕ) (J : Finset (Fin r)) (x : (Fin q → ℕ) × (Fin m → ℤ)) : ℝ :=
+    ∏ R ∈ J,
+      chainWeight S.core.parameters C N (Sh.row R).anchor
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row R) x.1
+          (fun k => (x.2 k : ℚ))).num
+  let rowAverage (N : ℕ) (J : Finset (Fin r)) : ℝ :=
+    ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 * rowTerm N J x
+  have hJevent : ∀ᶠ N in atTop, ∀ J : Finset (Fin r),
+      J ⊆ Iset → maskRowSubsetAverage S C a N Sh ι J ≤ 2 := by
+    apply Filter.eventually_all.2
+    intro J
+    filter_upwards [maskRowSubsetAverage_le_two_eventually S C a ha Sh ι hlisted J] with N hN
+    intro hJ
+    exact hN
+  have haverageEq : ∀ J : Finset (Fin r),
+      ∀ᶠ N in atTop, rowAverage N J = maskRowSubsetAverage S C a N Sh ι J := by
+    intro J
+    simpa [rowAverage, rowTerm, st] using
+      (opus_corr_stateRowWeightAverage_eq_maskRowSubsetAverage_eventually
+        S C a ha Sh ι hlisted J)
+  have hweightExpand (N : ℕ) (x : (Fin q → ℕ) × (Fin m → ℤ)) :
+      pkgMask_invariantRowWeight st S C a N I x.1 x.2 =
+        ∑ J ∈ Pset, rowTerm (N := N) J x := by
+    unfold pkgMask_invariantRowWeight
+    have hfilter :
+        (∏ i : Fin r, if hi : I i then
+          1 + chainWeight S.core.parameters C N (Sh.row i).anchor
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row i) x.1
+              (fun k => (x.2 k : ℚ))).num else 1) =
+          ∏ i ∈ Iset,
+            (1 + chainWeight S.core.parameters C N (Sh.row i).anchor
+              (rowForm (chainScale S.core.parameters C a N) (Sh.row i) x.1
+                (fun k => (x.2 k : ℚ))).num) := by
+      change (∏ i ∈ (Finset.univ : Finset (Fin r)), if I i then
+        1 + chainWeight S.core.parameters C N (Sh.row i).anchor
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row i) x.1
+            (fun k => (x.2 k : ℚ))).num else 1) = _
+      rw [← Finset.prod_filter (s := (Finset.univ : Finset (Fin r))) I
+        (fun i => 1 + chainWeight S.core.parameters C N (Sh.row i).anchor
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row i) x.1
+            (fun k => (x.2 k : ℚ))).num)]
+    rw [hfilter]
+    exact opus_corr_prod_one_add_eq_sum_powerset Iset
+      (fun i => chainWeight S.core.parameters C N (Sh.row i).anchor
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row i) x.1
+          (fun k => (x.2 k : ℚ))).num)
+  have hfinite (N : ℕ) :
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        pkgMask_invariantRowWeight st S C a N I x.1 x.2) =
+        ∑ J ∈ Pset, rowAverage (N := N) J := by
+    let D := gapPivotSupport (q := q) S C N
+    have hzero (x : (Fin q → ℕ) × (Fin m → ℤ)) (hx : x ∉ D) :
+        gapPivotMass S C N x.1 x.2 *
+          pkgMask_invariantRowWeight st S C a N I x.1 x.2 = 0 := by
+      rw [opus_corr_gapPivotMass_eq_zero S C N x hx]
+      simp
+    have hzeroJ (J : Finset (Fin r)) (x : (Fin q → ℕ) × (Fin m → ℤ))
+        (hx : x ∉ D) : gapPivotMass S C N x.1 x.2 * rowTerm (N := N) J x = 0 := by
+      rw [opus_corr_gapPivotMass_eq_zero S C N x hx]
+      simp
+    calc
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+          pkgMask_invariantRowWeight st S C a N I x.1 x.2) =
+          ∑ x ∈ D, gapPivotMass S C N x.1 x.2 *
+            pkgMask_invariantRowWeight st S C a N I x.1 x.2 :=
+        tsum_eq_sum (s := D) hzero
+      _ = ∑ x ∈ D, ∑ J ∈ Pset,
+            gapPivotMass S C N x.1 x.2 * rowTerm (N := N) J x := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        rw [hweightExpand N x, Finset.mul_sum]
+      _ = ∑ J ∈ Pset, ∑ x ∈ D,
+            gapPivotMass S C N x.1 x.2 * rowTerm (N := N) J x := by
+        rw [Finset.sum_comm]
+      _ = ∑ J ∈ Pset, rowAverage (N := N) J := by
+        apply Finset.sum_congr rfl
+        intro J hJ
+        unfold rowAverage
+        symm
+        exact tsum_eq_sum (s := D) (hzeroJ J)
+  filter_upwards [hJevent, Filter.eventually_all.2 haverageEq] with N havg heq
+  have hterms : ∀ J ∈ Pset, rowAverage (N := N) J ≤ 2 := by
+    intro J hJ
+    have hsub : J ⊆ Iset := Finset.mem_powerset.mp hJ
+    rw [heq J]
+    exact havg J hsub
+  have hsumle : ∑ J ∈ Pset, rowAverage (N := N) J ≤ ∑ J ∈ Pset, (2 : ℝ) :=
+    Finset.sum_le_sum hterms
+  have hcard : Iset.card ≤ r := by
+    simpa [Iset] using
+      (Finset.card_le_card (Finset.filter_subset I (Finset.univ : Finset (Fin r))))
+  have hpower : (2 : ℝ) * (2 : ℝ) ^ Iset.card ≤ (2 : ℝ) ^ (r + 1) := by
+    rw [pow_succ]
+    have hpowNat : (2 : ℝ) ^ Iset.card ≤ (2 : ℝ) ^ r := by
+      exact_mod_cast (Nat.pow_le_pow_right (by omega) hcard)
+    nlinarith [hpowNat]
+  have hsumConst : ∑ J ∈ Pset, (2 : ℝ) = (2 : ℝ) * (2 : ℝ) ^ Iset.card := by
+    calc
+      ∑ J ∈ Pset, (2 : ℝ) = (Pset.card : ℝ) * 2 := by
+        simp [Finset.sum_const, nsmul_eq_mul]
+      _ = (2 : ℝ) * (2 : ℝ) ^ Iset.card := by
+        simp [Pset, Finset.card_powerset]
+        ring
+  rw [hfinite]
+  exact hsumle.trans (hsumConst ▸ hpower)
+
+
 end
 end HindmanSumsProducts
