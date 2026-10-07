@@ -1480,6 +1480,84 @@ theorem parameterTailProductLaw_eq_split_sum {n : ℕ}
   rw [parameterTailProductLaw_eq_finite_sum A N T σ]
   exact hsum
 
+theorem parameterTailProductLaw_eq_tailSubtype_sum {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (T : Finset (Fin n)) (σ : ℕ)
+    (hX : ∀ j, 0 < A.X N j)
+    (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1))) :
+    FromArithmetic.parameterTailProductLaw A N T σ =
+      ∑ u ∈ Fintype.piFinset
+          (fun i : T => Finset.range ((A.X N i.val) ^ 2)),
+        (if (∏ i : T, u i) = σ then 1 else 0) *
+          ∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (u i) := by
+  classical
+  let Tcomp := finsetComplement T
+  let Dtail := Fintype.piFinset fun i : T => Finset.range ((A.X N i.val) ^ 2)
+  let Dcomp := Fintype.piFinset fun i : Tcomp => Finset.range ((A.X N i.val) ^ 2)
+  have hcomp : (∑ v ∈ Dcomp,
+      ∏ i : Tcomp, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (v i)) = 1 := by
+    calc
+      (∑ v ∈ Dcomp,
+          ∏ i : Tcomp, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (v i)) =
+        ∏ i : Tcomp,
+          ∑ x ∈ Finset.range ((A.X N i.val) ^ 2),
+            harmonicNatLaw (A.X N i.val) (primorial (N + 1)) x := by
+              dsimp [Dcomp]
+              symm
+              exact Finset.prod_univ_sum
+                (t := fun i : Tcomp => Finset.range ((A.X N i.val) ^ 2))
+                (f := fun i x => harmonicNatLaw (A.X N i.val) (primorial (N + 1)) x)
+      _ = ∏ i : Tcomp, 1 := by
+        apply Finset.prod_congr rfl
+        intro i hi
+        exact harmonicNatLaw_sum_range_eq_one _ _ (hX i.val) (hNorm i.val)
+      _ = 1 := by simp
+  have hsplit :
+      (∑ z ∈ Dtail ×ˢ Dcomp,
+        (if (∏ i : T, z.1 i) = σ then 1 else 0) *
+          ((∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.1 i)) *
+            ∏ i : Tcomp,
+              harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.2 i))) =
+        ∑ u ∈ Dtail,
+          (if (∏ i : T, u i) = σ then 1 else 0) *
+            ∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (u i) := by
+    rw [Finset.sum_product]
+    apply Finset.sum_congr rfl
+    intro u hu
+    let I : ℝ := if (∏ i : T, u i) = σ then 1 else 0
+    let M : ℝ := ∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (u i)
+    calc
+      (∑ v ∈ Dcomp,
+        (if (∏ i : T, u i) = σ then 1 else 0) *
+          ((∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (u i)) *
+            ∏ i : Tcomp,
+              harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (v i))) =
+        ∑ v ∈ Dcomp, (I * M) *
+          ∏ i : Tcomp, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (v i) := by
+            apply Finset.sum_congr rfl
+            intro v hv
+            dsimp [I, M]
+            ring
+      _ = (I * M) *
+          ∑ v ∈ Dcomp,
+            ∏ i : Tcomp, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (v i) := by
+              rw [Finset.mul_sum]
+      _ = (if (∏ i : T, u i) = σ then 1 else 0) *
+            ∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (u i) := by
+              rw [hcomp]
+              simp [I, M]
+  calc
+    FromArithmetic.parameterTailProductLaw A N T σ =
+        ∑ z ∈ Dtail ×ˢ Dcomp,
+          (if (∏ i : T, z.1 i) = σ then 1 else 0) *
+            ((∏ i : T,
+                harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.1 i)) *
+              ∏ i : Tcomp,
+                harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.2 i)) := by
+          simpa [Dtail, Dcomp, Tcomp] using
+            parameterTailProductLaw_eq_split_sum A N T σ
+    _ = _ := hsplit
+
 theorem harmonicLaw_summable (X W : ℕ) : Summable (harmonicLaw X W) := by
   classical
   let S : Finset ℕ := (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
