@@ -1362,6 +1362,43 @@ theorem primePoolResidueLaw_sum_one {lo hi Q : ℕ}
       rw [hmassEq]
       exact div_self (ne_of_gt hmass)
 
+theorem finitePushforward_sum {α β : Type*} [Fintype α] [Fintype β]
+    [DecidableEq β] (f : α → β) (μ : α → ℝ) :
+    (∑ b, finitePushforward f μ b) = ∑ a, μ a := by
+  classical
+  unfold finitePushforward
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro a ha
+  simp
+
+theorem finitePushforward_nonneg {α β : Type*} [Fintype α] [DecidableEq β]
+    (f : α → β) (μ : α → ℝ) (hμ : ∀ a, 0 ≤ μ a) :
+    ∀ b, 0 ≤ finitePushforward f μ b := by
+  classical
+  intro b
+  unfold finitePushforward
+  apply Finset.sum_nonneg
+  intro a ha
+  by_cases h : f a = b
+  · simp [h, hμ a]
+  · simp [h]
+
+theorem uniformUnitResidueLaw_nonneg {Q : ℕ} (hQ : 0 < Q) (a : Fin Q) :
+    0 ≤ uniformUnitResidueLaw Q a := by
+  unfold uniformUnitResidueLaw
+  split_ifs with h
+  · exact div_nonneg (by norm_num) (Nat.cast_nonneg _)
+  · exact le_rfl
+
+theorem primePoolLaw_nonneg {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) (p : ℕ) :
+    0 ≤ primePoolLaw lo hi p := by
+  unfold primePoolLaw
+  split_ifs with hp
+  · have hpPos : 0 < (p : ℝ) := by exact_mod_cast hp.2.2.pos
+    exact div_nonneg (div_nonneg (by norm_num) hpPos.le) hmass.le
+  · exact le_rfl
+
 noncomputable def crtResidueProjection {w V Q : ℕ} (a : Fin Q) : FromArithmetic.CRTResidues w V :=
   fun p => ⟨a.val % p.val, Nat.mod_lt _ ((Finset.mem_filter.mp p.property).2.pos)⟩
 
@@ -1830,6 +1867,26 @@ theorem sum_coprime_fin_eq_totient {n : ℕ} (hn : 0 < n) :
       simp [ZMod.isUnit_iff_coprime]
     _ = (Fintype.card (ZMod n)ˣ : ℝ) := sum_isUnit_eq_card_units
     _ = _ := by rw [ZMod.card_units_eq_totient n]
+
+theorem uniformUnitResidueLaw_sum_one {Q : ℕ} (hQ : 0 < Q) :
+    (∑ a : Fin Q, uniformUnitResidueLaw Q a) = 1 := by
+  classical
+  have hφ : 0 < (Nat.totient Q : ℝ) := by
+    exact_mod_cast (Nat.totient_pos.mpr hQ)
+  have hterm (a : Fin Q) : uniformUnitResidueLaw Q a =
+      (if Nat.Coprime a.val Q then (1 : ℝ) else 0) / (Nat.totient Q : ℝ) := by
+    unfold uniformUnitResidueLaw
+    by_cases h : Nat.Coprime a.val Q
+    · rw [if_pos h, if_pos h]
+    · rw [if_neg h, if_neg h]
+      simp
+  calc
+    _ = (∑ a : Fin Q, if Nat.Coprime a.val Q then (1 : ℝ) else 0) /
+        (Nat.totient Q : ℝ) := by
+      rw [Finset.sum_congr rfl (fun a ha => hterm a), Finset.sum_div]
+    _ = (Nat.totient Q : ℝ) / (Nat.totient Q : ℝ) := by
+      rw [sum_coprime_fin_eq_totient hQ]
+    _ = 1 := div_self (ne_of_gt hφ)
 
 theorem masterCRTModulus_totient {w e V : ℕ} (he : 0 < e) :
     Nat.totient (FromArithmetic.masterCRTModulus w e V) =
