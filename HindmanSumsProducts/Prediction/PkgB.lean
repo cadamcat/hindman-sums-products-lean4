@@ -4679,6 +4679,50 @@ private theorem pkgB_primePoolAverage_embedding {q m : ℕ}
           independentPrimePoolMass (fun _ => lo) (fun _ => hi) p * F p :=
       (tsum_eq_sum (s := Sq) hqZero).symm
 
+private def pkgB_shiftSupport (d L : ℕ) : Finset (Fin d → Fin 2 → ℕ) :=
+  Fintype.piFinset fun _ : Fin d => Fintype.piFinset fun _ : Fin 2 => Finset.range L
+
+private theorem pkgB_shiftAverage_abs_pow_le_replica {d b L : ℕ}
+    (F : (Fin d → Fin 2 → ℕ) → ℝ) :
+    |shiftAverage (Fin d) L F| ^ b ≤
+      ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        ∑ u ∈ Fintype.piFinset (fun _ : Fin b => pkgB_shiftSupport d L),
+          ∏ k : Fin b, |F (u k)| := by
+  classical
+  let S := pkgB_shiftSupport d L
+  let e := 2 * Fintype.card (Fin d)
+  have hdenNonneg : 0 ≤ ((L : ℝ) ^ e)⁻¹ := by positivity
+  have habs : |shiftAverage (Fin d) L F| ≤ shiftAverage (Fin d) L (fun u => |F u|) := by
+    unfold shiftAverage
+    rw [abs_mul, abs_of_nonneg hdenNonneg]
+    apply mul_le_mul_of_nonneg_left _ hdenNonneg
+    change |∑ u ∈ S, F u| ≤ ∑ u ∈ S, |F u|
+    exact Finset.abs_sum_le_sum_abs _ _
+  have havgNonneg : 0 ≤ shiftAverage (Fin d) L (fun u => |F u|) := by
+    unfold shiftAverage
+    apply mul_nonneg hdenNonneg
+    exact Finset.sum_nonneg fun u hu => abs_nonneg (F u)
+  have hsumPow :
+      (∑ u ∈ S, |F u|) ^ b =
+        ∑ u ∈ Fintype.piFinset (fun _ : Fin b => S), ∏ k : Fin b, |F (u k)| := by
+    simpa [S] using (Finset.sum_pow' S (fun u => |F u|) b)
+  have hinvPow :
+      (((L : ℝ) ^ e)⁻¹) ^ b = ((L : ℝ) ^ (e * b))⁻¹ := by
+    rw [inv_pow, ← pow_mul]
+  have hrep :
+      (shiftAverage (Fin d) L (fun u => |F u|)) ^ b =
+        ((L : ℝ) ^ (e * b))⁻¹ *
+          ∑ u ∈ Fintype.piFinset (fun _ : Fin b => S), ∏ k : Fin b, |F (u k)| := by
+    unfold shiftAverage
+    rw [mul_pow, hinvPow]
+    change ((L : ℝ) ^ (e * b))⁻¹ * (∑ u ∈ S, |F u|) ^ b = _
+    rw [hsumPow]
+  calc
+    |shiftAverage (Fin d) L F| ^ b ≤
+        (shiftAverage (Fin d) L (fun u => |F u|)) ^ b :=
+      pow_le_pow_left₀ (abs_nonneg _) habs b
+    _ = _ := by simpa [S, e, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hrep
+
 end Prediction
 
 end HindmanSumsProducts
