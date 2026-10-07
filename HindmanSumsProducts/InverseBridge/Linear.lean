@@ -1743,7 +1743,7 @@ private theorem evLinReal_adjoint_sum {L : Type*} [LieRing L] [LieAlgebra ℚ L]
           _ = _ := (hRightAdd Y Z).symm
   exact hsum Y
 
-private theorem evLinReal_conjugation_shift {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+theorem evLinReal_conjugation_shift {L : Type*} [LieRing L] [LieAlgebra ℚ L]
     {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (hs : 0 < s)
     (c : ℚ) (m : ℤ) (Y : ℝ ⊗[ℚ] Poly F) :
     evLinReal F m (lieBCH (2 * s)
