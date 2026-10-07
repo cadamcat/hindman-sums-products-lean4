@@ -4171,6 +4171,84 @@ private theorem momentPrimeTupleCRT_l1_le {m w V : ℕ}
         simp [Finset.sum_const, nsmul_eq_mul]
         ring
 
+private noncomputable def momentCRTSlotResidueError {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (l : Fin K) (N : ℕ) : ℝ :=
+  finiteL1
+    (primePoolResidueLaw (MS.primeStage.pool N l).lower (MS.primeStage.pool N l).upper
+      (masterCRTModulus (N + 1) (MS.primeStage.e0 N)
+        (masterScaleV MS.core.parameters N l)))
+    (uniformUnitResidueLaw
+      (masterCRTModulus (N + 1) (MS.primeStage.e0 N)
+        (masterScaleV MS.core.parameters N l)))
+
+private noncomputable def momentCRTErrorBound {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (l : Fin K) (N : ℕ) : ℝ :=
+  (sl : ℝ) * momentCRTSlotResidueError MS l N *
+    (1 + momentCRTSlotResidueError MS l N) ^ sl
+
+private theorem momentCRTErrorBound_superPolynomial {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm) (l : Fin K) :
+    SuperPolynomialSmall (momentCRTErrorBound MS l)
+      (fun N => (masterScaleV MS.core.parameters N l : ℝ)) := by
+  let V : ℕ → ℝ := fun N => (masterScaleV MS.core.parameters N l : ℝ)
+  let δ : ℕ → ℝ := momentCRTSlotResidueError MS l
+  have hδsp : SuperPolynomialSmall δ V := by
+    dsimp [δ, V, momentCRTSlotResidueError]
+    exact MS.primeStage.pool_residue_error l
+  have hδnonneg (N : ℕ) : 0 ≤ δ N := by
+    dsimp [δ, momentCRTSlotResidueError, finiteL1]
+    positivity
+  have hVge1 (N : ℕ) : 1 ≤ V N := by
+    have hn : 1 ≤ masterScaleV MS.core.parameters N l := by
+      unfold masterScaleV
+      omega
+    change (1 : ℝ) ≤ (masterScaleV MS.core.parameters N l : ℝ)
+    exact_mod_cast hn
+  have hδV : Tendsto (fun N : ℕ => δ N * V N) atTop (𝓝 0) := by
+    simpa [Real.rpow_one] using hδsp 1 (by norm_num)
+  have hδle : ∀ᶠ N : ℕ in atTop, δ N ≤ 1 := by
+    filter_upwards [hδV.eventually (eventually_lt_nhds (by norm_num : (0 : ℝ) < 1))]
+      with N hN
+    have hmul : δ N ≤ δ N * V N := by
+      calc
+        δ N = δ N * 1 := by ring
+        _ ≤ δ N * V N := mul_le_mul_of_nonneg_left (hVge1 N) (hδnonneg N)
+    exact le_of_lt (lt_of_le_of_lt hmul hN)
+  intro C hC
+  have hδC : Tendsto (fun N : ℕ => δ N * V N ^ C) atTop (𝓝 0) := hδsp C hC
+  have hbound (N : ℕ) (hN : δ N ≤ 1) :
+      momentCRTErrorBound MS l N * V N ^ C ≤
+        (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C) := by
+    have hpow : (1 + δ N) ^ sl ≤ (2 : ℝ) ^ sl := by
+      exact pow_le_pow_left₀ (by linarith [hδnonneg N]) (by linarith) sl
+    have hA : 0 ≤ (sl : ℝ) * δ N * V N ^ C := by
+      exact mul_nonneg (mul_nonneg (by positivity) (hδnonneg N))
+        (Real.rpow_nonneg (by positivity) C)
+    calc
+      momentCRTErrorBound MS l N * V N ^ C =
+          ((sl : ℝ) * δ N * V N ^ C) * (1 + δ N) ^ sl := by
+            dsimp [momentCRTErrorBound, δ]
+            ring
+      _ ≤ ((sl : ℝ) * δ N * V N ^ C) * (2 : ℝ) ^ sl :=
+            mul_le_mul_of_nonneg_left hpow hA
+      _ = (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C) := by ring
+  have hsmall : Tendsto
+      (fun N : ℕ => (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C)) atTop (𝓝 0) := by
+    simpa using (tendsto_const_nhds.mul hδC)
+  have hupper : ∀ᶠ N : ℕ in atTop,
+      momentCRTErrorBound MS l N * V N ^ C ≤
+        (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C) := by
+    filter_upwards [hδle] with N hN
+    exact hbound N hN
+  have hnonneg (N : ℕ) : 0 ≤ momentCRTErrorBound MS l N * V N ^ C := by
+    have hbase : 0 ≤ 1 + δ N := by linarith [hδnonneg N]
+    exact mul_nonneg
+      (mul_nonneg (mul_nonneg (by positivity) (hδnonneg N)) (pow_nonneg hbase _))
+      (Real.rpow_nonneg (by positivity) C)
+  exact squeeze_zero' (Eventually.of_forall hnonneg) hupper hsmall
+
 end Prediction
 
 end HindmanSumsProducts
