@@ -6153,6 +6153,17 @@ theorem exists_maskRowShape (m : ℕ) (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jstar
     rw [hlen] at hr
     exact hr
 
+theorem exists_maskRowShape_tests (m : ℕ) (Jstar : Finset (Fin m))
+    (hJ : 2 ≤ Jstar.card) :
+    ∃ (q r : ℕ) (Sh : RowShape m q r)
+      (tests : Finset (IntegerPolynomial q)),
+      r ≤ maskRowBound m ∧ q ≤ 2 * maskCount m ∧
+        (Sh.row Sh.star).support = Jstar ∧ ∀ P ∈ tests, P ≠ 0 := by
+  obtain ⟨q, r, Sh, hq, hr, hstar⟩ := exists_maskRowShape m Jstar hJ
+  refine ⟨q, r, Sh, templateMinors Sh, hr, hq, hstar, ?_⟩
+  intro P hP
+  exact (Finset.mem_filter.mp hP).2
+
 theorem initialMaskRemovalState_valid {m K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (Jstar : Finset (Fin m))
