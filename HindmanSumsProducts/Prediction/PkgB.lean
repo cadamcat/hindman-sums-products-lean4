@@ -4270,7 +4270,7 @@ private theorem momentBaseEpsilonBase_nonneg {K sl : ℕ} {As : Finset ℚ}
   apply add_nonneg hpivot
   positivity
 
-private noncomputable def momentWeightedLinearFormsData {K sl : ℕ} {As : Finset ℚ}
+noncomputable def pkgB_momentWeightedLinearFormsData {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (B : Block K) (l : Fin K) (hgap : ValidGap B l)
     (T : CubeTemplate) (hT : Allowed Dm T) (J0 : ℕ) (hJ0 : 0 < J0)
