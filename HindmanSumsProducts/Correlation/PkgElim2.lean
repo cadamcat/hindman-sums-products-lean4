@@ -1910,6 +1910,134 @@ theorem c_elim2_boxWeightRowFactor_split_outside {α β : Type u} [Fintype α]
   rw [c_elim2_boxRowArgument_split_outside D E R b o t₀ t₁
     (c_elim2_boxBranchFull E ω)]
 
+noncomputable def c_elim2_boxCurrentStateIntegrand {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (b : β) (H₀ : c_elim2_ShiftOutside E R (D.shiftLength b) → ℝ)
+    (H : c_elim2_ShiftOutside E R (D.shiftLength b) →
+      Fin (D.shiftLength b) → ℝ)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ := by
+  classical
+  let e := c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)
+  exact H₀ (e u).1 * c_elim2_uniformFintypeAverage (H (e u).1)
+
+noncomputable def c_elim2_boxNextStateIntegrand {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β)
+    (Ω : c_elim2_ShiftOutside E R (D.shiftLength b) → ℝ)
+    (H : c_elim2_ShiftOutside E R (D.shiftLength b) →
+      Fin (D.shiftLength b) → ℝ)
+    (u : c_elim2_ShiftCoord (insert R E) → Fin (D.shiftLength b)) : ℝ := by
+  classical
+  let (v, t₁) := c_elim2_shiftStateInsertEquiv E R hR (D.shiftLength b) u
+  let (o, t₀) := c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b) v
+  exact Ω o * H o t₀ * H o t₁
+
+theorem c_elim2_boxStateAverage_eq_current {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β) (tBase : Fin (D.shiftLength b))
+    (H₀ : c_elim2_ShiftOutside E R (D.shiftLength b) → ℝ)
+    (H : c_elim2_ShiftOutside E R (D.shiftLength b) →
+      Fin (D.shiftLength b) → ℝ)
+    (hH₀ : ∀ o, H₀ o = c_elim2_boxActiveRowFactor D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, tBase)))
+    (hH : ∀ o t, H o t = c_elim2_boxWithoutActiveRow D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t))) :
+    c_elim2_shiftStateAverage E (D.shiftLength b)
+      (c_elim2_boxCurrentStateIntegrand D E R b H₀ H) =
+    c_elim2_shiftStateAverage E (D.shiftLength b)
+      (c_elim2_boxStateIntegrand D E b) := by
+  classical
+  let L := D.shiftLength b
+  letI : Nonempty (Fin L) := ⟨tBase⟩
+  rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L),
+    c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L)]
+  apply congrArg (fun F : c_elim2_ShiftOutside E R L → ℝ =>
+    c_elim2_uniformFintypeAverage F)
+  funext o
+  calc
+    c_elim2_uniformFintypeAverage (fun t : Fin L =>
+        c_elim2_boxCurrentStateIntegrand D E R b H₀ H
+          ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t))) =
+      c_elim2_uniformFintypeAverage (fun t : Fin L =>
+        H₀ o * c_elim2_uniformFintypeAverage (H o)) := by
+          apply congrArg (fun F : Fin L → ℝ => c_elim2_uniformFintypeAverage F)
+          funext t
+          simp [c_elim2_boxCurrentStateIntegrand, L, Equiv.apply_symm_apply]
+    _ = H₀ o * c_elim2_uniformFintypeAverage (H o) :=
+          c_elim2_uniformFintypeAverage_const _
+    _ = c_elim2_uniformFintypeAverage (fun t : Fin L => H₀ o * H o t) :=
+          (c_elim2_uniformFintypeAverage_const_mul (H₀ o) (H o)).symm
+    _ = c_elim2_uniformFintypeAverage (fun t : Fin L =>
+        c_elim2_boxActiveRowFactor D E R b
+            ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t)) *
+          c_elim2_boxWithoutActiveRow D E R b
+            ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t))) := by
+          apply congrArg (fun F : Fin L → ℝ => c_elim2_uniformFintypeAverage F)
+          funext t
+          rw [← c_elim2_boxActiveRowFactor_split_outside D E R b o tBase t]
+          rw [← hH₀ o, ← hH o t]
+    _ = c_elim2_uniformFintypeAverage (fun t : Fin L =>
+        c_elim2_boxStateIntegrand D E b
+          ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t))) := by
+          apply congrArg (fun F : Fin L → ℝ => c_elim2_uniformFintypeAverage F)
+          funext t
+          rw [← c_elim2_boxState_factor_active D E R hR b
+            ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t))]
+
+theorem c_elim2_boxStateAverage_eq_next {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β) (tBase : Fin (D.shiftLength b))
+    (Ω : c_elim2_ShiftOutside E R (D.shiftLength b) → ℝ)
+    (H : c_elim2_ShiftOutside E R (D.shiftLength b) →
+      Fin (D.shiftLength b) → ℝ)
+    (hΩ : ∀ o, Ω o = c_elim2_boxWeightRowFactor D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, tBase)))
+    (hH : ∀ o t, H o t = c_elim2_boxWithoutActiveRow D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t))) :
+    c_elim2_shiftStateAverage (insert R E) (D.shiftLength b)
+      (c_elim2_boxNextStateIntegrand D E R hR b Ω H) =
+    c_elim2_shiftStateAverage (insert R E) (D.shiftLength b)
+      (c_elim2_boxStateIntegrand D (insert R E) b) := by
+  classical
+  let L := D.shiftLength b
+  have hpoint (o : c_elim2_ShiftOutside E R L) (t₀ t₁ : Fin L) :
+      c_elim2_boxStateIntegrand D (insert R E) b
+        (c_elim2_boxEndpointAssignment E R hR L o t₀ t₁) =
+      Ω o * H o t₀ * H o t₁ := by
+    rw [c_elim2_boxState_insert_endpoint]
+    have hΩ' : c_elim2_boxWeightRowFactor D E R b
+        (c_elim2_boxOldEndpointAssignment E R L o t₀) = Ω o := by
+      change c_elim2_boxWeightRowFactor D E R b
+        ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₀)) = Ω o
+      calc
+        _ = c_elim2_boxWeightRowFactor D E R b
+              ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, tBase)) :=
+                (c_elim2_boxWeightRowFactor_split_outside D E R b o tBase t₀).symm
+        _ = Ω o := (hΩ o).symm
+    rw [hΩ']
+    rw [Fin.prod_univ_two]
+    simp [hH, c_elim2_boxEndpointChoice, c_elim2_boxOldEndpointAssignment, L]
+    ring
+  have hInsNext := c_elim2_shiftStateAverage_insert
+    (E := E) (R := R) (hR := hR) (L := L)
+    (F := c_elim2_boxNextStateIntegrand D E R hR b Ω H)
+  have hInsState := c_elim2_shiftStateAverage_insert
+    (E := E) (R := R) (hR := hR) (L := L)
+    (F := c_elim2_boxStateIntegrand D (insert R E) b)
+  rw [hInsNext, hInsState]
+  rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L),
+    c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L)]
+  apply congrArg (fun F : c_elim2_ShiftOutside E R L → ℝ =>
+    c_elim2_uniformFintypeAverage F)
+  funext o
+  apply congrArg (fun F : Fin L → ℝ => c_elim2_uniformFintypeAverage F)
+  funext t₀
+  apply congrArg (fun F : Fin L → ℝ => c_elim2_uniformFintypeAverage F)
+  funext t₁
+  simpa [c_elim2_boxNextStateIntegrand, c_elim2_boxEndpointAssignment,
+    Equiv.apply_symm_apply, L] using
+    (hpoint o t₀ t₁).symm
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
