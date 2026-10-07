@@ -121,6 +121,34 @@ theorem liftObs_abs_le_one {X Y : Type*} (r : X → ℝ) (point : X → ℤ → 
     rw [hm]
     simpa using hterm m
 
+theorem liftObs_scale {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
+    (H : Y → ℝ) (c : ℝ) (x : X) :
+    liftObs r point (fun y => c * H y) x = c * liftObs r point H x := by
+  rw [liftObs_finite_sum, liftObs_finite_sum]
+  calc
+    _ = ∑ m ∈ (bump_integer_support_finite (r x)).toFinset,
+          c * (bump (r x - m) * H (point x m)) := by
+            apply Finset.sum_congr rfl
+            intro m hm
+            ring
+    _ = c * ∑ m ∈ (bump_integer_support_finite (r x)).toFinset,
+          bump (r x - m) * H (point x m) := by rw [Finset.mul_sum]
+
+theorem liftObs_mem_Icc {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
+    (H : Y → ℝ) (hH : ∀ y, H y ∈ Set.Icc (0 : ℝ) 1) (x : X) :
+    liftObs r point H x ∈ Set.Icc (0 : ℝ) 1 := by
+  have hnonneg : 0 ≤ liftObs r point H x := by
+    rw [liftObs_finite_sum]
+    apply Finset.sum_nonneg
+    intro m hm
+    exact mul_nonneg (bump_nonneg _) (hH _).1
+  have hHabs : ∀ y, |H y| ≤ 1 := by
+    intro y
+    rw [abs_of_nonneg (hH y).1]
+    exact (hH y).2
+  have habs := liftObs_abs_le_one r point H hHabs x
+  exact ⟨hnonneg, (abs_le.mp habs).2⟩
+
 /-- At an integral translation coordinate only the matching translate contributes. -/
 theorem liftObs_at_integer {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
     (H : Y → ℝ) (x : X) (n : ℤ) (hr : r x = n)
