@@ -7079,6 +7079,163 @@ private theorem uniformCRT_localBeta_average {q m w V : ℕ}
           (regularPrimeLocalExcess p.val a))
     _ = _ := by ring
 
+set_option maxHeartbeats 2000000 in
+private theorem uniformPrimeTupleCRTLaw_primeExpectation {m w V : ℕ}
+    (p₀ : CRTPrimeRange w V) (f : (Fin m → Fin p₀.val) → ℝ) :
+    (∑ r : Fin m → CRTResidues w V,
+      uniformPrimeTupleCRTLaw w V r * f (fun i => r i p₀)) =
+      ∑ x : Fin m → Fin p₀.val, uniformUnitTupleMass p₀.val m x * f x := by
+  classical
+  let α : CRTPrimeRange w V → Type := fun p => Fin m → Fin p.val
+  let μ : ∀ p, α p → ℝ := fun p => uniformUnitTupleMass p.val m
+  let swap := crtSlotPrimeSwapEquiv (m := m) (w := w) (V := V)
+  calc
+    _ = ∑ s : ∀ p : CRTPrimeRange w V, α p,
+        (∏ p, μ p (s p)) * f (s p₀) := by
+          apply Fintype.sum_equiv swap
+          intro r
+          rw [uniformPrimeTupleCRTLaw_factor (fun p i => r i p)]
+          rfl
+    _ = ∑ x : α p₀, μ p₀ x * f x :=
+      piProductMarginal α μ (by
+        intro p
+        exact uniformUnitTupleMass_total p.val m
+          (Nat.Prime.pos ((Finset.mem_filter.mp p.property).2))) p₀ f
+    _ = _ := by rfl
+
+private def linearFormsLocalBetaAtPrime {q m w V : ℕ}
+    (tests : Finset (IntegerPolynomial m)) (p : CRTPrimeRange w V)
+    (x : Fin m → Fin p.val) (a : Fin q → ℕ) : ℝ :=
+  regularPrimeLocalExcess p.val a +
+    (if ∃ Q ∈ tests,
+      (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => ((x i).val : ℤ)) then 1 else 0) *
+      exceptionalPrimeLocalExcess p.val a
+
+private theorem uniformUnit_localBeta_average {q m w V : ℕ}
+    (tests : Finset (IntegerPolynomial m))
+    (htests : ∀ Q ∈ tests, Q ≠ 0)
+    (B : ℕ) (hB : 0 < B)
+    (hsize : ∀ Q ∈ tests,
+      integerPolynomialContent Q < B ∧ Q.totalDegree ≤ B)
+    (p : CRTPrimeRange w V) (a : Fin q → ℕ) :
+    (∑ x : Fin m → Fin p.val,
+      uniformUnitTupleMass p.val m x * linearFormsLocalBetaAtPrime tests p x a) ≤
+      regularPrimeLocalExcess p.val a +
+        (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / p.val) *
+          exceptionalPrimeLocalExcess p.val a := by
+  have hmarg := uniformPrimeTupleCRTLaw_primeExpectation p
+    (fun x => linearFormsLocalBetaAtPrime tests p x a)
+  have hfull := uniformCRT_localBeta_average tests htests B hB hsize p a
+  calc
+    _ = ∑ r : Fin m → CRTResidues w V,
+        uniformPrimeTupleCRTLaw w V r * linearFormsLocalBeta tests r p a := by
+          simpa [linearFormsLocalBeta, linearFormsLocalBetaAtPrime] using hmarg.symm
+    _ ≤ _ := hfull
+
+private def linearFormsTupleEnvelope {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) (N : ℕ)
+    (σ : Fin q → ℕ) (r : Fin m → CRTResidues (N + 1) (D.V N)) : ℝ :=
+  min (∏ u, (σ u : ℝ))
+    (∏ p : CRTPrimeRange (N + 1) (D.V N),
+      (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1
+
+private def linearFormsCrtEnvelope {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) (N : ℕ)
+    (r : Fin m → CRTResidues (N + 1) (D.V N)) : ℝ :=
+  ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+    linearFormsDivisorTupleMass D N σ * linearFormsTupleEnvelope D N σ r
+
+private theorem linearFormsTupleEnvelope_bounds {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (σ : Fin q → ℕ) (hσ : σ ∈ linearFormsDivisorTupleSupport D N)
+    (r : Fin m → CRTResidues (N + 1) (D.V N)) :
+    0 ≤ linearFormsTupleEnvelope D N σ r ∧
+      linearFormsTupleEnvelope D N σ r ≤ (D.V N : ℝ) ^ q := by
+  classical
+  let K : ℝ := ∏ u : Fin q, (σ u : ℝ)
+  let P : ℝ := ∏ p : CRTPrimeRange (N + 1) (D.V N),
+    (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))
+  have hKlower : 1 ≤ K := by
+    dsimp [K]
+    calc
+      (1 : ℝ) = ∏ _u : Fin q, (1 : ℝ) := by simp
+      _ ≤ ∏ u : Fin q, (σ u : ℝ) := by
+        apply finset_prod_le_prod_of_nonneg Finset.univ
+        · intro u hu; positivity
+        · intro u hu; positivity
+        · intro u hu
+          exact_mod_cast ((linearFormsDivisorTuple_support_facts D N).2.2.2
+            σ hσ u).1
+  have hKupper : K ≤ (D.V N : ℝ) ^ q := by
+    dsimp [K]
+    calc
+      ∏ u : Fin q, (σ u : ℝ) ≤ ∏ _u : Fin q, (D.V N : ℝ) := by
+        apply finset_prod_le_prod_of_nonneg Finset.univ
+        · intro u hu; positivity
+        · intro u hu; positivity
+        · intro u hu
+          exact_mod_cast ((linearFormsDivisorTuple_support_facts D N).2.2.2
+            σ hσ u).2.1
+      _ = (D.V N : ℝ) ^ q := by simp [Finset.prod_const, Fintype.card_fin]
+  have hBetaNonneg (p : CRTPrimeRange (N + 1) (D.V N)) :
+      0 ≤ linearFormsLocalBeta tests r p (linearFormsValVector σ p.val) := by
+    have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+    have hreg := regularPrimeLocalExcess_nonneg p.val hp (linearFormsValVector σ p.val)
+    have hex := exceptionalPrimeLocalExcess_nonneg p.val hp (linearFormsValVector σ p.val)
+    unfold linearFormsLocalBeta
+    exact add_nonneg hreg (mul_nonneg (by split_ifs <;> norm_num) hex)
+  have hP : 1 ≤ P := by
+    change (1 : ℝ) ≤
+      ∏ p : CRTPrimeRange (N + 1) (D.V N),
+        (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))
+    calc
+      (1 : ℝ) = ∏ _p : CRTPrimeRange (N + 1) (D.V N), (1 : ℝ) := by simp
+      _ ≤ P := by
+        dsimp [P]
+        apply finset_prod_le_prod_of_nonneg Finset.univ
+        · intro p hp; positivity
+        · intro p hp; exact add_nonneg (by norm_num) (hBetaNonneg p)
+        · intro p hp; exact le_add_of_nonneg_right (hBetaNonneg p)
+  constructor
+  · dsimp [linearFormsTupleEnvelope, K, P]
+    exact sub_nonneg.mpr (le_min hKlower hP)
+  · change min K P - 1 ≤ (D.V N : ℝ) ^ q
+    have hmin : min K P ≤ K := min_le_left K P
+    linarith [hKupper]
+
+private theorem linearFormsCrtEnvelope_bounds {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (r : Fin m → CRTResidues (N + 1) (D.V N)) :
+    0 ≤ linearFormsCrtEnvelope D N r ∧
+      linearFormsCrtEnvelope D N r ≤ (D.V N : ℝ) ^ q := by
+  classical
+  have hfacts := linearFormsDivisorTuple_support_facts D N
+  constructor
+  · unfold linearFormsCrtEnvelope
+    apply Finset.sum_nonneg
+    intro σ hσ
+    exact mul_nonneg (hfacts.1 σ)
+      (linearFormsTupleEnvelope_bounds D N σ hσ r).1
+  · unfold linearFormsCrtEnvelope
+    calc
+      (∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ * linearFormsTupleEnvelope D N σ r) ≤
+        ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+          linearFormsDivisorTupleMass D N σ * (D.V N : ℝ) ^ q := by
+            apply Finset.sum_le_sum
+            intro σ hσ
+            exact mul_le_mul_of_nonneg_left
+              (linearFormsTupleEnvelope_bounds D N σ hσ r).2 (hfacts.1 σ)
+      _ = (D.V N : ℝ) ^ q := by
+            rw [← Finset.sum_mul, hfacts.2.1]
+            ring
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
