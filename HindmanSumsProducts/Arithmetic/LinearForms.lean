@@ -134,6 +134,26 @@ private theorem rationalRow_commonDenominator_value {d : ℕ}
       intro j hj
       rw [rationalRow_coefficient_clearDenominator]
 
+private theorem rationalRow_commonDenominator_value_int {d : ℕ}
+    (rows : Fin d → ℚ) (x : Fin d → ℤ)
+    (hden : (∑ j, rows j * (x j : ℚ)).den = 1) :
+    (rationalRowDenominator rows : ℤ) * (∑ j, rows j * (x j : ℚ)).num =
+      ∑ j, rationalRowClearedCoefficient rows j * x j := by
+  let R : ℚ := ∑ j, rows j * (x j : ℚ)
+  have hRcast : (R.num : ℚ) = R := (Rat.den_eq_one_iff R).mp (by simpa [R] using hden)
+  have hQ : (((rationalRowDenominator rows : ℤ) * R.num : ℤ) : ℚ) =
+      ((∑ j, rationalRowClearedCoefficient rows j * x j : ℤ) : ℚ) := by
+    calc
+      (((rationalRowDenominator rows : ℤ) * R.num : ℤ) : ℚ) =
+          (rationalRowDenominator rows : ℚ) * (R.num : ℚ) := by norm_cast
+      _ = (rationalRowDenominator rows : ℚ) * R := by rw [hRcast]
+      _ = ∑ j, (rationalRowClearedCoefficient rows j : ℚ) * (x j : ℚ) := by
+        dsimp [R]
+        exact rationalRow_commonDenominator_value rows x
+      _ = ((∑ j, rationalRowClearedCoefficient rows j * x j : ℤ) : ℚ) := by
+        simp only [Int.cast_sum, Int.cast_mul]
+  exact_mod_cast hQ
+
 private theorem zmod_int_mul (M : ℕ) (a b : ℤ) :
     (a : ZMod M) * (b : ZMod M) = ((a * b : ℤ) : ZMod M) := by
   exact (Int.cast_mul (α := ZMod M) a b).symm
@@ -580,6 +600,26 @@ def integerResidue (K : ℕ) (hK : 0 < K) (z : ℤ) : Fin K := by
   have hcast : (((z % (K : ℤ)).toNat : ℕ) : ℤ) = z % (K : ℤ) :=
     Int.toNat_of_nonneg hz0
   exact Nat.cast_lt.mp (by rw [hcast]; exact hzlt)
+
+private theorem integerResidue_finEquiv {K : ℕ} (hK : 0 < K) (z : ℤ) :
+    ZMod.finEquiv K (integerResidue K hK z) = (z : ZMod K) := by
+  classical
+  cases K with
+  | zero => omega
+  | succ K =>
+      letI : NeZero (K + 1) := ⟨by omega⟩
+      change integerResidue (K + 1) hK z = (z : ZMod (K + 1))
+      apply Fin.ext
+      change (z % ((K + 1 : ℕ) : ℤ)).toNat = (z : ZMod (K + 1)).val
+      have hKz : (0 : ℤ) < ((K + 1 : ℕ) : ℤ) := by exact_mod_cast (Nat.zero_lt_succ K)
+      have hz0 : 0 ≤ z % ((K + 1 : ℕ) : ℤ) :=
+        Int.emod_nonneg z (Int.ne_of_gt hKz)
+      have htoNat :
+          (((z % ((K + 1 : ℕ) : ℤ)).toNat : ℕ) : ℤ) =
+            z % ((K + 1 : ℕ) : ℤ) := Int.toNat_of_nonneg hz0
+      have hval : ((z : ZMod (K + 1)).val : ℤ) =
+          z % ((K + 1 : ℕ) : ℤ) := ZMod.val_intCast z
+      exact_mod_cast htoNat.trans hval.symm
 
 /-- Conditional residue mass of the base variables modulo a divisor product. -/
 def baseResidueLaw {d : ℕ} (K : ℕ) (hK : 0 < K)
