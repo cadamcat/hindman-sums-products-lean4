@@ -3879,4 +3879,69 @@ theorem c_elim2_boxRetainedProduct_univ_reindex {α β : Type u}
     Fintype.prod_equiv eI rowSub rowFull (by intro I; exact hInner I)
   simpa [c_elim2_boxRetainedProduct, Rows, rowSub, rowFull] using hOuter
 
+theorem c_elim2_boxRowArgument_univ_retained
+    {α β : Type u} [Fintype α] [DecidableEq α] {m q : ℕ}
+    (D : c_elim2_AdditiveBoxData α β) (I : α) (b : β)
+    (u : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b))
+    (v : α → Fin 2 → Fin (D.shiftLength b))
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (vdir : α → Fin m → ℚ)
+    (η : {R : α // R ≠ I} → Fin 2)
+    (hbase : D.rowBase I b = rowForm c T p z)
+    (hcoef : ∀ j, j ≠ I → (D.rowCoefficient I j b : ℚ) = rowForm c T p (vdir j))
+    (hu : ∀ coord : c_elim2_ShiftCoord (Finset.univ : Finset α),
+      u coord = v coord.val.1 coord.val.2) :
+    c_elim2_boxRowArgument D Finset.univ b I u
+      (c_elim2_boxRetainedBranchFull Finset.univ I
+        ((c_elim2_boxRetainedBranchEquiv I).symm η)) =
+      rowForm c T p (fun k => z k + ∑ R : {R : α // R ≠ I},
+        ((v R.1 (η R)).val : ℚ) * vdir R.1 k) := by
+  classical
+  let Erase := {j : α // j ∈ (Finset.univ : Finset α).erase I}
+  let Ne := {j : α // j ≠ I}
+  let e := c_elim2_univEraseSubtypeEquiv I
+  let eBranch := c_elim2_boxRetainedBranchEquiv I
+  let branch : α → Fin 2 :=
+    c_elim2_boxRetainedBranchFull Finset.univ I (eBranch.symm η)
+  have hRow := c_elim2_boxRowArgument_linear D Finset.univ I b u branch c T p z vdir
+    hbase hcoef
+  have hsum (k : Fin m) :
+      (∑ j ∈ (Finset.univ : Finset α).erase I,
+        (c_elim2_boxShiftValue Finset.univ u branch j : ℚ) * vdir j k) =
+      ∑ R : Ne, ((v R.1 (η R)).val : ℚ) * vdir R.1 k := by
+    have hattach :
+        (∑ j ∈ (Finset.univ : Finset α).erase I,
+          (c_elim2_boxShiftValue Finset.univ u branch j : ℚ) * vdir j k) =
+        ∑ j : Erase,
+          (c_elim2_boxShiftValue Finset.univ u branch j.1 : ℚ) * vdir j.1 k := by
+      simpa only [Finset.attach_eq_univ] using
+        (Finset.sum_attach ((Finset.univ : Finset α).erase I)
+          (fun j => (c_elim2_boxShiftValue Finset.univ u branch j : ℚ) * vdir j k)).symm
+    calc
+      _ = ∑ j : Erase,
+          (c_elim2_boxShiftValue Finset.univ u branch j.1 : ℚ) * vdir j.1 k := hattach
+      _ = ∑ R : Ne,
+          (c_elim2_boxShiftValue Finset.univ u branch (e.symm R).1 : ℚ) *
+            vdir (e.symm R).1 k := by
+              exact Fintype.sum_equiv e _ _ (by intro j; simp [e])
+      _ = ∑ R : Ne, ((v R.1 (η R)).val : ℚ) * vdir R.1 k := by
+        apply Finset.sum_congr rfl
+        intro R hR
+        have hbit : branch R.1 = η R := by
+          have heval : (eBranch (eBranch.symm η)) R = η R :=
+            congrFun (eBranch.apply_symm_apply η) R
+          simpa [branch, c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull,
+            eBranch, e, c_elim2_boxRetainedBranchEquiv,
+            c_elim2_univEraseSubtypeEquiv, R.2] using heval
+        have hshift := c_elim2_boxShiftValue_eq_fullAssignment
+          (E := (Finset.univ : Finset α)) u v branch R.1 hu
+          (by intro h; exact (h (Finset.mem_univ _)).elim)
+        have hval : (e.symm R).1 = R.1 := by
+          simp [e, c_elim2_univEraseSubtypeEquiv]
+        rw [hval, hshift, hbit]
+  rw [hRow]
+  apply congrArg (rowForm c T p)
+  funext k
+  exact congrArg (fun x : ℚ => z k + x) (hsum k)
+
 end HindmanSumsProducts
