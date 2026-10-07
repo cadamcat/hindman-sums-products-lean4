@@ -46,6 +46,22 @@ private noncomputable def momentBaseCoordEquiv (b d : ℕ) :
   (momentBaseEnum b d).arrowCongr (Equiv.refl ℤ) |>.trans
     (momentBaseValuesEquiv b d)
 
+private noncomputable def momentBaseEncodeInt {b d : ℕ} (y : ℤ)
+    (u : MomentShiftIntegerTuple b d) :
+    Fin (Fintype.card (MomentBaseIndex b d)) → ℤ :=
+  (momentBaseCoordEquiv b d).symm (y, u)
+
+private theorem momentBaseEncodeInt_root {b d : ℕ} (y : ℤ)
+    (u : MomentShiftIntegerTuple b d) :
+    momentBaseEncodeInt y u ((momentBaseEnum b d).symm (.inl ())) = y := by
+  simp [momentBaseEncodeInt, momentBaseCoordEquiv, momentBaseValuesEquiv]
+
+private theorem momentBaseEncodeInt_shift {b d : ℕ} (y : ℤ)
+    (u : MomentShiftIntegerTuple b d) (k : Fin b) (j : Fin d) (side : Fin 2) :
+    momentBaseEncodeInt y u ((momentBaseEnum b d).symm (.inr (k, (j, side)))) =
+      u k j side := by
+  simp [momentBaseEncodeInt, momentBaseCoordEquiv, momentBaseValuesEquiv]
+
 private noncomputable def momentBaseEncode {b d : ℕ} (y : ℤ)
     (u : Fin b → Fin d → Fin 2 → ℕ) :
     Fin (Fintype.card (MomentBaseIndex b d)) → ℤ :=
@@ -1936,6 +1952,47 @@ private noncomputable def momentBaseMass {K sl : ℕ} {As : Finset ℚ}
     ∏ j, momentBaseCoordinateLaw MS B l T J0 N b p
       (momentBaseEnum b T.d j) (x j)
   else if x = 0 then 1 else 0
+
+private theorem momentBaseMass_encodeInt {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (hreg : momentBaseRegular MS B l T J0 N b p) (L : ℕ)
+    (hL : ∀ k : Fin b, T.length (corrScales MS) l J0 N
+      (fun j => p ((momentPrimeEnum b T.q).symm (k, j))) = L)
+    (y : ℤ) (u : MomentShiftIntegerTuple b T.d) :
+    momentBaseMass MS B l T J0 N b p (momentBaseEncodeInt y u) =
+      harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+        ∏ k : Fin b, ∏ j : Fin T.d, ∏ side : Fin 2,
+          uniformIntegerIntervalLaw 0 L (u k j side) := by
+  classical
+  have hprod :
+      (∏ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentBaseCoordinateLaw MS B l T J0 N b p (momentBaseEnum b T.d i)
+          (momentBaseEncodeInt y u i)) =
+      ∏ v : MomentBaseIndex b T.d,
+        momentBaseCoordinateLaw MS B l T J0 N b p v
+          (momentBaseEncodeInt y u ((momentBaseEnum b T.d).symm v)) := by
+    exact Fintype.prod_equiv (momentBaseEnum b T.d)
+      (fun i => momentBaseCoordinateLaw MS B l T J0 N b p (momentBaseEnum b T.d i)
+        (momentBaseEncodeInt y u i))
+      (fun v => momentBaseCoordinateLaw MS B l T J0 N b p v
+        (momentBaseEncodeInt y u ((momentBaseEnum b T.d).symm v)))
+      (by intro i; simp)
+  calc
+    momentBaseMass MS B l T J0 N b p (momentBaseEncodeInt y u) =
+        ∏ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+          momentBaseCoordinateLaw MS B l T J0 N b p (momentBaseEnum b T.d i)
+            (momentBaseEncodeInt y u i) := by
+      simp [momentBaseMass, hreg]
+    _ = ∏ v : MomentBaseIndex b T.d,
+          momentBaseCoordinateLaw MS B l T J0 N b p v
+            (momentBaseEncodeInt y u ((momentBaseEnum b T.d).symm v)) := hprod
+    _ = harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+          ∏ k : Fin b, ∏ j : Fin T.d, ∏ side : Fin 2,
+            uniformIntegerIntervalLaw 0 L (u k j side) := by
+      simp [MomentBaseIndex, Fintype.prod_sum_type, Fintype.prod_prod_type,
+        momentBaseCoordinateLaw, momentBaseEncodeInt_root, momentBaseEncodeInt_shift, hL]
 
 private noncomputable def momentBaseWindow {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
