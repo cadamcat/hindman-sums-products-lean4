@@ -19,6 +19,42 @@ theorem bump_le_one (x : ℝ) : bump x ≤ 1 := by
   unfold bump
   exact max_le (by norm_num) (by nlinarith [abs_nonneg x])
 
+theorem bump_ne_zero_iff (x : ℝ) : bump x ≠ 0 ↔ |x| < 1 / 3 := by
+  constructor
+  · intro hb
+    by_contra h
+    have hlarge : 1 / 3 ≤ |x| := le_of_not_gt h
+    have hle : 1 - 3 * |x| ≤ 0 := by nlinarith [hlarge]
+    have hzero : bump x = 0 := by
+      unfold bump
+      rw [max_eq_left hle]
+    exact hb hzero
+  · intro h
+    have hpos : 0 < 1 - 3 * |x| := by nlinarith [abs_nonneg x]
+    unfold bump
+    rw [max_eq_right (le_of_lt hpos)]
+    exact ne_of_gt hpos
+
+/-- Only finitely many integer translates can meet the compact support of `bump`. -/
+theorem bump_integer_support_finite (r : ℝ) :
+    {m : ℤ | bump (r - m) ≠ 0}.Finite := by
+  apply (Set.finite_Icc (Int.floor r - 1) (Int.floor r + 2)).subset
+  intro m hm
+  have habs := (bump_ne_zero_iff (r - m)).mp hm
+  have hleft := (abs_lt.mp habs).1
+  have hright := (abs_lt.mp habs).2
+  have hloR : ((Int.floor r - 1 : ℤ) : ℝ) < (m : ℝ) := by
+    have hf := Int.floor_le r
+    push_cast
+    linarith
+  have hhiR : (m : ℝ) < ((Int.floor r + 2 : ℤ) : ℝ) := by
+    have hf := Int.lt_floor_add_one r
+    push_cast
+    linarith
+  have hlo : Int.floor r - 1 ≤ m := by exact_mod_cast le_of_lt hloR
+  have hlt : m < Int.floor r + 2 := by exact_mod_cast hhiR
+  exact Set.mem_Icc.mpr ⟨hlo, le_of_lt hlt⟩
+
 /-- Interpolate a function on a quotient along the integer translation coordinate. -/
 noncomputable def liftObs {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
     (H : Y → ℝ) (x : X) : ℝ :=
