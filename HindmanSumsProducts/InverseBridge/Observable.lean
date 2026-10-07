@@ -8,7 +8,7 @@ namespace HindmanSumsProducts.InverseBridge
 
 open OAI OAI.Erdos3
 open Filter
-open scoped BigOperators NNReal Topology BoundedContinuousFunction
+open scoped BigOperators NNReal Topology BoundedContinuousFunction TensorProduct
 
 /-- A triangular bump supported in the interval `(-1/3, 1/3)`. -/
 noncomputable def bump (x : ℝ) : ℝ := max 0 (1 - 3 * |x|)
@@ -74,6 +74,31 @@ theorem bump_integer_support_subsingleton (r : ℝ) :
 noncomputable def liftObs {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
     (H : Y → ℝ) (x : X) : ℝ :=
   ∑ᶠ m : ℤ, bump (r x - m) * H (point x m)
+
+/-- The real translation coordinate on the realification of the linearized
+semidirect Lie algebra. -/
+noncomputable def realTranslationCoordinate {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) :
+    (ℝ ⊗[ℚ] Lin F) →ₗ[ℝ] ℝ :=
+  (TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ).toLinearMap.comp (rLinReal F)
+
+/-- Remove the translation coordinate by an integer evaluation shift, then
+evaluate the polynomial component in the original quotient. -/
+noncomputable def linearizedObservablePoint {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s d : ℕ} (D : RationalFilteredNilmanifold L s d) (hs : 0 < s) (m : ℤ)
+    (X : (weightFiltration D.filtration hs).realification.Group) : D.Space := by
+  let r := realTranslationCoordinate D.filtration X.coord
+  exact QuotientGroup.mk
+    (⟨evLinReal D.filtration m
+      ((⟨-r • realDhat D.filtration⟩ * X).coord)⟩ : D.filtration.realification.Group)
+
+/-- The compactly supported interpolation lift on the linearized group. -/
+noncomputable def linearizedObservableLift {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s d : ℕ} (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    (H : D.Space → ℝ) :
+    (weightFiltration D.filtration hs).realification.Group → ℝ :=
+  liftObs (fun X => realTranslationCoordinate D.filtration X.coord)
+    (fun X m => linearizedObservablePoint D hs m X) H
 
 /-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
 theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
