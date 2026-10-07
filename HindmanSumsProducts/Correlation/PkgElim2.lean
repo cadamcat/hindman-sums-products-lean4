@@ -1830,6 +1830,86 @@ theorem c_elim2_boxState_insert_endpoint {α β : Type u} [Fintype α]
     _ = Ω * ∏ bit : Fin 2, c_elim2_boxWithoutActiveRow D E R b (oldState bit) := by
       congr 1
 
+theorem c_elim2_boxShiftValue_split_outside {α : Type u} [Fintype α]
+    [DecidableEq α]
+    (E : Finset α) (R i : α) (hiR : i ≠ R) (L : ℕ)
+    (o : c_elim2_ShiftOutside E R L) (t₀ t₁ : Fin L) (ω : α → Fin 2) :
+    c_elim2_boxShiftValue E
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₀)) ω i =
+    c_elim2_boxShiftValue E
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₁)) ω i := by
+  classical
+  by_cases hiE : i ∈ E
+  · let c : c_elim2_ShiftCoord E := ⟨(i, ω i), Or.inr hiE⟩
+    have hc : c.val ≠ (R, 0) := by
+      intro heq
+      exact hiR (congrArg Prod.fst heq)
+    have h₀ :
+        (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₀) c =
+          o ⟨c, hc⟩ :=
+      c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except E R L o t₀ ⟨c, hc⟩
+    have h₁ :
+        (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₁) c =
+          o ⟨c, hc⟩ :=
+      c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except E R L o t₁ ⟨c, hc⟩
+    simp [c_elim2_boxShiftValue, hiE, c, h₀, h₁]
+  · let c : c_elim2_ShiftCoord E := ⟨(i, 0), Or.inl rfl⟩
+    have hc : c.val ≠ (R, 0) := by
+      intro heq
+      exact hiR (congrArg Prod.fst heq)
+    have h₀ :
+        (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₀) c =
+          o ⟨c, hc⟩ :=
+      c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except E R L o t₀ ⟨c, hc⟩
+    have h₁ :
+        (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₁) c =
+          o ⟨c, hc⟩ :=
+      c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except E R L o t₁ ⟨c, hc⟩
+    simp [c_elim2_boxShiftValue, hiE, c, h₀, h₁]
+
+theorem c_elim2_boxRowArgument_split_outside {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (b : β) (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) (ω : α → Fin 2) :
+    c_elim2_boxRowArgument D E b R
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t₀)) ω =
+    c_elim2_boxRowArgument D E b R
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t₁)) ω := by
+  unfold c_elim2_boxRowArgument
+  congr 1
+  apply Finset.sum_congr rfl
+  intro i hi
+  have hiR : i ≠ R := (Finset.mem_erase.mp hi).1
+  rw [c_elim2_boxShiftValue_split_outside E R i hiR (D.shiftLength b) o t₀ t₁ ω]
+
+theorem c_elim2_boxActiveRowFactor_split_outside {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (b : β) (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) :
+    c_elim2_boxActiveRowFactor D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t₀)) =
+    c_elim2_boxActiveRowFactor D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t₁)) := by
+  unfold c_elim2_boxActiveRowFactor
+  apply Fintype.prod_congr
+  intro ω
+  rw [c_elim2_boxRowArgument_split_outside D E R b o t₀ t₁
+    (c_elim2_boxBranchFull E ω)]
+
+theorem c_elim2_boxWeightRowFactor_split_outside {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (b : β) (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) :
+    c_elim2_boxWeightRowFactor D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t₀)) =
+    c_elim2_boxWeightRowFactor D E R b
+      ((c_elim2_shiftCoordAssignmentSplitEquiv E R (D.shiftLength b)).symm (o, t₁)) := by
+  unfold c_elim2_boxWeightRowFactor
+  apply Fintype.prod_congr
+  intro ω
+  rw [c_elim2_boxRowArgument_split_outside D E R b o t₀ t₁
+    (c_elim2_boxBranchFull E ω)]
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
