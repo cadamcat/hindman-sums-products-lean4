@@ -963,6 +963,87 @@ private lemma c_test2_exists_separating_minor {m q : ℕ} (T U : RowTemplate m q
         -(U.poly j * T.poly k - U.poly k * T.poly j) := by ring
     _ = 0 := by rw [hz]; simp
 
+private lemma c_test2_rowPoly_zero_of_not_mem_support {m q : ℕ}
+    (T : RowTemplate m q) (i : Fin m) (hi : i ∉ T.support) : T.poly i = 0 := by
+  cases he : T.entry i with
+  | none => simp [RowTemplate.poly, he]
+  | some e =>
+      have : i ∈ T.support := by simp [RowTemplate.support, he]
+      exact (hi this).elim
+
+theorem c_test2_nonparallel_minor_witness {m q : ℕ} (T U : RowTemplate m q)
+    (hpar : ¬ T.Parallel U) :
+    ∃ i j,
+      (i ∈ T.support ∧ i ∈ U.support ∧ j ∈ T.support ∧ j ∈ U.support ∧
+        T.poly i * U.poly j - T.poly j * U.poly i ≠ 0) ∨
+      (i ∈ T.support ∧ i ∉ U.support ∧ j ∈ U.support ∧
+        T.poly i * U.poly j - T.poly j * U.poly i ≠ 0) ∨
+      (i ∈ U.support ∧ i ∉ T.support ∧ j ∈ T.support ∧
+        T.poly i * U.poly j - T.poly j * U.poly i ≠ 0) := by
+  classical
+  by_cases hs : T.support = U.support
+  · obtain ⟨i, j, hminor⟩ := c_test2_exists_separating_minor T U hpar
+    have hminor' : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+      have hflip : T.poly i * U.poly j - T.poly j * U.poly i =
+          -(U.poly i * T.poly j - U.poly j * T.poly i) := by ring
+      rw [hflip]
+      exact neg_ne_zero.mpr hminor
+    have hiT : i ∈ T.support := by
+      by_contra hi
+      have hiU : i ∉ U.support := by simpa [hs] using hi
+      simp [c_test2_rowPoly_zero_of_not_mem_support T i hi,
+        c_test2_rowPoly_zero_of_not_mem_support U i hiU] at hminor
+    have hjT : j ∈ T.support := by
+      by_contra hj
+      have hjU : j ∉ U.support := by simpa [hs] using hj
+      simp [c_test2_rowPoly_zero_of_not_mem_support T j hj,
+        c_test2_rowPoly_zero_of_not_mem_support U j hjU] at hminor
+    exact ⟨i, j, Or.inl ⟨hiT, by simpa [hs] using hiT,
+      hjT, by simpa [hs] using hjT, hminor'⟩⟩
+  · have hdiff : T.support ≠ U.support := hs
+    have hne : ∃ i, (i ∈ T.support ∧ i ∉ U.support) ∨
+        (i ∈ U.support ∧ i ∉ T.support) := by
+      by_contra h
+      apply hdiff
+      ext i
+      constructor
+      · intro hi
+        by_cases hu : i ∈ U.support
+        · exact hu
+        · exact False.elim (h ⟨i, Or.inl ⟨hi, hu⟩⟩)
+      · intro hi
+        by_cases ht : i ∈ T.support
+        · exact ht
+        · exact False.elim (h ⟨i, Or.inr ⟨hi, ht⟩⟩)
+    obtain ⟨i, hi⟩ := hne
+    rcases hi with hi | hi
+    · obtain ⟨j, hj⟩ := U.support_nonempty
+      have hiSome : (T.entry i).isSome := by simpa [RowTemplate.support] using hi.1
+      obtain ⟨ei, hei⟩ := (Option.isSome_iff_exists).mp hiSome
+      have hpolyI : T.poly i ≠ 0 := c_test2_rowPoly_ne_zero_of_some T i ei hei
+      have hjSome : (U.entry j).isSome := by simpa [RowTemplate.support] using hj
+      obtain ⟨ej, hej⟩ := (Option.isSome_iff_exists).mp hjSome
+      have hpolyJ : U.poly j ≠ 0 := c_test2_rowPoly_ne_zero_of_some U j ej hej
+      have hzeroUi : U.poly i = 0 :=
+        c_test2_rowPoly_zero_of_not_mem_support U i hi.2
+      have hminor : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+        rw [hzeroUi, mul_zero, sub_zero]
+        exact mul_ne_zero hpolyI hpolyJ
+      exact ⟨i, j, Or.inr (Or.inl ⟨hi.1, hi.2, hj, hminor⟩)⟩
+    · obtain ⟨j, hj⟩ := T.support_nonempty
+      have hiSome : (U.entry i).isSome := by simpa [RowTemplate.support] using hi.1
+      obtain ⟨ei, hei⟩ := (Option.isSome_iff_exists).mp hiSome
+      have hpolyI : U.poly i ≠ 0 := c_test2_rowPoly_ne_zero_of_some U i ei hei
+      have hjSome : (T.entry j).isSome := by simpa [RowTemplate.support] using hj
+      obtain ⟨ej, hej⟩ := (Option.isSome_iff_exists).mp hjSome
+      have hpolyJ : T.poly j ≠ 0 := c_test2_rowPoly_ne_zero_of_some T j ej hej
+      have hzeroTi : T.poly i = 0 :=
+        c_test2_rowPoly_zero_of_not_mem_support T i hi.2
+      have hprod : T.poly j * U.poly i ≠ 0 := mul_ne_zero hpolyJ hpolyI
+      have hminor : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+        simpa [hzeroTi] using (neg_ne_zero.mpr hprod)
+      exact ⟨i, j, Or.inr (Or.inr ⟨hi.1, hi.2, hj, hminor⟩)⟩
+
 theorem c_test2_rowCoefficientRepresentation {K s m q : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
@@ -1896,6 +1977,13 @@ theorem c_test2_harmonicNatLaw_support_lower (X W n : ℕ)
   · exact hc.1
   · simp [hc] at h
 
+theorem c_test2_harmonicNatLaw_coprime_of_nonzero (X W n : ℕ)
+    (h : harmonicNatLaw X W n ≠ 0) : Nat.Coprime n W := by
+  unfold harmonicNatLaw at h
+  split_ifs at h with hc
+  · exact hc.2.2
+  · simp at h
+
 theorem c_test2_parameterTailProductLaw_pos_of_nonzero {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
     (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) : 1 ≤ σ := by
@@ -1923,6 +2011,38 @@ theorem c_test2_parameterTailProductLaw_pos_of_nonzero {n : ℕ}
           Finset.prod_eq_zero (Finset.mem_univ j) hj0
         simp [hp, hzero]
     · simp [hp]
+  apply hσ
+  unfold FromArithmetic.parameterTailProductLaw
+  simp_rw [hterm]
+  simp
+
+theorem c_test2_parameterTailProductLaw_coprime_of_nonzero {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) :
+    Nat.Coprime σ (primorial (N + 1)) := by
+  classical
+  by_contra hcop
+  obtain ⟨p, hp, hpsigma, hpW⟩ := Nat.Prime.not_coprime_iff_dvd.mp hcop
+  have hterm (t : Fin n → ℕ) :
+      (if (∏ j ∈ T, t j) = σ then (1 : ℝ) else 0) *
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    by_cases hprod : (∏ j ∈ T, t j) = σ
+    · have hpProd : p ∣ ∏ j ∈ T, t j := by rw [hprod]; exact hpsigma
+      obtain ⟨j, hjT, hpj⟩ :=
+        (Prime.dvd_finsetProd_iff (p := p) hp.prime (fun j => t j)).mp hpProd
+      have hLawZero : harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+        by_contra hNZ
+        have hcoprime := c_test2_harmonicNatLaw_coprime_of_nonzero
+          (A.X N j) (primorial (N + 1)) (t j) hNZ
+        have hbad : ¬ Nat.Coprime (t j) (primorial (N + 1)) := by
+          apply Nat.Prime.not_coprime_iff_dvd.mpr
+          exact ⟨p, hp, hpj, hpW⟩
+        exact hbad hcoprime
+      have hMassZero :
+          (∏ k : Fin n, harmonicNatLaw (A.X N k) (primorial (N + 1)) (t k)) = 0 :=
+        Finset.prod_eq_zero (Finset.mem_univ j) hLawZero
+      simp [hprod, hMassZero]
+    · simp [hprod]
   apply hσ
   unfold FromArithmetic.parameterTailProductLaw
   simp_rw [hterm]
@@ -2015,6 +2135,22 @@ theorem c_test2_harmonicNormalizer_pos_of_cutoff (X W : ℕ) (hW : 0 < W)
   have hsum := Finset.single_le_sum (s := S) (f := fun n : ℕ => 1 / (n : ℝ))
     (fun n _ => one_div_nonneg.mpr (Nat.cast_nonneg n)) hn₀mem
   simpa [S] using lt_of_lt_of_le hterm hsum
+
+theorem c_test2_samplingDenominator_of_cutoff {X W : ℕ} (hW : 0 < W)
+    (hcut : 4 * W ≤ X) : Real.log X > (W : ℝ) / X := by
+  have hWone : 1 ≤ W := by omega
+  have hX : 4 ≤ X := by omega
+  have hXreal : (0 : ℝ) < (X : ℝ) := by exact_mod_cast (by omega : 0 < X)
+  have hdiv : (W : ℝ) / X ≤ (1 / 4 : ℝ) := by
+    apply (div_le_iff₀ hXreal).2
+    have hcutR : (4 : ℝ) * (W : ℝ) ≤ (X : ℝ) := by exact_mod_cast hcut
+    nlinarith
+  have hlog4 : (1 / 4 : ℝ) < Real.log 4 := by
+    have hlog2 := Real.log_two_gt_d9
+    rw [show (4 : ℝ) = 2 * 2 by norm_num, Real.log_mul (by norm_num) (by norm_num)]
+    nlinarith
+  have hlog : Real.log 4 ≤ Real.log X := Real.log_le_log (by norm_num) (by exact_mod_cast hX)
+  exact lt_of_le_of_lt hdiv (lt_of_lt_of_le hlog4 hlog)
 
 theorem c_test2_harmonicNatLaw_tsum_one_of_normalizer_pos (X W : ℕ)
     (hX : 0 < X) (hNorm : 0 < harmonicNormalizer X W) :
