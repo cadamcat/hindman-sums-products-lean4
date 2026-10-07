@@ -2289,6 +2289,37 @@ theorem primePoolCRTLaw_projection_tv {w V Q lo hi : ℕ}
   rw [hactual, hUniform]
   exact finiteL1_pushforward_le f (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q)
 
+theorem primePoolCRTLaw_probability {w V Q lo hi : ℕ}
+    (hQ : 0 < Q) (hdiv : ∀ p : FromArithmetic.CRTPrimeRange w V, p.val ∣ Q)
+    (hmass : 0 < primePoolMass lo hi) :
+    (∀ r : FromArithmetic.CRTResidues w V,
+      0 ≤ ∑' n : ℕ, primePoolLaw lo hi n *
+        (if FromArithmetic.integerCRTResidues w V n = r then 1 else 0)) ∧
+    (∑ r : FromArithmetic.CRTResidues w V,
+      ∑' n : ℕ, primePoolLaw lo hi n *
+        (if FromArithmetic.integerCRTResidues w V n = r then 1 else 0)) = 1 := by
+  classical
+  let f : Fin Q → FromArithmetic.CRTResidues w V :=
+    crtResidueProjection (w := w) (V := V) (Q := Q)
+  have hactual :
+      (fun r : FromArithmetic.CRTResidues w V =>
+        ∑' n : ℕ, primePoolLaw lo hi n *
+          (if FromArithmetic.integerCRTResidues w V n = r then 1 else 0)) =
+        finitePushforward f (primePoolResidueLaw lo hi Q) := by
+    funext r
+    simpa [finitePushforward, f] using primePoolLaw_crtProjection hQ hdiv hmass r
+  constructor
+  · intro r
+    apply tsum_nonneg
+    intro n
+    have hμ := primePoolLaw_nonneg hmass n
+    split_ifs <;> positivity
+  · calc
+      _ = ∑ r : FromArithmetic.CRTResidues w V,
+          finitePushforward f (primePoolResidueLaw lo hi Q) r := by rw [hactual]
+      _ = ∑ a : Fin Q, primePoolResidueLaw lo hi Q a := finitePushforward_sum f _
+      _ = 1 := primePoolResidueLaw_sum_one hQ hmass
+
 theorem independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
     (hmass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
     ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
