@@ -6209,6 +6209,76 @@ noncomputable def pkgB2_weightedLinearFormsData {K sl b : ℕ} {As : Finset ℚ}
       (gap k0) (hgap k0) E
   · exact pkgB2_epsilonCRT_superPolynomial MS B gap hgap
 
+/-- The joint event that every replica prime tuple is good, under the disjoint master-slot
+embedding. -/
+def pkgB2_goodPrimeEvent {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (N : ℕ)
+    (p : Fin (b * sl) → ℕ) : Prop :=
+  ∀ k, (T k).Good (corrScales MS) (gap k) N (pkgB2_repPrimeProject hT p k)
+
+/-- Value of the translated affine row indexed by one occurrence copy. -/
+noncomputable def pkgB2_stateRowValue {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (o : Fin (Fintype.card (pkgB2_Occurrence T E)))
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) : ℤ :=
+  (linearRowValue (pkgB2_rowCoefficientArray MS T hT J0 gap direction E)
+    N p o x).num
+
+/-- The row product after a set of translation directions has been eliminated. The eliminated
+nonroot rows carry their Cauchy–Schwarz weight `(1+ν)`; the remaining rows retain the user `g`. -/
+noncomputable def pkgB2_stateIntegrand {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) : ℝ := by
+  classical
+  let rows : Fin (Fintype.card (pkgB2_Occurrence T E)) → ℝ := fun o =>
+    let t := (pkgB2_occurrenceEnum T E o).1
+    let y := pkgB2_stateRowValue MS T hT J0 gap direction E N p o x
+    match t with
+    | .inl _ => nu MS.core.parameters N B y - 1
+    | .inr r =>
+        if r ∈ E then 1 + nu MS.core.parameters N B y
+        else (I r.1).g r.2.1 (pkgB2_repPrimeProject hT p r.1) y
+  exact (if E = ∅ then ∏ k : Fin b, (I k).e (pkgB2_repPrimeProject hT p k) else 1) *
+    ∏ o, rows o
+
+/-- The normalized expectation of a translated state over independent replica primes and the
+mixed base-coordinate law. At `E=∅` it still includes the original bounded prime factors. -/
+noncomputable def pkgB2_stateAverage {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) : ℝ := by
+  classical
+  let D := pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+    direction hdir k0 E (∅ : Finset (Fin (Fintype.card (pkgB2_Occurrence T E))))
+  let Good := pkgB2_goodPrimeEvent MS gap T hT N
+  let P := independentPrimePoolProbability
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) Good
+  exact P⁻¹ * ∑' p : Fin (b * sl) → ℕ,
+    independentPrimePoolMass
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p *
+      (if Good p then ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+        D.baseMass N p x * pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p x
+        else 0)
+
 private theorem pkgB2_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
     {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
