@@ -1250,6 +1250,9 @@ private theorem momentLinearRowValue_baseEncode {K sl : ℕ} {As : Finset ℚ}
     have hrootEncode (a : Unit) :
         momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a)) = y := by
       cases a
+      have hidx : (Fintype.equivFin (MomentBaseIndex b T.d)) (.inl ()) =
+          (momentBaseEnum b T.d).symm (.inl ()) := rfl
+      rw [← hidx]
       exact momentBaseEncode_root y u
     have hrootIndex (a : Unit) : (momentBaseEnum b T.d).symm (.inl a) = root := by
       cases a
@@ -1318,15 +1321,29 @@ private theorem momentLinearRowValue_rootBaseEncode {K sl : ℕ} {As : Finset �
       momentRowCoeffInt MS b T l N p row
         ((momentBaseEnum b T.d).symm (.inr (k, (j, side)))) = 0 := by
     simp [row, momentRowCoeffInt]
+  have hrootEncode (a : Unit) :
+      momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a)) = y := by
+    cases a
+    change momentBaseEncode y u
+      ((Fintype.equivFin (MomentBaseIndex b T.d)) (.inl ())) = y
+    rw [show (Fintype.equivFin (MomentBaseIndex b T.d)) (.inl ()) =
+      (momentBaseEnum b T.d).symm (.inl ()) by rfl]
+    exact momentBaseEncode_root y u
+  have hrootSum :
+      (∑ a : Unit,
+        momentRowCoeffInt MS b T l N p row
+          ((momentBaseEnum b T.d).symm (.inl a)) *
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a))) = y := by
+    simp_rw [hrootCoeff, hrootEncode]
+    simp
   rw [momentLinearRowValue_eq_castInt]
   have hInt :
       (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
         momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) = y := by
     rw [hsum]
     simp only [MomentBaseIndex, Fintype.sum_sum_type, Fintype.sum_prod_type]
-    trace_state
-    simp_rw [hrootCoeff, hshiftCoeff, momentBaseEncode_root, momentBaseEncode_shift]
-    simp [root]
+    rw [hrootSum]
+    simp [hshiftCoeff]
   exact_mod_cast hInt
 
 theorem clip_eq_self_of_abs_le (K x : ℝ) (hx : |x| ≤ K) :
@@ -2424,7 +2441,8 @@ private theorem momentBaseMass_tsum_eq_Emu_replicaShift {K sl : ℕ} {As : Finse
           intro u
           have heq : e.symm (y, u) = momentBaseEncodeInt y u := rfl
           rw [heq, momentBaseMass_encodeInt MS B l T J0 N b p hreg L hL y u]
-          simp [e, momentBaseEncodeInt, momentReplicaShiftMassInt, mul_assoc]
+          rw [momentReplicaShiftMassInt]
+          ring
         _ = harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
               momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u)) :=
           (hshiftSummable y).tsum_mul_left _
