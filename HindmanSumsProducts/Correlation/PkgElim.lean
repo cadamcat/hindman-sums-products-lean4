@@ -1382,6 +1382,78 @@ theorem masterCRTModulus_mediumPrime_dvd {w e V p : ℕ}
   unfold FromArithmetic.masterCRTModulus
   exact dvd_mul_of_dvd_right hprod _
 
+theorem crtPrimeProduct_totient {w V : ℕ} :
+    Nat.totient (∏ p : FromArithmetic.CRTPrimeRange w V, p.val) =
+      ∏ p : FromArithmetic.CRTPrimeRange w V, (p.val - 1) := by
+  classical
+  let P : FromArithmetic.CRTPrimeRange w V → ℕ := fun p => p.val
+  have hmain (s : Finset (FromArithmetic.CRTPrimeRange w V))
+      (hprime : ∀ p ∈ s, (P p).Prime)
+      (hpair : ∀ p ∈ s, ∀ q ∈ s, p ≠ q → P p ≠ P q) :
+      Nat.totient (∏ p ∈ s, P p) = ∏ p ∈ s, (P p - 1) := by
+    induction s using Finset.induction_on with
+    | empty => simp
+    | @insert p s hps ih =>
+      have hpr : (P p).Prime := hprime p (Finset.mem_insert_self _ _)
+      have hprS : ∀ q ∈ s, (P q).Prime := by
+        intro q hq
+        exact hprime q (Finset.mem_insert_of_mem hq)
+      have hpairS : ∀ q ∈ s, ∀ r ∈ s, q ≠ r → P q ≠ P r := by
+        intro q hq r hr hqr
+        exact hpair q (Finset.mem_insert_of_mem hq)
+          r (Finset.mem_insert_of_mem hr) hqr
+      have hneVal : ∀ q ∈ s, P p ≠ P q := by
+        intro q hq heq
+        have hneq : p ≠ q := by
+          intro hpq
+          subst q
+          exact hps hq
+        exact (hpair p (Finset.mem_insert_self _ _)
+          q (Finset.mem_insert_of_mem hq) hneq) heq
+      have hcop : Nat.Coprime (P p) (∏ q ∈ s, P q) := by
+        rw [Nat.coprime_prod_right_iff]
+        intro q hq
+        exact (Nat.coprime_primes hpr (hprS q hq)).2 (hneVal q hq)
+      rw [Finset.prod_insert hps, Nat.totient_mul hcop,
+        Nat.totient_prime hpr, ih hprS hpairS, Finset.prod_insert hps]
+  have hprime : ∀ p : FromArithmetic.CRTPrimeRange w V, (P p).Prime :=
+    fun p => (Finset.mem_filter.mp p.property).2
+  have hinj : Function.Injective P := by
+    intro p q hpq
+    exact Subtype.ext hpq
+  simpa [P] using hmain Finset.univ (fun p hp => hprime p)
+    (fun p hp q hq hne => by
+      intro hval
+      exact hne (hinj hval))
+
+theorem masterCRTModulus_eq_base_mul_crtPrimeProduct {w e V : ℕ} :
+    FromArithmetic.masterCRTModulus w e V =
+      (primorial w ^ e) * (∏ p : FromArithmetic.CRTPrimeRange w V, p.val) := by
+  classical
+  let S := (Finset.Ioc w (V + 1)).filter Nat.Prime
+  have hprod : (∏ p : FromArithmetic.CRTPrimeRange w V, p.val) = ∏ p ∈ S, p := by
+    change (∏ p : S, (p : ℕ)) = ∏ p ∈ S, p
+    exact Finset.prod_coe_sort S (fun p : ℕ => p)
+  unfold FromArithmetic.masterCRTModulus
+  rw [hprod]
+
+theorem primorialPow_coprime_crtPrimeProduct {w e V : ℕ} (he : 0 < e) :
+    Nat.Coprime (primorial w ^ e)
+      (∏ p : FromArithmetic.CRTPrimeRange w V, p.val) := by
+  classical
+  rw [Nat.coprime_prod_right_iff]
+  intro p hp
+  have hp' : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  have hwp : w < p.val := (Finset.mem_Ioc.mp
+    (Finset.mem_filter.mp p.property).1).1
+  have hnot : ¬p.val ∣ primorial w := by
+    intro hdiv
+    have hle := (hp'.dvd_primorial_iff).mp hdiv
+    omega
+  have hcop : Nat.Coprime p.val (primorial w) :=
+    hp'.coprime_iff_not_dvd.mpr hnot
+  exact (Nat.coprime_pow_left_iff he (primorial w) p.val).2 hcop.symm
+
 theorem primeTupleCRTLaw_eq_prod_marginals {m w V : ℕ}
     (lo hi : Fin m → ℕ) (r : Fin m → FromArithmetic.CRTResidues w V) :
     FromArithmetic.primeTupleCRTLaw lo hi w V r =
