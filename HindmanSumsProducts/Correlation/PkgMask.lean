@@ -4141,6 +4141,105 @@ noncomputable def pivotMassSupport {K s m : ℕ} {Aset : Finset ℚ}
   Fintype.piFinset fun k =>
     harmonicLawSupport (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
 
+noncomputable def pkgMask_coordinateSplit {m : ℕ} (u : Fin m) :
+    (Fin m → ℤ) ≃ ℤ × (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) := by
+  refine
+    { toFun := fun z => (z u, fun i => z i.1)
+      invFun := fun x k =>
+        if hk : k = u then x.1
+        else x.2 ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro hmem
+    exact hk (Finset.mem_singleton.mp hmem)
+  · intro z
+    funext k
+    by_cases hk : k = u <;> simp [hk]
+  · intro x
+    apply Prod.ext
+    · simp
+    · funext i
+      have hnot : (i : Fin m) ≠ u := by
+        intro hEq
+        have hmem : (i : Fin m) ∈ ({u} : Finset (Fin m)) := by simp [hEq]
+        exact (Finset.mem_filter.mp i.property).2 hmem
+      simp [hnot]
+
+noncomputable def pkgMask_coordinateJoin {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) : Fin m → ℤ :=
+  (pkgMask_coordinateSplit u).symm (y, w)
+
+theorem pkgMask_coordinateJoin_at {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) :
+    pkgMask_coordinateJoin u y w u = y := by
+  have h := (pkgMask_coordinateSplit u).apply_symm_apply (y, w)
+  exact congrArg Prod.fst h
+
+theorem pkgMask_coordinateJoin_other {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
+    (i : finsetComplement ({u} : Finset (Fin m))) :
+    pkgMask_coordinateJoin u y w i.1 = w i := by
+  have h := (pkgMask_coordinateSplit u).apply_symm_apply (y, w)
+  exact congrFun (congrArg Prod.snd h) i
+
+theorem pkgMask_pivotMass_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) (z : Fin m → ℤ) :
+    pivotMass S.core.parameters C N z =
+      harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) (z u) *
+        ∏ i : finsetComplement ({u} : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+  classical
+  let Tcomp := finsetComplement ({u} : Finset (Fin m))
+  have hdisj : Disjoint ({u} : Finset (Fin m)) Tcomp := by
+    apply Finset.disjoint_left.mpr
+    intro k hk hcomp
+    exact (Finset.mem_filter.mp hcomp).2 hk
+  have hunion : ({u} : Finset (Fin m)) ∪ Tcomp = Finset.univ := by
+    ext k
+    constructor
+    · intro _
+      exact Finset.mem_univ k
+    · intro _
+      by_cases hk : k = u
+      · exact Finset.mem_union.mpr (Or.inl (Finset.mem_singleton.mpr hk))
+      · exact Finset.mem_union.mpr (Or.inr (Finset.mem_filter.mpr
+          ⟨Finset.mem_univ _, by
+            intro hmem
+            exact hk (Finset.mem_singleton.mp hmem)⟩))
+  have hattach :
+      (∏ k ∈ Tcomp,
+        harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)) =
+      ∏ i : Tcomp,
+        harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+    calc
+      _ = ∏ i ∈ Tcomp.attach,
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+            (primorial (N + 1)) (z i.1) :=
+        (Finset.prod_attach Tcomp fun k =>
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)).symm
+      _ = _ := by simp
+  unfold pivotMass
+  calc
+    (∏ k : Fin m,
+        harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)) =
+        ∏ k ∈ (Finset.univ : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k) := by
+      simp
+    _ = ∏ k ∈ ({u} : Finset (Fin m)) ∪ Tcomp,
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k) := by
+      rw [hunion]
+    _ = (∏ k ∈ ({u} : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)) *
+        ∏ k ∈ Tcomp,
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k) :=
+      Finset.prod_union hdisj
+    _ = harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) (z u) *
+        ∏ i : Tcomp,
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+      simp only [Finset.prod_singleton]
+      rw [hattach]
+
 private theorem pivotMass_zero_of_not_mem_support {K s m : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (z : Fin m → ℤ)
@@ -4222,6 +4321,152 @@ theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
       intro z hz
       exact pivotMass_zero_of_not_mem_support S C N z hz
     _ = 1 := hfinite
+
+theorem pkgMask_pivotTsum_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) (F : (Fin m → ℤ) → ℝ) :
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z =
+      ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+        (∏ i : finsetComplement ({u} : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+            (primorial (N + 1)) (w i)) *
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+  classical
+  let Tcomp := finsetComplement ({u} : Finset (Fin m))
+  let A := harmonicLawSupport (S.core.parameters.X N (C.block u).1) (primorial (N + 1))
+  let B := Fintype.piFinset fun i : Tcomp =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  let D := pivotMassSupport S C N
+  let e := pkgMask_coordinateSplit u
+  let restMass : (∀ i : Tcomp, ℤ) → ℝ := fun w =>
+    ∏ i : Tcomp, harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+      (primorial (N + 1)) (w i)
+  have hRestZero (w : ∀ i : Tcomp, ℤ) (hw : w ∉ B) : restMass w = 0 := by
+    have hnot : ¬ ∀ i : Tcomp,
+        w i ∈ harmonicLawSupport (S.core.parameters.X N (C.block i.1).1)
+          (primorial (N + 1)) := by
+      intro hall
+      apply hw
+      exact Fintype.mem_piFinset.mpr hall
+    push_neg at hnot
+    obtain ⟨i, hi⟩ := hnot
+    dsimp [restMass]
+    exact Finset.prod_eq_zero (f := fun j : Tcomp =>
+      harmonicLaw (S.core.parameters.X N (C.block j.1).1) (primorial (N + 1)) (w j))
+      (Finset.mem_univ i) (harmonicLaw_zero_of_not_mem_support _ _ _ hi)
+  have hDforward (z : Fin m → ℤ) (hz : z ∈ D) : e z ∈ A ×ˢ B := by
+    apply Finset.mem_product.mpr
+    constructor
+    · exact (Fintype.mem_piFinset.mp hz) u
+    · apply Fintype.mem_piFinset.mpr
+      intro i
+      exact (Fintype.mem_piFinset.mp hz) i.1
+  have hDbackward (x : ℤ × (∀ i : Tcomp, ℤ)) (hx : x ∈ A ×ˢ B) :
+      e.symm x ∈ D := by
+    apply Fintype.mem_piFinset.mpr
+    intro k
+    by_cases hk : k = u
+    · subst k
+      have hcoords := e.apply_symm_apply x
+      have hval : (e.symm x) u = x.1 := by
+        exact congrArg Prod.fst hcoords
+      rw [hval]
+      exact (Finset.mem_product.mp hx).1
+    · let i : Tcomp := ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+          intro hmem
+          exact hk (Finset.mem_singleton.mp hmem)⟩⟩
+      have hcoords := e.apply_symm_apply x
+      have hval : (e.symm x) k = x.2 i := by
+        exact congrFun (congrArg Prod.snd hcoords) i
+      rw [hval]
+      exact (Fintype.mem_piFinset.mp (Finset.mem_product.mp hx).2) i
+  have hmassJoin (y : ℤ) (w : ∀ i : Tcomp, ℤ) :
+      pivotMass S.core.parameters C N (pkgMask_coordinateJoin u y w) =
+        harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y *
+          restMass w := by
+    rw [pkgMask_pivotMass_coordinate_split S C N u
+      (pkgMask_coordinateJoin u y w)]
+    rw [pkgMask_coordinateJoin_at u y w]
+    apply congrArg (fun t : ℝ =>
+      harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y * t)
+    simp only [restMass]
+    apply Finset.prod_congr rfl
+    intro i hi
+    rw [pkgMask_coordinateJoin_other u y w i]
+  have hRightOuterZero (w : ∀ i : Tcomp, ℤ) (hw : w ∉ B) :
+      restMass w * ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+        (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) = 0 := by
+    rw [hRestZero w hw]
+    simp
+  have hsum :
+      (∑ z ∈ D, pivotMass S.core.parameters C N z * F z) =
+        ∑ x ∈ A ×ˢ B,
+          (harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) x.1 *
+            restMass x.2) * F (pkgMask_coordinateJoin u x.1 x.2) := by
+    apply Finset.sum_bij (fun z _ => e z)
+    · intro z hz
+      exact hDforward z hz
+    · intro z hz z' hz' heq
+      exact e.injective heq
+    · intro x hx
+      exact ⟨e.symm x, hDbackward x hx, e.apply_symm_apply x⟩
+    · intro z hz
+      have hcoords := e.symm_apply_apply z
+      have hjoin : pkgMask_coordinateJoin u (e z).1 (e z).2 = z := by
+        change e.symm ((e z).1, (e z).2) = z
+        rw [show ((e z).1, (e z).2) = e z by cases e z <;> rfl]
+        exact hcoords
+      calc
+        pivotMass S.core.parameters C N z * F z =
+            pivotMass S.core.parameters C N (pkgMask_coordinateJoin u (e z).1 (e z).2) *
+              F (pkgMask_coordinateJoin u (e z).1 (e z).2) := by rw [hjoin]
+        _ = _ := by rw [hmassJoin]
+  have hLeft :
+      (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z) =
+        ∑ z ∈ D, pivotMass S.core.parameters C N z * F z := by
+    apply tsum_eq_sum
+    intro z hz
+    simp [pivotMass_zero_of_not_mem_support S C N z hz]
+  have hRight :
+      (∑' w : ∀ i : Tcomp, ℤ, restMass w *
+        ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+          (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w)) =
+        ∑ w ∈ B, restMass w *
+          ∑ y ∈ A, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+    rw [tsum_eq_sum (s := B) hRightOuterZero]
+    apply Finset.sum_congr rfl
+    intro w hw
+    rw [tsum_eq_sum (s := A) (fun y hy => by
+      simp [harmonicLaw_zero_of_not_mem_support _ _ _ hy])]
+  calc
+    (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z) =
+        ∑ w ∈ B, restMass w *
+          ∑ y ∈ A, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+      rw [hLeft, hsum]
+      calc
+        (∑ x ∈ A ×ˢ B,
+            (harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) x.1 *
+              restMass x.2) * F (pkgMask_coordinateJoin u x.1 x.2)) =
+            ∑ y ∈ A, ∑ w ∈ B,
+              harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y *
+                restMass w * F (pkgMask_coordinateJoin u y w) := by
+          exact Finset.sum_product' A B (fun y w =>
+            harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y *
+              restMass w * F (pkgMask_coordinateJoin u y w))
+        _ = ∑ w ∈ B, restMass w *
+              ∑ y ∈ A, harmonicLaw (S.core.parameters.X N (C.block u).1)
+                (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+          rw [Finset.sum_comm]
+          apply Finset.sum_congr rfl
+          intro w hw
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro y hy
+          ring
+    _ = _ := hRight.symm
 
 theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
