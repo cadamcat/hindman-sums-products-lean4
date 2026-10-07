@@ -3799,6 +3799,54 @@ theorem mergedBranchRowFunction_abs_le {m q r r' : ℕ} {I : Fin r → Prop}
     · simpa [mergedBranchRowFunction, x, h, hg] using hW x.val.1 y
   · simpa [mergedBranchRowFunction, x, h] using hf x.val.1 (dropPrimeTuple2 p) y
 
+theorem pkgMask_mergedInvariantRow_eval {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ) (i : Fin r) (hi : I i) (hgood : good p)
+    (c : Fin m → ℚ) (z : Fin m → ℚ) (y : ℤ)
+    (hform : rowForm c (L i) p z = (y : ℚ))
+    (hscaleDen :
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p *
+        (y : ℚ)).den = 1)
+    (hWpos : 0 < W i y) :
+    W i y * atQ (mergedBranchRowFunction good L R e hInv f W p
+        (e ⟨(i, 0), Or.inl rfl⟩)) (rowForm c (L i) p z) =
+      f i (dropPrimeTuple2 p) y *
+        f i (dropPrimeTuple2 p)
+          (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p *
+            (y : ℚ)).num := by
+  let x : RowBranchIndex I := ⟨(i, 0), Or.inl rfl⟩
+  have hmerged :
+      mergedBranchRowFunction good L R e hInv f W p (e x) =
+        combineParallelRowFunction (f i)
+          (fun p' => RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p')
+          (W i) p := by
+    funext t
+    unfold mergedBranchRowFunction
+    simp only [Equiv.symm_apply_apply]
+    simp [x, hi, hgood]
+  rw [show (e x) = e ⟨(i, 0), Or.inl rfl⟩ by rfl, hmerged, hform]
+  simp [atQ]
+  unfold combineParallelRowFunction
+  simp [atQ, hscaleDen]
+  field_simp [ne_of_gt hWpos]
+
+theorem pkgMask_mergedNonInvariantRow_eq {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ) (x : RowBranchIndex I) (hx : ¬ I x.val.1) :
+    mergedBranchRowFunction good L R e hInv f W p (e x) =
+      f x.val.1 (dropPrimeTuple2 p) := by
+  funext y
+  unfold mergedBranchRowFunction
+  simp [Equiv.symm_apply_apply, hx]
+
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
     evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) = T.valueNat p k := by
