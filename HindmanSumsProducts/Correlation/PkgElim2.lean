@@ -384,6 +384,92 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
       rw [hfinite]
       exact hPsum
 
+theorem c_elim2_subtype_sum_filter {P : Type*} [DecidableEq P]
+    (s : Finset P) (G : P → Prop) [DecidablePred G] (f : P → ℝ) :
+    (∑ p : {p // p ∈ s}, if G p.1 then f p.1 else 0) =
+      ∑ p : {p // p ∈ s.filter G}, f p.1 := by
+  classical
+  calc
+    (∑ p : {p // p ∈ s}, if G p.1 then f p.1 else 0) =
+        ∑ p ∈ s, if G p then f p else 0 := by
+          simpa only [Finset.attach_eq_univ] using
+            (Finset.sum_attach s (fun p => if G p then f p else 0))
+    _ = ∑ p ∈ s.filter G, f p := by rw [Finset.sum_filter]
+    _ = ∑ p : {p // p ∈ s.filter G}, f p.1 := by
+          simpa only [Finset.attach_eq_univ] using
+            (Finset.sum_attach (s.filter G) f).symm
+
+noncomputable def c_elim2_goodPrimeSupport
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) : Finset (Fin q → ℕ) := by
+  classical
+  exact (c_elim2_independentPrimeSupport
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)).filter
+    (GoodTuple S C.gap N tests dirs.poly)
+
+theorem c_elim2_eliminationAverage_eq_finiteGoodSupport
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
+      eliminationAverage S C N dirs tests J0 F =
+      (gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
+        ∑ p : {p : Fin q → ℕ // p ∈
+            c_elim2_goodPrimeSupport S C N Sh dirs tests},
+          ∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+            gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+              shiftAverage (NonTarget Sh)
+                (shiftLength S C.gap J0 N dirs.poly p.1)
+                (F p.1 (fun k => (z.1 k : ℚ))) := by
+  classical
+  let Good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
+  let Psupport : Finset (Fin q → ℕ) := c_elim2_independentPrimeSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let Zsupport : Finset (Fin m → ℤ) := c_elim2_pivotSupport S.core.parameters C N
+  let PSub := {p : Fin q → ℕ // p ∈ Psupport}
+  let ZSub := {z : Fin m → ℤ // z ∈ Zsupport}
+  let PGood := {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests}
+  letI : DecidablePred Good := Classical.decPred Good
+  rw [c_elim2_eliminationAverage_eq_finiteOuterSupport]
+  congr 1
+  have hsumP :
+      (∑ p : PSub, ∑ z : ZSub,
+        gapSlotMass S C.gap N p.1 * c_elim2_goodIndicator S C N Sh dirs tests p.1 *
+          pivotMass S.core.parameters C N z.1 *
+          shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+            (F p.1 (fun k => (z.1 k : ℚ)))) =
+      ∑ p : PSub, if Good p.1 then
+        gapSlotMass S C.gap N p.1 *
+          ∑ z : ZSub, pivotMass S.core.parameters C N z.1 *
+            shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+              (F p.1 (fun k => (z.1 k : ℚ)) ) else 0 := by
+    apply Finset.sum_congr rfl
+    intro p hp
+    by_cases hgood : Good p.1
+    · simp [c_elim2_goodIndicator, Good, hgood]
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro z hz
+      ring
+    · simp [c_elim2_goodIndicator, Good, hgood]
+  have hfilter := c_elim2_subtype_sum_filter Psupport Good (fun p =>
+    gapSlotMass S C.gap N p *
+      ∑ z : ZSub, pivotMass S.core.parameters C N z.1 *
+        shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (F p (fun k => (z.1 k : ℚ))))
+  rw [hsumP, hfilter]
+  apply Finset.sum_congr rfl
+  intro p hp
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro z hz
+  ring
+
 noncomputable def c_elim2_shiftRangeEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (L : ℕ) :
     (α → Fin 2 → Fin L) ≃
@@ -2742,6 +2828,86 @@ theorem c_elim2_boxWeightRowFactor_le_boxRetainedProduct
         ∏ η : FullBranch, rowFactor η := hrowSub
     _ ≤ c_elim2_boxRetainedProduct D Finset.univ b fullU := hrowFactorLe
 
+theorem c_elim2_boxShiftValue_eq_fullAssignment
+    {α : Type u} [DecidableEq α] (E : Finset α) {L : ℕ}
+    (u : c_elim2_ShiftCoord E → Fin L) (v : α → Fin 2 → Fin L)
+    (ω : α → Fin 2) (i : α)
+    (hu : ∀ c, u c = v c.val.1 c.val.2)
+    (hω : i ∉ E → ω i = 0) :
+    c_elim2_boxShiftValue E u ω i = (v i (ω i)).val := by
+  by_cases hi : i ∈ E
+  · simp only [c_elim2_boxShiftValue, dif_pos hi]
+    exact congrArg Fin.val (hu ⟨(i, ω i), Or.inr hi⟩)
+  · have hω0 : ω i = 0 := hω hi
+    simp only [c_elim2_boxShiftValue, dif_neg hi]
+    rw [hω0]
+    exact congrArg Fin.val (hu ⟨(i, 0), Or.inl rfl⟩)
+
+theorem c_elim2_boxTargetArgument_eq_targetVertex
+    {m q r : ℕ} {Sh : RowShape m q r} {β : Type}
+    (D : c_elim2_AdditiveBoxData (NonTarget Sh) β)
+    (E : Finset (NonTarget Sh)) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (v : NonTarget Sh → Fin 2 → Fin (D.shiftLength b))
+    (ω : c_elim2_BoxBranch E) (c : Fin m → ℚ)
+    (p : Fin q → ℕ) (z : Fin m → ℚ) (Mp : ℕ)
+    (hbase : D.targetBase b = rowForm c (Sh.row Sh.star) p z)
+    (hcoef : ∀ i, (D.targetCoefficient b i : ℚ) = (Mp : ℚ))
+    (hu : ∀ c, u c = v c.val.1 c.val.2) :
+    c_elim2_boxTargetArgument D E b u ω =
+      targetVertex c Sh p Mp z
+        (fun i j => (v i j).val) (c_elim2_boxBranchFull E ω) := by
+  classical
+  unfold c_elim2_boxTargetArgument targetVertex
+  rw [hbase]
+  calc
+    rowForm c (Sh.row Sh.star) p z +
+        ∑ i, (D.targetCoefficient b i : ℚ) *
+          (c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i : ℚ) =
+      rowForm c (Sh.row Sh.star) p z +
+        ∑ i, (Mp : ℚ) * ((v i (c_elim2_boxBranchFull E ω i)).val : ℚ) := by
+          congr 1
+          apply Finset.sum_congr rfl
+          intro i hi
+          rw [hcoef i]
+          congr 1
+          exact congrArg (fun n : ℕ => (n : ℚ))
+            (c_elim2_boxShiftValue_eq_fullAssignment E u v
+              (c_elim2_boxBranchFull E ω) i hu
+              (by intro hi; simp [c_elim2_boxBranchFull, hi]))
+    _ = rowForm c (Sh.row Sh.star) p z +
+        (Mp : ℚ) * ∑ i, ((v i (c_elim2_boxBranchFull E ω i)).val : ℚ) := by
+          rw [Finset.mul_sum]
+    _ = _ := rfl
+
+theorem c_elim2_boxRowArgument_linear
+    {α β : Type u} [Fintype α] [DecidableEq α] {m q : ℕ}
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) (ω : α → Fin 2)
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (v : α → Fin m → ℚ)
+    (hbase : D.rowBase R b = rowForm c T p z)
+    (hcoef : ∀ i, i ≠ R → (D.rowCoefficient R i b : ℚ) = rowForm c T p (v i)) :
+    c_elim2_boxRowArgument D E b R u ω =
+      rowForm c T p (fun k => z k + ∑ i ∈ Finset.univ.erase R,
+        (c_elim2_boxShiftValue E u ω i : ℚ) * v i k) := by
+  classical
+  unfold c_elim2_boxRowArgument
+  rw [hbase]
+  have hsum :
+      (∑ i ∈ Finset.univ.erase R,
+        (D.rowCoefficient R i b : ℚ) *
+          (c_elim2_boxShiftValue E u ω i : ℚ)) =
+      ∑ i ∈ Finset.univ.erase R,
+        (c_elim2_boxShiftValue E u ω i : ℚ) * rowForm c T p (v i) := by
+    apply Finset.sum_congr rfl
+    intro i hi
+    rw [hcoef i (Finset.mem_erase.mp hi).1]
+    ring
+  rw [hsum]
+  exact (c_elim2_rowForm_finset_sum c T p z (Finset.univ.erase R)
+    (fun i => (c_elim2_boxShiftValue E u ω i : ℚ)) v).symm
+
 theorem c_elim2_iterate_box_cauchy {α : Type u} [Fintype α] [DecidableEq α]
     (F : Finset α → ℝ) (C : ℝ) (hC : 0 < C)
     (hstep : ∀ (E : Finset α), E ⊆ Finset.univ → ∀ R, R ∈ Finset.univ → R ∉ E →
@@ -2885,5 +3051,135 @@ theorem c_elim2_normalized_product_measure {P Z : Type*} [Fintype P] [Fintype Z]
           rw [← Finset.mul_sum]
         _ = _ := by ring
     _ = 1 := by rw [hP, hZ]; field_simp
+
+theorem c_elim2_arithmeticL1_product_le_sum
+    {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (μ ν : ι → ℤ → ℝ) (S : Finset ℤ)
+    (hμzero : ∀ i z, z ∉ S → μ i z = 0)
+    (hνzero : ∀ i z, z ∉ S → ν i z = 0)
+    (hμnonneg : ∀ i z, 0 ≤ μ i z) (hνnonneg : ∀ i z, 0 ≤ ν i z)
+    (hμmass : ∀ i, ∑' z : ℤ, μ i z = 1)
+    (hνmass : ∀ i, ∑' z : ℤ, ν i z = 1) :
+    arithmeticL1 (fun x : ι → ℤ => ∏ i, μ i (x i))
+      (fun x => ∏ i, ν i (x i)) ≤ ∑ i, arithmeticL1 (μ i) (ν i) := by
+  classical
+  let β := {z : ℤ // z ∈ S}
+  letI : Fintype β := Finset.Subtype.fintype S
+  let μ' : ι → β → ℝ := fun i z => μ i z.1
+  let ν' : ι → β → ℝ := fun i z => ν i z.1
+  have hμmass' (i : ι) : ∑ z : β, μ' i z = 1 := by
+    have hsum : ∑ z ∈ S, μ i z = 1 := by
+      rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+        (f := μ i) (s := S) (fun z hz => hμzero i z hz)]
+      exact hμmass i
+    change ∑ z ∈ S.attach, μ i z.1 = 1
+    rw [Finset.sum_attach]
+    exact hsum
+  have hνmass' (i : ι) : ∑ z : β, ν' i z = 1 := by
+    have hsum : ∑ z ∈ S, ν i z = 1 := by
+      rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+        (f := ν i) (s := S) (fun z hz => hνzero i z hz)]
+      exact hνmass i
+    change ∑ z ∈ S.attach, ν i z.1 = 1
+    rw [Finset.sum_attach]
+    exact hsum
+  have hμabs (i : ι) : ∑ z : β, |μ' i z| = 1 := by
+    calc
+      _ = ∑ z : β, μ' i z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        rw [abs_of_nonneg (hμnonneg i z.1)]
+      _ = 1 := hμmass' i
+  have hνabs (i : ι) : ∑ z : β, |ν' i z| = 1 := by
+    calc
+      _ = ∑ z : β, ν' i z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        rw [abs_of_nonneg (hνnonneg i z.1)]
+      _ = 1 := hνmass' i
+  let μProd : (ι → β) → ℝ := fun x => ∏ i, μ' i (x i)
+  let νProd : (ι → β) → ℝ := fun x => ∏ i, ν' i (x i)
+  let raw : (ι → β) → (ι → ℤ) := fun x i => (x i).1
+  have hrawInj : Function.Injective raw := by
+    intro x y h
+    funext i
+    exact Subtype.ext (congrFun h i)
+  let Sprod : Finset (ι → ℤ) := Fintype.piFinset fun _ : ι => S
+  have hμprodZero : ∀ x, x ∉ Sprod → (∏ i, μ i (x i)) = 0 := by
+    intro x hx
+    have hnotall : ¬ ∀ i : ι, x i ∈ S := by
+      intro hall
+      apply hx
+      change x ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hμzero i (x i) hi)
+  have hνprodZero : ∀ x, x ∉ Sprod → (∏ i, ν i (x i)) = 0 := by
+    intro x hx
+    have hnotall : ¬ ∀ i : ι, x i ∈ S := by
+      intro hall
+      apply hx
+      change x ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hνzero i (x i) hi)
+  have hL1tsum : arithmeticL1 (fun x : ι → ℤ => ∏ i, μ i (x i))
+      (fun x => ∏ i, ν i (x i)) =
+      ∑ x ∈ Sprod, |(∏ i, μ i (x i)) - ∏ i, ν i (x i)| := by
+    unfold arithmeticL1
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ))
+      (s := Sprod) (f := fun x : ι → ℤ =>
+        |(∏ i, μ i (x i)) - ∏ i, ν i (x i)|)
+      (by intro x hx; simp [hμprodZero x hx, hνprodZero x hx])]
+  have hImage : Finset.univ.image raw = Sprod := by
+    ext x
+    rw [Finset.mem_image]
+    simp only [Finset.mem_univ, true_and]
+    change (∃ y : ι → β, raw y = x) ↔
+      x ∈ Fintype.piFinset (fun _ : ι => S)
+    rw [Fintype.mem_piFinset]
+    constructor
+    · rintro ⟨y, rfl⟩
+      intro i
+      exact (y i).property
+    · intro hx
+      refine ⟨fun i => ⟨x i, hx i⟩, ?_⟩
+      funext i
+      rfl
+  have hL1finite :
+      (∑ x ∈ Sprod, |(∏ i, μ i (x i)) - ∏ i, ν i (x i)|) =
+        finiteL1 μProd νProd := by
+    rw [← hImage]
+    rw [Finset.sum_image (s := (Finset.univ : Finset (ι → β)))
+      (f := fun x : ι → ℤ => |(∏ i, μ i (x i)) - ∏ i, ν i (x i)|)
+      (g := raw)
+      hrawInj.injOn]
+    simp [finiteL1, μProd, νProd, μ', ν', raw]
+  have hprodTV := FromArithmetic.finite_product_l1_telescoping μ' ν'
+  calc
+    arithmeticL1 (fun x : ι → ℤ => ∏ i, μ i (x i))
+        (fun x => ∏ i, ν i (x i)) = finiteL1 μProd νProd := hL1tsum.trans hL1finite
+    _ ≤ ∑ i, finiteL1 (μ' i) (ν' i) *
+          ∏ j ∈ Finset.univ.erase i,
+            max (∑ z : β, |μ' j z|) (∑ z : β, |ν' j z|) := hprodTV
+    _ = ∑ i, finiteL1 (μ' i) (ν' i) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      simp [hμabs, hνabs]
+    _ = ∑ i, arithmeticL1 (μ i) (ν i) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      have hattach : (∑ z : β, |μ i z.1 - ν i z.1|) =
+          ∑ z ∈ S, |μ i z - ν i z| := by
+        simpa only [Finset.attach_eq_univ] using
+          (Finset.sum_attach S (fun z => |μ i z - ν i z|))
+      have htsum : arithmeticL1 (μ i) (ν i) =
+          ∑ z ∈ S, |μ i z - ν i z| := by
+        unfold arithmeticL1
+        rw [tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+          (s := S) (f := fun z : ℤ => |μ i z - ν i z|)
+          (by intro z hz; simp [hμzero i z hz, hνzero i z hz])]
+      unfold finiteL1
+      exact hattach.trans htsum.symm
 
 end HindmanSumsProducts
