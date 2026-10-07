@@ -71,6 +71,119 @@ theorem exists_observable_menuMetric {G : Type*} [Group G] [TopologicalSpace G]
         LipschitzWith K₁ H →
           letI := d
           LipschitzWith (max 1 K₁) (O.desc H) := by
-  sorry
+  classical
+  letI : TopologicalSpace (LipOne Y) := ⊥
+  letI : DiscreteTopology (LipOne Y) := ⟨rfl⟩
+  let obsFam (x : G ⧸ Γ) : LipOne Y →ᵇ ℝ :=
+    BoundedContinuousFunction.mkOfDiscrete
+      (fun H => O.desc H.1 x) 2 (by
+        intro H H'
+        rw [Real.dist_eq]
+        have hH := O.unit_bound H.1 H.2.1 x
+        have hH' := O.unit_bound H'.1 H'.2.1 x
+        calc
+          |O.desc H.1 x - O.desc H'.1 x| ≤
+              |O.desc H.1 x| + |O.desc H'.1 x| := by
+                calc
+                  |O.desc H.1 x - O.desc H'.1 x| =
+                      |O.desc H.1 x + -(O.desc H'.1 x)| := by congr 1 <;> ring
+                  _ ≤ |O.desc H.1 x| + |-(O.desc H'.1 x)| := abs_add_le _ _
+                  _ = |O.desc H.1 x| + |O.desc H'.1 x| := by simp
+          _ ≤ 2 := by linarith)
+  have hobs_cont : Continuous obsFam := by
+    rw [Metric.continuous_iff']
+    intro x ε hε
+    obtain ⟨U, hU, hclose⟩ := heq x (ε / 2) (by linarith)
+    filter_upwards [hU] with y hy
+    have hdist : dist (obsFam y) (obsFam x) ≤ ε / 2 := by
+      refine (BoundedContinuousFunction.dist_le (C := ε / 2) (by linarith)).2 ?_
+      intro H
+      change dist (O.desc H.1 y) (O.desc H.1 x) ≤ ε / 2
+      rw [Real.dist_eq]
+      exact (hclose y hy H).le
+    linarith
+  let Φ : (G ⧸ Γ) → (G ⧸ Γ) × (LipOne Y →ᵇ ℝ) := fun x => (x, obsFam x)
+  have hΦemb : Topology.IsEmbedding Φ := by
+    simpa [Φ] using isEmbedding_graph (f := obsFam) hobs_cont
+  let baseMetric : MetricSpace (G ⧸ Γ) := inferInstance
+  let prodMetric : MetricSpace ((G ⧸ Γ) × (LipOne Y →ᵇ ℝ)) := inferInstance
+  let dRaw : MetricSpace (G ⧸ Γ) :=
+    MetricSpace.induced Φ hΦemb.injective prodMetric
+  have hprodTopo :
+      (inferInstance : TopologicalSpace ((G ⧸ Γ) × (LipOne Y →ᵇ ℝ))) =
+        prodMetric.toUniformSpace.toTopologicalSpace := by
+    rw [hcompat]
+    with_reducible_and_instances rfl
+  have htopRaw : QuotientGroup.instTopologicalSpace Γ =
+      dRaw.toUniformSpace.toTopologicalSpace := by
+    -- The first coordinate of `Φ` recovers the original topology, and
+    -- `hcompat` identifies that topology with the supplied metric topology.
+    calc
+      QuotientGroup.instTopologicalSpace Γ =
+          (inferInstance : TopologicalSpace ((G ⧸ Γ) × (LipOne Y →ᵇ ℝ))).induced Φ :=
+        hΦemb.eq_induced
+      _ = prodMetric.toUniformSpace.toTopologicalSpace.induced Φ := by rw [hprodTopo]
+      _ = dRaw.toUniformSpace.toTopologicalSpace := rfl
+  refine ⟨dRaw, htopRaw, ?_⟩
+  intro H hH K₁ hK₁
+  letI := dRaw
+  letI : Dist (G ⧸ Γ) := dRaw.toPseudoMetricSpace.toDist
+  let C : ℝ≥0 := max 1 K₁
+  have hCpos : 0 < (C : ℝ) := by
+    have : (1 : ℝ≥0) ≤ C := le_max_left _ _
+    exact_mod_cast (lt_of_lt_of_le zero_lt_one this)
+  let H' : LipOne Y := ⟨fun y => H y / (C : ℝ), by
+    constructor
+    · intro y
+      rw [abs_div, abs_of_pos hCpos]
+      rw [div_le_iff₀ hCpos]
+      have hCy : (1 : ℝ) ≤ (C : ℝ) := by exact_mod_cast (le_max_left 1 K₁)
+      nlinarith [hH y]
+    · apply LipschitzWith.of_dist_le_mul
+      intro y z
+      rw [Real.dist_eq, show H y / (C : ℝ) - H z / (C : ℝ) =
+        (H y - H z) / (C : ℝ) by ring, abs_div, abs_of_pos hCpos]
+      rw [div_le_iff₀ hCpos]
+      have hdist := hK₁.dist_le_mul y z
+      rw [Real.dist_eq] at hdist
+      have hKC : (K₁ : ℝ) ≤ (C : ℝ) := by exact_mod_cast (le_max_right 1 K₁)
+      calc
+        |H y - H z| ≤ (K₁ : ℝ) * dist y z := hdist
+        _ ≤ (C : ℝ) * dist y z := mul_le_mul_of_nonneg_right hKC dist_nonneg
+        _ = 1 * dist y z * (C : ℝ) := by ring⟩
+  have hscale (x : G ⧸ Γ) : O.desc H x = (C : ℝ) * O.desc H'.1 x := by
+    have hfun : (fun y => (C : ℝ) * H'.1 y) = H := by
+      funext y
+      dsimp [H']
+      field_simp [ne_of_gt hCpos]
+    rw [← hfun]
+    exact O.scale (C : ℝ) H'.1 x
+  apply LipschitzWith.of_dist_le_mul
+  intro x y
+  rw [Real.dist_eq, hscale x, hscale y, ← mul_sub, abs_mul]
+  have hobs : |O.desc H'.1 x - O.desc H'.1 y| ≤
+      @dist _ (dRaw.toPseudoMetricSpace.toDist) x y := by
+    letI : MetricSpace (G ⧸ Γ) := baseMetric
+    letI : Dist (G ⧸ Γ) := baseMetric.toPseudoMetricSpace.toDist
+    letI : PseudoMetricSpace ((G ⧸ Γ) × (LipOne Y →ᵇ ℝ)) :=
+      prodMetric.toPseudoMetricSpace
+    letI : Dist ((G ⧸ Γ) × (LipOne Y →ᵇ ℝ)) :=
+      prodMetric.toPseudoMetricSpace.toDist
+    calc
+      |O.desc H'.1 x - O.desc H'.1 y| =
+          dist (obsFam x H') (obsFam y H') := rfl
+      _ ≤ dist (obsFam x) (obsFam y) := BoundedContinuousFunction.dist_coe_le_dist H'
+      _ ≤ dist (Φ x) (Φ y) := by
+        rw [Prod.dist_eq]
+        exact le_max_right _ _
+      _ = @dist _ (dRaw.toPseudoMetricSpace.toDist) x y := by
+        change @dist _ (prodMetric.toPseudoMetricSpace.toDist) (Φ x) (Φ y) =
+          @dist _ (prodMetric.toPseudoMetricSpace.toDist) (Φ x) (Φ y)
+        rfl
+  have hCnonneg : 0 ≤ (C : ℝ) := by positivity
+  rw [abs_of_nonneg hCnonneg]
+  change (C : ℝ) * |O.desc H'.1 x - O.desc H'.1 y| ≤
+    (C : ℝ) * dist x y
+  exact mul_le_mul_of_nonneg_left hobs hCnonneg
 
 end HindmanSumsProducts.InverseBridge
