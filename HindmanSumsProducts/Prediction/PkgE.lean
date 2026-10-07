@@ -112,7 +112,7 @@ private theorem mu_zero_of_not_mem (A : Parameters K) (N : ℕ) (i : Fin K) (y :
       h.2.2.2⟩, Int.toNat_of_nonneg h.1⟩
   · rfl
 
-theorem Emu_eq_sum_support (A : Parameters K) (N : ℕ) (i : Fin K)
+theorem pkgE_Emu_eq_sum_support (A : Parameters K) (N : ℕ) (i : Fin K)
     (f : ℤ → ℝ) :
     Emu A N i f = ∑ y ∈ muSupport A N i, mu A N i y * f y := by
   classical
@@ -132,9 +132,9 @@ theorem mu_nonneg (A : Parameters K) (N : ℕ) (i : Fin K) (y : ℤ) :
   · exact div_nonneg (by norm_num) (mul_nonneg (Nat.cast_nonneg _) hnorm)
   · exact le_rfl
 
-theorem Emu_nonneg (A : Parameters K) (N : ℕ) (i : Fin K)
+theorem pkgE_Emu_nonneg (A : Parameters K) (N : ℕ) (i : Fin K)
     (f : ℤ → ℝ) (hf : ∀ y, 0 ≤ f y) : 0 ≤ Emu A N i f := by
-  rw [Emu_eq_sum_support]
+  rw [pkgE_Emu_eq_sum_support]
   apply Finset.sum_nonneg
   intro y hy
   exact mul_nonneg (mu_nonneg A N i y) (hf y)
@@ -145,7 +145,7 @@ theorem Emu_mass_le_one (A : Parameters K) (N : ℕ) (i : Fin K) :
   let T := (Finset.Ico (A.X N i) ((A.X N i) ^ 2)).filter
     (fun n => Nat.Coprime n (primorial (N + 1)))
   let H := harmonicNormalizer (A.X N i) (primorial (N + 1))
-  rw [Emu_eq_sum_support]
+  rw [pkgE_Emu_eq_sum_support]
   change (∑ y ∈ Finset.image (fun n : ℕ => (n : ℤ)) T, mu A N i y * 1) ≤ 1
   rw [Finset.sum_image Nat.cast_injective.injOn]
   calc
@@ -185,7 +185,7 @@ theorem Emu_abs_inner_le (A : Parameters K) (N : ℕ) (i : Fin K)
       (C ^ 2 * Emu A N i (fun _ => 1) +
         Emu A N i (fun y => g y * g y)) / 2 := by
   classical
-  rw [Emu_eq_sum_support, Emu_eq_sum_support, Emu_eq_sum_support]
+  rw [pkgE_Emu_eq_sum_support, pkgE_Emu_eq_sum_support, pkgE_Emu_eq_sum_support]
   calc
     |∑ y ∈ muSupport A N i, mu A N i y * (f y * g y)| ≤
         ∑ y ∈ muSupport A N i, |mu A N i y * (f y * g y)| :=

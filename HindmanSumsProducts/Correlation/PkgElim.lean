@@ -28,7 +28,8 @@ theorem nuB_divisorTemplate_arity_zero {n b : ℕ}
     rw [tsum_eq_single 1]
     · simp
     · intro σ hσ
-      simp [hσ]
+      have hn : 1 ≠ σ := fun heq => hσ heq.symm
+      simp [hn]
 
 theorem weighted_variance_identity (b h c : ℝ) :
     b * h ^ 2 - (2 * c) * (b * h) + c ^ 2 * b = b * (h - c) ^ 2 := by

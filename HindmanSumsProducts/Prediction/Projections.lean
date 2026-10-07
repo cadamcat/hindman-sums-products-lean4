@@ -101,14 +101,14 @@ theorem le_projNorm (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K) (s : 
     let a : ℕ → ℝ := fun N => Emu A N i (fun y => u N y * u N y)
     let b : ℕ → ℝ := fun N => Emu A N i (fun y => h N y * u N y)
     have hm0 : ∀ N, 0 ≤ m N := fun N => by
-      exact Emu_nonneg A N i (fun _ => 1) (fun _ => by norm_num)
+      exact pkgE_Emu_nonneg A N i (fun _ => 1) (fun _ => by norm_num)
     have hm1 : ∀ N, m N ≤ 1 := fun N => Emu_mass_le_one A N i
     have ha0 : ∀ N, 0 ≤ a N := fun N => by
-      exact Emu_nonneg A N i (fun y => u N y * u N y) (fun _ => mul_self_nonneg _)
+      exact pkgE_Emu_nonneg A N i (fun y => u N y * u N y) (fun _ => mul_self_nonneg _)
     have ha1 : ∀ N, a N ≤ D ^ 2 := by
       intro N
       change Emu A N i (fun y => u N y * u N y) ≤ D ^ 2
-      rw [Emu_eq_sum_support]
+      rw [pkgE_Emu_eq_sum_support]
       calc
         (∑ y ∈ HindmanSumsProducts.Prediction.muSupport A N i,
             mu A N i y * (u N y * u N y)) ≤
@@ -126,7 +126,7 @@ theorem le_projNorm (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K) (s : 
           have hmEq : m N =
               ∑ y ∈ HindmanSumsProducts.Prediction.muSupport A N i, mu A N i y := by
             dsimp [m]
-            rw [Emu_eq_sum_support]
+            rw [pkgE_Emu_eq_sum_support]
             simp
           rw [hmEq]
         _ ≤ D ^ 2 := by

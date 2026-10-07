@@ -402,7 +402,7 @@ theorem Emu_eq_sum_finitePivotSupportSort {n : ℕ} (A : Parameters n) (N : ℕ)
     _ = ∑ y : S, mu A N i y * f y := by
       rw [← Finset.univ_eq_attach]
 
-theorem Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgC_Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     (f g : ℤ → ℝ) :
     Emu A N i (fun y => f y + g y) = Emu A N i f + Emu A N i g := by
   rw [Emu_eq_sum_finitePivotSupport A N i (fun y => f y + g y),
@@ -518,7 +518,7 @@ theorem harmonicNatLaw_nonneg (X W y : ℕ) : 0 ≤ harmonicNatLaw X W y := by
   · exact div_nonneg zero_le_one (mul_nonneg (Nat.cast_nonneg _) (harmonicNormalizer_nonneg X W))
   · exact le_rfl
 
-theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
+theorem pkgC_parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) : 0 ≤ parameterTailProductLaw A N T σ := by
   unfold parameterTailProductLaw
   apply tsum_nonneg
@@ -527,16 +527,16 @@ theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
   · split_ifs <;> positivity
   · exact Finset.prod_nonneg fun j hj => harmonicNatLaw_nonneg _ _ _
 
-theorem nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
+theorem pkgC_nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (B : Block n) (y : ℤ) : 0 ≤ nu A N B y := by
   unfold nu nuB
   apply tsum_nonneg
   intro σ
   apply mul_nonneg
-  · exact mul_nonneg (parameterTailProductLaw_nonneg A N B.2.val σ) (Nat.cast_nonneg _)
+  · exact mul_nonneg (pkgC_parameterTailProductLaw_nonneg A N B.2.val σ) (Nat.cast_nonneg _)
   · split_ifs <;> positivity
 
-theorem harmonicLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
+theorem pkgC_harmonicLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (i : Fin n) (y : ℤ) : 0 ≤ mu A N i y := by
   unfold mu harmonicLaw
   split_ifs with h
@@ -544,14 +544,14 @@ theorem harmonicLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
       (mul_nonneg (Nat.cast_nonneg _) (harmonicNormalizer_nonneg _ _))
   · exact le_rfl
 
-theorem Emu_mono {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgC_Emu_mono {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     {f g : ℤ → ℝ} (hfg : ∀ y, f y ≤ g y) : Emu A N i f ≤ Emu A N i g := by
   rw [Emu_eq_sum_finitePivotSupport A N i f, Emu_eq_sum_finitePivotSupport A N i g]
   apply Finset.sum_le_sum
   intro y hy
-  exact mul_le_mul_of_nonneg_left (hfg y) (harmonicLaw_nonneg A N i y)
+  exact mul_le_mul_of_nonneg_left (hfg y) (pkgC_harmonicLaw_nonneg A N i y)
 
-theorem Emu_abs_le {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgC_Emu_abs_le {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     (f : ℤ → ℝ) : |Emu A N i f| ≤ Emu A N i (fun y => |f y|) := by
   rw [Emu_eq_sum_finitePivotSupport A N i f,
     Emu_eq_sum_finitePivotSupport A N i (fun y => |f y|)]
@@ -562,13 +562,13 @@ theorem Emu_abs_le {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     _ = ∑ y ∈ finitePivotSupport A N i, mu A N i y * |f y| := by
       apply Finset.sum_congr rfl
       intro y hy
-      rw [abs_mul, abs_of_nonneg (harmonicLaw_nonneg A N i y)]
+      rw [abs_mul, abs_of_nonneg (pkgC_harmonicLaw_nonneg A N i y)]
 
 theorem rho_bounds {n r : ℕ} (A : Parameters n) (χ : ℕ → Fin r) (N : ℕ)
     (B : Block n) (a : ℚ) (c : Fin r) (y : ℤ) :
     0 ≤ rho A χ N B a c y ∧ rho A χ N B a c y ≤ nu A N B y := by
   unfold rho colorFactor
-  have hν := nu_nonneg A N B y
+  have hν := pkgC_nu_nonneg A N B y
   have hc := rationalColorIndicator_mem_Icc χ c
     ((height (A.ht N) B.set : ℚ) * a * (y : ℚ))
   constructor
@@ -592,7 +592,7 @@ theorem finitePivot_minimax {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
   letI : Fintype X := Finset.fintypeCoeSort X
   obtain ⟨M, hM, hMineq⟩ := finite_dense_model_minimax
     (fun x : X => mu A N i x) (fun x => ρ x) (fun x => ν x)
-    (fun x => harmonicLaw_nonneg A N i x) (fun x => hρ x)
+    (fun x => pkgC_harmonicLaw_nonneg A N i x) (fun x => hρ x)
     C hC hCc hne
   let F : ℤ → ℝ := fun y => if hy : y ∈ X then M ⟨y, hy⟩ else 0
   refine ⟨F, ?_, ?_⟩

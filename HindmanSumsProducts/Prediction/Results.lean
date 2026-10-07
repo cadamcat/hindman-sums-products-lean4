@@ -798,7 +798,7 @@ theorem dense_model_positive_part (MS : MasterScales K As sl Dm) (B : Block K) (
             ≤ δ * ∑ y ∈ S, w y * |f y| := by
       apply HindmanSumsProducts.denseAbsPairing_le_mul_weightedMass S w f
         (fun y => max (G y) 0 - p.eval (HindmanSumsProducts.denseTestCombination q c y))
-        (fun y hy => harmonicLaw_nonneg A N B.1 y) (fun y => hpointErr y)
+        (fun y hy => pkgC_harmonicLaw_nonneg A N B.1 y) (fun y => hpointErr y)
     have hmassPoint (y : ℤ) : |f y| ≤ 1 + nu A N B y := by
       have hν := nu_nonneg A N B y
       change |nu A N B y - 1| ≤ 1 + nu A N B y
