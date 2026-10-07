@@ -4474,6 +4474,16 @@ noncomputable def pkgElim_primeSlotIndexEquiv {q s : ℕ} (ι : Fin q ↪ Fin s)
   exact (Equiv.sumCongr eRange (Equiv.refl _)).trans
     (Equiv.sumCompl (fun j : Fin s => j ∈ Set.range ι))
 
+@[simp] theorem pkgElim_primeSlotIndexEquiv_apply_inl {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (i : Fin q) :
+    pkgElim_primeSlotIndexEquiv ι (.inl i) = ι i := by
+  simp [pkgElim_primeSlotIndexEquiv]
+
+@[simp] theorem pkgElim_primeSlotIndexEquiv_apply_inr {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (j : pkgElim_primeSlotComplement ι) :
+    pkgElim_primeSlotIndexEquiv ι (.inr j) = j.1 := by
+  simp [pkgElim_primeSlotIndexEquiv]
+
 noncomputable def pkgElim_primeTupleSplitEquiv {q s : ℕ} (ι : Fin q ↪ Fin s) :
     (Fin q → ℕ) × (pkgElim_primeSlotComplement ι → ℕ) ≃ (Fin s → ℕ) := by
   classical
@@ -4510,6 +4520,159 @@ noncomputable def pkgElim_primeTupleSplitEquiv {q s : ℕ} (ι : Fin q ↪ Fin s
     pkgElim_primeTupleSplitEquiv ι (p, u) j.1 = u j := by
   classical
   simp [pkgElim_primeTupleSplitEquiv, pkgElim_primeSlotIndexEquiv]
+
+theorem pkgElim_primePoolMass_tsum_one_fintype {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : ℕ) (hmass : 0 < primePoolMass lo hi) :
+    ∑' p : α → ℕ, ∏ i, primePoolLaw lo hi (p i) = 1 := by
+  classical
+  let P : Finset ℕ := (Finset.Ico lo hi).filter Nat.Prime
+  let μ : α → ℕ → ℝ := fun _ n => primePoolLaw lo hi n
+  have hzero (n : ℕ) (hn : n ∉ P) : primePoolLaw lo hi n = 0 := by
+    have hcond : ¬ (lo ≤ n ∧ n < hi ∧ Nat.Prime n) := by
+      intro h
+      apply hn
+      exact Finset.mem_filter.mpr
+        ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩
+    simp [primePoolLaw, hcond]
+  have hsupp (i : α) (n : ℕ) (hn : n ∉ P) : μ i n = 0 := by
+    exact hzero n hn
+  have hcoord (i : α) : ∑ n ∈ P, μ i n = 1 := by
+    rw [← tsum_eq_sum (L := SummationFilter.unconditional ℕ)
+      (f := primePoolLaw lo hi) (s := P) hzero]
+    exact pkgElim_primePoolLaw_tsum_one hmass
+  exact productLaw_tsum_one_of_finite_support μ (fun _ => P) hsupp hcoord
+
+theorem pkgElim_independentPrimePoolAverage_cylinder {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (lo hi : ℕ)
+    (hmass : 0 < primePoolMass lo hi) (f : (Fin q → ℕ) → ℝ) :
+    ∑' p' : Fin s → ℕ,
+      independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi) p' *
+        f (fun i => p' (ι i)) =
+    ∑' p : Fin q → ℕ,
+      independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) p * f p := by
+  classical
+  let R := pkgElim_primeSlotComplement ι
+  let E := pkgElim_primeTupleSplitEquiv ι
+  let P : Finset ℕ := (Finset.Ico lo hi).filter Nat.Prime
+  let Sfull : Finset (Fin s → ℕ) := Fintype.piFinset fun _ : Fin s => P
+  let Sloc : Finset (Fin q → ℕ) := Fintype.piFinset fun _ : Fin q => P
+  let Srest : Finset (R → ℕ) := Fintype.piFinset fun _ : R => P
+  let Spair : Finset ((Fin q → ℕ) × (R → ℕ)) := Sloc.product Srest
+  let fullMass : (Fin s → ℕ) → ℝ :=
+    independentPrimePoolMass (fun _ : Fin s => lo) (fun _ => hi)
+  let locMass : (Fin q → ℕ) → ℝ :=
+    independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi)
+  let restMass : (R → ℕ) → ℝ := fun u => ∏ j : R, primePoolLaw lo hi (u j)
+  let pairTerm : ((Fin q → ℕ) × (R → ℕ)) → ℝ := fun z =>
+    locMass z.1 * restMass z.2 * f z.1
+  have hlawZero (n : ℕ) (hn : n ∉ P) : primePoolLaw lo hi n = 0 := by
+    have hcond : ¬ (lo ≤ n ∧ n < hi ∧ Nat.Prime n) := by
+      intro h
+      apply hn
+      exact Finset.mem_filter.mpr
+        ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩
+    simp [primePoolLaw, hcond]
+  have hfullZero (p' : Fin s → ℕ) (hp' : p' ∉ Sfull) : fullMass p' = 0 := by
+    have hnot : ∃ i : Fin s, p' i ∉ P := by
+      by_contra h
+      push_neg at h
+      apply hp'
+      simpa [Sfull] using h
+    obtain ⟨i, hi⟩ := hnot
+    dsimp [fullMass, independentPrimePoolMass]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hlawZero (p' i) hi)
+  have hlocZero (p : Fin q → ℕ) (hp : p ∉ Sloc) : locMass p = 0 := by
+    have hnot : ∃ i : Fin q, p i ∉ P := by
+      by_contra h
+      push_neg at h
+      apply hp
+      simpa [Sloc] using h
+    obtain ⟨i, hi⟩ := hnot
+    dsimp [locMass, independentPrimePoolMass]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hlawZero (p i) hi)
+  have hrestZero (u : R → ℕ) (hu : u ∉ Srest) : restMass u = 0 := by
+    have hnot : ∃ j : R, u j ∉ P := by
+      by_contra h
+      push_neg at h
+      apply hu
+      simpa [Srest] using h
+    obtain ⟨j, hj⟩ := hnot
+    dsimp [restMass]
+    exact Finset.prod_eq_zero (Finset.mem_univ j) (hlawZero (u j) hj)
+  have hrestTotal : ∑' u : R → ℕ, restMass u = 1 := by
+    simpa [restMass] using
+      (pkgElim_primePoolMass_tsum_one_fintype (α := R) lo hi hmass)
+  have hrestSum : ∑ u ∈ Srest, restMass u = 1 := by
+    rw [← tsum_eq_sum (L := SummationFilter.unconditional (R → ℕ))
+      (f := restMass) (s := Srest) (by intro u hu; exact hrestZero u hu)]
+    exact hrestTotal
+  have hfactor (p : Fin q → ℕ) (u : R → ℕ) :
+      fullMass (E (p, u)) = locMass p * restMass u := by
+    unfold fullMass locMass restMass independentPrimePoolMass
+    let eI := pkgElim_primeSlotIndexEquiv ι
+    calc
+      (∏ j : Fin s, primePoolLaw lo hi (E (p, u) j)) =
+          ∏ z : Fin q ⊕ R, primePoolLaw lo hi (E (p, u) (eI z)) := by
+        exact (Fintype.prod_equiv eI
+          (fun z => primePoolLaw lo hi (E (p, u) (eI z)))
+          (fun j => primePoolLaw lo hi (E (p, u) j))
+          (by intro z; simp)).symm
+      _ = (∏ i : Fin q, primePoolLaw lo hi (p i)) *
+          ∏ j : R, primePoolLaw lo hi (u j) := by
+        rw [Fintype.prod_sum_type]
+        simp [E, eI, pkgElim_primeTupleSplitEquiv, pkgElim_primeSlotIndexEquiv]
+  have hproj (p : Fin q → ℕ) (u : R → ℕ) :
+      (fun i => E (p, u) (ι i)) = p := by
+    funext i
+    simp [E]
+  have hpairZero (z : (Fin q → ℕ) × (R → ℕ)) (hz : z ∉ Spair) :
+      pairTerm z = 0 := by
+    have hnot : z.1 ∉ Sloc ∨ z.2 ∉ Srest := by
+      by_contra h
+      push_neg at h
+      apply hz
+      exact Finset.mem_product.mpr h
+    rcases hnot with hp | hu
+    · simp [pairTerm, hlocZero z.1 hp]
+    · simp [pairTerm, hrestZero z.2 hu]
+  have hlocSupport : ∀ p : Fin q → ℕ,
+      p ∉ Sloc → locMass p * f p = 0 := by
+    intro p hp
+    simp [hlocZero p hp]
+  calc
+    _ = ∑' p' : Fin s → ℕ, fullMass p' * f (fun i => p' (ι i)) := by rfl
+    _ = ∑' z : (Fin q → ℕ) × (R → ℕ), fullMass (E z) * f (fun i => E z (ι i)) := by
+      exact (E.tsum_eq (fun p' => fullMass p' * f (fun i => p' (ι i)))).symm
+    _ = ∑ z ∈ Spair, pairTerm z := by
+      rw [tsum_eq_sum (L := SummationFilter.unconditional
+        ((Fin q → ℕ) × (R → ℕ))) (f := fun z => fullMass (E z) *
+          f (fun i => E z (ι i))) (s := Spair) (by
+            intro z hz
+            have hfactor' := hfactor z.1 z.2
+            have hproj' := hproj z.1 z.2
+            rw [hfactor', hproj']
+            exact hpairZero z hz)]
+      apply Finset.sum_congr rfl
+      intro z hz
+      simp [pairTerm, hfactor z.1 z.2, hproj z.1 z.2]
+    _ = ∑ p ∈ Sloc, locMass p * f p := by
+      change (∑ z ∈ Sloc ×ˢ Srest, pairTerm z) = _
+      rw [Finset.sum_product]
+      apply Finset.sum_congr rfl
+      intro p hp
+      calc
+        _ = ∑ u ∈ Srest, (locMass p * f p) * restMass u := by
+          apply Finset.sum_congr rfl
+          intro u hu
+          dsimp [pairTerm]
+          ring
+        _ = locMass p * f p * ∑ u ∈ Srest, restMass u := by
+          rw [← Finset.mul_sum]
+        _ = locMass p * f p := by rw [hrestSum]; ring
+    _ = ∑' p : Fin q → ℕ, locMass p * f p := by
+      symm
+      rw [tsum_eq_sum (L := SummationFilter.unconditional (Fin q → ℕ))
+        (f := fun p => locMass p * f p) (s := Sloc) hlocSupport]
 
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
