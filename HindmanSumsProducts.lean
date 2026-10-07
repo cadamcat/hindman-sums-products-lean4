@@ -2,3 +2,4 @@ import HindmanSumsProducts.OAIAlignment
 import HindmanSumsProducts.ChainSelection
 import HindmanSumsProducts.CubeCorner
 import HindmanSumsProducts.Arithmetic
+import HindmanSumsProducts.Concatenation
