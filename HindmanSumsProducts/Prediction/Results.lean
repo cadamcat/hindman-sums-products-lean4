@@ -409,7 +409,7 @@ theorem opus_dpo_terminal (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
     (hNonroot : Nonempty (pkgB2_Nonroot T)) :
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
       |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 Finset.univ N I| ≤ ε := by
-  sorry
+  exact opus_dpo_terminal_proof MS B gap T J0 hgap hT hJ0 direction hdir k0 hNonroot
 
 /-- (eq:prediction-dual-products), 05:68–74 and 129–164: for every fixed `b` and fixed tests at
 the same block (possibly different valid gaps, allowed types and `J₀`),

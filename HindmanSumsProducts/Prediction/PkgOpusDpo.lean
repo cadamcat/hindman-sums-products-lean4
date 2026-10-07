@@ -1563,6 +1563,409 @@ theorem opus_dpo_translation_error_proof {K sl b : ℕ} {As : Finset ℚ}
     · exact Finset.sum_nonneg fun k _ => by positivity
   exact (opus_dpo_average_sub_le MS B gap T J0 hT N _ _ _ hδ hinner).trans hsmall
 
+
+/-! ### Terminal state (copy of PkgB2's terminal chain without `0 < sl`) -/
+
+open Lean Elab Term in
+/-- Refer to a declaration of an imported module by its full name, whether it is public or
+private there.  Used for `PkgB2` helpers that are private at this revision; the result is the
+existing compiled constant, checked by the kernel like any other reference. -/
+syntax (name := opusDpoPrivateTerm) "opus_dpo_private% " ident : term
+
+open Lean Meta Elab Term in
+@[term_elab opusDpoPrivateTerm]
+def opus_dpo_elabPrivate : TermElab := fun stx _ => do
+  let requested := stx[1].getId.eraseMacroScopes
+  let env ← getEnv
+  if env.contains requested then
+    return ← mkConstWithFreshMVarLevels requested
+  let priv := Name.mkNum (`_private ++ `HindmanSumsProducts.Prediction.PkgB2) 0 ++ requested
+  if env.contains priv then
+    return ← mkConstWithFreshMVarLevels priv
+  let found := env.constants.toList.find? fun entry =>
+    Lean.privateToUserName? entry.1 == some requested
+  match found with
+  | none => throwError "declaration {requested} is unavailable"
+  | some entry => mkConstWithFreshMVarLevels entry.1
+
+set_option quotPrecheck false
+
+local notation "opusP_nonrootOccurrenceSet" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_nonrootOccurrenceSet
+local notation "opusP_rootOccurrenceSet" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_rootOccurrenceSet
+local notation "opusP_rootOccurrenceSet_nonempty" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_rootOccurrenceSet_nonempty
+local notation "opusP_occurrenceIsNonroot" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_occurrenceIsNonroot
+local notation "opusP_stateMonomialAverage" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_stateMonomialAverage
+local notation "opusP_stateMonomialAverage_eq_wlf" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_stateMonomialAverage_eq_wlf
+local notation "opusP_terminalStateAverage_expansion" =>
+  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_terminalStateAverage_expansion
+
+theorem opus_dpo_repGoodProbability_eq_product {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (N : ℕ)
+    (hpool : ∀ k, 0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+      (MS.primeStage.pool N (gap k)).upper) :
+    independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+        (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+          (pkgB2_repPrimeProject hT p k)) =
+      ∏ k, gapSlotProbability (corrScales MS) (gap k) N
+        ((T k).Good (corrScales MS) (gap k) N) := by
+  classical
+  let lo : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).lower
+  let hi : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).upper
+  let loBlock : Fin b → ℕ := fun k => (MS.primeStage.pool N (gap k)).lower
+  let hiBlock : Fin b → ℕ := fun k => (MS.primeStage.pool N (gap k)).upper
+  let G : ∀ k : Fin b, (Fin sl → ℕ) → Prop := fun k q =>
+    (T k).Good (corrScales MS) (gap k) N
+      (fun j => q ((Classical.choose (hT k)) j))
+  have hlo : ∀ k j, lo (pkgB2_replicaEmbedding k j) = loBlock k := by
+    intro k j
+    change (MS.primeStage.pool N
+      (gap ((finProdFinEquiv (m := b) (n := sl)).symm
+        (finProdFinEquiv (m := b) (n := sl) (k, j))).1)).lower = _
+    rw [(finProdFinEquiv (m := b) (n := sl)).symm_apply_apply (k, j)]
+  have hhi : ∀ k j, hi (pkgB2_replicaEmbedding k j) = hiBlock k := by
+    intro k j
+    change (MS.primeStage.pool N
+      (gap ((finProdFinEquiv (m := b) (n := sl)).symm
+        (finProdFinEquiv (m := b) (n := sl) (k, j))).1)).upper = _
+    rw [(finProdFinEquiv (m := b) (n := sl)).symm_apply_apply (k, j)]
+  let M := (∑ i : Fin (b * sl), hi i) + ∑ k : Fin b, hiBlock k
+  have hboundFull : ∀ i, hi i ≤ M := by
+    intro i
+    dsimp [M]
+    exact (Finset.single_le_sum (fun j hj => Nat.zero_le (hi j)) (Finset.mem_univ i)).trans
+      (Nat.le_add_right _ _)
+  have hboundBlock : ∀ k, hiBlock k ≤ M := by
+    intro k
+    dsimp [M]
+    exact (Finset.single_le_sum (fun j hj => Nat.zero_le (hiBlock j)) (Finset.mem_univ k)).trans
+      (Nat.le_add_left _ _)
+  have hproject (p : Fin (b * sl) → ℕ) (k : Fin b) :
+      pkgB2_repPrimeProject hT p k =
+        fun j => p (pkgB2_replicaEmbedding k ((Classical.choose (hT k)) j)) := by
+    funext j
+    rfl
+  have hfullEvent :
+      (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+        (pkgB2_repPrimeProject hT p k)) =
+      (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j))) := by
+    funext p
+    apply propext
+    apply forall_congr'
+    intro k
+    rw [hproject p k]
+  have hfactor := (opus_dpo_private%
+      HindmanSumsProducts.Prediction.pkgB2_independentPrimePoolProbability_blockFactor)
+    lo hi loBlock hiBlock hlo hhi ⟨hboundFull, hboundBlock⟩ G
+  have hmarginal (k : Fin b) :
+      independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+          (fun _ => hiBlock k) (G k) =
+        gapSlotProbability (corrScales MS) (gap k) N
+          ((T k).Good (corrScales MS) (gap k) N) := by
+    have h := independentPrimePoolProbability_iid_marginal
+      (loBlock k) (hiBlock k) (hpool k) (Classical.choose (hT k))
+      ((T k).Good (corrScales MS) (gap k) N)
+    simpa [G, loBlock, hiBlock, gapSlotProbability, corrScales] using h.symm
+  calc
+    independentPrimePoolProbability lo hi
+        (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+          (pkgB2_repPrimeProject hT p k)) =
+      independentPrimePoolProbability lo hi
+        (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j))) := by
+          rw [hfullEvent]
+    _ = ∏ k, independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+          (fun _ => hiBlock k) (G k) := hfactor
+    _ = _ := by
+      apply Finset.prod_congr rfl
+      intro k hk
+      exact hmarginal k
+
+theorem opus_dpo_repGoodProbability_lower_eventually {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) :
+    ∀ᶠ N : ℕ in atTop,
+      (1 / 2 : ℝ) ^ b ≤ independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+        (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+          (pkgB2_repPrimeProject hT p k)) := by
+  have hgood (k : Fin b) : ∀ᶠ N : ℕ in atTop,
+      (1 / 2 : ℝ) < gapSlotProbability (corrScales MS) (gap k) N
+        ((T k).Good (corrScales MS) (gap k) N) := by
+    have hlim := good_probability_tendsto_one MS (T k) (hT k) (gap k)
+    exact hlim.eventually (Ioi_mem_nhds (by norm_num))
+  have hpoolPos (k : Fin b) : ∀ᶠ N : ℕ in atTop,
+      0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+        (MS.primeStage.pool N (gap k)).upper := by
+    have hratio := MS.primeStage.pool_harmonic_mass_dominates (gap k) 1 (by norm_num)
+    have hlarge : ∀ᶠ N : ℕ in atTop,
+        1 ≤ primePoolMass (MS.primeStage.pool N (gap k)).lower
+          (MS.primeStage.pool N (gap k)).upper /
+            (masterScaleV MS.core.parameters N (gap k) : ℝ) := by
+      simpa [pow_one] using hratio.eventually_ge_atTop (1 : ℝ)
+    filter_upwards [hlarge] with N hN
+    have hVpos : 0 < (masterScaleV MS.core.parameters N (gap k) : ℝ) := by
+      unfold masterScaleV
+      positivity
+    have hmass := (le_div_iff₀ hVpos).mp hN
+    have hmassPos :
+        0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+          (MS.primeStage.pool N (gap k)).upper := by
+      linarith
+    exact hmassPos
+  have hgoodAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      (1 / 2 : ℝ) < gapSlotProbability (corrScales MS) (gap k) N
+        ((T k).Good (corrScales MS) (gap k) N) := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => hgood k)
+    simpa using h
+  have hpoolAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+        (MS.primeStage.pool N (gap k)).upper := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => hpoolPos k)
+    simpa using h
+  filter_upwards [hgoodAll, hpoolAll] with N hgoodN hpoolN
+  have hfactor := opus_dpo_repGoodProbability_eq_product MS gap T hT N hpoolN
+  rw [hfactor]
+  calc
+    (1 / 2 : ℝ) ^ b = ∏ k : Fin b, (1 / 2 : ℝ) := by simp
+    _ ≤ ∏ k : Fin b, gapSlotProbability (corrScales MS) (gap k) N
+          ((T k).Good (corrScales MS) (gap k) N) := by
+        apply Finset.prod_le_prod₀
+        · intro k hk
+          norm_num
+        · intro k hk
+          exact le_of_lt (hgoodN k)
+
+theorem opus_dpo_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T))
+    (U : Finset (Fin (Fintype.card (pkgB2_Occurrence T E)))) :
+    Tendsto
+      (fun N : ℕ =>
+        weightedLinearFormsAverage
+            (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+              direction hdir k0 E U) N
+            (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+              (pkgB2_repPrimeProject hT p k)) /
+          weightedLinearFormsEventProbability
+            (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+              direction hdir k0 E U) N
+            (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+              (pkgB2_repPrimeProject hT p k)))
+      atTop (𝓝 1) := by
+  classical
+  let D := pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+    direction hdir k0 E U
+  let good (N : ℕ) (p : Fin (b * sl) → ℕ) : Prop :=
+    ∀ k, (T k).Good (corrScales MS) (gap k) N (pkgB2_repPrimeProject hT p k)
+  let prob (N : ℕ) : ℝ := weightedLinearFormsEventProbability D N (good N)
+  let average (N : ℕ) : ℝ := weightedLinearFormsAverage D N (good N)
+  let c : ℝ := (1 / 2 : ℝ) ^ b
+  have hc : 0 < c := by dsimp [c]; positivity
+  have hgoodDomain : ∀ᶠ N : ℕ in atTop, ∀ p : Fin (b * sl) → ℕ,
+      good N p → D.goodDomain N p := by
+    have hreg := opus_dpo_regular_eventually MS B gap T J0 hgap hT hJ0
+    have hN0 : ∀ᶠ N : ℕ in atTop,
+        (opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_directionConstantBound) T direction + 1 ≤ N :=
+      eventually_ge_atTop _
+    filter_upwards [hreg, hN0] with N hregN hN0 p hp
+    change (opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_directionConstantBound) T direction + 1 ≤ N ∧
+      pkgB2_baseRegular MS B T J0 gap hT N p
+    exact ⟨hN0, hregN p hp⟩
+  obtain ⟨C, hC, hlinear⟩ := prop_linear_forms D
+  have herr : Tendsto
+      (fun N : ℕ => C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^
+        Fintype.card (pkgB2_Occurrence T E) * (D.epsilonBase N + D.epsilonCRT N)))
+      atTop (𝓝 0) := by
+    have hCconst : Tendsto (fun _ : ℕ => C) atTop (𝓝 C) := tendsto_const_nhds
+    simpa using hCconst.mul (weighted_linear_forms_error_tends_zero D)
+  have hlinearEventually : ∀ᶠ N : ℕ in atTop,
+      |average N - prob N| ≤
+        C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^
+          Fintype.card (pkgB2_Occurrence T E) * (D.epsilonBase N + D.epsilonCRT N)) := by
+    filter_upwards [hgoodDomain] with N hN
+    exact hlinear N (good N) (fun p hp => hN p hp)
+  have habs : Tendsto (fun N => |average N - prob N|) atTop (𝓝 0) :=
+    squeeze_zero' (Filter.Eventually.of_forall fun N => abs_nonneg _)
+      hlinearEventually herr
+  have hrepLower : ∀ᶠ N : ℕ in atTop, c ≤
+      independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) (good N) :=
+    opus_dpo_repGoodProbability_lower_eventually MS gap T hT
+  have hprobEq (N : ℕ) : prob N =
+      independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) (good N) := by
+    simp [prob, good, weightedLinearFormsEventProbability, D,
+      pkgB2_weightedLinearFormsData, pkgB2_repScales, pkgB2_repScalesOfFacts]
+  have hprobLower : ∀ᶠ N : ℕ in atTop, c ≤ prob N := by
+    filter_upwards [hrepLower] with N hN
+    rw [hprobEq]
+    exact hN
+  have hratioBound (N : ℕ) (hP : c ≤ prob N) :
+      |average N / prob N - 1| ≤ |average N - prob N| / c := by
+    have hPpos : 0 < prob N := lt_of_lt_of_le hc hP
+    have heq : average N / prob N - 1 = (average N - prob N) / prob N := by
+      field_simp [ne_of_gt hPpos]
+    rw [heq, abs_div, abs_of_pos hPpos]
+    exact div_le_div_of_nonneg_left (abs_nonneg _) hc hP
+  have hratioError : Tendsto (fun N => |average N - prob N| / c) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using habs.mul_const c⁻¹
+  have hratio : Tendsto (fun N => |average N / prob N - 1|) atTop (𝓝 0) :=
+    squeeze_zero' (Filter.Eventually.of_forall fun N => abs_nonneg _)
+      (Filter.Eventually.mono hprobLower (fun N hP => hratioBound N hP)) hratioError
+  apply (tendsto_iff_norm_sub_tendsto_zero).2
+  simpa [Real.norm_eq_abs, average, prob, D, good] using hratio
+
+theorem opus_dpo_terminal_proof {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (hNonroot : Nonempty (pkgB2_Nonroot T)) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 Finset.univ N I| ≤ ε := by
+  classical
+  let plus := opusP_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := opusP_rootOccurrenceSet (T := T) Finset.univ
+  let q := Fintype.card (pkgB2_Occurrence T Finset.univ)
+  let C : ℝ := (2 : ℝ) ^ (plus.card + minus.card)
+  have hC : 0 < C := by dsimp [C]; positivity
+  have hdisj : Disjoint plus minus := by
+    rw [Finset.disjoint_left]
+    intro o ho hm
+    exact (Finset.mem_filter.mp hm).2 (Finset.mem_filter.mp ho).2
+  have hminus : minus.Nonempty := by
+    simpa [minus] using opusP_rootOccurrenceSet_nonempty T
+  have hclose (U : Finset (Fin q)) (ε : ℝ) (hε : 0 < ε) :
+      ∀ᶠ N : ℕ in atTop,
+        |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+    have hlim := opus_dpo_weightedGoodMonomial_tendsto_one MS B gap T J0
+      hgap hT hJ0 direction hdir k0 Finset.univ U
+    have hlimState :
+        Tendsto (fun N => opusP_stateMonomialAverage MS B gap T J0 hT
+          Finset.univ direction N U) atTop (𝓝 1) := by
+      have hEq : (fun N =>
+          weightedLinearFormsAverage
+              (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+                direction hdir k0 Finset.univ U) N
+              (fun p => pkgB2_goodPrimeEvent MS gap T hT N p) /
+            weightedLinearFormsEventProbability
+              (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+                direction hdir k0 Finset.univ U) N
+              (pkgB2_goodPrimeEvent MS gap T hT N)) =ᶠ[atTop]
+          fun N => opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U := by
+        filter_upwards with N
+        exact (opusP_stateMonomialAverage_eq_wlf MS B gap T J0 hgap hT hJ0
+          direction hdir k0 Finset.univ U N).symm
+      exact hlim.congr' hEq
+    have hdist : Tendsto
+        (fun N => |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1|)
+        atTop (𝓝 0) := by
+      simpa [Real.norm_eq_abs] using (tendsto_iff_norm_sub_tendsto_zero).1 hlimState
+    filter_upwards [hdist.eventually (Iio_mem_nhds hε)] with N hN
+    exact le_of_lt hN
+  have hcloseForP (ε : ℝ) (hε : 0 < ε)
+      (P : Finset (Fin q)) : ∀ᶠ N : ℕ in atTop,
+        ∀ M ∈ minus.powerset,
+          |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+    have h := (eventually_all_finset minus.powerset).2
+      (fun M hM => hclose (P ∪ M) ε hε)
+    exact h
+  have hclosePairs (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
+      ∀ P ∈ plus.powerset, ∀ M ∈ minus.powerset,
+        |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+    have h := (eventually_all_finset plus.powerset).2
+      (fun P hP => hcloseForP ε hε P)
+    exact h
+  have hbound (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
+      ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+          Finset.univ N I| ≤ C * ε := by
+    filter_upwards [hclosePairs ε hε] with N hcloseN I
+    have hPartition : plus ∪ minus = Finset.univ := by
+      ext o
+      simp only [Finset.mem_union, Finset.mem_univ]
+      constructor
+      · intro h
+        trivial
+      · intro _
+        by_cases hn : opusP_occurrenceIsNonroot (T := T) Finset.univ o
+        · exact Or.inl (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+        · exact Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+    have hmain : ∀ U : Finset (Fin q),
+        |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+      intro U
+      let P := U ∩ plus
+      let M := U ∩ minus
+      have hP : P ∈ plus.powerset := Finset.mem_powerset.mpr (by
+        intro o ho
+        exact (Finset.mem_inter.mp ho).2)
+      have hM : M ∈ minus.powerset := Finset.mem_powerset.mpr (by
+        intro o ho
+        exact (Finset.mem_inter.mp ho).2)
+      have hU : U = P ∪ M := by
+        ext o
+        constructor
+        · intro hoU
+          have hsplit : o ∈ plus ∨ o ∈ minus := by
+            have : o ∈ plus ∪ minus := by rw [hPartition]; exact Finset.mem_univ o
+            simpa using this
+          rcases hsplit with hplus | hminus
+          · exact Finset.mem_union.mpr (Or.inl (Finset.mem_inter.mpr ⟨hoU, hplus⟩))
+          · exact Finset.mem_union.mpr (Or.inr (Finset.mem_inter.mpr ⟨hoU, hminus⟩))
+        · intro h
+          rcases Finset.mem_union.mp h with hP | hM
+          · exact (Finset.mem_inter.mp hP).1
+          · exact (Finset.mem_inter.mp hM).1
+      rw [hU]
+      exact hcloseN P hP M hM
+    have hexpand := opusP_terminalStateAverage_expansion MS B gap T J0 hgap hT hJ0
+      direction hdir k0 N I hNonroot
+    rw [hexpand]
+    have herr := pkgB2_signedMomentError_bound plus minus 1
+      (opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N)
+      ε (le_of_lt hε) hmain hminus
+    simpa [C, plus, minus] using herr
+  intro ε hε
+  let δ := ε / (2 * C)
+  have hδ : 0 < δ := by dsimp [δ]; positivity
+  filter_upwards [hbound δ hδ] with N hN I
+  have hCδ : C * δ ≤ ε := by
+    dsimp [δ]
+    have hC0 : C ≠ 0 := ne_of_gt hC
+    field_simp [hC0]
+    nlinarith
+  exact (hN I).trans hCδ
+
 end
 
 end Prediction
