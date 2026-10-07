@@ -643,13 +643,13 @@ theorem masterScaleV_ge_primorial {n : ℕ}
 
 theorem pkgElim_masterScaleV_ge_modulus {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (l : Fin n) :
-    A.M N ≤ masterScaleV A N l := by
+    A.M N ≤ FromArithmetic.masterScaleV A N l := by
   unfold FromArithmetic.masterScaleV
   omega
 
 theorem pkgElim_masterScaleV_tendsto {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) :
-    Tendsto (fun N => (masterScaleV A N l : ℝ)) atTop atTop := by
+    Tendsto (fun N => (FromArithmetic.masterScaleV A N l : ℝ)) atTop atTop := by
   have hpow : Tendsto (fun N : ℕ => (2 : ℝ) ^ (N + 1)) atTop atTop := by
     exact (tendsto_pow_atTop_atTop_of_one_lt (by norm_num : (1 : ℝ) < 2)).comp
       (tendsto_add_atTop_nat 1)
@@ -664,7 +664,7 @@ theorem pkgElim_masterScaleV_tendsto {n : ℕ}
     Nat.pow_le_pow_left hW (N + 1)
   have hM : primorial (N + 1) ^ (N + 1) ≤ A.M N :=
     Nat.le_of_dvd (A.Mpos N) (A.Mdiv N)
-  have hV : A.M N ≤ masterScaleV A N l := pkgElim_masterScaleV_ge_modulus A N l
+  have hV : A.M N ≤ FromArithmetic.masterScaleV A N l := pkgElim_masterScaleV_ge_modulus A N l
   exact_mod_cast hpowNat.trans (hM.trans hV)
 
 theorem microcellDominates_trans {A B S : ℕ → ℝ}
@@ -3654,11 +3654,11 @@ noncomputable def occurrenceDivisorTemplate {K m q r : ℕ}
 
 theorem pkgElim_occurrenceDivisorTemplateLaw_eq {K m q r s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (o : Occurrence Sh) (N σ : ℕ) :
     FromArithmetic.divisorTemplateLaw S.core.parameters N
         (occurrenceDivisorTemplate C Sh o) σ =
-      parameterTailProductLaw S.core.parameters N
+      FromArithmetic.parameterTailProductLaw S.core.parameters N
         (C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val σ := by
   unfold occurrenceDivisorTemplate
   rw [parameterTailProductLaw_eq_divisorTemplateLaw S.core.parameters N
@@ -3667,11 +3667,11 @@ theorem pkgElim_occurrenceDivisorTemplateLaw_eq {K m q r s : ℕ}
 
 theorem pkgElim_selectedOccurrenceDivisor_support {K m q r s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (o : Occurrence Sh) (N σ : ℕ)
     (hσ : FromArithmetic.divisorTemplateLaw S.core.parameters N
       (occurrenceDivisorTemplate C Sh o) σ ≠ 0) :
-    1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap ∧
+    1 ≤ σ ∧ σ ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap ∧
       Nat.Coprime σ (primorial (N + 1)) := by
   rw [pkgElim_occurrenceDivisorTemplateLaw_eq S C Sh o N] at hσ
   exact chainTailProductLaw_support_facts S C N
@@ -3691,12 +3691,12 @@ noncomputable def pkgElim_momentDivisorTemplate {K m q r h : ℕ}
 
 theorem pkgElim_momentDivisorTemplate_support {K m q r h s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (eO : Occurrence Sh ≃ Fin h)
     (F : Finset (Occurrence Sh)) (N : ℕ) (u : Fin h) (σ : ℕ)
     (hσ : FromArithmetic.divisorTemplateLaw S.core.parameters N
       (pkgElim_momentDivisorTemplate C Sh eO F u) σ ≠ 0) :
-    1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap ∧
+    1 ≤ σ ∧ σ ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap ∧
       Nat.Coprime σ (primorial (N + 1)) := by
   classical
   by_cases hF : eO.symm u ∈ F
@@ -3716,7 +3716,7 @@ theorem pkgElim_momentDivisorTemplate_support {K m q r h s : ℕ}
         change (∏ i : Fin 0, (S.core.parameters.X N (Fin.elim0 i)) ^ 2) ≤ 1
         rw [Fin.prod_univ_zero]
       exact hempty.2.1.trans hprod
-    have hV : 1 ≤ masterScaleV S.core.parameters N C.gap := by
+    have hV : 1 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
       unfold FromArithmetic.masterScaleV
       omega
     exact ⟨hempty.1, hσone.trans hV, hempty.2.2⟩
@@ -3759,7 +3759,7 @@ theorem linearRowValue_eq_occurrenceValue {K m q r s h d : ℕ} {Aset : Finset �
 
 noncomputable def pkgElim_expandedAuxiliaryMoment {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
     (eX : Coordinate Sh ≃ Fin d) (F : Finset (Occurrence Sh)) (N : ℕ) : ℝ :=
@@ -3902,7 +3902,7 @@ theorem pkgElim_occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
 
 def pkgElim_momentGlobalData {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (J0 B N : ℕ) : Prop :=
@@ -3918,15 +3918,15 @@ def pkgElim_momentGlobalData {K m q r s : ℕ} {Aset : Finset ℚ}
     IntegerDirectionFacts S C a N dirs tests B p) ∧
   0 < primePoolMass (S.primeStage.pool N C.gap).lower
     (S.primeStage.pool N C.gap).upper ∧
-  masterScaleV S.core.parameters N C.gap + 1 <
+  FromArithmetic.masterScaleV S.core.parameters N C.gap + 1 <
     (S.primeStage.pool N C.gap).lower ∧
   1 ≤ S.core.parameters.H N C.gap /
     (J0 * ((S.primeStage.pool N C.gap).upper +
-      masterScaleV S.core.parameters N C.gap) ^ B)
+      FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B)
 
 theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm)
+    (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q))
@@ -3954,17 +3954,17 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
   have hmassRatio : Tendsto
       (fun N => primePoolMass (S.primeStage.pool N C.gap).lower
         (S.primeStage.pool N C.gap).upper /
-          (masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
+          (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
     simpa [Real.rpow_one] using S.primeStage.pool_harmonic_mass_dominates C.gap 1
       (by norm_num)
   have hmassEvent : ∀ᶠ N in atTop,
       0 < primePoolMass (S.primeStage.pool N C.gap).lower
         (S.primeStage.pool N C.gap).upper := by
     filter_upwards [hmassRatio.eventually_ge_atTop (1 : ℝ)] with N hN
-    have hV : 0 < (masterScaleV S.core.parameters N C.gap : ℝ) := by
+    have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
       unfold FromArithmetic.masterScaleV
       positivity
-    have hmul : (masterScaleV S.core.parameters N C.gap : ℝ) ≤
+    have hmul : (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ≤
         primePoolMass (S.primeStage.pool N C.gap).lower
           (S.primeStage.pool N C.gap).upper := by
       simpa using (le_div_iff₀ hV).mp hN
@@ -3974,28 +3974,28 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
     exact hmass
   have hlowerRatio : Tendsto
       (fun N => ((S.primeStage.pool N C.gap).lower : ℝ) /
-        (masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
+        (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
     simpa [Real.rpow_one] using S.primeStage.pool_lower_dominates C.gap 1
       (by norm_num)
   have hlowerEvent : ∀ᶠ N in atTop,
-      masterScaleV S.core.parameters N C.gap + 1 <
+      FromArithmetic.masterScaleV S.core.parameters N C.gap + 1 <
         (S.primeStage.pool N C.gap).lower := by
     filter_upwards [hlowerRatio.eventually_ge_atTop (2 : ℝ)] with N hN
-    have hVnat : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+    have hVnat : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
       unfold FromArithmetic.masterScaleV
       omega
-    have hV : 0 < (masterScaleV S.core.parameters N C.gap : ℝ) := by positivity
-    have hmul : 2 * (masterScaleV S.core.parameters N C.gap : ℝ) ≤
+    have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by positivity
+    have hmul : 2 * (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ≤
         (S.primeStage.pool N C.gap).lower := (le_div_iff₀ hV).mp hN
-    have hmulNat : 2 * masterScaleV S.core.parameters N C.gap ≤
+    have hmulNat : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
         (S.primeStage.pool N C.gap).lower := by exact_mod_cast hmul
     omega
   let T : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper +
-    masterScaleV S.core.parameters N C.gap
+    FromArithmetic.masterScaleV S.core.parameters N C.gap
   have hT : ∀ N, 1 ≤ T N := by
     intro N
     dsimp [T]
-    have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+    have hV : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
       unfold FromArithmetic.masterScaleV
       omega
     omega
@@ -4008,7 +4008,7 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
     filter_upwards [hDmin] with N hN
     have hT2 : 2 ≤ T N := by
       dsimp [T]
-      have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+      have hV : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
         unfold FromArithmetic.masterScaleV
         omega
       omega
@@ -4081,13 +4081,13 @@ theorem pkgElim_productMinor_of_firstZero {α : Type*} [Semiring α]
 
 theorem pkgElim_occurrenceAnchor_residue_ne_zero {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (N : ℕ) (p : Fin q → ℕ) (o : Occurrence Sh) (J0 B : ℕ)
     (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
     (hGood : GoodTuple S C.gap N tests dirs.poly p)
     (π : ℕ) (hπ : π.Prime) (hπN : N + 1 < π)
-    (hπV : π ≤ masterScaleV S.core.parameters N C.gap) :
+    (hπV : π ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap) :
     FromArithmetic.rationalResidue π hπ
       (occurrenceCoeff S C a Sh dirs N p o
         (.inl (Sh.row (occurrenceRow Sh o)).anchor)) ≠ 0 := by
@@ -4118,7 +4118,7 @@ theorem pkgElim_occurrenceAnchor_residue_ne_zero {K m q r s : ℕ} {Aset : Finse
     have hprime := (hGood.1 i).2.2
     have hlt : π < p i := by
       have hpool : (S.primeStage.pool N C.gap).lower ≤ p i := (hGood.1 i).1
-      have hbound : masterScaleV S.core.parameters N C.gap + 1 <
+      have hbound : FromArithmetic.masterScaleV S.core.parameters N C.gap + 1 <
           (S.primeStage.pool N C.gap).lower := hLower
       omega
     have heq : π = p i := (Nat.prime_dvd_prime_iff_eq hπ hprime).mp hdvd
@@ -4132,13 +4132,13 @@ theorem pkgElim_occurrenceAnchor_residue_ne_zero {K m q r s : ℕ} {Aset : Finse
 
 theorem pkgElim_occurrencePairwise_row_tests {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (N : ℕ) (p : Fin q → ℕ)
     (J0 B : ℕ) (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
     (hGood : GoodTuple S C.gap N tests dirs.poly p)
     (π : ℕ) (hπ : π.Prime) (hN : N + 1 < π)
-    (hV : π ≤ masterScaleV S.core.parameters N C.gap)
+    (hV : π ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap)
     (havoid : ∀ P ∈ tests,
       ¬ ((π : ℤ) ∣ evalIntegerPolynomial P (fun i => (p i : ℤ))))
     (o o' : Occurrence Sh) (hne : o ≠ o') :
@@ -4307,7 +4307,7 @@ theorem pkgElim_occurrencePairwise_row_tests {K m q r s : ℕ} {Aset : Finset �
 
 theorem pkgElim_occurrenceCoeff_integer {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (N : ℕ) (p : Fin q → ℕ) (o : Occurrence Sh) (v : Coordinate Sh)
     (J0 B : ℕ) (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
@@ -4370,7 +4370,7 @@ theorem pkgElim_occurrenceCoeff_integer {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_linearRowValue_integer {K m q r s h d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (eO : Occurrence Sh ≃ Fin h)
     (eX : Coordinate Sh ≃ Fin d) (N : ℕ) (p' : Fin s → ℕ)
@@ -4401,39 +4401,39 @@ theorem pkgElim_linearRowValue_integer {K m q r s h d : ℕ} {Aset : Finset ℚ}
 
 noncomputable def pkgElim_momentOldResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (J0 B N : ℕ) : ℝ :=
-  let V := masterScaleV S.core.parameters N C.gap
+  let V := FromArithmetic.masterScaleV S.core.parameters N C.gap
   let T := (S.primeStage.pool N C.gap).upper + V
   let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
   2 * (T : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ)
 
 noncomputable def pkgElim_momentRootResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (N : ℕ) : ℝ :=
   2 * ((S.primeStage.pool N C.gap).upper +
-    masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) /
+    FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) /
     (S.core.parameters.H N C.gap : ℝ)
 
 noncomputable def pkgElim_momentBaseError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (J0 B N : ℕ) : ℝ :=
   (∑ k : Fin m, FromArithmetic.harmonicResidueUniformError
       (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
-      (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))) +
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))) +
     ((2 * Fintype.card (NonTarget Sh) : ℕ) : ℝ) *
       pkgElim_momentOldResidueError S C Sh J0 B N +
     2 * pkgElim_momentRootResidueError S C Sh N
 
 noncomputable def pkgElim_momentCRTError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) : ℝ := by
   classical
-  let V := masterScaleV S.core.parameters N C.gap
+  let V := FromArithmetic.masterScaleV S.core.parameters N C.gap
   let lo := (S.primeStage.pool N C.gap).lower
   let hi := (S.primeStage.pool N C.gap).upper
   let e := S.primeStage.e0 N
@@ -4495,12 +4495,12 @@ theorem pkgElim_superPolynomialSmall_add {e f V : ℕ → ℝ}
 
 theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (Sh : RowShape m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (Sh : RowShape m q r)
     (J0 B : ℕ) (hJ0 : 0 < J0) :
     SuperPolynomialSmall (fun N => pkgElim_momentBaseError S C Sh J0 B N)
-      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
   classical
-  let V : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV S.core.parameters N C.gap
   let T : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper + V N
   have hVtendsto : Tendsto (fun N => (V N : ℝ)) atTop atTop :=
     pkgElim_masterScaleV_tendsto S.core.parameters C.gap
@@ -4512,7 +4512,7 @@ theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
   have hTnat : ∀ N, 2 ≤ T N := by
     intro N
     dsimp [T, V]
-    have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+    have hV : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
       unfold FromArithmetic.masterScaleV
       omega
     omega
@@ -4574,15 +4574,15 @@ theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
 
 theorem pkgElim_momentCRTError_superpolynomial {K m q r s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (J0 B : ℕ)
     (hGlobalEvent : ∀ᶠ N in atTop,
       pkgElim_momentGlobalData S C a Sh dirs tests J0 B N) :
     SuperPolynomialSmall (fun N => pkgElim_momentCRTError S C a Sh dirs tests J0 B N)
-      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
   classical
-  let V : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV S.core.parameters N C.gap
   let lo : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).lower
   let hi : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper
   let e : ℕ → ℕ := fun N => S.primeStage.e0 N
@@ -4599,7 +4599,7 @@ theorem pkgElim_momentCRTError_superpolynomial {K m q r s : ℕ}
       (tendsto_const_nhds.mul h)
   intro c hc
   have heq : (fun N => pkgElim_momentCRTError S C a Sh dirs tests J0 B N *
-        (masterScaleV S.core.parameters N C.gap : ℝ) ^ c) =ᶠ[atTop]
+        (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ c) =ᶠ[atTop]
       fun N => (s : ℝ) * δ N * (V N : ℝ) ^ c := by
     filter_upwards [hGlobalEvent] with N hN
     simp [pkgElim_momentCRTError, hN, δ, lo, hi, e, V]
@@ -4866,13 +4866,13 @@ theorem pkgElim_tsum_prod_of_finite_support {α β : Type*}
 
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) (hJ0 : 0 < J0)
     (p : Fin q → ℕ) (v : Coordinate Sh) (Kdiv : ℕ) (hKdiv : 0 < Kdiv)
     (hKcop : Nat.Coprime Kdiv (primorial (N + 1)))
     (hKle : Kdiv ≤
-      masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
+      FromArithmetic.masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
     (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
     (hGood : GoodTuple S C.gap N tests dirs.poly p) :
     finiteL1 (integerResidueLaw Kdiv hKdiv
@@ -4880,7 +4880,7 @@ theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     match v with
     | .inl k => FromArithmetic.harmonicResidueUniformError
         (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
-        (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
+        (FromArithmetic.masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
     | .inr (.inl _) => pkgElim_momentOldResidueError S C Sh J0 B N
     | .inr (.inr _) => pkgElim_momentRootResidueError S C Sh N := by
   classical
@@ -4899,13 +4899,13 @@ theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
       (uniformResidueLaw Kdiv) ≤
       FromArithmetic.harmonicResidueUniformError
         (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
-        (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
+        (FromArithmetic.masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
     exact htv.trans hmono
   | inr v =>
     cases v with
     | inl old =>
       rcases hGlobal with ⟨_, hFacts, _, _, hDmin⟩
-      let V := masterScaleV S.core.parameters N C.gap
+      let V := FromArithmetic.masterScaleV S.core.parameters N C.gap
       let T := (S.primeStage.pool N C.gap).upper + V
       let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
       let L := shiftLength S C.gap J0 N dirs.poly p
@@ -4966,8 +4966,8 @@ theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
       have hH : 0 < S.core.parameters.H N C.gap := S.core.parameters.Hpos N C.gap
       have htv := uniformIntegerInterval_residue_tv hKdiv hH
       let T := (S.primeStage.pool N C.gap).upper +
-        masterScaleV S.core.parameters N C.gap
-      have hVleT : masterScaleV S.core.parameters N C.gap ≤ T := by
+        FromArithmetic.masterScaleV S.core.parameters N C.gap
+      have hVleT : FromArithmetic.masterScaleV S.core.parameters N C.gap ≤ T := by
         dsimp [T]
         omega
       have hKleT : Kdiv ≤ T ^ Fintype.card (Occurrence Sh) :=
@@ -4989,7 +4989,7 @@ theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) (hJ0 : 0 < J0)
@@ -5025,14 +5025,14 @@ theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset �
     rw [Nat.coprime_prod_left_iff]
     intro u hu
     exact (hσFacts u).2.2
-  have hKdivLe : Kdiv ≤ masterScaleV S.core.parameters N C.gap ^ h := by
+  have hKdivLe : Kdiv ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap ^ h := by
     dsimp [Kdiv]
     calc
-      _ ≤ ∏ u : Fin h, masterScaleV S.core.parameters N C.gap := by
+      _ ≤ ∏ u : Fin h, FromArithmetic.masterScaleV S.core.parameters N C.gap := by
         apply Finset.prod_le_prod
         intro u hu
         exact (hσFacts u).2.1
-      _ = masterScaleV S.core.parameters N C.gap ^ h := by simp
+      _ = FromArithmetic.masterScaleV S.core.parameters N C.gap ^ h := by simp
   let μ : Fin d → ℤ → ℝ := fun i =>
     coordinateLaw S C Sh dirs J0 N (fun j => p' (ι j)) (eX.symm i)
   let supp : Fin d → Finset ℤ := fun i =>
@@ -5040,7 +5040,7 @@ theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset �
   let errV : Coordinate Sh → ℝ := fun v => match v with
     | .inl k => FromArithmetic.harmonicResidueUniformError
         (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
-        (masterScaleV S.core.parameters N C.gap ^ h)
+        (FromArithmetic.masterScaleV S.core.parameters N C.gap ^ h)
     | .inr (.inl _) => pkgElim_momentOldResidueError S C Sh J0 B N
     | .inr (.inr _) => pkgElim_momentRootResidueError S C Sh N
   let ε : Fin d → ℝ := fun i => errV (eX.symm i)
@@ -5064,7 +5064,7 @@ theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset �
   have hcoordTV : ∀ i : Fin d,
       finiteL1 (integerResidueLaw Kdiv hKdivPos (μ i)) (uniformResidueLaw Kdiv) ≤ ε i := by
     intro i
-    have hKdivLe' : Kdiv ≤ masterScaleV S.core.parameters N C.gap ^
+    have hKdivLe' : Kdiv ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap ^
         Fintype.card (Occurrence Sh) := by
       rw [hCard]
       exact hKdivLe
@@ -5101,7 +5101,7 @@ theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset �
 
 noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (hlisted : TestsListed Dm ι tests) (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
@@ -5115,7 +5115,7 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
     { gap := fun _ => C.gap
       rowCoeff := rowCoeff S ι C a Sh dirs eO eX
       divisor := pkgElim_momentDivisorTemplate C Sh eO F
-      V := fun N => masterScaleV S.core.parameters N C.gap
+      V := fun N => FromArithmetic.masterScaleV S.core.parameters N C.gap
       epsilonBase := pkgElim_momentBaseError S C Sh J0 B
       epsilonCRT := pkgElim_momentCRTError S C a Sh dirs tests J0 B
       baseMass := fun N p' x => coordinateProductLaw S C Sh dirs J0 N
@@ -5144,7 +5144,7 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
     have hpivot (k : Fin m) :
         0 ≤ FromArithmetic.harmonicResidueUniformError
           (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
-          (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh)) := by
+          (FromArithmetic.masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh)) := by
       have hX := S.gapStage.valid_raw_cutoffs N (C.block k).1
       have hW : 0 < primorial (N + 1) := primorial_pos _
       have hXpos : 0 < S.core.parameters.X N (C.block k).1 := by omega
@@ -5242,7 +5242,7 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
       have he : 0 < S.primeStage.e0 N :=
         Nat.lt_of_lt_of_le Nat.zero_lt_one (S.primeStage.e0_pos N)
       have hcrt := primeTupleCRTLaw_finiteL1_le (s := s) (w := N + 1)
-        (e := S.primeStage.e0 N) (V := masterScaleV S.core.parameters N C.gap)
+        (e := S.primeStage.e0 N) (V := FromArithmetic.masterScaleV S.core.parameters N C.gap)
         (lo := (S.primeStage.pool N C.gap).lower)
         (hi := (S.primeStage.pool N C.gap).upper) he hMass
       simpa [pkgElim_momentCRTError, hGlobal] using hcrt
@@ -5252,14 +5252,14 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
 
 theorem pkgElim_occurrenceDivisorNuB_eq_chainWeight {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (o : Occurrence Sh) (N : ℕ) (y : ℤ) :
     nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N
       (occurrenceDivisorTemplate C Sh o)) y =
       chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor y := by
   have hLaw : FromArithmetic.divisorTemplateLaw S.core.parameters N
       (occurrenceDivisorTemplate C Sh o) =
-      parameterTailProductLaw S.core.parameters N
+      FromArithmetic.parameterTailProductLaw S.core.parameters N
         (C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val := by
     funext σ
     exact pkgElim_occurrenceDivisorTemplateLaw_eq S C Sh o N σ
@@ -5268,14 +5268,14 @@ theorem pkgElim_occurrenceDivisorNuB_eq_chainWeight {K m q r s : ℕ} {Aset : Fi
 
 theorem pkgElim_emptyDivisorNuB_eq_one {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (N : ℕ) (y : ℤ) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (y : ℤ) :
     nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (emptyDivisorTemplate K)) y = 1 := by
   exact nuB_divisorTemplate_arity_zero S.core.parameters N (emptyDivisorTemplate K)
     (by rfl) y
 
 theorem pkgElim_weightedDivisorProduct_eq_occurrenceWeights
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (J0 B : ℕ) (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
@@ -5349,7 +5349,7 @@ theorem pkgElim_weightedDivisorProduct_eq_occurrenceWeights
 
 theorem pkgElim_weightedLinearFormsInner_eq_expanded
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (J0 B : ℕ) (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
@@ -5379,7 +5379,7 @@ theorem pkgElim_weightedLinearFormsInner_eq_expanded
 
 theorem pkgElim_weightedMomentAverage_eq_probability_mul
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (hlisted : TestsListed Dm ι tests) (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
@@ -5681,7 +5681,7 @@ noncomputable def pkgElim_coordinatePiecesEquiv {m q r : ℕ}
 
 noncomputable def pkgElim_occurrenceFactor {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
     (o : Occurrence Sh) (x : Coordinate Sh → ℤ) : ℝ :=
   atQ (chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor)
@@ -5689,7 +5689,7 @@ noncomputable def pkgElim_occurrenceFactor {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_targetOccurrenceValue_pieces
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
     (ω : NonTarget Sh → Fin 2) :
@@ -5728,7 +5728,7 @@ theorem pkgElim_sum_except {α M : Type*} [Fintype α] [DecidableEq α]
 
 theorem pkgElim_retainedOccurrenceValue_pieces
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
     (j : Fin 2) (I : NonTarget Sh)
@@ -5810,7 +5810,7 @@ theorem pkgElim_retainedOccurrenceValue_pieces
 
 theorem pkgElim_targetBound_eq_occurrenceProduct
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ) :
     targetBound S C a N dirs p (fun k => (z k : ℚ)) u =
@@ -5826,7 +5826,7 @@ theorem pkgElim_targetBound_eq_occurrenceProduct
 
 theorem pkgElim_retainedWeights_eq_occurrenceProduct
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
     (j : Fin 2) :
@@ -5868,7 +5868,7 @@ theorem pkgElim_retainedWeights_eq_occurrenceProduct
 
 theorem pkgElim_activeOccurrenceProduct_eq
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
     (k : ℕ) :
@@ -6129,7 +6129,7 @@ theorem pkgElim_rootPair_average_power (L : ℕ) (hL : 0 < L)
 
 theorem pkgElim_coordinateProductTsum_powersetExpansion
     {K m q r s d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d)
     (A : Finset (Occurrence Sh)) :
@@ -6187,14 +6187,14 @@ theorem pkgElim_coordinateProductTsum_powersetExpansion
 
 noncomputable def pkgElim_coordinateMapLaw {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (x : Coordinate Sh → ℤ) : ℝ :=
   ∏ v : Coordinate Sh, coordinateLaw S C Sh dirs J0 N p v (x v)
 
 theorem pkgElim_coordinateProductLaw_reindex {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) :
     coordinateProductLaw S C Sh dirs J0 N p eX x =
@@ -6207,7 +6207,7 @@ theorem pkgElim_coordinateProductLaw_reindex {K m q r s d : ℕ} {Aset : Finset 
 
 theorem pkgElim_coordinateMapLaw_pieces {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (z : Fin m → ℤ)
     (old : pkgElim_OldCoordinate Sh → ℤ) (root : Fin 2 → ℤ) :
@@ -6226,7 +6226,7 @@ theorem pkgElim_coordinateMapLaw_pieces {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_coordinateProductAverage_eq_pivotShiftRoot
     {K m q r s d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (J0 B N : ℕ) (hJ0 : 0 < J0) (p : Fin q → ℕ)
     (eX : Coordinate Sh ≃ Fin d)
@@ -6247,7 +6247,7 @@ theorem pkgElim_coordinateProductAverage_eq_pivotShiftRoot
   classical
   rcases hGlobal with ⟨_, hFacts, _, _, hLength⟩
   rcases hFacts p hGood with ⟨_, _, hMpBound, _, _, _, _, _⟩
-  let V := masterScaleV S.core.parameters N C.gap
+  let V := FromArithmetic.masterScaleV S.core.parameters N C.gap
   let T := (S.primeStage.pool N C.gap).upper + V
   let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
   let L := shiftLength S C.gap J0 N dirs.poly p
@@ -6507,7 +6507,7 @@ theorem pkgElim_coordinateProductAverage_eq_pivotShiftRoot
 
 theorem pkgElim_activeOccurrenceCoordinateAverage
     {K m q r s d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) (hJ0 : 0 < J0)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d)
@@ -6591,7 +6591,7 @@ theorem pkgElim_activeOccurrenceCoordinateAverage
 
 theorem pkgElim_goodSlotAverage_sum
     {K s q : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ)
     (good : (Fin q → ℕ) → Prop) {α : Type*} [Fintype α] [DecidableEq α]
     (A : Finset α) (F : α → (Fin q → ℕ) → ℝ) :
     goodSlotAverage S l N good (fun p => ∑ a ∈ A, F a p) =
@@ -6656,7 +6656,7 @@ theorem pkgElim_goodSlotAverage_sum
 
 theorem pkgElim_eliminationMoment_eq_powersetSum
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
@@ -6720,7 +6720,7 @@ theorem pkgElim_eliminationMoment_eq_powersetSum
 
 theorem pkgElim_expandedAuxiliaryMoment_tendsto_one
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ i, a i ∈ Aset)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (hlisted : TestsListed Dm ι tests)

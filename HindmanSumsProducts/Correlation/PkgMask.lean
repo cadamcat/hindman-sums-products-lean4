@@ -2666,11 +2666,11 @@ theorem chainWeight_div_eq_of_prime_gt {K s m : ℕ} {Aset : Finset ℚ}
   · exact hdiv
 
 theorem chainWeight_rat_div_mul_eq_of_prime_gt {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (p₀ p₁ : ℕ)
     (hp₀ : p₀.Prime) (hp₁ : p₁.Prime)
-    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
-    (hV₁ : masterScaleV S.core.parameters N C.gap < p₁)
+    (hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p₀)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p₁)
     (hne : p₀ ≠ p₁) (y : ℤ)
     (hden : (((p₀ : ℚ) / (p₁ : ℚ)) * (y : ℚ)).den = 1) :
     chainWeight S.core.parameters C N d
@@ -3423,12 +3423,12 @@ theorem RowTemplate.scaleBranch_parallel_factor_eq {m q : ℕ}
     simp [hsingle, hfactor]
 
 theorem chainWeight_scaleBranch_invariant {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) {q : ℕ}
     (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
     (hp : ∀ i, p i ≠ 0) (hp₀ : (p 0).Prime) (hp₁ : (p 1).Prime)
-    (hV₀ : masterScaleV S.core.parameters N C.gap < p 0)
-    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 0)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 1)
     (hne : p 0 ≠ p 1) (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u))
     (y : ℤ)
     (hden : ((∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * (y : ℚ)).den = 1) :
@@ -3604,13 +3604,13 @@ theorem RowTemplate.scaleBalanced_parallel_factor_eq {m q : ℕ}
     simp [hsingleV, hnotU, hfactor, Ne.symm huv]
 
 theorem chainWeight_scaleBalanced_invariant {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) {q : ℕ}
     (T : RowTemplate m q) (u v : Fin m) (huv : u ≠ v)
     (p : Fin (q + 2) → ℕ) (hp : ∀ i, p i ≠ 0)
     (hp₀ : (p 0).Prime) (hp₁ : (p 1).Prime)
-    (hV₀ : masterScaleV S.core.parameters N C.gap < p 0)
-    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 0)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 1)
     (hne : p 0 ≠ p 1)
     (hpar : (T.scaleBalancedP u v).Parallel (T.scaleBalancedQ u v))
     (y : ℤ)
