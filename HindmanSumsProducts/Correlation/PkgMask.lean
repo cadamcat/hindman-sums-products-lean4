@@ -1277,6 +1277,41 @@ theorem harmonicProductLaw_eq_finite_sum {q : ℕ}
   unfold harmonicProductLaw
   exact tsum_eq_sum (s := D) hzero
 
+def finsetComplement {α : Type*} [Fintype α] [DecidableEq α] (T : Finset α) : Finset α :=
+  Finset.univ.filter fun i => i ∉ T
+
+def piFinsetSplit {n : ℕ} [DecidableEq (Fin n)] (T : Finset (Fin n)) :
+    (Fin n → ℕ) ≃ ((∀ i : T, ℕ) × ∀ i : finsetComplement T, ℕ) := by
+  have hdisj : Disjoint T (finsetComplement T) := by
+    apply Finset.disjoint_left.mpr
+    intro i hiT hiC
+    exact (Finset.mem_filter.mp hiC).2 hiT
+  have hunion : T ∪ finsetComplement T = Finset.univ := by
+    ext i
+    constructor
+    · intro _
+      exact Finset.mem_univ i
+    · intro _
+      by_cases hi : i ∈ T
+      · exact Finset.mem_union.mpr (Or.inl hi)
+      · exact Finset.mem_union.mpr
+          (Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi⟩))
+  let eUnion : {i : Fin n // i ∈ T ∪ finsetComplement T} ≃ Fin n := {
+    toFun := fun i => i.val
+    invFun := fun i =>
+      ⟨i, by
+        change i ∈ T ∪ finsetComplement T
+        rw [hunion]
+        exact Finset.mem_univ i⟩
+    left_inv := fun i => by
+      apply Subtype.ext
+      rfl
+    right_inv := fun _ => rfl
+  }
+  exact ((Equiv.piFinsetUnion (fun _ : Fin n => ℕ) hdisj).trans
+    (Equiv.piCongrLeft'
+      (fun _ : {i : Fin n // i ∈ T ∪ finsetComplement T} => ℕ) eUnion)).symm
+
 theorem harmonicLaw_summable (X W : ℕ) : Summable (harmonicLaw X W) := by
   classical
   let S : Finset ℕ := (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
