@@ -1061,4 +1061,154 @@ noncomputable def c_test2_completeRows {m q r : ℕ} (Sh : RowShape m q r)
     · intro K s Aset Dm S C a N f
       rfl
 
+def c_test2_rootOffsetScale {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a j : Fin m) (E N : ℕ) : ℕ :=
+  (m + maskRowBound m + 2) *
+      (S.core.parameters.H N (C.block a).1) ^ (E + 3) +
+    ((S.primeStage.pool N C.gap).upper +
+      FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ (E + 1) *
+      (S.core.parameters.X N (C.block j).1) ^ 2
+
+private theorem c_test2_pivotGap_eventually_large {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (i : Fin n) (B : ℕ) :
+    ∀ᶠ N in atTop, B ≤ A.H N i := by
+  let E : ℕ → ℝ := fun N =>
+    OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+      (fun N => OAI.SourceAdmissible.previous (A.X N) i) N
+  have hlarge := (A.Hdom i 1 (by norm_num)).eventually_ge_atTop (B : ℝ)
+  filter_upwards [hlarge] with N hN
+  have hEone : 1 ≤ E N := by
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale]
+    have hM : 0 ≤ (A.M N : ℝ) := Nat.cast_nonneg _
+    have hP : 0 ≤ (OAI.SourceAdmissible.previous (A.X N) i : ℝ) := Nat.cast_nonneg _
+    linarith
+  have hN' : (B : ℝ) ≤ (A.H N i : ℝ) / E N := by
+    simpa [E, Real.rpow_one] using hN
+  have hHnonneg : 0 ≤ (A.H N i : ℝ) := by positivity
+  have hdiv : (A.H N i : ℝ) / E N ≤ A.H N i := div_le_self hHnonneg hEone
+  exact_mod_cast le_trans hN' hdiv
+
+theorem c_test2_rootSamplerScaleFacts {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a j : Fin m) (hja : j < a) (E : ℕ) (k b : ℕ → ℕ)
+    (hkbound : ∀ N, k N ≤
+      ((S.primeStage.pool N C.gap).upper +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ E)
+    (hbBound : ∀ N, b N ≤
+      ((S.primeStage.pool N C.gap).upper +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ (E + 1)) :
+    (∀ N, b N * (S.core.parameters.X N (C.block j).1) ^ 2 ≤
+      c_test2_rootOffsetScale S C a j E N) ∧
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (S.core.parameters.X N (C.block a).1 : ℝ))
+      (fun N => ((2 + primorial (N + 1) + k N +
+        c_test2_rootOffsetScale S C a j E N +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap : ℕ) : ℝ)) ∧
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (S.core.parameters.X N (C.block j).1 : ℝ))
+      (fun N => ((2 + primorial (N + 1) + k N +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap : ℕ) : ℝ)) := by
+  let A := S.core.parameters
+  let size : ℕ → ℕ := fun N =>
+    (S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV A N C.gap
+  have hsizeA := c_test2_masterSize_le_pivotGap_eventually S C a
+    (C.pivots_after_gap a)
+  have hsizeJ := c_test2_masterSize_le_pivotGap_eventually S C j
+    (C.pivots_after_gap j)
+  have hprevA := c_test2_previous_le_gap_eventually A (C.block a).1
+  have hXjPrev : ∀ N,
+      A.X N (C.block j).1 ≤ OAI.SourceAdmissible.previous (A.X N) (C.block a).1 :=
+    c_test2_pivot_cutoff_le_previous A C j a hja
+  have hAlarge := c_test2_pivotGap_eventually_large A (C.block a).1
+    (m + maskRowBound m + 5)
+  have hJlarge := c_test2_pivotGap_eventually_large A (C.block j).1 4
+  have hWleV : ∀ N, primorial (N + 1) ≤ FromArithmetic.masterScaleV A N C.gap := by
+    intro N
+    have hWM := A.Wle N
+    unfold FromArithmetic.masterScaleV
+    omega
+  have hBoundA : ∀ᶠ N in atTop,
+      2 + primorial (N + 1) + k N + c_test2_rootOffsetScale S C a j E N +
+          FromArithmetic.masterScaleV A N C.gap ≤
+        (A.H N (C.block a).1) ^ (E + 4) := by
+    filter_upwards [hsizeA, hprevA, hAlarge] with N hsize hprev hlarge
+    let x := A.H N (C.block a).1
+    have hx4 : 4 ≤ x := by omega
+    have hsizeLe : size N ≤ x := by simpa [size] using hsize
+    have hXjLe : A.X N (C.block j).1 ≤ x :=
+      (hXjPrev N).trans (by simpa using hprev)
+    have hVle : FromArithmetic.masterScaleV A N C.gap ≤ x := by
+      have htmp : size N ≤ x := hsizeLe
+      dsimp [size] at htmp
+      omega
+    have hWle : primorial (N + 1) ≤ x := (hWleV N).trans hVle
+    have hkx : k N ≤ x ^ E := by
+      calc
+        k N ≤ size N ^ E := hkbound N
+        _ ≤ x ^ E := Nat.pow_le_pow_left hsizeLe E
+    have hrootTerm :
+        size N ^ (E + 1) * (A.X N (C.block j).1) ^ 2 ≤ x ^ (E + 3) := by
+      calc
+        _ ≤ x ^ (E + 1) * x ^ 2 := by
+          exact Nat.mul_le_mul
+            (Nat.pow_le_pow_left hsizeLe (E + 1))
+            (Nat.pow_le_pow_left hXjLe 2)
+        _ = x ^ (E + 3) := by rw [← Nat.pow_add]
+    have hrootLe : c_test2_rootOffsetScale S C a j E N ≤
+        (m + maskRowBound m + 3) * x ^ (E + 3) := by
+      change (m + maskRowBound m + 2) * x ^ (E + 3) +
+          size N ^ (E + 1) * (A.X N (C.block j).1) ^ 2 ≤
+        (m + maskRowBound m + 3) * x ^ (E + 3)
+      calc
+        _ ≤ (m + maskRowBound m + 2) * x ^ (E + 3) + x ^ (E + 3) :=
+          Nat.add_le_add_left hrootTerm _
+        _ = ((m + maskRowBound m + 2) + 1) * x ^ (E + 3) := by
+          ring
+        _ = (m + maskRowBound m + 3) * x ^ (E + 3) := by congr 1 <;> omega
+    have htarget :
+        2 + primorial (N + 1) + k N + c_test2_rootOffsetScale S C a j E N +
+          FromArithmetic.masterScaleV A N C.gap ≤
+        2 + 2 * x + x ^ E + (m + maskRowBound m + 3) * x ^ (E + 3) := by
+      omega
+    exact htarget.trans (by
+      simpa [x] using c_test2_natSamplerTargetBound
+        (x := x) (c := m + maskRowBound m + 3) (e := E) hx4 (by omega))
+  have hBoundJ : ∀ᶠ N in atTop,
+      2 + primorial (N + 1) + k N + FromArithmetic.masterScaleV A N C.gap ≤
+        (A.H N (C.block j).1) ^ (E + 4) := by
+    filter_upwards [hsizeJ, hJlarge] with N hsize hlarge
+    let x := A.H N (C.block j).1
+    have hx4 : 4 ≤ x := by omega
+    have hsizeLe : size N ≤ x := by simpa [size] using hsize
+    have hVle : FromArithmetic.masterScaleV A N C.gap ≤ x := by
+      dsimp [size] at hsizeLe
+      omega
+    have hWle : primorial (N + 1) ≤ x := (hWleV N).trans hVle
+    have hkx : k N ≤ x ^ E := by
+      calc
+        k N ≤ size N ^ E := hkbound N
+        _ ≤ x ^ E := Nat.pow_le_pow_left hsizeLe E
+    have htarget :
+        2 + primorial (N + 1) + k N + FromArithmetic.masterScaleV A N C.gap ≤
+          2 + 2 * x + x ^ E := by omega
+    exact htarget.trans (by
+      simpa [x] using c_test2_natSamplerTargetBound
+        (x := x) (c := 0) (e := E) hx4 (by omega))
+  refine ⟨?_, ?_, ?_⟩
+  · intro N
+    have hsizePos : 0 < size N := by
+      dsimp [size, FromArithmetic.masterScaleV]
+      omega
+    exact (Nat.mul_le_mul_right _ (hbBound N)).trans (Nat.le_add_left _ _)
+  · exact c_test2_cutoffLog_dominates_powerTarget A (C.block a).1
+      (fun N => 2 + primorial (N + 1) + k N + c_test2_rootOffsetScale S C a j E N +
+        FromArithmetic.masterScaleV A N C.gap)
+      (fun _ => by omega) (E + 4) (by omega) hBoundA
+  · exact c_test2_cutoffLog_dominates_powerTarget A (C.block j).1
+      (fun N => 2 + primorial (N + 1) + k N + FromArithmetic.masterScaleV A N C.gap)
+      (fun _ => by omega) (E + 4) (by omega) hBoundJ
+
 end HindmanSumsProducts
