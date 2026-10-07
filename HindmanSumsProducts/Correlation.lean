@@ -33,10 +33,10 @@ open FromArithmetic
 `p ∼ λ_l`, `E F(Y)=E F(pY)+o(1)` uniformly over `|F| ≤ V_l^A`. Parameters are covered by the
 uniformity in `F`. -/
 theorem prime_insertion_average {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l i : Fin K)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K)
     (hli : l < i) (A : ℝ) :
     ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ F : ℤ → ℝ,
-      (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      (∀ y, |F y| ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) →
       |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y * F y) -
         poolAverage S l N fun p =>
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
@@ -47,20 +47,20 @@ theorem prime_insertion_average {K s : ℕ} {Aset : Finset ℚ}
 uniformly in `k`, the total mass `‖Law(kY)-k1_{k∣Y}μ_i‖₁` is smaller than every fixed negative
 power of `P_l^++V_l`, and hence `E F(kY)=E k1_{k∣Y}F(Y)+o(1)` uniformly over `|F| ≤ V_l^A`. -/
 theorem prime_insertion_fixed_dilation {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l i : Fin K)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K)
     (hli : l < i) (B : ℕ) :
     (∀ C : ℝ, 0 < C → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
       Nat.Coprime k (primorial (N + 1)) →
-      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-      (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+      k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+      (((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
         arithmeticL1
           (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
           (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
         ≤ ε) ∧
     ∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
       Nat.Coprime k (primorial (N + 1)) →
-      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-      ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+      ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) →
         |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
             F ((k : ℤ) * y)) -
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
@@ -69,10 +69,10 @@ theorem prime_insertion_fixed_dilation {K s : ℕ} {Aset : Finset ℚ}
 
 /-- Lemma `lem:prime-insertion` (04:61–111), both assertions. -/
 theorem prime_insertion {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l i : Fin K)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K)
     (hli : l < i) :
     (∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ F : ℤ → ℝ,
-      (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      (∀ y, |F y| ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) →
       |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y * F y) -
         poolAverage S l N fun p =>
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
@@ -80,16 +80,16 @@ theorem prime_insertion {K s : ℕ} {Aset : Finset ℚ}
     ∀ B : ℕ,
       (∀ C : ℝ, 0 < C → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
         Nat.Coprime k (primorial (N + 1)) →
-        k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-        (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+        k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+        (((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
           arithmeticL1
             (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
             (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
           ≤ ε) ∧
       ∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
         Nat.Coprime k (primorial (N + 1)) →
-        k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-        ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+        k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+        ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) →
           |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
               F ((k : ℤ) * y)) -
             ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
@@ -124,7 +124,7 @@ theorem weighted_mask_removal (m : ℕ) (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jst
       r ≤ maskRowBound m ∧ q ≤ 2 * maskCount m ∧ (Sh.row Sh.star).support = Jstar ∧
       (∀ P ∈ tests, P ≠ 0) ∧ 0 < Cm ∧
       ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-        (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
       ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
       ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ b g : Finset (Fin m) → ℤ → ℝ,
         FunctionsValid S.core.parameters C N b g →
@@ -153,7 +153,7 @@ satisfies `IntegerDirectionFacts`. -/
 def RowDirections.IntegerConclusions {m q r : ℕ} {Sh : RowShape m q r}
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (B : ℕ) : Prop :=
   ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
   ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
     Tendsto (fun N => gapSlotProbability S C.gap N fun p =>
       ¬ GoodTuple S C.gap N tests dirs.poly p) atTop (𝓝 0) ∧
@@ -190,7 +190,7 @@ theorem additive_elimination_auxiliary_moments {m q r : ℕ} (Sh : RowShape m q 
     (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
     (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
     ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-      (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
     ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
     ∀ J0 : ℕ, 0 < J0 →
       Tendsto (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
@@ -216,7 +216,7 @@ theorem weighted_additive_elimination {m q r : ℕ} (Sh : RowShape m q r)
     (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
     ∃ Cm : ℝ, 0 < Cm ∧
       ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-        (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
       ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
       ∀ J0 : ℕ, 0 < J0 → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
         ∀ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
@@ -277,14 +277,14 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
     (hJcard : 2 ≤ Jstar.card) :
     ∃ T : CubeTemplate, 1 ≤ T.d ∧ T.d ≤ maskRowBound m - 1 ∧ ∃ Cm : ℝ, 0 < Cm ∧ ∃ B : ℕ,
       ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-        (S : MasterScales K Aset s Dm) (ι : Fin T.q ↪ Fin s), TestsListed Dm ι T.tests →
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin T.q ↪ Fin s), TestsListed Dm ι T.tests →
       ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
         (∀ N p, T.Good S C.gap N p → T.modulus S N p ∣ S.core.parameters.H N C.gap) ∧
         Tendsto (fun N => gapSlotProbability S C.gap N fun p => ¬ T.Good S C.gap N p)
           atTop (𝓝 0) ∧
         (∀ᶠ N in atTop, ∀ p, T.Good S C.gap N p →
           T.modulus S N p ≤
-            ((S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap) ^ B) ∧
+            ((S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B) ∧
         ∀ J0s : Finset ℕ, (∀ J0 ∈ J0s, 0 < J0) → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
           ∀ J0 ∈ J0s, ∀ b g : Finset (Fin m) → ℤ → ℝ,
             FunctionsValid S.core.parameters C N b g →
