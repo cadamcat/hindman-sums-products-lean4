@@ -241,17 +241,16 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
     (F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
     eliminationAverage S C N dirs tests J0 F =
       (gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
-        ∑ x : {x : (Fin q → ℕ) × (Fin m → ℤ) //
-            x ∈ c_elim2_independentPrimeSupport
-              (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
-              (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) ×ˢ
-              c_elim2_pivotSupport S.core.parameters C N},
-          gapSlotMass S C.gap N x.1.1 *
-            c_elim2_goodIndicator S C N Sh dirs tests x.1.1 *
-            pivotMass S.core.parameters C N x.1.2 *
-            shiftAverage (NonTarget Sh)
-              (shiftLength S C.gap J0 N dirs.poly x.1.1)
-              (F x.1.1 (fun k => (x.1.2 k : ℚ))) := by
+        ∑ p : {p : Fin q → ℕ // p ∈ c_elim2_independentPrimeSupport
+            (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+            (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)},
+          ∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+            gapSlotMass S C.gap N p.1 *
+              c_elim2_goodIndicator S C N Sh dirs tests p.1 *
+              pivotMass S.core.parameters C N z.1 *
+              shiftAverage (NonTarget Sh)
+                (shiftLength S C.gap J0 N dirs.poly p.1)
+                (F p.1 (fun k => (z.1 k : ℚ))) := by
   classical
   let Good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
   let Psupport : Finset (Fin q → ℕ) :=
@@ -326,25 +325,28 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
       exact hinner p
     _ = _ := by
       congr 1
-      let Pairs := Psupport ×ˢ Zsupport
       let g (p : Fin q → ℕ) (z : Fin m → ℤ) :=
         gapSlotMass S C.gap N p * c_elim2_goodIndicator S C N Sh dirs tests p *
           pivotMass S.core.parameters C N z *
           shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
             (F p (fun k => (z k : ℚ)))
-      have hpair :
-          (∑ p ∈ Psupport, ∑ z ∈ Zsupport, g p z) =
-            ∑ x : {x : (Fin q → ℕ) × (Fin m → ℤ) // x ∈ Pairs},
-              g x.1.1 x.1.2 := by
-        calc
-          _ = ∑ x ∈ Pairs, g x.1 x.2 :=
-            (Finset.sum_product' Psupport Zsupport g).symm
-          _ = ∑ x : {x : (Fin q → ℕ) × (Fin m → ℤ) // x ∈ Pairs},
-              g x.1.1 x.1.2 := by
-                simpa only [Finset.attach_eq_univ] using
-                  (Finset.sum_attach Pairs (fun x : (Fin q → ℕ) × (Fin m → ℤ) =>
-                    g x.1 x.2)).symm
-      simpa [Pairs, Psupport, Zsupport, g] using hpair
+      let ZSub := {z : Fin m → ℤ // z ∈ Zsupport}
+      let PSub := {p : Fin q → ℕ // p ∈ Psupport}
+      have hZsum (p : Fin q → ℕ) :
+          (∑ z ∈ Zsupport, g p z) = ∑ z : ZSub, g p z.1 := by
+        simpa only [Finset.attach_eq_univ] using
+          (Finset.sum_attach Zsupport (fun z => g p z)).symm
+      have hPsum :
+          (∑ p ∈ Psupport, ∑ z : ZSub, g p z.1) =
+            ∑ p : PSub, ∑ z : ZSub, g p.1 z.1 := by
+        simpa only [Finset.attach_eq_univ] using
+          (Finset.sum_attach Psupport (fun p => ∑ z : ZSub, g p z.1)).symm
+      calc
+        _ = ∑ p ∈ Psupport, ∑ z : ZSub, g p z.1 := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          exact hZsum p
+        _ = _ := hPsum
 
 noncomputable def c_elim2_shiftRangeEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (L : ℕ) :
