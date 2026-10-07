@@ -169,7 +169,8 @@ theorem row_directions_polynomial {m q r : ℕ} (Sh : RowShape m q r) :
 /-- The conclusions of the second part of Lemma `lem:row-directions` for fixed directions and
 tests, with size exponent `B`: for all master scales whose list contains the tests, every chain
 and multipliers from `Aset`, (i) the non-good tuples have probability `o(1)` (04:378–380),
-(ii) `M(p) ∣ R_l` on good tuples (04:610–611, 702–704), (iii) eventually every good tuple
+(ii) `M(p) ∣ R_l` on good tuples for all large `N` (04:610–611, 702–704; at small `N` the
+modulus need not divide `R_l`), (iii) eventually every good tuple
 satisfies `IntegerDirectionFacts`. -/
 def RowDirections.IntegerConclusions {m q r : ℕ} {Sh : RowShape m q r}
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (B : ℕ) : Prop :=
@@ -178,7 +179,7 @@ def RowDirections.IntegerConclusions {m q r : ℕ} {Sh : RowShape m q r}
   ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
     Tendsto (fun N => gapSlotProbability S C.gap N fun p =>
       ¬ GoodTuple S C.gap N tests dirs.poly p) atTop (𝓝 0) ∧
-    (∀ N p, GoodTuple S C.gap N tests dirs.poly p →
+    (∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
       directionModulus S N dirs.poly p ∣ S.core.parameters.H N C.gap) ∧
     ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
       IntegerDirectionFacts S C a N dirs tests B p
@@ -300,7 +301,7 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
       ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
         (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin T.q ↪ Fin s), TestsListed Dm ι T.tests →
       ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
-        (∀ N p, T.Good S C.gap N p → T.modulus S N p ∣ S.core.parameters.H N C.gap) ∧
+        (∀ᶠ N in atTop, ∀ p, T.Good S C.gap N p → T.modulus S N p ∣ S.core.parameters.H N C.gap) ∧
         Tendsto (fun N => gapSlotProbability S C.gap N fun p => ¬ T.Good S C.gap N p)
           atTop (𝓝 0) ∧
         (∀ᶠ N in atTop, ∀ p, T.Good S C.gap N p →
