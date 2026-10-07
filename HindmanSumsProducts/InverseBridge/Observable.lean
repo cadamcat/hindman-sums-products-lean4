@@ -338,6 +338,38 @@ private theorem realTranslationCoordinate_lieBCH {L : Type*} [LieRing L] [LieAlg
     _ = realTranslationCoordinate F x + realTranslationCoordinate F y := by
           rw [(TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ).map_add, ← hcoord, ← hcoord]
 
+private noncomputable def realTranslationElement {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (c : ℝ) : (weightFiltration F hs).realification.Group :=
+  ⟨c • realDhat F⟩
+
+private theorem realTranslationElement_coord {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (c : ℝ) :
+    realTranslationCoordinate F (realTranslationElement F hs c).coord = c := by
+  simp [realTranslationElement, realTranslationCoordinate, rLinReal, realDhat,
+    rLin, Dhat, TensorProduct.AlgebraTensorModule.rid_tmul]
+
+private theorem realTranslationElement_mul {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (c d : ℝ) :
+    realTranslationElement F hs c * realTranslationElement F hs d =
+      realTranslationElement F hs (c + d) := by
+  apply NilpotentLieBCHGroup.ext
+  change lieBCH (2 * s) (c • realDhat F) (d • realDhat F) = (c + d) • realDhat F
+  rw [lieBCH_eq_add_of_lie_eq_zero
+    (weightFiltration F hs).realification.lowerCentralSeries_eq_bot]
+  · rw [add_smul]
+  · simp
+
+private theorem realTranslationCoordinate_group_mul {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (g h : (weightFiltration F hs).realification.Group) :
+    realTranslationCoordinate F (g * h).coord =
+      realTranslationCoordinate F g.coord + realTranslationCoordinate F h.coord := by
+  change realTranslationCoordinate F (lieBCH (2 * s) g.coord h.coord) = _
+  exact realTranslationCoordinate_lieBCH F hs g.coord h.coord
+
 /-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
 theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
     (H : Y → ℝ) (x : X) :
