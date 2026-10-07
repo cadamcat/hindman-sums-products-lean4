@@ -2607,4 +2607,276 @@ theorem c_test2_shiftAverage_tsum_commute {ι β : Type*} [Fintype ι] [Decidabl
       intro b
       ring
 
+theorem c_test2_integerResidue_natMod {K : ℕ} (hK : 0 < K) {z : ℤ}
+    (hz : 0 ≤ z) :
+    FromArithmetic.integerResidue K hK z = ⟨z.toNat % K, Nat.mod_lt _ hK⟩ := by
+  apply Fin.ext
+  have hKz : (0 : ℤ) < (K : ℤ) := by exact_mod_cast hK
+  have hleft := Int.toNat_of_nonneg (Int.emod_nonneg z (Int.ne_of_gt hKz))
+  have hright : (((z.toNat % K : ℕ) : ℤ)) = z % (K : ℤ) := by
+    rw [Int.natCast_mod, Int.toNat_of_nonneg hz]
+  have hcast : ((z % (K : ℤ)).toNat : ℤ) = ((z.toNat % K : ℕ) : ℤ) := by
+    rw [hleft, hright]
+  exact_mod_cast hcast
+
+theorem c_test2_harmonicResidueLaw_tsum_one {X W K : ℕ} (hK : 0 < K)
+    (hX : 0 < X) (hZ : 0 < harmonicNormalizer X W) :
+    ∑ a : Fin K, harmonicResidueLaw (harmonicLaw X W) K a = 1 := by
+  classical
+  let support := c_test2_harmonicIntSupport X
+  have hzero (a : Fin K) (z : ℤ) (hz : z ∉ support) :
+      (if 0 ≤ z ∧ z.toNat % K = a.val then harmonicLaw X W z else 0) = 0 := by
+    by_cases hc : 0 ≤ z ∧ z.toNat % K = a.val
+    · rw [if_pos hc, c_test2_harmonicLaw_zero_outside (by simpa [support] using hz)]
+    · simp [hc]
+  have hsum (a : Fin K) :
+      harmonicResidueLaw (harmonicLaw X W) K a =
+        ∑ z ∈ support,
+          if 0 ≤ z ∧ z.toNat % K = a.val then harmonicLaw X W z else 0 := by
+    unfold harmonicResidueLaw
+    exact tsum_eq_sum (s := support) (hzero a)
+  have hpartition (z : ℤ) (hz : z ∈ support) :
+      (∑ a : Fin K,
+        if 0 ≤ z ∧ z.toNat % K = a.val then harmonicLaw X W z else 0) =
+        harmonicLaw X W z := by
+    have hzIco : z ∈ Finset.Ico (X : ℤ) (X ^ 2 : ℤ) := by
+      simpa [support, c_test2_harmonicIntSupport] using hz
+    have hX0 : (0 : ℤ) ≤ (X : ℤ) := by exact_mod_cast Nat.zero_le X
+    have hz0 : 0 ≤ z := hX0.trans (Finset.mem_Ico.mp hzIco).1
+    let a : Fin K := ⟨z.toNat % K, Nat.mod_lt _ hK⟩
+    rw [Finset.sum_eq_single a]
+    · simp [hz0, a]
+    · intro b hb hba
+      have hneq : z.toNat % K ≠ b.val := by
+        intro hv
+        exact hba (Fin.ext hv.symm)
+      simp [hz0, hneq]
+    · simp
+  calc
+    _ = ∑ a : Fin K, ∑ z ∈ support,
+          if 0 ≤ z ∧ z.toNat % K = a.val then harmonicLaw X W z else 0 := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          exact hsum a
+    _ = ∑ z ∈ support, ∑ a : Fin K,
+          if 0 ≤ z ∧ z.toNat % K = a.val then harmonicLaw X W z else 0 := by
+          rw [Finset.sum_comm]
+    _ = ∑ z ∈ support, harmonicLaw X W z := by
+          apply Finset.sum_congr rfl
+          intro z hz
+          exact hpartition z hz
+    _ = 1 := by
+          have hLaw := c_test2_harmonicLaw_tsum_one hX hZ
+          rw [← hLaw]
+          symm
+          apply tsum_eq_sum (s := support)
+          intro z hz
+          exact c_test2_harmonicLaw_zero_outside (by simpa [support] using hz)
+
+theorem c_test2_productPushforwardLaw {ι α β : Type*} [Fintype ι] [DecidableEq ι]
+    [Countable α] [DecidableEq β]
+    (μ : ι → α → ℝ) (support : ι → Finset α)
+    (hzero : ∀ i x, x ∉ support i → μ i x = 0)
+    (f : ι → α → β) (r : ι → β) :
+    (∑' x : ι → α, (∏ i, μ i (x i)) *
+      (if (fun i => f i (x i)) = r then (1 : ℝ) else 0)) =
+      ∏ i, ∑' x : α, μ i x * (if f i x = r i then (1 : ℝ) else 0) := by
+  classical
+  let domain : Finset (ι → α) := Fintype.piFinset support
+  let e := c_test2_piFinsetSubtypeEquiv support
+  have hzeroProd (x : ι → α) (hx : x ∉ domain) :
+      (∏ i, μ i (x i)) * (if (fun i => f i (x i)) = r then (1 : ℝ) else 0) = 0 := by
+    have hnot : ¬ ∀ i, x i ∈ support i := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    rw [Finset.prod_eq_zero (Finset.mem_univ i) (hzero i (x i) hi)]
+    simp
+  have htsum :
+      (∑' x : ι → α, (∏ i, μ i (x i)) *
+        (if (fun i => f i (x i)) = r then (1 : ℝ) else 0)) =
+        ∑ x ∈ domain, (∏ i, μ i (x i)) *
+          (if (fun i => f i (x i)) = r then (1 : ℝ) else 0) :=
+    tsum_eq_sum (s := domain) hzeroProd
+  have hattach :
+      (∑ x ∈ domain, (∏ i, μ i (x i)) *
+        (if (fun i => f i (x i)) = r then (1 : ℝ) else 0)) =
+        ∑ x : domain, (∏ i, μ i (x.1 i)) *
+          (if (fun i => f i (x.1 i)) = r then (1 : ℝ) else 0) := by
+    rw [← Finset.sum_attach]
+    simp
+  have htransport :
+      (∑ x : domain, (∏ i, μ i (x.1 i)) *
+        (if (fun i => f i (x.1 i)) = r then (1 : ℝ) else 0)) =
+        ∑ x : ∀ i, {a : α // a ∈ support i},
+          ∏ i, μ i (x i).1 * (if f i (x i).1 = r i then (1 : ℝ) else 0) := by
+    apply Fintype.sum_equiv e
+    intro x
+    by_cases hx : (fun i => f i (x.1 i)) = r
+    · have hcoord : ∀ i, f i (x.1 i) = r i := fun i => congrFun hx i
+      simp [e, c_test2_piFinsetSubtypeEquiv, hx, hcoord]
+    · have hcoord : ∃ i, f i (x.1 i) ≠ r i := by
+        by_contra h
+        apply hx
+        funext i
+        exact Classical.not_not.mp (fun hn : f i (x.1 i) ≠ r i => h ⟨i, hn⟩)
+      obtain ⟨i, hi⟩ := hcoord
+      have hprodZero :
+          (∏ j, μ j (x.1 j) * (if f j (x.1 j) = r j then (1 : ℝ) else 0)) = 0 := by
+        apply Finset.prod_eq_zero (Finset.mem_univ i)
+        simp [hi]
+      have hprodZero' :
+          (∏ j, if f j (x.1 j) = r j then μ j (x.1 j) else 0) = 0 := by
+        apply Finset.prod_eq_zero (Finset.mem_univ i)
+        simp [hi]
+      simp [e, c_test2_piFinsetSubtypeEquiv, hx, hprodZero, hprodZero']
+  have hprodSum :
+      (∑ x : ∀ i, {a : α // a ∈ support i},
+        ∏ i, μ i (x i).1 * (if f i (x i).1 = r i then (1 : ℝ) else 0)) =
+        ∏ i, ∑ x : {a : α // a ∈ support i},
+          μ i x.1 * (if f i x.1 = r i then (1 : ℝ) else 0) := by
+    symm
+    exact Fintype.prod_sum fun i (x : {a : α // a ∈ support i}) =>
+      μ i x.1 * (if f i x.1 = r i then (1 : ℝ) else 0)
+  have hcoordSum (i : ι) :
+      (∑ x : {a : α // a ∈ support i},
+        μ i x.1 * (if f i x.1 = r i then (1 : ℝ) else 0)) =
+        ∑' x : α, μ i x * (if f i x = r i then (1 : ℝ) else 0) := by
+    let term : α → ℝ := fun x => μ i x * (if f i x = r i then (1 : ℝ) else 0)
+    calc
+      _ = ∑ x ∈ support i, term x := by
+        change (∑ x : {a : α // a ∈ support i}, term x.1) =
+          ∑ x ∈ support i, term x
+        rw [← Finset.sum_subtype (s := support i) (h := fun _ => Iff.rfl)]
+      _ = ∑' x : α, term x := (tsum_eq_sum (s := support i) (by
+        intro x hx
+        simp [term, hzero i x hx])).symm
+  calc
+    _ = ∑ x ∈ domain, (∏ i, μ i (x i)) *
+          (if (fun i => f i (x i)) = r then (1 : ℝ) else 0) := htsum
+    _ = ∑ x : domain, (∏ i, μ i (x.1 i)) *
+          (if (fun i => f i (x.1 i)) = r then (1 : ℝ) else 0) := hattach
+    _ = ∑ x : ∀ i, {a : α // a ∈ support i},
+          ∏ i, μ i (x i).1 * (if f i (x i).1 = r i then (1 : ℝ) else 0) := htransport
+    _ = ∏ i, ∑ x : {a : α // a ∈ support i},
+          μ i x.1 * (if f i x.1 = r i then (1 : ℝ) else 0) := hprodSum
+    _ = ∏ i, ∑' x : α, μ i x * (if f i x = r i then (1 : ℝ) else 0) := by
+      congr 1
+      funext i
+      exact hcoordSum i
+
+theorem c_test2_pivotBaseResidueLaw_eq_product {n m K : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (hK : 0 < K) (r : Fin m → Fin K) :
+    FromArithmetic.baseResidueLaw K hK (pivotMass A C N) r =
+      ∏ i, harmonicResidueLaw
+        (harmonicLaw (A.X N (C.block i).1) (primorial (N + 1))) K (r i) := by
+  classical
+  let μ : Fin m → ℤ → ℝ := fun i z =>
+    harmonicLaw (A.X N (C.block i).1) (primorial (N + 1)) z
+  let support : Fin m → Finset ℤ := fun i =>
+    c_test2_harmonicIntSupport (A.X N (C.block i).1)
+  have hzero (i : Fin m) (z : ℤ) (hz : z ∉ support i) : μ i z = 0 := by
+    exact c_test2_harmonicLaw_zero_outside (by simpa [μ, support] using hz)
+  have hpush := c_test2_productPushforwardLaw μ support hzero
+    (fun _ z => FromArithmetic.integerResidue K hK z) r
+  have hcoord (i : Fin m) :
+      (∑' z : ℤ, μ i z *
+        (if FromArithmetic.integerResidue K hK z = r i then (1 : ℝ) else 0)) =
+        harmonicResidueLaw (μ i) K (r i) := by
+    apply tsum_congr
+    intro z
+    by_cases hz : z ∈ support i
+    · have hz0 : 0 ≤ z := by
+        have hm : z ∈ c_test2_harmonicIntSupport (A.X N (C.block i).1) := by
+          simpa [support] using hz
+        have hX0 : (0 : ℤ) ≤ (A.X N (C.block i).1 : ℤ) := by
+          exact_mod_cast Nat.zero_le (A.X N (C.block i).1)
+        exact hX0.trans (Finset.mem_Ico.mp
+          (by simpa [c_test2_harmonicIntSupport] using hm)).1
+      have hres := c_test2_integerResidue_natMod hK hz0
+      rw [hres]
+      have hfin : (⟨z.toNat % K, Nat.mod_lt _ hK⟩ : Fin K) = r i ↔
+          z.toNat % K = (r i).val := Fin.ext_iff
+      simp [harmonicResidueLaw, μ, hz0, hfin]
+    · rw [hzero i z hz]
+      simp [harmonicResidueLaw]
+  have hbase :
+      FromArithmetic.baseResidueLaw K hK (pivotMass A C N) r =
+        (∑' x : Fin m → ℤ, (∏ i, μ i (x i)) *
+          (if (fun i => FromArithmetic.integerResidue K hK (x i)) = r then (1 : ℝ) else 0)) := by
+    unfold FromArithmetic.baseResidueLaw pivotMass
+    simp [μ]
+  rw [hbase, hpush]
+  apply Finset.prod_congr rfl
+  intro i hi
+  rw [hcoord i]
+
+theorem c_test2_pivotBaseResidueLaw_finiteL1_bound {n m K : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (hK : 0 < K) (hNorm : ∀ i, 0 < harmonicNormalizer
+      (A.X N (C.block i).1) (primorial (N + 1))) (hErr : Fin m → ℝ)
+    (herr : ∀ i, finiteL1
+      (harmonicResidueLaw
+        (harmonicLaw (A.X N (C.block i).1) (primorial (N + 1))) K)
+      (uniformResidueLaw K) ≤ hErr i) :
+    finiteL1
+      (FromArithmetic.baseResidueLaw K hK (pivotMass A C N))
+      (FromArithmetic.uniformBaseResidueLaw K m) ≤ ∑ i, hErr i := by
+  classical
+  let law : Fin m → Fin K → ℝ := fun i a =>
+    harmonicResidueLaw
+      (harmonicLaw (A.X N (C.block i).1) (primorial (N + 1))) K a
+  let unif : Fin m → Fin K → ℝ := fun _ a => uniformResidueLaw K a
+  have hLawNonneg (i : Fin m) (a : Fin K) : 0 ≤ law i a := by
+    unfold law harmonicResidueLaw
+    apply tsum_nonneg
+    intro z
+    split_ifs
+    · exact c_test2_harmonicLaw_nonneg_of_normalizer_pos (hNorm i) z
+    · positivity
+  have hLawSum (i : Fin m) : ∑ a : Fin K, law i a = 1 := by
+    exact c_test2_harmonicResidueLaw_tsum_one hK (A.Xpos N (C.block i).1)
+      (hNorm i)
+  have hUnifNonneg (i : Fin m) (a : Fin K) : 0 ≤ unif i a := by
+    simp [unif, uniformResidueLaw]
+  have hUnifSum (i : Fin m) : ∑ a : Fin K, unif i a = 1 := by
+    have hKreal : (0 : ℝ) < (K : ℝ) := by exact_mod_cast hK
+    simp only [unif, uniformResidueLaw, Finset.sum_const, Finset.card_fin, nsmul_eq_mul]
+    field_simp
+  have hAbsLaw (i : Fin m) : ∑ a : Fin K, |law i a| = 1 := by
+    calc
+      _ = ∑ a : Fin K, law i a := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [abs_of_nonneg (hLawNonneg i a)]
+      _ = 1 := hLawSum i
+  have hAbsUnif (i : Fin m) : ∑ a : Fin K, |unif i a| = 1 := by
+    calc
+      _ = ∑ a : Fin K, unif i a := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [abs_of_nonneg (hUnifNonneg i a)]
+      _ = 1 := hUnifSum i
+  have hFactorLaw (r : Fin m → Fin K) :
+      FromArithmetic.baseResidueLaw K hK (pivotMass A C N) r = ∏ i, law i (r i) := by
+    rw [c_test2_pivotBaseResidueLaw_eq_product]
+  have hFactorUnif (r : Fin m → Fin K) :
+      FromArithmetic.uniformBaseResidueLaw K m r = ∏ i, unif i (r i) := by
+    simp [FromArithmetic.uniformBaseResidueLaw, uniformResidueLaw, unif,
+      Finset.prod_const, Fintype.card_fin]
+  have htel := FromArithmetic.finite_product_l1_telescoping law unif
+  have htel' :
+      finiteL1 (fun r : Fin m → Fin K => ∏ i, law i (r i))
+        (fun r => ∏ i, unif i (r i)) ≤ ∑ i, finiteL1 (law i) (unif i) := by
+    simpa [hAbsLaw, hAbsUnif] using htel
+  calc
+    _ = finiteL1 (fun r : Fin m → Fin K => ∏ i, law i (r i))
+          (fun r => ∏ i, unif i (r i)) := by
+            apply Finset.sum_congr rfl
+            intro r hr
+            simp_rw [hFactorLaw r, hFactorUnif r]
+    _ ≤ ∑ i, finiteL1 (law i) (unif i) := htel'
+    _ ≤ ∑ i, hErr i := Finset.sum_le_sum fun i hi => herr i
+
 end HindmanSumsProducts
