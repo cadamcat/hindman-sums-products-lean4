@@ -4686,6 +4686,35 @@ theorem pkgElim_independentPrimePoolProbability_cylinder {q s : ℕ}
     (pkgElim_independentPrimePoolAverage_cylinder ι lo hi hmass
       (fun p => if E p then 1 else 0))
 
+theorem pkgElim_tsum_prod_of_finite_support {α β : Type*}
+    [DecidableEq α] [DecidableEq β] (s : Finset α) (t : Finset β)
+    (f : α × β → ℝ)
+    (hsupp : ∀ x, x ∉ s.product t → f x = 0) :
+    ∑' x : α × β, f x = ∑' a : α, ∑' b : β, f (a, b) := by
+  classical
+  have hinner (a : α) : ∑' b : β, f (a, b) = ∑ b ∈ t, f (a, b) := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional β) (f := fun b => f (a, b))
+      (s := t) (by intro b hb; exact hsupp (a, b) (by simp [Finset.mem_product, hb]))]
+  have houterZero : ∀ a ∉ s, (∑' b : β, f (a, b)) = 0 := by
+    intro a ha
+    rw [hinner a]
+    apply Finset.sum_eq_zero
+    intro b hb
+    exact hsupp (a, b) (by simp [Finset.mem_product, ha, hb])
+  calc
+    _ = ∑ x ∈ s.product t, f x := by
+      rw [tsum_eq_sum (L := SummationFilter.unconditional (α × β))
+        (f := f) (s := s.product t) (by intro x hx; exact hsupp x hx)]
+    _ = ∑ a ∈ s, ∑ b ∈ t, f (a, b) := by
+      exact Finset.sum_product s t f
+    _ = ∑' a : α, ∑' b : β, f (a, b) := by
+      symm
+      rw [tsum_eq_sum (L := SummationFilter.unconditional α)
+        (f := fun a => ∑' b : β, f (a, b)) (s := s) houterZero]
+      apply Finset.sum_congr rfl
+      intro a ha
+      exact hinner a
+
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -5337,6 +5366,96 @@ theorem pkgElim_uniformIntegerProduct_average {α : Type*} [Fintype α]
       apply Finset.sum_congr rfl
       intro u hu
       simp [g, castPi, hprod u hu]
+
+noncomputable def pkgElim_oldShiftIndexEquiv {α : Type*} :
+    (α → Fin 2 → ℕ) ≃ (α × Fin 2 → ℕ) where
+  toFun u := fun x => u x.1 x.2
+  invFun u := fun a e => u (a, e)
+  left_inv := by intro u; funext a e; rfl
+  right_inv := by intro u; funext x; rcases x with ⟨a, e⟩; rfl
+
+theorem pkgElim_shiftAverage_eq_signedIntervalProduct
+    {α : Type*} [Fintype α] [DecidableEq α]
+    (L : ℕ) (hL : 0 < L) (F : (α → Fin 2 → ℕ) → ℝ) :
+    shiftAverage α L F =
+      ∑' x : α × Fin 2 → ℤ,
+        (∏ y : α × Fin 2, FromArithmetic.uniformIntegerIntervalLaw 0 L (x y)) *
+          F (fun a e => (x (a, e)).toNat) := by
+  classical
+  let Sunc : Finset ((α × Fin 2) → ℕ) :=
+    Fintype.piFinset fun _ : α × Fin 2 => Finset.range L
+  let Snest : Finset (α → Fin 2 → ℕ) :=
+    Fintype.piFinset fun _ : α => Fintype.piFinset fun _ : Fin 2 => Finset.range L
+  have hmem (u : α → Fin 2 → ℕ) :
+      u ∈ Snest ↔ pkgElim_oldShiftIndexEquiv u ∈ Sunc := by
+    simp [Snest, Sunc, pkgElim_oldShiftIndexEquiv, Fintype.mem_piFinset]
+  have hfg (u : α → Fin 2 → ℕ) (_hu : u ∈ Snest) :
+      (∏ i, ∏ j : Fin 2,
+        FromArithmetic.uniformIntegerIntervalLaw 0 L (u i j : ℤ)) * F u =
+      (∏ j : α × Fin 2,
+        FromArithmetic.uniformIntegerIntervalLaw 0 L
+          (pkgElim_oldShiftIndexEquiv u j : ℤ)) *
+        F (fun i e => ((pkgElim_oldShiftIndexEquiv u (i, e) : ℤ)).toNat) := by
+    have hprod :
+        (∏ i, ∏ j : Fin 2,
+          FromArithmetic.uniformIntegerIntervalLaw 0 L (u i j : ℤ)) =
+        ∏ j : α × Fin 2,
+          FromArithmetic.uniformIntegerIntervalLaw 0 L
+            (pkgElim_oldShiftIndexEquiv u j : ℤ) := by
+      symm
+      rw [Fintype.prod_prod_type]
+      simp [pkgElim_oldShiftIndexEquiv]
+    have hfun : (fun i e => ((pkgElim_oldShiftIndexEquiv u (i, e) : ℤ)).toNat) = u := by
+      funext i e
+      simp [pkgElim_oldShiftIndexEquiv]
+    rw [hprod, hfun]
+  have hsumWeighted :
+      (∑ u ∈ Snest,
+        (∏ i, ∏ j : Fin 2,
+          FromArithmetic.uniformIntegerIntervalLaw 0 L (u i j : ℤ)) * F u) =
+      ∑ u ∈ Sunc,
+        (∏ j : α × Fin 2,
+          FromArithmetic.uniformIntegerIntervalLaw 0 L (u j : ℤ)) *
+          F (fun i e => ((u (i, e) : ℤ)).toNat) := by
+    exact Finset.sum_equiv pkgElim_oldShiftIndexEquiv hmem hfg
+  have hweight (u : (α × Fin 2) → ℕ) (hu : u ∈ Sunc) :
+      (∏ j : α × Fin 2,
+        FromArithmetic.uniformIntegerIntervalLaw 0 L (u j : ℤ)) =
+        (1 / (L : ℝ)) ^ Fintype.card (α × Fin 2) := by
+    have hu' : ∀ j, u j ∈ Finset.range L := Fintype.mem_piFinset.mp hu
+    calc
+      _ = ∏ _j : α × Fin 2, (1 / (L : ℝ)) := by
+        apply Finset.prod_congr rfl
+        intro j hj
+        have hlt := Finset.mem_range.mp (hu' j)
+        have hltZ : (u j : ℤ) < (L : ℤ) := by exact_mod_cast hlt
+        simp [FromArithmetic.uniformIntegerIntervalLaw, hltZ]
+      _ = _ := by simp
+  have hsumConstant :
+      (∑ u ∈ Sunc,
+        (∏ j : α × Fin 2,
+          FromArithmetic.uniformIntegerIntervalLaw 0 L (u j : ℤ)) *
+          F (fun i e => ((u (i, e) : ℤ)).toNat)) =
+      (1 / (L : ℝ)) ^ Fintype.card (α × Fin 2) *
+        ∑ u ∈ Sunc, F (fun i e => ((u (i, e) : ℤ)).toNat) := by
+    rw [Finset.mul_sum]
+    apply Finset.sum_congr rfl
+    intro u hu
+    rw [hweight u hu]
+  have hproduct := pkgElim_uniformIntegerProduct_average L hL
+    (fun x : α × Fin 2 → ℤ => F (fun a e => (x (a, e)).toNat))
+  calc
+    _ = ∑ u ∈ Snest,
+          (∏ i, ∏ j : Fin 2,
+            FromArithmetic.uniformIntegerIntervalLaw 0 L (u i j : ℤ)) * F u :=
+      shiftAverage_eq_uniformIntervalSum L F
+    _ = ∑ u ∈ Sunc,
+          (∏ j : α × Fin 2,
+            FromArithmetic.uniformIntegerIntervalLaw 0 L (u j : ℤ)) *
+            F (fun i e => ((u (i, e) : ℤ)).toNat) := hsumWeighted
+    _ = (1 / (L : ℝ)) ^ Fintype.card (α × Fin 2) *
+          ∑ u ∈ Sunc, F (fun i e => ((u (i, e) : ℤ)).toNat) := hsumConstant
+    _ = _ := by simpa [pkgElim_oldShiftIndexEquiv] using hproduct.symm
 
 theorem pkgElim_expandedAuxiliaryMoment_tendsto_one
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
