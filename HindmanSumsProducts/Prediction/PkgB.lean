@@ -8,6 +8,7 @@ namespace HindmanSumsProducts
 namespace Prediction
 
 open Filter
+open scoped Topology
 
 private abbrev MomentPrimeIndex (b q : ℕ) := Fin b × Fin q
 private abbrev MomentBaseIndex (b d : ℕ) := Unit ⊕ (Fin b × (Fin d × Fin 2))
@@ -342,17 +343,21 @@ private theorem momentPivotCutoff_dominates_gap_scale {K sl : ℕ} {As : Finset 
       (fun N => (MS.core.parameters.X N B.1 : ℝ))
       (fun N => (momentGapScale MS l N : ℝ)) := by
   intro C hC
-  let S : ℕ → ℝ := fun N => momentGapScale MS l N
+  let G : ℕ → ℕ := fun N => momentGapScale MS l N
+  let S : ℕ → ℝ := fun N => (G N : ℝ)
   have hS : Tendsto S atTop atTop := by
     exact tendsto_natCast_atTop_atTop.comp (momentGapScale_tendsto MS l)
   have hlogDom := momentPivotLog_dominates_gap_scale MS B l hgap
   have hlogRatio := hlogDom (C + 1) (by linarith)
   have hSpos (N : ℕ) : 0 < S N := by
-    dsimp [S, momentGapScale]
-    have hV : 2 ≤ masterScaleV MS.core.parameters N l := by
-      dsimp [masterScaleV]
+    have hNat : 0 < G N := by
+      dsimp [G, momentGapScale]
+      have hV : 2 ≤ masterScaleV MS.core.parameters N l := by
+        dsimp [masterScaleV]
+        omega
       omega
-    positivity
+    change (0 : ℝ) < (G N : ℝ)
+    exact_mod_cast hNat
   have hXpos (N : ℕ) :
       (0 : ℝ) < (MS.core.parameters.X N B.1 : ℝ) := by
     exact_mod_cast MS.core.parameters.Xpos N B.1
@@ -2571,6 +2576,299 @@ private theorem momentBaseResidue_uniform_bound {K sl : ℕ} {As : Finset ℚ}
           ring
     _ = momentBaseEpsilonBase MS B l T J0 b N := by
           simp [momentBaseEpsilonBase, rows, base, V, Kbound, lengthFloor, pivotErr, shiftErr]
+
+private theorem momentPivotLogDen_ge_half {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (N : ℕ) :
+    (1 / 2 : ℝ) ≤ Real.log (MS.core.parameters.X N B.1 : ℝ) -
+      (primorial (N + 1) : ℝ) / MS.core.parameters.X N B.1 := by
+  let W := primorial (N + 1)
+  let X := MS.core.parameters.X N B.1
+  have hW : 0 < W := primorial_pos _
+  have hWle : 1 ≤ W := Nat.one_le_iff_ne_zero.mpr hW.ne'
+  have hcut : 4 * W ≤ X := MS.gapStage.valid_raw_cutoffs N B.1
+  have hXfour : 4 ≤ X := by omega
+  have hXreal : (4 : ℝ) ≤ (X : ℝ) := by exact_mod_cast hXfour
+  have hWreal : (1 : ℝ) ≤ W := by exact_mod_cast hWle
+  have hXpos : (0 : ℝ) < (X : ℝ) := by exact_mod_cast (by omega : 0 < X)
+  have hcutReal : 4 * (W : ℝ) ≤ (X : ℝ) := by exact_mod_cast hcut
+  have hWover : (W : ℝ) / X ≤ 1 / 4 := by
+    apply (div_le_iff₀ hXpos).2
+    linarith
+  have hlog4 : (1 : ℝ) < Real.log 4 := by
+    apply (Real.lt_log_iff_exp_lt (by norm_num)).2
+    exact lt_trans Real.exp_one_lt_three (by norm_num)
+  have hlogX : Real.log 4 ≤ Real.log (X : ℝ) :=
+    Real.log_le_log (by norm_num) hXreal
+  change (1 / 2 : ℝ) ≤ Real.log (X : ℝ) - (W : ℝ) / X
+  linarith
+
+private theorem momentPivotResidueError_superPolynomial {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (b : ℕ) :
+    SuperPolynomialSmall
+      (fun N => harmonicResidueError (MS.core.parameters.X N B.1)
+        (primorial (N + 1)) ((masterScaleV MS.core.parameters N l) ^
+          Fintype.card (MomentRowIndex b T.d)))
+      (fun N => (masterScaleV MS.core.parameters N l : ℝ)) := by
+  intro C hC
+  let rows := Fintype.card (MomentRowIndex b T.d)
+  let G : ℕ → ℕ := fun N => momentGapScale MS l N
+  let S : ℕ → ℝ := fun N => (G N : ℝ)
+  let V : ℕ → ℕ := fun N => masterScaleV MS.core.parameters N l
+  let Aexp : ℝ := ((rows + 1 : ℕ) : ℝ) + C
+  have hAexp : 0 < Aexp := by dsimp [Aexp]; positivity
+  have hS_tendsto : Tendsto S atTop atTop := by
+    exact tendsto_natCast_atTop_atTop.comp (momentGapScale_tendsto MS l)
+  have hSpos (N : ℕ) : 0 < S N := by
+    have hNat : 0 < G N := by
+      dsimp [G, momentGapScale]
+      have hV : 2 ≤ masterScaleV MS.core.parameters N l := by
+        dsimp [masterScaleV]
+        omega
+      omega
+    change (0 : ℝ) < (G N : ℝ)
+    exact_mod_cast hNat
+  have hXpos (N : ℕ) :
+      (0 : ℝ) < (MS.core.parameters.X N B.1 : ℝ) := by
+    exact_mod_cast MS.core.parameters.Xpos N B.1
+  have hWleV (N : ℕ) : primorial (N + 1) ≤ V N := by
+    dsimp [V]
+    exact (MS.core.parameters.Wle N).trans (by dsimp [masterScaleV]; omega)
+  have hVleS (N : ℕ) : (V N : ℝ) ≤ S N := by
+    dsimp [V, S, momentGapScale]
+    exact_mod_cast Nat.le_add_left (masterScaleV MS.core.parameters N l)
+      ((MS.primeStage.pool N l).upper)
+  have hXratio := momentPivotCutoff_dominates_gap_scale MS B l hgap
+    (Aexp + 1) (by linarith)
+  have hXlower : ∀ᶠ N : ℕ in atTop,
+      S N ^ (Aexp + 1) ≤ (MS.core.parameters.X N B.1 : ℝ) := by
+    filter_upwards [hXratio.eventually_ge_atTop (1 : ℝ)] with N hN
+    have hmul := (le_div_iff₀ (Real.rpow_pos_of_pos (hSpos N) (Aexp + 1))).1 hN
+    simpa using hmul
+  have hErrBound (N : ℕ) :
+      harmonicResidueError (MS.core.parameters.X N B.1) (primorial (N + 1)) (V N ^ rows) ≤
+        4 * (V N : ℝ) ^ (rows + 1) /
+          (MS.core.parameters.X N B.1 : ℝ) := by
+    have hVone : 1 ≤ V N := by dsimp [V, masterScaleV]; omega
+    have hKone : 1 ≤ V N ^ rows := one_le_pow₀ hVone
+    have hKplus : V N ^ rows + 1 ≤ 2 * V N ^ rows := by omega
+    have hNum : primorial (N + 1) * (V N ^ rows + 1) ≤ 2 * V N ^ (rows + 1) := by
+      calc
+        primorial (N + 1) * (V N ^ rows + 1) ≤ V N * (2 * V N ^ rows) :=
+          Nat.mul_le_mul (hWleV N) hKplus
+        _ = 2 * V N ^ (rows + 1) := by rw [pow_succ]; ring
+    have hXpos : (0 : ℝ) < (MS.core.parameters.X N B.1 : ℝ) := by
+      exact_mod_cast MS.core.parameters.Xpos N B.1
+    have hDen := momentPivotLogDen_ge_half MS B N
+    calc
+      _ = ((primorial (N + 1) : ℝ) * ((V N ^ rows + 1 : ℕ) : ℝ)) /
+          ((MS.core.parameters.X N B.1 : ℝ) *
+            (Real.log (MS.core.parameters.X N B.1 : ℝ) -
+              (primorial (N + 1) : ℝ) / MS.core.parameters.X N B.1)) := rfl
+      _ ≤ ((primorial (N + 1) : ℝ) * ((V N ^ rows + 1 : ℕ) : ℝ)) /
+          ((MS.core.parameters.X N B.1 : ℝ) / 2) :=
+        div_le_div_of_nonneg_left (by positivity) (by positivity) (by nlinarith [hDen, hXpos])
+      _ = 2 * ((primorial (N + 1) : ℝ) * ((V N ^ rows + 1 : ℕ) : ℝ)) /
+            (MS.core.parameters.X N B.1 : ℝ) := by
+              field_simp [ne_of_gt hXpos] <;> ring
+      _ ≤ 4 * (V N : ℝ) ^ (rows + 1) /
+          (MS.core.parameters.X N B.1 : ℝ) := by
+        apply div_le_div_of_nonneg_right _ (by positivity)
+        have hNum' : 2 * (primorial (N + 1) * (V N ^ rows + 1)) ≤
+            4 * V N ^ (rows + 1) := by
+          calc
+            _ ≤ 2 * (2 * V N ^ (rows + 1)) := Nat.mul_le_mul_left 2 hNum
+            _ = _ := by ring
+        exact_mod_cast hNum'
+  have hSmallBound : ∀ᶠ N : ℕ in atTop,
+      harmonicResidueError (MS.core.parameters.X N B.1) (primorial (N + 1)) (V N ^ rows) *
+          (V N : ℝ) ^ C ≤ 4 / S N := by
+    filter_upwards [hXlower] with N hXN
+    have hVbase : 1 ≤ (V N : ℝ) := by exact_mod_cast (show 1 ≤ V N from by dsimp [V, masterScaleV]; omega)
+    have hVrow : (V N : ℝ) ^ (rows + 1) ≤ S N ^ ((rows + 1 : ℕ) : ℝ) := by
+      have hVle : V N ≤ momentGapScale MS l N := by
+        dsimp [V, momentGapScale]
+        omega
+      have hcast := (Real.rpow_natCast (V N : ℝ) (rows + 1)).symm
+      rw [hcast]
+      have hVleReal : (V N : ℝ) ≤ S N := by
+        change (V N : ℝ) ≤ (momentGapScale MS l N : ℝ)
+        exact_mod_cast hVle
+      exact Real.rpow_le_rpow (by positivity) hVleReal (by positivity)
+    have hVC : (V N : ℝ) ^ C ≤ S N ^ C :=
+      Real.rpow_le_rpow (by positivity) (hVleS N) hC.le
+    have hProd : (V N : ℝ) ^ (rows + 1) * (V N : ℝ) ^ C ≤ S N ^ Aexp := by
+      calc
+        _ ≤ S N ^ ((rows + 1 : ℕ) : ℝ) * S N ^ C :=
+          mul_le_mul hVrow hVC (by positivity) (by positivity)
+        _ = S N ^ Aexp := by
+          calc
+            _ = S N ^ ((rows + 1 : ℕ) : ℝ) * S N ^ C := by rfl
+            _ = S N ^ (((rows + 1 : ℕ) : ℝ) + C) :=
+              (Real.rpow_add (hSpos N) _ _).symm
+            _ = S N ^ Aexp := by rfl
+    have hratio : S N ^ Aexp / (MS.core.parameters.X N B.1 : ℝ) ≤ 1 / S N := by
+      apply (div_le_div_iff₀ (hXpos N) (hSpos N)).2
+      calc
+        S N ^ Aexp * S N = S N ^ Aexp * S N ^ (1 : ℝ) := by simp
+        _ = S N ^ (Aexp + 1) := (Real.rpow_add (hSpos N) Aexp 1).symm
+        _ ≤ (MS.core.parameters.X N B.1 : ℝ) := hXN
+        _ = 1 * (MS.core.parameters.X N B.1 : ℝ) := by ring
+    calc
+      _ ≤ (4 * (V N : ℝ) ^ (rows + 1) /
+            (MS.core.parameters.X N B.1 : ℝ)) * (V N : ℝ) ^ C :=
+        mul_le_mul_of_nonneg_right (hErrBound N) (by positivity)
+      _ = 4 * ((V N : ℝ) ^ (rows + 1) * (V N : ℝ) ^ C) /
+            (MS.core.parameters.X N B.1 : ℝ) := by ring
+      _ ≤ 4 * (S N ^ Aexp /
+            (MS.core.parameters.X N B.1 : ℝ)) := by
+        calc
+          _ = (4 * ((V N : ℝ) ^ (rows + 1) * (V N : ℝ) ^ C)) /
+                (MS.core.parameters.X N B.1 : ℝ) := by ring
+          _ ≤ (4 * S N ^ Aexp) /
+                (MS.core.parameters.X N B.1 : ℝ) :=
+            div_le_div_of_nonneg_right
+              (mul_le_mul_of_nonneg_left hProd (by norm_num)) (by positivity)
+          _ = _ := by ring
+      _ ≤ 4 / S N := by
+        have := mul_le_mul_of_nonneg_left hratio (by norm_num : (0 : ℝ) ≤ 4)
+        simpa [div_eq_mul_inv, mul_assoc] using this
+  have hSreal := tendsto_inv_atTop_zero.comp hS_tendsto
+  have hTop : Tendsto (fun N : ℕ => 4 / S N) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using tendsto_const_nhds.mul hSreal
+  have hErrNonneg (N : ℕ) :
+      0 ≤ harmonicResidueError (MS.core.parameters.X N B.1) (primorial (N + 1)) (V N ^ rows) *
+        (V N : ℝ) ^ C := by
+    have hXposN : (0 : ℝ) < MS.core.parameters.X N B.1 := by
+      exact_mod_cast MS.core.parameters.Xpos N B.1
+    have hdenN : 0 < (MS.core.parameters.X N B.1 : ℝ) *
+        (Real.log (MS.core.parameters.X N B.1 : ℝ) -
+          (primorial (N + 1) : ℝ) / MS.core.parameters.X N B.1) :=
+      mul_pos hXposN (by linarith [momentPivotLogDen_ge_half MS B N])
+    have hVnonneg : 0 ≤ (V N : ℝ) := by positivity
+    unfold harmonicResidueError
+    exact mul_nonneg (div_nonneg (by positivity) hdenN.le)
+      (Real.rpow_nonneg hVnonneg C)
+  exact squeeze_zero' (Eventually.of_forall hErrNonneg) hSmallBound hTop
+
+private theorem momentShiftResidueError_superPolynomial {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (l : Fin K) (T : CubeTemplate)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) :
+    SuperPolynomialSmall
+      (fun N => 2 * ((masterScaleV MS.core.parameters N l) ^
+        Fintype.card (MomentRowIndex b T.d) : ℝ) /
+        (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ))
+      (fun N => (masterScaleV MS.core.parameters N l : ℝ)) := by
+  intro C hC
+  let rows := Fintype.card (MomentRowIndex b T.d)
+  let G : ℕ → ℕ := fun N => momentGapScale MS l N
+  let S : ℕ → ℝ := fun N => (G N : ℝ)
+  let V : ℕ → ℕ := fun N => masterScaleV MS.core.parameters N l
+  let Aexp : ℝ := (rows : ℝ) + C
+  let m : ℕ := Nat.ceil Aexp + 1
+  have hApos : 0 < Aexp := by dsimp [Aexp]; positivity
+  have hm : Aexp + 1 ≤ (m : ℝ) := by
+    dsimp [m]
+    have hceil := Nat.le_ceil Aexp
+    norm_num at hceil ⊢
+    linarith
+  have hS : Tendsto S atTop atTop := by
+    exact tendsto_natCast_atTop_atTop.comp (momentGapScale_tendsto MS l)
+  have hSpos (N : ℕ) : 0 < S N := by
+    have hNat : 0 < G N := by
+      dsimp [G, momentGapScale]
+      have hV : 2 ≤ masterScaleV MS.core.parameters N l := by
+        dsimp [masterScaleV]
+        omega
+      omega
+    change (0 : ℝ) < (G N : ℝ)
+    exact_mod_cast hNat
+  have hSone (N : ℕ) : 1 ≤ S N := by
+    have hNat : 1 ≤ G N := by
+      dsimp [G, momentGapScale]
+      have hV : 2 ≤ masterScaleV MS.core.parameters N l := by
+        dsimp [masterScaleV]
+        omega
+      omega
+    change (1 : ℝ) ≤ (G N : ℝ)
+    exact_mod_cast hNat
+  have hVleS (N : ℕ) : (V N : ℝ) ≤ S N := by
+    change (V N : ℝ) ≤ (momentGapScale MS l N : ℝ)
+    have hNat : V N ≤ momentGapScale MS l N := by
+      dsimp [V, momentGapScale]
+      omega
+    exact_mod_cast hNat
+  have hVrealPos (N : ℕ) : 0 < (V N : ℝ) := by
+    have hVpos : 0 < V N := by dsimp [V, masterScaleV]; omega
+    exact_mod_cast hVpos
+  have hFloorLower : ∀ᶠ N : ℕ in atTop,
+      S N ^ (m : ℝ) ≤ (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ) := by
+    have hfloor := momentShiftLengthLower_ge_pow MS l T J0 hJ0 m
+    filter_upwards [hfloor] with N hN
+    have hcast : ((G N) ^ m : ℝ) = S N ^ (m : ℝ) := by
+      dsimp [S]
+      exact (Real.rpow_natCast (G N : ℝ) m).symm
+    rw [← hcast]
+    exact_mod_cast le_trans hN (Nat.le_max_right 1 _)
+  have hSmallBound : ∀ᶠ N : ℕ in atTop,
+      (2 * ((V N) ^ rows : ℝ) /
+        (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ)) * (V N : ℝ) ^ C ≤
+        2 / S N := by
+    filter_upwards [hFloorLower] with N hfloor
+    have hVrow : (V N : ℝ) ^ rows ≤ S N ^ (rows : ℝ) := by
+      have hNat : V N ^ rows ≤ momentGapScale MS l N ^ rows := by
+        exact Nat.pow_le_pow_left (by
+          dsimp [V, momentGapScale]
+          omega) rows
+      have hcast := (Real.rpow_natCast (V N : ℝ) rows).symm
+      rw [hcast]
+      exact Real.rpow_le_rpow (by positivity) (hVleS N) (by positivity)
+    have hVC : (V N : ℝ) ^ C ≤ S N ^ C :=
+      Real.rpow_le_rpow (by positivity) (hVleS N) hC.le
+    have hProd : (V N : ℝ) ^ rows * (V N : ℝ) ^ C ≤ S N ^ Aexp := by
+      calc
+        _ ≤ S N ^ (rows : ℝ) * S N ^ C :=
+          mul_le_mul hVrow hVC (by positivity) (by positivity)
+        _ = S N ^ Aexp := by
+          calc
+            _ = S N ^ (rows : ℝ) * S N ^ C := by rfl
+            _ = S N ^ ((rows : ℝ) + C) :=
+              (Real.rpow_add (hSpos N) _ _).symm
+            _ = S N ^ Aexp := by rfl
+    have hDenPos : 0 < (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ) := by
+      exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left 1 _))
+    have hRatio : S N ^ Aexp /
+        (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ) ≤ 1 / S N := by
+      apply (div_le_div_iff₀ hDenPos (hSpos N)).2
+      calc
+        S N ^ Aexp * S N = S N ^ (Aexp + 1) := by
+          calc
+            _ = S N ^ Aexp * S N ^ (1 : ℝ) := by simp
+            _ = _ := (Real.rpow_add (hSpos N) Aexp 1).symm
+        _ ≤ S N ^ (m : ℝ) := Real.rpow_le_rpow_of_exponent_le (hSone N) hm
+        _ ≤ (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ) := hfloor
+        _ = 1 * (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ) := by ring
+    calc
+      _ = 2 * (((V N : ℝ) ^ rows * (V N : ℝ) ^ C) /
+          (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ)) := by ring
+      _ ≤ 2 * (S N ^ Aexp /
+          (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ)) :=
+        mul_le_mul_of_nonneg_left
+          (div_le_div_of_nonneg_right hProd (by positivity)) (by norm_num)
+      _ ≤ 2 / S N := by
+        have := mul_le_mul_of_nonneg_left hRatio (by norm_num : (0 : ℝ) ≤ 2)
+        simpa [div_eq_mul_inv, mul_assoc] using this
+  have hInv := tendsto_inv_atTop_zero.comp hS
+  have hTop : Tendsto (fun N : ℕ => 2 / S N) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using tendsto_const_nhds.mul hInv
+  have hErrNonneg (N : ℕ) :
+      0 ≤ (2 * ((V N) ^ rows : ℝ) /
+        (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ)) * (V N : ℝ) ^ C := by
+    positivity
+  exact squeeze_zero' (Eventually.of_forall hErrNonneg) hSmallBound hTop
 
 theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) :
