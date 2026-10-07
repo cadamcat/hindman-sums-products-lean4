@@ -6637,6 +6637,114 @@ private theorem linearFormsDivisorTuple_support_facts {n q d b m : ℕ}
   · intro σ hσ u
     simpa [W] using htupleBound σ hσ u
 
+private theorem averagedLocalBeta_prime_square_bound {q b m : ℕ}
+    (tests : Finset (IntegerPolynomial m)) (B : ℕ) (hB : 0 < B) :
+    ∃ C₁ : ℝ, 0 < C₁ ∧ ∀ p : ℕ, p.Prime → ∀ L : ℕ,
+      (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (L + 1)),
+        comparisonPrimeValuationWeight (b := b) p a *
+          averagedLocalBeta
+            (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ)) p a) ≤ C₁ / (p : ℝ) ^ 2 := by
+  let H : ℝ := 2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ)
+  have hH : 0 ≤ H := by dsimp [H]; positivity
+  obtain ⟨C₂, hC₂, hseries⟩ := local_divisor_excess_prime_square_bound q (b + 1)
+  let C₁ : ℝ := ((q : ℝ) ^ 2 + H * q + 1) * C₂
+  have hC₁ : 0 < C₁ := by
+    dsimp [C₁]
+    have hq : 0 ≤ (q : ℝ) := Nat.cast_nonneg q
+    positivity
+  refine ⟨C₁, hC₁, ?_⟩
+  intro p hp L
+  have hbox := averagedLocalBeta_box (b := b) (q := q) (M := L) hp H hH
+  obtain ⟨hreg, hex⟩ := hseries p hp
+  have hcoeff : (q : ℝ) ^ 2 * C₂ + H * q * C₂ ≤
+      ((q : ℝ) ^ 2 + H * q + 1) * C₂ := by
+    have hfactor : (q : ℝ) ^ 2 * C₂ + H * q * C₂ =
+        ((q : ℝ) ^ 2 + H * q) * C₂ := by ring
+    rw [hfactor]
+    exact mul_le_mul_of_nonneg_right (by linarith) hC₂.le
+  calc
+    _ ≤ (q : ℝ) ^ 2 * regularDivisorExcessSeries p q (b + 1) +
+        H * q * (exceptionalDivisorExcessSeries p q (b + 1) / p) := hbox
+    _ ≤ (q : ℝ) ^ 2 * (C₂ / (p : ℝ) ^ 2) + H * q * (C₂ / (p : ℝ) ^ 2) := by
+      exact add_le_add
+        (mul_le_mul_of_nonneg_left hreg (by positivity))
+        (mul_le_mul_of_nonneg_left hex (by positivity))
+    _ = ((q : ℝ) ^ 2 * C₂ + H * q * C₂) / (p : ℝ) ^ 2 := by ring
+    _ ≤ (((q : ℝ) ^ 2 + H * q + 1) * C₂) / (p : ℝ) ^ 2 :=
+      div_le_div_of_nonneg_right hcoeff (by positivity)
+    _ = C₁ / (p : ℝ) ^ 2 := by rfl
+
+namespace LinearFormsAux
+
+theorem finite_joint_product_excess {α ι : Type*} [Fintype α] [DecidableEq ι]
+    (P : Finset ι) (mass : α → ℝ) (beta : α → ι → ℝ)
+    (C : ℝ) (c : ι → ℝ)
+    (hjoint : ∀ T ∈ P.powerset.erase ∅,
+      (∑ x, mass x * ∏ p ∈ T, beta x p) ≤ C * ∏ p ∈ T, c p) :
+    (∑ x, mass x * ((∏ p ∈ P, (1 + beta x p)) - 1)) ≤
+      C * ((∏ p ∈ P, (1 + c p)) - 1) := by
+  classical
+  have hexpand (f : ι → ℝ) :
+      (∏ p ∈ P, (1 + f p)) - 1 =
+        ∑ T ∈ P.powerset.erase ∅, ∏ p ∈ T, f p := by
+    have h := Finset.prod_add_one (f := f) P
+    have hsum : (∑ T ∈ P.powerset, ∏ p ∈ T, f p) =
+        1 + ∑ T ∈ P.powerset.erase ∅, ∏ p ∈ T, f p := by
+      rw [← Finset.add_sum_erase P.powerset (fun T => ∏ p ∈ T, f p)
+        (by simp : ∅ ∈ P.powerset)]
+      simp
+    have hprod : (∏ p ∈ P, (1 + f p)) = (∏ p ∈ P, (f p + 1)) := by
+      apply Finset.prod_congr rfl
+      intro p hp
+      ring
+    rw [hprod, h, hsum]
+    ring
+  calc
+    _ = ∑ T ∈ P.powerset.erase ∅, ∑ x, mass x * ∏ p ∈ T, beta x p := by
+      simp_rw [hexpand, Finset.mul_sum]
+      rw [Finset.sum_comm]
+    _ ≤ ∑ T ∈ P.powerset.erase ∅, C * ∏ p ∈ T, c p :=
+      Finset.sum_le_sum (fun T hT => hjoint T hT)
+    _ = C * ((∏ p ∈ P, (1 + c p)) - 1) := by
+      rw [← Finset.mul_sum, ← hexpand]
+
+theorem finite_fiber_product_bound {α ι : Type*} [Fintype α] [Fintype ι]
+    (γ : ι → Type*) [∀ i, Fintype (γ i)]
+    (mass : α → ℝ) (v : α → ∀ i, γ i)
+    (w f : ∀ i, γ i → ℝ) (C : ℝ)
+    (hf : ∀ i a, 0 ≤ f i a)
+    (hjoint : ∀ a : ∀ i, γ i,
+      (∑ x, mass x * (if v x = a then 1 else 0)) ≤ C * ∏ i, w i (a i)) :
+    (∑ x, mass x * ∏ i, f i (v x i)) ≤
+      C * ∏ i, ∑ a : γ i, w i a * f i a := by
+  classical
+  have hsplit (x : α) :
+      mass x * ∏ i, f i (v x i) =
+        ∑ a : ∀ i, γ i,
+          (mass x * (if v x = a then 1 else 0)) * ∏ i, f i (a i) := by
+    simp
+  calc
+    _ = ∑ a : ∀ i, γ i,
+        (∑ x, mass x * (if v x = a then 1 else 0)) * ∏ i, f i (a i) := by
+      simp_rw [hsplit]
+      rw [Finset.sum_comm]
+      apply Finset.sum_congr rfl
+      intro a ha
+      rw [Finset.sum_mul]
+    _ ≤ ∑ a : ∀ i, γ i, (C * ∏ i, w i (a i)) * ∏ i, f i (a i) := by
+      apply Finset.sum_le_sum
+      intro a ha
+      exact mul_le_mul_of_nonneg_right (hjoint a)
+        (Finset.prod_nonneg fun i hi => hf i (a i))
+    _ = C * ∏ i, ∑ a : γ i, w i a * f i a := by
+      simp_rw [mul_assoc, ← Finset.prod_mul_distrib]
+      rw [← Finset.mul_sum]
+      congr 1
+      simpa using (Finset.prod_univ_sum (fun i => (Finset.univ : Finset (γ i)))
+        (fun i a => w i a * f i a)).symm
+
+end LinearFormsAux
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
