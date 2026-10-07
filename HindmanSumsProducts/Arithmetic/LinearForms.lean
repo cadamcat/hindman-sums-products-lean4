@@ -1,5 +1,6 @@
 import HindmanSumsProducts.Arithmetic.RoughCoprimality
 import HindmanSumsProducts.Arithmetic.Sampling
+import Mathlib.Algebra.MvPolynomial.SchwartzZippel
 
 open scoped BigOperators Topology
 open Filter
@@ -76,6 +77,135 @@ private def rationalRowDenominatorExcept {d : ℕ} (rows : Fin d → ℚ)
 private def rationalRowClearedCoefficient {d : ℕ} (rows : Fin d → ℚ)
     (j : Fin d) : ℤ :=
   (rows j).num * (rationalRowDenominatorExcept rows j : ℤ)
+
+private theorem rationalRowDenominator_factor {d : ℕ} (rows : Fin d → ℚ) (j : Fin d) :
+    rationalRowDenominator rows =
+      (rows j).den * rationalRowDenominatorExcept rows j := by
+  classical
+  dsimp [rationalRowDenominator, rationalRowDenominatorExcept]
+  exact (Finset.mul_prod_erase Finset.univ (fun k => (rows k).den)
+    (Finset.mem_univ j)).symm
+
+private theorem rationalRow_coefficient_clearDenominator {d : ℕ}
+    (rows : Fin d → ℚ) (j : Fin d) :
+    (rationalRowDenominator rows : ℚ) * rows j =
+      (rationalRowClearedCoefficient rows j : ℚ) := by
+  have hnum : ((rows j).den : ℚ) * rows j = (rows j).num := by
+    calc
+      ((rows j).den : ℚ) * rows j =
+          (rows j).den * ((rows j).num / (rows j).den) := by
+            rw [(rows j).num_div_den]
+      _ = (rows j).num := by
+        have hden : (0 : ℚ) < (rows j).den := by exact_mod_cast Rat.den_pos (rows j)
+        field_simp [ne_of_gt hden]
+  unfold rationalRowClearedCoefficient
+  rw [rationalRowDenominator_factor]
+  push_cast
+  calc
+    (rows j).den * (rationalRowDenominatorExcept rows j : ℚ) * rows j =
+        (rationalRowDenominatorExcept rows j : ℚ) *
+          ((rows j).den : ℚ) * rows j := by ring
+    _ = (rationalRowDenominatorExcept rows j : ℚ) * (rows j).num := by
+      calc
+        _ = (rationalRowDenominatorExcept rows j : ℚ) *
+            (((rows j).den : ℚ) * rows j) := by ring
+        _ = (rationalRowDenominatorExcept rows j : ℚ) * (rows j).num :=
+          congrArg (fun z : ℚ => (rationalRowDenominatorExcept rows j : ℚ) * z) hnum
+    _ = (((rows j).num : ℤ) *
+          (rationalRowDenominatorExcept rows j : ℤ) : ℚ) := by
+      norm_cast
+      ring
+
+private theorem rationalRow_commonDenominator_value {d : ℕ}
+    (rows : Fin d → ℚ) (x : Fin d → ℤ) :
+    (rationalRowDenominator rows : ℚ) *
+        (∑ j, rows j * (x j : ℚ)) =
+      ∑ j, (rationalRowClearedCoefficient rows j : ℚ) * (x j : ℚ) := by
+  calc
+    (rationalRowDenominator rows : ℚ) *
+        (∑ j, rows j * (x j : ℚ)) =
+      ∑ j, (rationalRowDenominator rows : ℚ) *
+        (rows j * (x j : ℚ)) := by rw [Finset.mul_sum]
+    _ = ∑ j, ((rationalRowDenominator rows : ℚ) * rows j) * (x j : ℚ) := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      ring
+    _ = ∑ j, (rationalRowClearedCoefficient rows j : ℚ) * (x j : ℚ) := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      rw [rationalRow_coefficient_clearDenominator]
+
+private theorem rationalRow_commonDenominator_value_int {d : ℕ}
+    (rows : Fin d → ℚ) (x : Fin d → ℤ)
+    (hden : (∑ j, rows j * (x j : ℚ)).den = 1) :
+    (rationalRowDenominator rows : ℤ) * (∑ j, rows j * (x j : ℚ)).num =
+      ∑ j, rationalRowClearedCoefficient rows j * x j := by
+  let R : ℚ := ∑ j, rows j * (x j : ℚ)
+  have hRcast : (R.num : ℚ) = R := (Rat.den_eq_one_iff R).mp (by simpa [R] using hden)
+  have hQ : (((rationalRowDenominator rows : ℤ) * R.num : ℤ) : ℚ) =
+      ((∑ j, rationalRowClearedCoefficient rows j * x j : ℤ) : ℚ) := by
+    calc
+      (((rationalRowDenominator rows : ℤ) * R.num : ℤ) : ℚ) =
+          (rationalRowDenominator rows : ℚ) * (R.num : ℚ) := by norm_cast
+      _ = (rationalRowDenominator rows : ℚ) * R := by rw [hRcast]
+      _ = ∑ j, (rationalRowClearedCoefficient rows j : ℚ) * (x j : ℚ) := by
+        dsimp [R]
+        exact rationalRow_commonDenominator_value rows x
+      _ = ((∑ j, rationalRowClearedCoefficient rows j * x j : ℤ) : ℚ) := by
+        simp only [Int.cast_sum, Int.cast_mul]
+  exact_mod_cast hQ
+
+private theorem rationalRow_cleared_modulus_divisibility {d K σ : ℕ}
+    (hdiv : σ ∣ K) (rows : Fin d → ℚ) (x : Fin d → ℤ)
+    (xmod : Fin d → ZMod K) (hxmod : ∀ j, xmod j = (x j : ZMod K))
+    (hDcop : Nat.Coprime (rationalRowDenominator rows) σ)
+    (hRden : (∑ j, rows j * (x j : ℚ)).den = 1) :
+    (ZMod.castHom hdiv (ZMod σ)
+      (∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j) = 0) ↔
+      (σ : ℤ) ∣ (∑ j, rows j * (x j : ℚ)).num := by
+  classical
+  let f : ZMod K →+* ZMod σ := ZMod.castHom hdiv (ZMod σ)
+  let R : ℚ := ∑ j, rows j * (x j : ℚ)
+  let Dden : ℕ := rationalRowDenominator rows
+  have hInt := rationalRow_commonDenominator_value_int rows x hRden
+  have hmodK : (Dden : ZMod K) * (R.num : ZMod K) =
+      ∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j := by
+    have hcast := congrArg (fun z : ℤ => (z : ZMod K)) hInt
+    have hxmod' (j : Fin d) : (x j : ZMod K) = xmod j := (hxmod j).symm
+    dsimp [Dden, R] at hcast ⊢
+    simpa only [Int.cast_mul, Int.cast_sum, Int.cast_natCast, hxmod'] using hcast
+  have hmodσ : (Dden : ZMod σ) * (R.num : ZMod σ) =
+      f (∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j) := by
+    calc
+      _ = f (Dden : ZMod K) * f (R.num : ZMod K) := by simp [f]
+      _ = f ((Dden : ZMod K) * (R.num : ZMod K)) :=
+        (map_mul f (Dden : ZMod K) (R.num : ZMod K)).symm
+      _ = f (∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j) :=
+        congrArg f hmodK
+  have hDunit : IsUnit (Dden : ZMod σ) :=
+    (ZMod.isUnit_iff_coprime Dden σ).2 hDcop
+  constructor
+  · intro hzero
+    have hmul : (Dden : ZMod σ) * (R.num : ZMod σ) = 0 := by
+      rw [hmodσ]
+      exact hzero
+    have hnumzero : (R.num : ZMod σ) = 0 := by
+      have hval : (↑(hDunit.unit⁻¹) : ZMod σ) * ↑hDunit.unit = 1 := by
+        simpa using Units.inv_val hDunit.unit
+      calc
+        (R.num : ZMod σ) = 1 * (R.num : ZMod σ) := by simp
+        _ = (↑(hDunit.unit⁻¹) : ZMod σ) *
+            (↑hDunit.unit : ZMod σ) * (R.num : ZMod σ) := by rw [hval]
+        _ = (↑(hDunit.unit⁻¹) : ZMod σ) *
+            ((Dden : ZMod σ) * (R.num : ZMod σ)) := by
+              rw [hDunit.unit_spec]
+              ring
+        _ = 0 := by rw [hmul]; simp
+    exact (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mp hnumzero
+  · intro hdivNum
+    have hnumzero : (R.num : ZMod σ) = 0 :=
+      (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mpr hdivNum
+    rw [← hmodσ, hnumzero, mul_zero]
 
 private theorem zmod_int_mul (M : ℕ) (a b : ℤ) :
     (a : ZMod M) * (b : ZMod M) = ((a * b : ℤ) : ZMod M) := by
@@ -524,6 +654,26 @@ def integerResidue (K : ℕ) (hK : 0 < K) (z : ℤ) : Fin K := by
     Int.toNat_of_nonneg hz0
   exact Nat.cast_lt.mp (by rw [hcast]; exact hzlt)
 
+private theorem integerResidue_finEquiv {K : ℕ} (hK : 0 < K) (z : ℤ) :
+    (@ZMod.finEquiv K ⟨Nat.ne_of_gt hK⟩) (integerResidue K hK z) = (z : ZMod K) := by
+  classical
+  cases K with
+  | zero => omega
+  | succ K =>
+      letI : NeZero (K + 1) := ⟨by omega⟩
+      change integerResidue (K + 1) hK z = (z : ZMod (K + 1))
+      apply Fin.ext
+      change (z % ((K + 1 : ℕ) : ℤ)).toNat = (z : ZMod (K + 1)).val
+      have hKz : (0 : ℤ) < ((K + 1 : ℕ) : ℤ) := by exact_mod_cast (Nat.zero_lt_succ K)
+      have hz0 : 0 ≤ z % ((K + 1 : ℕ) : ℤ) :=
+        Int.emod_nonneg z (Int.ne_of_gt hKz)
+      have htoNat :
+          (((z % ((K + 1 : ℕ) : ℤ)).toNat : ℕ) : ℤ) =
+            z % ((K + 1 : ℕ) : ℤ) := Int.toNat_of_nonneg hz0
+      have hval : ((z : ZMod (K + 1)).val : ℤ) =
+          z % ((K + 1 : ℕ) : ℤ) := ZMod.val_intCast z
+      exact_mod_cast htoNat.trans hval.symm
+
 /-- Conditional residue mass of the base variables modulo a divisor product. -/
 def baseResidueLaw {d : ℕ} (K : ℕ) (hK : 0 < K)
     (baseMass : (Fin d → ℤ) → ℝ) (r : Fin d → Fin K) : ℝ :=
@@ -673,6 +823,75 @@ private theorem localPowerRows_fromData {n q d b m : ℕ} {Aset : Finset ℚ}
       hregular u v huv
     exact ⟨i, j, rationalRowsModPow_minor_unit hr hA rows hden u v i j
       (by simpa [rows] using hminor)⟩
+
+private theorem localClearedRows_fromData {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (slots : Fin m → ℕ) (p A : ℕ) (hp : p.Prime)
+    (hgood : D.goodDomain N slots) (hrough : N + 1 < p) (hpV : p ≤ D.V N)
+    (hA : 0 < A) :
+    ∃ coeff : Fin q → Fin d → ZMod (p ^ A),
+      (∀ u, ∃ j, IsUnit (coeff u j)) ∧
+      (∀ u v, u ≠ v →
+        (∀ Q ∈ tests,
+          ¬ ((p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ)))) →
+        ∃ i j, IsUnit (coeff u i * coeff v j - coeff u j * coeff v i)) ∧
+      (∀ u j, coeff u j =
+        (rationalRowDenominator (fun i => D.rowCoeff N slots u i) : ZMod (p ^ A)) *
+          rationalRowsModPow (p := p) (A := A)
+            (fun v i => D.rowCoeff N slots v i)
+            (fun v i => D.row_denominators_are_units N slots hgood p hp hrough hpV v i)
+            u j) := by
+  classical
+  let rows : Fin q → Fin d → ℚ := fun u j => D.rowCoeff N slots u j
+  have hdenP (u : Fin q) (j : Fin d) : Nat.Coprime (rows u j).den p := by
+    exact D.row_denominators_are_units N slots hgood p hp hrough hpV u j
+  have hdenPow (u : Fin q) (j : Fin d) : Nat.Coprime (rows u j).den (p ^ A) := by
+    by_cases hA : A = 0
+    · simp [hA]
+    · rw [Nat.coprime_pow_right_iff (Nat.pos_of_ne_zero hA)]
+      exact hdenP u j
+  let ratCoeff : Fin q → Fin d → ZMod (p ^ A) :=
+    rationalRowsModPow (p := p) (A := A) rows hdenP
+  let clearedCoeff : Fin q → Fin d → ZMod (p ^ A) := fun u j =>
+    (rationalRowClearedCoefficient (rows u) j : ZMod (p ^ A))
+  have hDdenUnit (u : Fin q) :
+      IsUnit (rationalRowDenominator (rows u) : ZMod (p ^ A)) := by
+    apply (ZMod.isUnit_iff_coprime _ _).2
+    dsimp [rationalRowDenominator]
+    exact Nat.coprime_fintype_prod_left_iff.mpr (hdenPow u)
+  have hclear (u : Fin q) (j : Fin d) :
+      rationalRowDenominator (rows u) * ratCoeff u j = clearedCoeff u j := by
+    have h := rationalRow_clearedCoefficient_modulus (rows u) (hdenPow u) j
+    simpa [ratCoeff, clearedCoeff, rationalRowsModPow,
+      rationalResidueModPow, rationalResidueModulus] using h
+  have hprimitive (u : Fin q) : ∃ j, IsUnit (ratCoeff u j) := by
+    apply rationalRowsModPow_row_unit hp hA rows hdenP u
+    simpa [rows] using D.row_primitive N slots hgood p hp hrough hpV u
+  refine ⟨clearedCoeff, ?_, ?_, ?_⟩
+  · intro u
+    obtain ⟨j, hj⟩ := hprimitive u
+    refine ⟨j, ?_⟩
+    rw [← hclear u j]
+    exact IsUnit.mul (hDdenUnit u) hj
+  · intro u v huv
+    intro hregular
+    obtain ⟨i, j, hminor⟩ := D.pairwise_row_tests N slots hgood p hp hrough hpV
+      hregular u v huv
+    have hminorRat := rationalRowsModPow_minor_unit hp hA rows hdenP u v i j
+      (by simpa [rows] using hminor)
+    refine ⟨i, j, ?_⟩
+    have hdet : clearedCoeff u i * clearedCoeff v j -
+        clearedCoeff u j * clearedCoeff v i =
+          (rationalRowDenominator (rows u) : ZMod (p ^ A)) *
+            (rationalRowDenominator (rows v) : ZMod (p ^ A)) *
+              (ratCoeff u i * ratCoeff v j - ratCoeff u j * ratCoeff v i) := by
+      rw [← hclear u i, ← hclear v j, ← hclear u j, ← hclear v i]
+      ring
+    rw [hdet]
+    exact IsUnit.mul (IsUnit.mul (hDdenUnit u) (hDdenUnit v)) hminorRat
+  · intro u j
+    simpa [clearedCoeff, ratCoeff] using (hclear u j).symm
 
 /-- Kernel probability of a homomorphism between finite groups, under uniform input. -/
 def localKernelProbability {G H : Type*} [Group G] [Group H]
@@ -1528,6 +1747,26 @@ private theorem harmonicProductLaw_tsum_eq_one {k : ℕ} (W : ℕ)
     obtain ⟨t, ht, hprod⟩ := Finset.mem_image.mp himage
     rw [← hprod]
     exact hcop_product t ht
+
+private theorem harmonicProductLaw_nonneg {k : ℕ} (W : ℕ)
+    (X : Fin k → ℕ) (hX : ∀ i, 0 < X i)
+    (hH : ∀ i, 0 < harmonicNormalizer (X i) W) (σ : ℕ) :
+    0 ≤ harmonicProductLaw W X σ := by
+  classical
+  unfold harmonicProductLaw
+  apply tsum_nonneg
+  intro t
+  by_cases hprod : ∏ i, t i = σ
+  · simp only [if_pos hprod, one_mul]
+    apply Finset.prod_nonneg
+    intro i hi
+    unfold harmonicNatLaw
+    split_ifs with h
+    · have htpos : 0 < t i := lt_of_lt_of_le (hX i) h.1
+      have htR : (0 : ℝ) < (t i : ℝ) := by exact_mod_cast htpos
+      positivity [hH i]
+    · simp
+  · simp [hprod]
 
 private theorem harmonicProductLaw_primeValuationMass {k : ℕ} (W p : ℕ)
     (hp : p.Prime) (hpW : p ∣ W) (X : Fin k → ℕ)
@@ -4117,6 +4356,1472 @@ theorem divisor_weight_expansion_cancellation {q : ℕ}
 `P(E)` up to the absolute error `O(1/w + V^q(ε_base+ε_CRT))`, uniformly over every
 prime-only event `E⊆G`. The formulation permits rational rows with denominators that are
 units modulo every possible divisor (§3 lines 463–519). -/
+private def primeVectorMass (P : Finset ℕ) (law : ℕ → ℝ)
+    (a : ℕ → ℕ) : ℝ :=
+  ∑' n : ℕ, law n * (if ∀ p ∈ P, Nat.factorization n p = a p then 1 else 0)
+
+private theorem independentPrimeVectorMass_eq {q : ℕ} (P : Finset ℕ)
+    (laws : Fin q → ℕ → ℝ) (support : Fin q → Finset ℕ)
+    (hlawZero : ∀ u n, n ∉ support u → laws u n = 0)
+    (a : ℕ → Fin q → ℕ) :
+    (∑' σ : Fin q → ℕ, (∏ u, laws u (σ u)) *
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) =
+      ∏ u, primeVectorMass P (laws u) (fun p => a p u) := by
+  classical
+  let T : Finset (Fin q → ℕ) := Fintype.piFinset support
+  let rowEvent (u : Fin q) (n : ℕ) : ℝ :=
+    if ∀ p ∈ P, Nat.factorization n p = a p u then 1 else 0
+  have hzero (σ : Fin q → ℕ) (hσ : σ ∉ T) :
+      (∏ u, laws u (σ u)) *
+        (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0) = 0 := by
+    have hnot : ¬ ∀ u, σ u ∈ support u := by
+      intro h
+      exact hσ (Fintype.mem_piFinset.mpr h)
+    obtain ⟨u, hu⟩ := not_forall.mp hnot
+    rw [Finset.prod_eq_zero (Finset.mem_univ u) (hlawZero u (σ u) hu)]
+    simp
+  have hrowZero (u : Fin q) (n : ℕ) (hn : n ∉ support u) :
+      laws u n * rowEvent u n = 0 := by
+    rw [hlawZero u n hn]
+    simp
+  have hrowMass (u : Fin q) :
+      primeVectorMass P (laws u) (fun p => a p u) =
+        ∑ n ∈ support u, laws u n * rowEvent u n := by
+    unfold primeVectorMass
+    rw [tsum_eq_sum (s := support u) (hrowZero u)]
+  have hindicator (σ : Fin q → ℕ) :
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0) =
+        ∏ u, rowEvent u (σ u) := by
+    by_cases h : ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u
+    · have hrow : ∀ u, rowEvent u (σ u) = 1 := by
+        intro u
+        dsimp [rowEvent]
+        rw [if_pos (h u)]
+      rw [if_pos h]
+      calc
+        1 = ∏ u, (1 : ℝ) := by simp
+        _ = ∏ u, rowEvent u (σ u) := by
+          apply Finset.prod_congr rfl
+          intro u hu
+          rw [hrow u]
+    · obtain ⟨u, hu⟩ := not_forall.mp h
+      have hrow : rowEvent u (σ u) = 0 := by
+        dsimp [rowEvent]
+        rw [if_neg hu]
+      rw [if_neg h]
+      exact (Finset.prod_eq_zero (Finset.mem_univ u) hrow).symm
+  calc
+    (∑' σ : Fin q → ℕ, (∏ u, laws u (σ u)) *
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) =
+        ∑ σ ∈ T, (∏ u, laws u (σ u)) *
+          (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0) :=
+      tsum_eq_sum (s := T) hzero
+    _ = ∑ σ ∈ T, ∏ u, (laws u (σ u) * rowEvent u (σ u)) := by
+      apply Finset.sum_congr rfl
+      intro σ hσ
+      rw [hindicator]
+      rw [← Finset.prod_mul_distrib]
+    _ = ∏ u, ∑ n ∈ support u, laws u n * rowEvent u n := by
+      simpa [T] using (Finset.prod_univ_sum support
+        (fun u n => laws u n * rowEvent u n)).symm
+    _ = ∏ u, primeVectorMass P (laws u) (fun p => a p u) := by
+      apply Finset.prod_congr rfl
+      intro u hu
+      rw [hrowMass u]
+
+private theorem independentPrimeVectorMass_le {q : ℕ} (P : Finset ℕ)
+    (laws : Fin q → ℕ → ℝ) (support : Fin q → Finset ℕ)
+    (hlawZero : ∀ u n, n ∉ support u → laws u n = 0)
+    (hlawNonneg : ∀ u n, 0 ≤ laws u n) (a : ℕ → Fin q → ℕ)
+    (upper : Fin q → ℝ) (hupper : ∀ u, 0 ≤ upper u)
+    (hrow : ∀ u, primeVectorMass P (laws u) (fun p => a p u) ≤ upper u) :
+    (∑' σ : Fin q → ℕ, (∏ u, laws u (σ u)) *
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) ≤
+        ∏ u, upper u := by
+  rw [independentPrimeVectorMass_eq P laws support hlawZero a]
+  exact finset_prod_le_prod_of_nonneg Finset.univ
+    (fun u => primeVectorMass P (laws u) (fun p => a p u)) upper
+    (by
+      intro u hu
+      unfold primeVectorMass
+      apply tsum_nonneg
+      intro n
+      exact mul_nonneg (hlawNonneg u n) (by split_ifs <;> norm_num))
+    (by intro u hu; exact hupper u)
+    (by intro u hu; exact hrow u)
+
+private theorem divisorTuplePrimeVectorMass_le {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N W : ℕ) (hW : 0 < W) (hWdef : W = primorial (N + 1))
+    (P : Finset ℕ) (hprime : ∀ p ∈ P, p.Prime)
+    (hcop : ∀ p ∈ P, Nat.Coprime p W)
+    (hXscale : ∀ i : Fin n, 4 * W ≤ S.core.parameters.X N i)
+    (hlog : ∀ i : Fin n, 4 * (W : ℝ) ≤ Real.log (S.core.parameters.X N i : ℝ))
+    (a : ℕ → Fin q → ℕ) :
+    (∑' σ : Fin q → ℕ,
+      (∏ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u)) *
+        (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) ≤
+      ∏ u, (6 : ℝ) ^ b * ∏ p ∈ P,
+        (((a p u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a p u)) := by
+  classical
+  let laws : Fin q → ℕ → ℝ := fun u =>
+    divisorTemplateLaw S.core.parameters N (D.divisor u)
+  let support : Fin q → Finset ℕ := fun u =>
+    harmonicProductSupport W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j))
+  have hlawZero (u : Fin q) (σ : ℕ) (hσ : σ ∉ support u) : laws u σ = 0 := by
+    dsimp [laws, divisorTemplateLaw]
+    rw [← hWdef]
+    exact harmonicProductLaw_zero_of_not_mem_support W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j)) σ
+      (by simpa [support] using hσ)
+  have hXraw (u : Fin q) (j : Fin (D.divisor u).arity) :
+      0 < S.core.parameters.X N ((D.divisor u).cutoff j) :=
+    S.core.parameters.Xpos N ((D.divisor u).cutoff j)
+  have hHraw (u : Fin q) (j : Fin (D.divisor u).arity) :
+      0 < harmonicNormalizer
+        (S.core.parameters.X N ((D.divisor u).cutoff j)) W := by
+    apply harmonicNormalizer_pos_of_cutoff _ W hW
+    exact hXscale ((D.divisor u).cutoff j)
+  have hlawNonneg (u : Fin q) (σ : ℕ) : 0 ≤ laws u σ := by
+    dsimp [laws, divisorTemplateLaw]
+    rw [← hWdef]
+    exact harmonicProductLaw_nonneg W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j))
+      (hXraw u) (hHraw u) σ
+  let upper : Fin q → ℝ := fun u => (6 : ℝ) ^ b *
+    ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a p u))
+  have hupper (u : Fin q) : 0 ≤ upper u := by
+    dsimp [upper]
+    positivity
+  have hrow (u : Fin q) :
+      primeVectorMass P (laws u) (fun p => a p u) ≤ upper u := by
+    let Xraw : Fin (D.divisor u).arity → ℕ := fun j =>
+      S.core.parameters.X N ((D.divisor u).cutoff j)
+    have hlocal := harmonicProductLaw_primeVectorMass_le W P hprime hcop Xraw hW
+      (fun j => hXraw u j)
+      (fun j => hXscale ((D.divisor u).cutoff j))
+      (fun j => hlog ((D.divisor u).cutoff j))
+      (hHraw u) (fun p => a p u)
+    have hprodLower :
+        ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ (D.divisor u).arity /
+          (p : ℝ) ^ (a p u)) ≤
+        ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ b /
+          (p : ℝ) ^ (a p u)) := by
+      apply finset_prod_le_prod_of_nonneg
+      · intro p hp
+        positivity
+      · intro p hp
+        positivity
+      · intro p hp
+        have hB : (1 : ℝ) ≤ ((a p u + 1 : ℕ) : ℝ) := by
+          exact_mod_cast (show 1 ≤ a p u + 1 by omega)
+        have hpow := pow_le_pow_right₀ hB (D.divisor u).arity_le
+        exact div_le_div_of_nonneg_right hpow (by positivity)
+    have h6 : (6 : ℝ) ^ (D.divisor u).arity ≤ (6 : ℝ) ^ b :=
+      pow_le_pow_right₀ (by norm_num) (D.divisor u).arity_le
+    change primeVectorMass P (divisorTemplateLaw S.core.parameters N (D.divisor u))
+      (fun p => a p u) ≤ upper u
+    have hlocal' : primeVectorMass P (divisorTemplateLaw S.core.parameters N (D.divisor u))
+        (fun p => a p u) ≤ (6 : ℝ) ^ (D.divisor u).arity *
+          ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ (D.divisor u).arity /
+            (p : ℝ) ^ (a p u)) := by
+      simpa [primeVectorMass, Xraw, laws, divisorTemplateLaw, ← hWdef] using hlocal
+    dsimp [upper]
+    calc
+      primeVectorMass P (divisorTemplateLaw S.core.parameters N (D.divisor u))
+          (fun p => a p u) ≤ (6 : ℝ) ^ (D.divisor u).arity *
+            ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ (D.divisor u).arity /
+              (p : ℝ) ^ (a p u)) := hlocal'
+      _ ≤ (6 : ℝ) ^ b * ∏ p ∈ P,
+            (((a p u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a p u)) := by
+          exact mul_le_mul h6 hprodLower (by positivity) (by positivity)
+  exact independentPrimeVectorMass_le P laws support hlawZero hlawNonneg a upper hupper hrow
+
+private theorem exists_top_two_positive_valuations {q : ℕ}
+    (a : Fin q → ℕ)
+    (hcard : 2 ≤ ((Finset.univ : Finset (Fin q)).filter fun u => 0 < a u).card) :
+    ∃ u v : Fin q,
+      0 < a u ∧ 0 < a v ∧ u ≠ v ∧ a v ≤ a u ∧
+        ∀ w, w ≠ u → a w ≤ a v := by
+  classical
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  have hcardU : 2 ≤ U.card := by simpa [U] using hcard
+  have hUnonempty : U.Nonempty := by
+    apply Finset.card_pos.mp
+    omega
+  obtain ⟨u, huU, huMax⟩ := Finset.exists_max_image U a hUnonempty
+  let R := U.erase u
+  have hRcard : R.card = U.card - 1 := by
+    dsimp [R]
+    exact Finset.card_erase_of_mem huU
+  have hRnonempty : R.Nonempty := by
+    apply Finset.card_pos.mp
+    rw [hRcard]
+    omega
+  obtain ⟨v, hvR, hvMax⟩ := Finset.exists_max_image R a hRnonempty
+  have hvR' := Finset.mem_erase.mp hvR
+  have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
+  have hvPos : 0 < a v := (Finset.mem_filter.mp hvR'.2).2
+  refine ⟨u, v, huPos, hvPos, Ne.symm hvR'.1,
+    huMax v hvR'.2, ?_⟩
+  intro w hwu
+  by_cases hw : 0 < a w
+  · have hwU : w ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hw⟩
+    exact hvMax w (Finset.mem_erase.mpr ⟨hwu, hwU⟩)
+  · have hwa : a w = 0 := by omega
+    omega
+
+private def regularPrimeLocalExcessTerm {q : ℕ} (p : ℕ)
+    (a : Fin q → ℕ) (u v : Fin q) : ℝ :=
+  if u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+      ∀ w, w ≠ u → a w ≤ a v then
+    (p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1 else 0
+
+private def regularPrimeLocalExcess {q : ℕ} (p : ℕ) (a : Fin q → ℕ) : ℝ :=
+  ∑ u : Fin q, ∑ v : Fin q, regularPrimeLocalExcessTerm p a u v
+
+private def exceptionalPrimeLocalExcessTerm {q : ℕ} (p : ℕ)
+    (a : Fin q → ℕ) (u : Fin q) : ℝ :=
+  if 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u then
+    (p : ℝ) ^ ((∑ w, a w) - a u) - 1 else 0
+
+private def exceptionalPrimeLocalExcess {q : ℕ} (p : ℕ) (a : Fin q → ℕ) : ℝ :=
+  ∑ u : Fin q, exceptionalPrimeLocalExcessTerm p a u
+
+private theorem rowValuationPair_le_sum {q : ℕ} (a : Fin q → ℕ)
+    (u v : Fin q) (huv : u ≠ v) :
+    a u + a v ≤ ∑ w, a w := by
+  have hsub : ({u, v} : Finset (Fin q)) ⊆ Finset.univ := by simp
+  have hsum : (∑ w ∈ ({u, v} : Finset (Fin q)), a w) ≤ ∑ w, a w :=
+    Finset.sum_le_sum_of_subset_of_nonneg (f := a) hsub (by
+    intro w hwU hwNot
+    exact Nat.zero_le (a w))
+  have hpair : (∑ w ∈ ({u, v} : Finset (Fin q)), a w) = a u + a v := by
+    simp [huv, add_comm]
+  rw [hpair] at hsum
+  exact hsum
+
+private theorem rowValuation_le_sum {q : ℕ} (a : Fin q → ℕ) (u : Fin q) :
+    a u ≤ ∑ w, a w :=
+  Finset.single_le_sum (f := a) (fun w hw => Nat.zero_le _) (Finset.mem_univ u)
+
+private theorem regularPrimeLocalExcessTerm_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u v : Fin q) : 0 ≤ regularPrimeLocalExcessTerm p a u v := by
+  have hpR : (1 : ℝ) ≤ (p : ℝ) := by
+    have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
+    exact_mod_cast hpNat
+  unfold regularPrimeLocalExcessTerm
+  split_ifs with h
+  · have hsum := rowValuationPair_le_sum a u v h.1
+    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u - a v) := one_le_pow₀ hpR
+    linarith
+  · norm_num
+
+private theorem exceptionalPrimeLocalExcessTerm_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u : Fin q) : 0 ≤ exceptionalPrimeLocalExcessTerm p a u := by
+  have hpR : (1 : ℝ) ≤ (p : ℝ) := by
+    have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
+    exact_mod_cast hpNat
+  unfold exceptionalPrimeLocalExcessTerm
+  split_ifs with h
+  · have hsum := rowValuation_le_sum a u
+    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u) := one_le_pow₀ hpR
+    linarith
+  · norm_num
+
+private theorem regularPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) : 0 ≤ regularPrimeLocalExcess p a := by
+  classical
+  unfold regularPrimeLocalExcess
+  apply Finset.sum_nonneg
+  intro u hu
+  apply Finset.sum_nonneg
+  intro v hv
+  exact regularPrimeLocalExcessTerm_nonneg p hp a u v
+
+private theorem exceptionalPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) : 0 ≤ exceptionalPrimeLocalExcess p a := by
+  classical
+  unfold exceptionalPrimeLocalExcess
+  apply Finset.sum_nonneg
+  intro u hu
+  exact exceptionalPrimeLocalExcessTerm_nonneg p hp a u
+
+private theorem regularPrimeLocalExcessTerm_le {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u v : Fin q) :
+    regularPrimeLocalExcessTerm p a u v ≤ regularPrimeLocalExcess p a := by
+  classical
+  have hinnerNonneg (x : Fin q) : 0 ≤ ∑ y : Fin q, regularPrimeLocalExcessTerm p a x y :=
+    Finset.sum_nonneg fun y hy => regularPrimeLocalExcessTerm_nonneg p hp a x y
+  have hv := Finset.single_le_sum
+    (f := fun y => regularPrimeLocalExcessTerm p a u y)
+    (fun y hy => regularPrimeLocalExcessTerm_nonneg p hp a u y) (Finset.mem_univ v)
+  have hu := Finset.single_le_sum
+    (f := fun x => ∑ y : Fin q, regularPrimeLocalExcessTerm p a x y)
+    (fun x hx => hinnerNonneg x) (Finset.mem_univ u)
+  exact hv.trans hu
+
+private theorem exceptionalPrimeLocalExcessTerm_le {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u : Fin q) :
+    exceptionalPrimeLocalExcessTerm p a u ≤ exceptionalPrimeLocalExcess p a := by
+  classical
+  have htermNonneg (x : Fin q) : 0 ≤ exceptionalPrimeLocalExcessTerm p a x :=
+    exceptionalPrimeLocalExcessTerm_nonneg p hp a x
+  exact Finset.single_le_sum (f := fun x => exceptionalPrimeLocalExcessTerm p a x)
+    (fun x hx => htermNonneg x) (Finset.mem_univ u)
+
+set_option maxHeartbeats 1000000 in
+theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
+    (coeff : Fin q → Fin d → ZMod (p ^ A))
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
+    (hsmall : ((Finset.univ : Finset (Fin q)).filter fun u => 0 < a u).card ≤ 1)
+    [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
+    normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative = 1 := by
+  classical
+  letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
+  have hbase := local_linear_kernel_count_excess f
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  have hUle : U.card ≤ 1 := by simpa [U] using hsmall
+  by_cases hUempty : U = ∅
+  · have hzero (u : Fin q) : a u = 0 := by
+      by_contra hne
+      have hu : u ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
+      rw [hUempty] at hu
+      simp at hu
+    haveI (u : Fin q) : Subsingleton (ZMod (p ^ (a u))) := by
+      rw [hzero u]
+      rw [pow_zero]
+      exact (ZMod.subsingleton_iff).2 rfl
+    haveI : Subsingleton ((u : Fin q) → ZMod (p ^ (a u))) := Pi.instSubsingleton
+    haveI : Subsingleton (Multiplicative ((u : Fin q) → ZMod (p ^ (a u)))) := inferInstance
+    have hsurj : Function.Surjective f := by
+      intro y
+      exact ⟨1, Subsingleton.elim _ _⟩
+    exact hbase.2 hsurj
+  · have hUne : U.Nonempty := Finset.nonempty_iff_ne_empty.mpr hUempty
+    have hUcard : U.card = 1 := by
+      have hpos : 0 < U.card := hUne.card_pos
+      omega
+    obtain ⟨u, hUeq⟩ := Finset.card_eq_one.mp hUcard
+    have huU : u ∈ U := by rw [hUeq]; simp
+    have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
+    have hzero (v : Fin q) (hvu : v ≠ u) : a v = 0 := by
+      by_contra hne
+      have hvU : v ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
+      have hvEq : v = u := by
+        rw [hUeq] at hvU
+        simpa using hvU
+      exact hvu hvEq
+    obtain ⟨j, hj⟩ := hrow u
+    have hupper := localKernel_upper_one_row hp a ha coeff u ⟨j, hj⟩
+    have hprod : (∏ v : Fin q, (p : ℝ) ^ (a v)) = (p : ℝ) ^ (a u) := by
+      simpa using (Finset.prod_eq_single_of_mem (s := Finset.univ) u
+        (Finset.mem_univ u) (by
+          intro v hv hvu
+          rw [hzero v hvu]
+          simp))
+    have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+    have hupperOne : normalizedKernelCount f ≤ 1 := by
+      calc
+        normalizedKernelCount f ≤
+            (∏ v, (p : ℝ) ^ (a v)) / (p : ℝ) ^ (a u) := by
+          change normalizedKernelCount
+              (localDivisibilityAddHom a ha coeff).toMultiplicative ≤ _
+          exact hupper
+        _ = 1 := by rw [hprod]; exact div_self (ne_of_gt (pow_pos hpR _))
+    exact le_antisymm hupperOne hbase.1
+
+set_option maxHeartbeats 1000000 in
+private theorem localKernel_regularExcess_bound {p A q d : ℕ}
+    (hp : p.Prime) (hA : 0 < A) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
+    (coeff : Fin q → Fin d → ZMod (p ^ A))
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
+    (hminor : ∀ u v, u ≠ v → ∃ i j,
+      IsUnit (coeff u i * coeff v j - coeff u j * coeff v i))
+    [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
+    normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+      1 + regularPrimeLocalExcess p a := by
+  classical
+  letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  by_cases hlarge : 2 ≤ U.card
+  · obtain ⟨u, v, huPos, hvPos, huv, hvu, htop⟩ :=
+      exists_top_two_positive_valuations a (by simpa [U] using hlarge)
+    obtain ⟨i, j, hdet⟩ := hminor u v huv
+    have hAmod : 1 < p ^ A := Nat.one_lt_pow (Nat.ne_of_gt hA) hp.one_lt
+    letI : Fact (1 < p ^ A) := ⟨hAmod⟩
+    have hij : i ≠ j := by
+      intro heq
+      subst j
+      have hdet0 : IsUnit (0 : ZMod (p ^ A)) := by simpa using hdet
+      have hunit : ((↑(hdet0.unit⁻¹) : ZMod (p ^ A)) * ↑hdet0.unit) = 1 := by
+        simpa using Units.inv_val hdet0.unit
+      have hzero : ((↑(hdet0.unit⁻¹) : ZMod (p ^ A)) * ↑hdet0.unit) = 0 := by
+        rw [hdet0.unit_spec]
+        simp
+      exact one_ne_zero (hunit.symm.trans hzero)
+    have htwo := localKernel_upper_two_rows hp a ha coeff u v i j hij hdet
+    let total : ℕ := ∑ w, a w
+    have hpairSum : a u + a v ≤ total := rowValuationPair_le_sum a u v huv
+    have hprodPow : (∏ w : Fin q, (p : ℝ) ^ (a w)) = (p : ℝ) ^ total := by
+      simp [total, Finset.prod_pow_eq_pow_sum]
+    have hpR : (p : ℝ) ≠ 0 := by exact_mod_cast hp.ne_zero
+    have hpowRatio :
+        (p : ℝ) ^ total / ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) =
+          (p : ℝ) ^ (total - a u - a v) := by
+      calc
+        (p : ℝ) ^ total / ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) =
+            (p : ℝ) ^ total / (p : ℝ) ^ (a u + a v) := by rw [pow_add]
+        _ = (p : ℝ) ^ (total - (a u + a v)) := by
+          simpa [div_eq_mul_inv] using
+            (pow_sub₀ (p : ℝ) hpR hpairSum).symm
+        _ = (p : ℝ) ^ (total - a u - a v) := by
+          congr 1
+          omega
+    have hratio :
+        (∏ w : Fin q, (p : ℝ) ^ (a w)) /
+            ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) =
+          (p : ℝ) ^ (total - a u - a v) := by
+      simpa [hprodPow] using hpowRatio
+    have hcond : u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+        (∀ w, w ≠ u → a w ≤ a v) := ⟨huv, huPos, hvPos, hvu, htop⟩
+    have htermVal : regularPrimeLocalExcessTerm p a u v =
+        (p : ℝ) ^ (total - a u - a v) - 1 := by
+      unfold regularPrimeLocalExcessTerm
+      rw [if_pos hcond]
+    have htermLE := regularPrimeLocalExcessTerm_le p hp a u v
+    have hAlphaUpper : normalizedKernelCount f ≤
+        (p : ℝ) ^ (total - a u - a v) := by
+      calc
+        normalizedKernelCount f ≤
+            (∏ w : Fin q, (p : ℝ) ^ (a w)) /
+              ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) := by
+                change normalizedKernelCount
+                    (localDivisibilityAddHom a ha coeff).toMultiplicative ≤ _
+                exact htwo
+        _ = _ := hratio
+    calc
+      normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+          (p : ℝ) ^ (total - a u - a v) := by
+        simpa [f] using hAlphaUpper
+      _ = 1 + ((p : ℝ) ^ (total - a u - a v) - 1) := by ring
+      _ ≤ 1 + regularPrimeLocalExcess p a := by
+        rw [← htermVal]
+        nlinarith [htermLE]
+  · have hsmall : U.card ≤ 1 := by omega
+    have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
+      simpa [U] using hsmall)
+    rw [hEq]
+    linarith [regularPrimeLocalExcess_nonneg p hp a]
+
+set_option maxHeartbeats 1000000 in
+private theorem localKernel_exceptionalExcess_bound {p A q d : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
+    (coeff : Fin q → Fin d → ZMod (p ^ A))
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
+    [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
+    normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+      1 + exceptionalPrimeLocalExcess p a := by
+  classical
+  letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  by_cases hUempty : U = ∅
+  · have hsmall : U.card ≤ 1 := by simp [U, hUempty]
+    have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
+      simpa [U] using hsmall)
+    rw [hEq]
+    linarith [exceptionalPrimeLocalExcess_nonneg p hp a]
+  · have hUne : U.Nonempty := Finset.nonempty_iff_ne_empty.mpr hUempty
+    obtain ⟨u, huU, huMax⟩ := Finset.exists_max_image U a hUne
+    have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
+    have htop : ∀ v, v ≠ u → a v ≤ a u := by
+      intro v hvu
+      by_cases hv : 0 < a v
+      · have hvU : v ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩
+        exact huMax v hvU
+      · omega
+    obtain ⟨j, hj⟩ := hrow u
+    have hone := localKernel_upper_one_row hp a ha coeff u ⟨j, hj⟩
+    let total : ℕ := ∑ v, a v
+    have hsum : a u ≤ total := rowValuation_le_sum a u
+    have hprodPow : (∏ v : Fin q, (p : ℝ) ^ (a v)) = (p : ℝ) ^ total := by
+      exact Finset.prod_pow_eq_pow_sum Finset.univ a (p : ℝ)
+    have hpR : (p : ℝ) ≠ 0 := by exact_mod_cast hp.ne_zero
+    have hpowRatio : (p : ℝ) ^ total / (p : ℝ) ^ (a u) =
+        (p : ℝ) ^ (total - a u) := by
+      simpa [div_eq_mul_inv] using
+        (pow_sub₀ (p : ℝ) hpR hsum).symm
+    have hratio : (∏ v : Fin q, (p : ℝ) ^ (a v)) / (p : ℝ) ^ (a u) =
+        (p : ℝ) ^ (total - a u) := by
+      simpa [hprodPow] using hpowRatio
+    have hcond : 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u := ⟨huPos, htop⟩
+    have htermVal : exceptionalPrimeLocalExcessTerm p a u =
+        (p : ℝ) ^ (total - a u) - 1 := by
+      unfold exceptionalPrimeLocalExcessTerm
+      rw [if_pos hcond]
+    have htermLE := exceptionalPrimeLocalExcessTerm_le p hp a u
+    have hAlphaUpper : normalizedKernelCount f ≤ (p : ℝ) ^ (total - a u) := by
+      calc
+        normalizedKernelCount f ≤
+            (∏ v : Fin q, (p : ℝ) ^ (a v)) / (p : ℝ) ^ (a u) := by
+          change normalizedKernelCount
+              (localDivisibilityAddHom a ha coeff).toMultiplicative ≤ _
+          exact hone
+        _ = _ := hratio
+    calc
+      normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+          (p : ℝ) ^ (total - a u) := by simpa [f] using hAlphaUpper
+      _ = 1 + ((p : ℝ) ^ (total - a u) - 1) := by ring
+      _ ≤ 1 + exceptionalPrimeLocalExcess p a := by
+        rw [← htermVal]
+        nlinarith [htermLE]
+
+private theorem globalKernelPrimeProduct_bound {K q d : ℕ}
+    (σ : Fin q → ℕ) (hσ : ∀ u, σ u ≠ 0) (hK : K ≠ 0)
+    (hdiv : ∀ u, σ u ∣ K) (coeff : Fin q → Fin d → ZMod K)
+    (P : Finset ℕ) (hP : K.primeFactors ⊆ P) (beta : ℕ → ℝ)
+    (hbeta : ∀ p ∈ P, 0 ≤ beta p)
+    [DecidableEq (primePowerIndex K)] [Fintype (primePowerIndex K)]
+    [Fintype (Multiplicative (Fin d → ZMod K))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (σ u)))]
+    [∀ p : primePowerIndex K,
+      Fintype (Multiplicative (Fin d → ZMod (p.val ^ K.factorization p.val)))]
+    [∀ p : primePowerIndex K,
+      Fintype (Multiplicative ((u : Fin q) →
+        ZMod (p.val ^ (σ u).factorization p.val)))]
+    (hlower : ∀ p : primePowerIndex K, 1 ≤ normalizedKernelCount
+      (localDivisibilityGroupHom
+        (fun u => (σ u).factorization p.val)
+        (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+        (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p)))
+    (hupper : ∀ p : primePowerIndex K,
+      normalizedKernelCount
+        (localDivisibilityGroupHom
+          (fun u => (σ u).factorization p.val)
+          (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+          (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p)) ≤
+        1 + beta p.val) :
+    normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative ≤
+      ∏ p ∈ P, (1 + beta p) := by
+  classical
+  let localAlpha (p : primePowerIndex K) : ℝ := normalizedKernelCount
+    (localDivisibilityGroupHom
+      (fun u => (σ u).factorization p.val)
+      (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+      (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p))
+  have hfactor : normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative =
+      ∏ p : primePowerIndex K, localAlpha p := by
+    change normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative =
+      ∏ p : primePowerIndex K, normalizedKernelCount
+        (localDivisibilityGroupHom
+          (fun u => (σ u).factorization p.val)
+          (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+          (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p))
+    exact globalDivisibility_normalizedKernelCount_factor σ hσ hK hdiv coeff
+  have hlocalProd :
+      (∏ p : primePowerIndex K, localAlpha p) ≤
+        ∏ p : primePowerIndex K, (1 + beta p.val) := by
+    apply finset_prod_le_prod_of_nonneg Finset.univ localAlpha (fun p => 1 + beta p.val)
+    · intro p hp
+      have hlow : 1 ≤ localAlpha p := by simpa [localAlpha] using hlower p
+      exact le_trans (by norm_num : (0 : ℝ) ≤ 1) hlow
+    · intro p hp
+      exact add_nonneg (by norm_num) (hbeta p.val (hP p.property))
+    · intro p hp
+      simpa [localAlpha] using hupper p
+  have hsubtype :
+      (∏ p : primePowerIndex K, (1 + beta p.val)) =
+        ∏ p ∈ K.primeFactors, (1 + beta p) := by
+    simpa [primePowerIndex] using
+      (Finset.prod_subtype (p := fun p : ℕ => p ∈ K.primeFactors)
+        (F := (inferInstance : Fintype (primePowerIndex K)))
+        (s := K.primeFactors) (h := fun p : ℕ => Iff.rfl)
+        (f := fun p : ℕ => 1 + beta p)).symm
+  let extendedFactor : ℕ → ℝ := fun p => if p ∈ K.primeFactors then 1 + beta p else 1
+  have hfull : (∏ p ∈ K.primeFactors, (1 + beta p)) ≤
+      ∏ p ∈ P, (1 + beta p) := by
+    have hleft : (∏ p ∈ K.primeFactors, (1 + beta p)) =
+        ∏ p ∈ K.primeFactors, extendedFactor p := by
+      apply Finset.prod_congr rfl
+      intro p hp
+      change 1 + beta p = extendedFactor p
+      unfold extendedFactor
+      rw [if_pos hp]
+    have hsubset : (∏ p ∈ K.primeFactors, extendedFactor p) =
+        ∏ p ∈ P, extendedFactor p := by
+      exact Finset.prod_subset hP (by
+        intro p hpP hpNot
+        dsimp [extendedFactor]
+        exact if_neg hpNot)
+    have hright : (∏ p ∈ P, extendedFactor p) ≤
+        ∏ p ∈ P, (1 + beta p) := by
+      exact finset_prod_le_prod_of_nonneg P extendedFactor (fun p => 1 + beta p)
+        (by
+          intro p hp
+          dsimp [extendedFactor]
+          split_ifs with hpK
+          · exact add_nonneg (by norm_num) (hbeta p hp)
+          · norm_num)
+        (by intro p hp; exact add_nonneg (by norm_num) (hbeta p hp))
+        (by
+          intro p hp
+          by_cases hpK : p ∈ K.primeFactors
+          · dsimp [extendedFactor]
+            rw [if_pos hpK]
+          · dsimp [extendedFactor]
+            rw [if_neg hpK]
+            exact le_add_of_nonneg_right (hbeta p hp))
+    calc
+      (∏ p ∈ K.primeFactors, (1 + beta p)) =
+          ∏ p ∈ K.primeFactors, extendedFactor p := hleft
+      _ = ∏ p ∈ P, extendedFactor p := hsubset
+      _ ≤ ∏ p ∈ P, (1 + beta p) := hright
+  have hmid : normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative ≤
+      ∏ p : primePowerIndex K, (1 + beta p.val) := by
+    rw [hfactor]
+    exact hlocalProd
+  rw [hsubtype] at hmid
+  exact hmid.trans hfull
+
+set_option maxHeartbeats 1000000 in
+private theorem uniformBaseKernelCount_eq_normalizedKernelCount {K q d : ℕ}
+    (hK : 0 < K) [NeZero K] (σ : Fin q → ℕ) (hσ : ∀ u, 0 < σ u)
+    [∀ u, NeZero (σ u)]
+    (hKprod : ∏ u, σ u = K) (hdiv : ∀ u, σ u ∣ K)
+    (coeff : Fin q → Fin d → ZMod K) :
+    (∑ r : Fin d → Fin K,
+      uniformBaseResidueLaw K d r *
+        (if globalDivisibilityAddHom σ hdiv coeff
+            (fun j => (ZMod.finEquiv K) (r j)) = 0 then (K : ℝ) else 0)) =
+      normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative := by
+  classical
+  letI : NeZero K := ⟨Nat.ne_of_gt hK⟩
+  letI (u : Fin q) : NeZero (σ u) := ⟨Nat.ne_of_gt (hσ u)⟩
+  let g := globalDivisibilityAddHom σ hdiv coeff
+  let f := g.toMultiplicative
+  let e0 : Fin K ≃ ZMod K := (@ZMod.finEquiv K ⟨Nat.ne_of_gt hK⟩).toEquiv
+  let e : (Fin d → Fin K) ≃ (Fin d → ZMod K) :=
+    Equiv.piCongrRight (fun _ : Fin d => e0)
+  let good : (Fin d → Fin K) → Prop := fun r => g (e r) = 0
+  let eKer : {r : Fin d → Fin K // good r} ≃ f.ker := {
+    toFun := fun (r : {r : Fin d → Fin K // good r}) =>
+      (⟨Multiplicative.ofAdd (e r.val), by
+      change Multiplicative.ofAdd (g (e r.val)) = 1
+      rw [r.property]
+      rfl⟩ : f.ker)
+    invFun := fun (y : f.ker) =>
+      (⟨e.symm y.val.toAdd, by
+      have hy : f y.val = 1 := y.property
+      have hzero : g y.val.toAdd = 0 := by
+        have h := congrArg Multiplicative.toAdd hy
+        simpa [f] using h
+      simpa [good, e] using hzero⟩ : {r : Fin d → Fin K // good r})
+    left_inv := by
+      intro r
+      apply Subtype.ext
+      simp [e]
+    right_inv := by
+      intro y
+      apply Subtype.ext
+      change Multiplicative.ofAdd (e (e.symm y.val.toAdd)) = y.val
+      simp [e]
+    }
+  have hcount :
+      (∑ r : Fin d → Fin K, if good r then (1 : ℝ) else 0) =
+        (Fintype.card f.ker : ℝ) := by
+    have hcard : Fintype.card {r : Fin d → Fin K // good r} = Fintype.card f.ker :=
+      Fintype.card_congr eKer
+    calc
+      (∑ r : Fin d → Fin K, if good r then (1 : ℝ) else 0) =
+          (Fintype.card {r : Fin d → Fin K // good r} : ℝ) := by
+            rw [Finset.sum_boole, Fintype.card_subtype]
+      _ = (Fintype.card f.ker : ℝ) := by exact_mod_cast hcard
+  have hcardH : (Fintype.card
+      (Multiplicative ((u : Fin q) → ZMod (σ u))) : ℝ) = (K : ℝ) := by
+    calc
+      _ = (Fintype.card ((u : Fin q) → ZMod (σ u)) : ℝ) := by
+        exact_mod_cast Fintype.card_congr Multiplicative.toAdd
+      _ = (∏ u, (Fintype.card (ZMod (σ u)) : ℝ)) := by
+        exact_mod_cast (Fintype.card_pi :
+          Fintype.card ((u : Fin q) → ZMod (σ u)) = ∏ u, Fintype.card (ZMod (σ u)))
+      _ = ∏ u, (σ u : ℝ) := by simp [ZMod.card]
+      _ = K := by exact_mod_cast hKprod
+  have hcardG : (Fintype.card
+      (Multiplicative (Fin d → ZMod K)) : ℝ) = (K : ℝ) ^ d := by
+    calc
+      _ = (Fintype.card (Fin d → ZMod K) : ℝ) := by
+        exact_mod_cast Fintype.card_congr Multiplicative.toAdd
+      _ = (K : ℝ) ^ d := by
+        simp [Fintype.card_pi, ZMod.card]
+  calc
+    (∑ r : Fin d → Fin K,
+      uniformBaseResidueLaw K d r *
+        (if good r then (K : ℝ) else 0)) =
+      (1 / (K : ℝ) ^ d) * (K : ℝ) *
+        (∑ r : Fin d → Fin K, if good r then (1 : ℝ) else 0) := by
+          unfold uniformBaseResidueLaw
+          calc
+            _ = ∑ r : Fin d → Fin K,
+                (1 / (K : ℝ) ^ d) * (K : ℝ) * (if good r then (1 : ℝ) else 0) := by
+                  apply Finset.sum_congr rfl
+                  intro r hr
+                  by_cases hgood : good r <;> simp [hgood] <;> ring
+            _ = _ := by rw [← Finset.mul_sum]
+    _ = (Fintype.card (Multiplicative ((u : Fin q) → ZMod (σ u))) : ℝ) *
+          ((Fintype.card f.ker : ℝ) / (Fintype.card
+            (Multiplicative (Fin d → ZMod K)) : ℝ)) := by
+          rw [hcount, hcardH, hcardG]
+          ring
+    _ = normalizedKernelCount f := by
+      simp [normalizedKernelCount, localKernelProbability]
+
+private theorem uniformUnitTupleMass_total (Q m : ℕ) (hQ : 0 < Q) :
+    (∑ x : Fin m → Fin Q, uniformUnitTupleMass Q m x) = 1 := by
+  classical
+  let μ : Fin m → Fin Q → ℝ := fun _ x =>
+    if Nat.Coprime x.val Q then 1 / (Nat.totient Q : ℝ) else 0
+  have hmass (x : Fin m → Fin Q) : uniformUnitTupleMass Q m x = ∏ i, μ i (x i) := by
+    by_cases hx : ∀ i, Nat.Coprime (x i).val Q
+    · rw [uniformUnitTupleMass, if_pos hx]
+      have hprod : ∏ i, μ i (x i) = (1 / (Nat.totient Q : ℝ)) ^ m := by
+        calc
+          ∏ i, μ i (x i) = ∏ _i : Fin m, (1 / (Nat.totient Q : ℝ)) := by
+            apply Finset.prod_congr rfl
+            intro i hi
+            simp [μ, hx i]
+          _ = (1 / (Nat.totient Q : ℝ)) ^ m := by
+            simp [Finset.prod_const, Fintype.card_fin]
+      rw [hprod]
+      simp [one_div_pow]
+    · obtain ⟨i, hi⟩ := not_forall.mp hx
+      rw [uniformUnitTupleMass, if_neg hx]
+      have hzero : μ i (x i) = 0 := by simp [μ, hi]
+      rw [Finset.prod_eq_zero (Finset.mem_univ i) hzero]
+  have hrow (i : Fin m) : (∑ x : Fin Q, μ i x) = 1 := by
+    dsimp [μ]
+    have hcard : (Finset.univ.filter (fun x : Fin Q => Nat.Coprime x.val Q)).card =
+        Nat.totient Q := by
+      let T : Finset ℕ := (Finset.range Q).filter (fun a => Nat.Coprime Q a)
+      have hbij := Finset.card_bij (s := Finset.univ.filter
+          (fun x : Fin Q => Nat.Coprime x.val Q)) (t := T)
+        (fun x _ => x.val)
+        (by
+          intro x hx
+          apply Finset.mem_filter.mpr
+          exact ⟨Finset.mem_range.mpr x.isLt,
+            (Finset.mem_filter.mp hx).2.symm⟩)
+        (by
+          intro x hx y hy heq
+          exact Fin.ext heq)
+        (by
+          intro y hy
+          have hy' := Finset.mem_filter.mp hy
+          refine ⟨⟨y, Finset.mem_range.mp hy'.1⟩,
+            Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy'.2.symm⟩, rfl⟩)
+      rw [Nat.totient_eq_card_coprime]
+      simpa [T, Nat.coprime_comm] using hbij
+    have hφ : (Nat.totient Q : ℝ) ≠ 0 := by
+      exact_mod_cast (Nat.ne_of_gt (Nat.totient_pos.mpr hQ))
+    calc
+      (∑ x : Fin Q, if Nat.Coprime x.val Q then 1 / (Nat.totient Q : ℝ) else 0) =
+          ∑ x ∈ Finset.univ.filter (fun x : Fin Q => Nat.Coprime x.val Q),
+            1 / (Nat.totient Q : ℝ) := by
+              rw [Finset.sum_filter]
+      _ = 1 := by simp [Finset.sum_const, hcard, hφ]
+  calc
+    (∑ x : Fin m → Fin Q, uniformUnitTupleMass Q m x) =
+        ∑ x : Fin m → Fin Q, ∏ i, μ i (x i) := by
+          apply Finset.sum_congr rfl
+          intro x hx
+          exact hmass x
+    _ = ∏ i, ∑ x : Fin Q, μ i x := by
+      let U : Fin m → Finset (Fin Q) := fun _ => Finset.univ
+      simpa [U] using (Finset.prod_univ_sum U (fun i x => μ i x)).symm
+    _ = 1 := by simp [hrow]
+
+private theorem masterScale_tests_nonzero {n m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)}
+    (S : MasterScales n Aset m tests) :
+    ∀ Q ∈ tests, Q ≠ 0 := by
+  classical
+  intro Q hQ hzero
+  let f : ℕ → ℝ := fun N => uniformUnitTupleProbability
+    ((primorial (N + 1)) ^ S.primeStage.e0 N) m
+    (uniformSmallPrimeException tests (N + 1) (S.primeStage.e0 N))
+  have hsmall : ∀ᶠ N : ℕ in atTop, f N < (1 / 2 : ℝ) :=
+    S.primeStage.uniform_small_prime_exception.eventually
+      (eventually_lt_nhds (by norm_num : (0 : ℝ) < 1 / 2))
+  have hnever : ∀ᶠ N : ℕ in atTop, False := by
+    filter_upwards [hsmall, Filter.eventually_ge_atTop (1 : ℕ)] with N hN hNlarge
+    let w := N + 1
+    let e := S.primeStage.e0 N
+    have hepos : 1 ≤ e := S.primeStage.e0_pos N
+    have htwo : Nat.Prime 2 := by norm_num
+    have htwoW : 2 ≤ w := by dsimp [w]; omega
+    have hdivW : 2 ∣ primorial w := htwo.dvd_primorial_iff.mpr htwoW
+    have hall : ∀ x : Fin m → Fin ((primorial w) ^ e),
+        uniformSmallPrimeException tests w e x := by
+      intro x
+      refine ⟨2, htwo, htwoW, Q, hQ, ?_⟩
+      simp [hzero, evalIntegerPolynomial]
+    have hmodpos : 0 < (primorial w) ^ e := Nat.pow_pos (primorial_pos w)
+    have hprob : uniformUnitTupleProbability ((primorial w) ^ e) m
+        (uniformSmallPrimeException tests w e) = 1 := by
+      simp [uniformUnitTupleProbability, hall, uniformUnitTupleMass_total
+        ((primorial w) ^ e) m hmodpos]
+    have hf : f N = 1 := by simpa [f, w, e] using hprob
+    rw [hf] at hN
+    norm_num at hN
+  obtain ⟨N, hNfalse⟩ := hnever.exists
+  exact hNfalse
+
+private theorem finCoprimeCard_prime (p : ℕ) (hp : p.Prime) :
+    (Finset.univ.filter (fun x : Fin p => Nat.Coprime x.val p)).card = p - 1 := by
+  classical
+  let T : Finset ℕ := (Finset.range p).filter (fun a => Nat.Coprime p a)
+  have hbij := Finset.card_bij (s := Finset.univ.filter
+      (fun x : Fin p => Nat.Coprime x.val p)) (t := T)
+    (fun x _ => x.val)
+    (by
+      intro x hx
+      apply Finset.mem_filter.mpr
+      exact ⟨Finset.mem_range.mpr x.isLt, (Finset.mem_filter.mp hx).2.symm⟩)
+    (by
+      intro x hx y hy hxy
+      exact Fin.ext hxy)
+    (by
+      intro y hy
+      have hy' := Finset.mem_filter.mp hy
+      refine ⟨⟨y, Finset.mem_range.mp hy'.1⟩,
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy'.2.symm⟩, rfl⟩)
+  have hTcard : T.card = Nat.totient p := by
+    rfl
+  have hcard : (Finset.univ.filter (fun x : Fin p => Nat.Coprime x.val p)).card =
+      Nat.totient p := hbij.trans hTcard
+  simpa [Nat.totient_prime hp] using hcard
+
+set_option maxHeartbeats 20000000 in
+private theorem uniformUnitTuple_polynomial_divisibility_bound {p m : ℕ}
+    (hp : p.Prime) (Q : IntegerPolynomial m)
+    (hQp : Q.map (Int.castRingHom (ZMod p)) ≠ 0) :
+    uniformUnitTupleProbability p m
+      (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ≤
+        2 * (MvPolynomial.totalDegree Q : ℝ) / (p : ℝ) := by
+  classical
+  letI : NeZero p := ⟨hp.ne_zero⟩
+  letI : Fact p.Prime := ⟨hp⟩
+  let e0 : Fin p ≃ ZMod p := ZMod.finEquiv p
+  let e : (Fin m → Fin p) ≃ (Fin m → ZMod p) :=
+    Equiv.piCongrRight (fun _ : Fin m => e0)
+  let unitFin : Finset (Fin p) :=
+    Finset.univ.filter (fun x => Nat.Coprime x.val p)
+  let unitTuples : Finset (Fin m → Fin p) :=
+    Fintype.piFinset (fun _ : Fin m => unitFin)
+  let U : Finset (ZMod p) := unitFin.image e0
+  let T : Finset (Fin m → ZMod p) := Fintype.piFinset (fun _ : Fin m => U)
+  let Qp : MvPolynomial (Fin m) (ZMod p) := Q.map (Int.castRingHom (ZMod p))
+  let rootsFin : Finset (Fin m → Fin p) := unitTuples.filter
+    (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val))
+  let roots : Finset (Fin m → ZMod p) :=
+    T.filter (fun z => MvPolynomial.eval z Qp = 0)
+  have hUcard : U.card = p - 1 := by
+    rw [Finset.card_image_iff.mpr e0.injective.injOn]
+    exact finCoprimeCard_prime p hp
+  have hUpos : 0 < U.card := by
+    rw [hUcard]
+    exact Nat.sub_pos_of_lt hp.two_le
+  have hUmem (x : Fin p) : e0 x ∈ U ↔ Nat.Coprime x.val p := by
+    constructor
+    · intro hx
+      rcases Finset.mem_image.mp hx with ⟨y, hy, hxy⟩
+      have hEq : y = x := e0.injective hxy
+      subst y
+      exact (Finset.mem_filter.mp hy).2
+    · intro hx
+      exact Finset.mem_image.mpr ⟨x,
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩, rfl⟩
+  have hunit (x : Fin m → Fin p) :
+      (∀ i, Nat.Coprime (x i).val p) ↔ e x ∈ T := by
+    constructor
+    · intro hx
+      apply Fintype.mem_piFinset.mpr
+      intro i
+      exact (hUmem (x i)).2 (hx i)
+    · intro hx i
+      exact (hUmem (x i)).1 (Fintype.mem_piFinset.mp hx i)
+  have heval (x : Fin m → Fin p) :
+      MvPolynomial.eval (e x) Qp =
+        (evalIntegerPolynomial Q (fun i => (x i).val) : ZMod p) := by
+    rw [MvPolynomial.eval_map]
+    have harg : (fun i : Fin m => e0 (x i)) =
+        fun i => ((x i).val : ZMod p) := by
+      funext i
+      cases p with
+      | zero => exact (hp.ne_zero rfl).elim
+      | succ p =>
+          have hv : (e0 (x i)).val = (x i).val := rfl
+          rw [← ZMod.natCast_zmod_val (e0 (x i)), hv]
+    change MvPolynomial.eval₂ (Int.castRingHom (ZMod p))
+      (fun i => e0 (x i)) Q = _
+    rw [harg]
+    have hcomp := MvPolynomial.eval₂_comp_right (Int.castRingHom (ZMod p))
+      (RingHom.id ℤ) (fun i => ((x i).val : ℤ)) Q
+    have hcomp' : MvPolynomial.eval₂ (Int.castRingHom (ZMod p))
+        (fun i => ((x i).val : ZMod p)) Q =
+        ((MvPolynomial.eval (fun i => ((x i).val : ℤ)) Q : ℤ) : ZMod p) := by
+      have hfun : (Int.castRingHom (ZMod p) ∘ fun i : Fin m => ((x i).val : ℤ)) =
+          fun i => ((x i).val : ZMod p) := by
+        funext i
+        simp [Function.comp_apply]
+      rw [hfun] at hcomp
+      simpa [MvPolynomial.map_id] using hcomp.symm
+    simpa [evalIntegerPolynomial] using hcomp'
+  let c : ℝ := 1 / (U.card : ℝ) ^ m
+  have hunitFin (x : Fin m → Fin p) :
+      (∀ i, Nat.Coprime (x i).val p) ↔ x ∈ unitTuples := by
+    constructor
+    · intro hx
+      apply Fintype.mem_piFinset.mpr
+      intro i
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx i⟩
+    · intro hx i
+      exact (Finset.mem_filter.mp (Fintype.mem_piFinset.mp hx i)).2
+  have hmass (x : Fin m → Fin p) :
+      uniformUnitTupleMass p m x = if x ∈ unitTuples then c else 0 := by
+    have hU := hunitFin x
+    dsimp [c]
+    simp only [uniformUnitTupleMass, Nat.totient_prime hp]
+    by_cases hx : (∀ i, Nat.Coprime (x i).val p)
+    · have hTx : x ∈ unitTuples := hU.mp hx
+      simp [hx, hTx, hUcard]
+    · have hTx : x ∉ unitTuples := fun h => hx (hU.mpr h)
+      simp [hx, hTx, hUcard]
+  have hprob : uniformUnitTupleProbability p m
+      (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) =
+        (rootsFin.card : ℝ) * c := by
+    unfold uniformUnitTupleProbability
+    calc
+      _ = ∑ x : Fin m → Fin p, if x ∈ rootsFin then c else 0 := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        rw [hmass x]
+        by_cases hu : x ∈ unitTuples
+        · have hroot : ((p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ↔
+              x ∈ rootsFin := by simp [rootsFin, hu]
+          simp [hu, hroot]
+        · simp [hu, rootsFin]
+      _ = (rootsFin.card : ℝ) * c := by
+        calc
+          _ = ∑ x ∈ rootsFin, c := by
+            calc
+              _ = ∑ x ∈ Finset.univ, (if x ∈ rootsFin then c else 0) := rfl
+              _ = ∑ x ∈ rootsFin, (if x ∈ rootsFin then c else 0) :=
+                (Finset.sum_subset (Finset.subset_univ rootsFin) (by
+                  intro x hx hxn
+                  simp [hxn])).symm
+              _ = ∑ x ∈ rootsFin, c := by
+                apply Finset.sum_congr rfl
+                intro x hx
+                simp [hx]
+          _ = (rootsFin.card : ℝ) * c := by simp [Finset.sum_const]
+  have hdiv (x : Fin m → Fin p) :
+      ((p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ↔
+        MvPolynomial.eval (e x) Qp = 0 := by
+    rw [heval x]
+    exact (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).symm
+  have hrootsCard : rootsFin.card = roots.card := by
+    apply Finset.card_bijective e e.bijective
+    intro x
+    simp only [rootsFin, roots, Finset.mem_filter]
+    exact and_congr ((hunitFin x).symm.trans (hunit x)) (hdiv x)
+  have hsz := MvPolynomial.schwartz_zippel_totalDegree hQp U
+  have hszR : (roots.card : ℝ) / (U.card : ℝ) ^ m ≤
+      (Qp.totalDegree : ℝ) / (U.card : ℝ) := by
+    have hsz' : (roots.card : ℚ≥0) / (U.card : ℚ≥0) ^ m ≤
+        (Qp.totalDegree : ℚ≥0) / (U.card : ℚ≥0) := by
+      simpa [roots, T, Qp] using hsz
+    have hszQ : (roots.card : ℚ) / (U.card : ℚ) ^ m ≤
+        (Qp.totalDegree : ℚ) / (U.card : ℚ) := by
+      exact_mod_cast (NNRat.coe_le_coe.mp hsz')
+    have hszCast := (Rat.cast_le (K := ℝ)).2 hszQ
+    simpa [Nat.cast_pow] using hszCast
+  have hdeg : Qp.totalDegree ≤ Q.totalDegree := by
+    change (MvPolynomial.map (Int.castRingHom (ZMod p)) Q).totalDegree ≤ Q.totalDegree
+    have hsupp : (MvPolynomial.map (Int.castRingHom (ZMod p)) Q).support ⊆ Q.support :=
+      MvPolynomial.support_map_subset (f := Int.castRingHom (ZMod p)) Q
+    simpa only [MvPolynomial.totalDegree] using Finset.sup_mono hsupp
+  have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+  have hUreal : 0 < (U.card : ℝ) := by exact_mod_cast hUpos
+  have hratio : 1 / (U.card : ℝ) ≤ 2 / (p : ℝ) := by
+    rw [hUcard]
+    have hpNat : p ≤ 2 * (p - 1) := by omega
+    have hpNatR : (p : ℝ) ≤ 2 * ((p - 1 : ℕ) : ℝ) := by exact_mod_cast hpNat
+    apply (div_le_div_iff₀ (by exact_mod_cast (Nat.sub_pos_of_lt hp.two_le)) hpR).2
+    simpa using hpNatR
+  calc
+    uniformUnitTupleProbability p m
+        (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) =
+        (roots.card : ℝ) / (U.card : ℝ) ^ m := by
+          rw [hprob, hrootsCard]
+          dsimp [c]
+          ring
+    _ ≤ (Qp.totalDegree : ℝ) / (U.card : ℝ) := hszR
+    _ ≤ (Q.totalDegree : ℝ) / (U.card : ℝ) := by
+          gcongr
+    _ ≤ 2 * (Q.totalDegree : ℝ) / (p : ℝ) := by
+          calc
+            (Q.totalDegree : ℝ) / (U.card : ℝ) =
+                (Q.totalDegree : ℝ) * (1 / (U.card : ℝ)) := by ring
+            _ ≤ (Q.totalDegree : ℝ) * (2 / (p : ℝ)) :=
+              mul_le_mul_of_nonneg_left hratio (by positivity)
+            _ = 2 * (Q.totalDegree : ℝ) / (p : ℝ) := by ring
+
+private def integerPolynomialContent {m : ℕ} (Q : IntegerPolynomial m) : ℕ :=
+  ∑ c ∈ Q.coeffs, c.natAbs
+
+private theorem integerPolynomial_map_zmod_ne_zero_of_content_lt {p m : ℕ}
+    (hp : p.Prime) (Q : IntegerPolynomial m) (hQ : Q ≠ 0)
+    (hcontent : integerPolynomialContent Q < p) :
+    Q.map (Int.castRingHom (ZMod p)) ≠ 0 := by
+  classical
+  intro hmap
+  obtain ⟨e, he⟩ := Q.support_nonempty.mpr hQ
+  have hcoeff : Q.coeff e ≠ 0 := MvPolynomial.mem_support_iff.mp he
+  have hcoeffMem : Q.coeff e ∈ Q.coeffs := MvPolynomial.coeff_mem_coeffs e hcoeff
+  have hcoeffBound : (Q.coeff e).natAbs ≤ integerPolynomialContent Q := by
+    unfold integerPolynomialContent
+    exact Finset.single_le_sum (f := fun c : ℤ => c.natAbs)
+      (by intro c hc; exact Nat.zero_le _) hcoeffMem
+  have hcastZero : (Q.coeff e : ZMod p) = 0 := by
+    have hcoeffMap : (Q.map (Int.castRingHom (ZMod p))).coeff e =
+        (Q.coeff e : ZMod p) := MvPolynomial.coeff_map _ _ _
+    rw [← hcoeffMap, hmap]
+    simp
+  have hdvdInt : (p : ℤ) ∣ Q.coeff e :=
+    (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mp hcastZero
+  have hdvdNat : p ∣ (Q.coeff e).natAbs := Int.natCast_dvd.mp hdvdInt
+  have hnatPos : 0 < (Q.coeff e).natAbs := Int.natAbs_pos.mpr hcoeff
+  have hpLe : p ≤ (Q.coeff e).natAbs := Nat.le_of_dvd hnatPos hdvdNat
+  omega
+
+private theorem uniformUnitTupleProbability_le_one {p m : ℕ} (hp : p.Prime)
+    (E : (Fin m → Fin p) → Prop) :
+    uniformUnitTupleProbability p m E ≤ 1 := by
+  classical
+  have hmassNonneg (x : Fin m → Fin p) : 0 ≤ uniformUnitTupleMass p m x := by
+    unfold uniformUnitTupleMass
+    split_ifs
+    · positivity
+    · simp
+  calc
+    uniformUnitTupleProbability p m E ≤ ∑ x : Fin m → Fin p, uniformUnitTupleMass p m x := by
+      unfold uniformUnitTupleProbability
+      apply Finset.sum_le_sum
+      intro x hx
+      by_cases hE : E x <;> simp [hE, hmassNonneg x]
+    _ = 1 := uniformUnitTupleMass_total p m hp.pos
+
+private theorem if_decidable_irrel (P : Prop) (d₁ d₂ : Decidable P) (a b : ℝ) :
+    @ite ℝ P d₁ a b = @ite ℝ P d₂ a b := by
+  have h : d₁ = d₂ := Subsingleton.elim _ _
+  cases h
+  rfl
+
+private theorem uniformUnitTuple_testBad_probability_bound {p m : ℕ}
+    (hp : p.Prime) (tests : Finset (IntegerPolynomial m))
+    (htests : ∀ Q ∈ tests, Q ≠ 0) (B : ℕ) (hB : 0 < B)
+    (hsize : ∀ Q ∈ tests, integerPolynomialContent Q < B ∧
+      Q.totalDegree ≤ B) :
+    uniformUnitTupleProbability p m
+      (fun x => ∃ Q ∈ tests,
+        (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ≤
+      2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / (p : ℝ) := by
+  classical
+  have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+  by_cases hpB : p ≤ B
+  · have hprob := uniformUnitTupleProbability_le_one hp
+      (fun x => ∃ Q ∈ tests,
+        (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val))
+    have hratio : (1 : ℝ) ≤ 2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / (p : ℝ) := by
+      have hpB' : (p : ℝ) ≤ (B : ℝ) := by exact_mod_cast hpB
+      have hBreal : 0 < (B : ℝ) := by exact_mod_cast hB
+      have hcard : (1 : ℝ) ≤ ((tests.card + 1 : ℕ) : ℝ) := by exact_mod_cast (by omega : 1 ≤ tests.card + 1)
+      rw [le_div_iff₀ hpR]
+      nlinarith
+    exact hprob.trans hratio
+  · have hpB' : B < p := Nat.lt_of_not_ge hpB
+    have hroot (Q : IntegerPolynomial m) (hQ : Q ∈ tests) :
+        uniformUnitTupleProbability p m
+          (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ≤
+        2 * (Q.totalDegree : ℝ) / (p : ℝ) := by
+      have hred := integerPolynomial_map_zmod_ne_zero_of_content_lt hp Q
+        (htests Q hQ) (Nat.lt_trans (hsize Q hQ).1 hpB')
+      exact uniformUnitTuple_polynomial_divisibility_bound hp Q hred
+    have hunion : uniformUnitTupleProbability p m
+        (fun x => ∃ Q ∈ tests,
+          (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ≤
+        ∑ Q ∈ tests, uniformUnitTupleProbability p m
+          (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) := by
+      unfold uniformUnitTupleProbability
+      calc
+        _ ≤ ∑ x : Fin m → Fin p,
+              uniformUnitTupleMass p m x *
+              (∑ Q ∈ tests,
+                if (fun y : Fin m → Fin p =>
+                    (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
+                  (1 : ℝ) else 0) := by
+              apply Finset.sum_le_sum
+              intro x hx
+              have hmassNonneg : 0 ≤ uniformUnitTupleMass p m x := by
+                unfold uniformUnitTupleMass
+                split_ifs <;> positivity
+              have hindicator :
+                  (if (fun y : Fin m → Fin p => ∃ Q ∈ tests,
+                    (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
+                    (1 : ℝ) else 0) ≤
+                    ∑ Q ∈ tests,
+                      if (fun y : Fin m → Fin p =>
+                        (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
+                        (1 : ℝ) else 0 := by
+                letI : Decidable ((fun y : Fin m → Fin p => ∃ Q ∈ tests,
+                    (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x) :=
+                  Classical.propDecidable _
+                by_cases h : (fun y : Fin m → Fin p => ∃ Q ∈ tests,
+                    (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x
+                · simp only [if_pos h]
+                  obtain ⟨Q, hQ, hdiv⟩ := h
+                  have hsingle := Finset.single_le_sum (f := fun Q =>
+                    if (fun y : Fin m → Fin p =>
+                      (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
+                      (1 : ℝ) else 0)
+                    (by intro Q hQ'; split_ifs <;> norm_num) hQ
+                  calc
+                    (1 : ℝ) = (if (p : ℤ) ∣ evalIntegerPolynomial Q
+                        (fun i => (x i).val) then 1 else 0) := (if_pos hdiv).symm
+                    _ ≤ ∑ Q ∈ tests,
+                        if (fun y : Fin m → Fin p =>
+                          (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
+                          (1 : ℝ) else 0 := hsingle
+                · simp [h]
+              have hmul := mul_le_mul_of_nonneg_left hindicator hmassNonneg
+              let P : Prop := (fun y : Fin m → Fin p => ∃ Q ∈ tests,
+                (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x
+              have hite : @ite ℝ P (inferInstance : Decidable P) 1 0 =
+                  @ite ℝ P (Classical.propDecidable P) 1 0 :=
+                if_decidable_irrel P _ _ _ _
+              rw [hite] at hmul
+              exact hmul
+        _ = ∑ x : Fin m → Fin p, ∑ Q ∈ tests,
+              uniformUnitTupleMass p m x *
+                (if (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val) then
+                  (1 : ℝ) else 0) := by
+              apply Finset.sum_congr rfl
+              intro x hx
+              rw [Finset.mul_sum]
+        _ = ∑ Q ∈ tests, ∑ x : Fin m → Fin p,
+              uniformUnitTupleMass p m x *
+                (if (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val) then
+                  (1 : ℝ) else 0) := by
+              change (∑ x : Fin m → Fin p, ∑ Q ∈ tests,
+                  uniformUnitTupleMass p m x *
+                    (if (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val) then
+                      (1 : ℝ) else 0)) = _
+              exact Finset.sum_comm (s := Finset.univ) (t := tests)
+                (f := fun x Q => uniformUnitTupleMass p m x *
+                  (if (fun y : Fin m → Fin p =>
+                    (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
+                    (1 : ℝ) else 0))
+        _ = ∑ Q ∈ tests, uniformUnitTupleProbability p m
+              (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) := by
+              unfold uniformUnitTupleProbability
+              apply Finset.sum_congr rfl
+              intro Q hQ
+              apply Finset.sum_congr rfl
+              intro x hx
+              let P : Prop := (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)
+              have hite : @ite ℝ P (inferInstance : Decidable P) 1 0 =
+                  @ite ℝ P (Classical.propDecidable P) 1 0 :=
+                if_decidable_irrel P _ _ _ _
+              rw [hite]
+    have hdegreeSum :
+        (∑ Q ∈ tests, (Q.totalDegree : ℝ)) ≤
+          ((tests.card : ℝ) * (B : ℝ)) := by
+      calc
+        (∑ Q ∈ tests, (Q.totalDegree : ℝ)) ≤ ∑ _Q ∈ tests, (B : ℝ) := by
+          apply Finset.sum_le_sum
+          intro Q hQ
+          exact_mod_cast (hsize Q hQ).2
+        _ = (tests.card : ℝ) * (B : ℝ) := by simp
+    calc
+      uniformUnitTupleProbability p m
+          (fun x => ∃ Q ∈ tests,
+            (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) ≤
+          ∑ Q ∈ tests, uniformUnitTupleProbability p m
+            (fun x => (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)) := hunion
+      _ ≤ ∑ Q ∈ tests, 2 * (Q.totalDegree : ℝ) / (p : ℝ) := by
+          apply Finset.sum_le_sum
+          intro Q hQ
+          exact hroot Q hQ
+      _ = 2 * (∑ Q ∈ tests, (Q.totalDegree : ℝ)) / (p : ℝ) := by
+          rw [← Finset.sum_div, ← Finset.mul_sum]
+      _ ≤ 2 * ((tests.card : ℝ) * (B : ℝ)) / (p : ℝ) := by
+          gcongr
+      _ ≤ 2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / (p : ℝ) := by
+          apply div_le_div_of_nonneg_right _ hpR.le
+          have hcard : (tests.card : ℝ) ≤ ((tests.card + 1 : ℕ) : ℝ) := by
+            exact_mod_cast Nat.le_succ tests.card
+          have hBreal : 0 ≤ (B : ℝ) := Nat.cast_nonneg _
+          nlinarith
+
+private theorem piProductMarginal {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (α : ι → Type*) [∀ i, Fintype (α i)]
+    (μ : ∀ i, α i → ℝ) (hμ : ∀ i, ∑ x, μ i x = 1)
+    (i₀ : ι) (f : α i₀ → ℝ) :
+    (∑ x : ∀ i, α i, (∏ i, μ i (x i)) * f (x i₀)) =
+      ∑ y : α i₀, μ i₀ y * f y := by
+  classical
+  let J := {i : ι // i ≠ i₀}
+  letI : Fintype J := Fintype.ofFinite J
+  have hsubtype (x : ∀ i, α i) :
+      (∏ j : J, μ j.val (x j.val)) =
+        ∏ j ∈ (Finset.univ.erase i₀), μ j (x j) := by
+    simpa [J] using
+      (Finset.prod_subtype (p := fun j : ι => j ≠ i₀)
+        (F := (inferInstance : Fintype J)) (s := Finset.univ.erase i₀)
+        (h := fun j => by simp [Finset.mem_erase])
+        (f := fun j => μ j (x j))).symm
+  have hprodSplit (x : ∀ i, α i) :
+      (∏ i, μ i (x i)) = μ i₀ (x i₀) * ∏ j : J, μ j.val (x j.val) := by
+    calc
+      (∏ i, μ i (x i)) =
+          μ i₀ (x i₀) * ∏ i ∈ (Finset.univ.erase i₀), μ i (x i) := by
+            rw [← Finset.mul_prod_erase (Finset.univ) (fun i => μ i (x i))
+              (Finset.mem_univ i₀)]
+      _ = μ i₀ (x i₀) * ∏ j : J, μ j.val (x j.val) := by rw [← hsubtype x]
+  have hrest :
+      (∑ y : ∀ j : J, α j.val, ∏ j : J, μ j.val (y j)) = 1 := by
+    let s : ∀ j : J, Finset (α j.val) := fun _ => Finset.univ
+    calc
+      _ = ∏ j : J, ∑ z : α j.val, μ j.val z := by
+        simpa [s] using (Finset.prod_univ_sum s (fun j z => μ j.val z)).symm
+      _ = 1 := by simp [hμ]
+  let e : (∀ i, α i) ≃ (α i₀ × ∀ j : J, α j.val) := Equiv.piSplitAt i₀ α
+  let g : α i₀ × (∀ j : J, α j.val) → ℝ := fun y =>
+    (μ i₀ y.1 * f y.1) * ∏ j : J, μ j.val (y.2 j)
+  calc
+    (∑ x : ∀ i, α i, (∏ i, μ i (x i)) * f (x i₀)) =
+        ∑ y : α i₀ × (∀ j : J, α j.val), g y := by
+          apply Fintype.sum_equiv e
+          intro x
+          rw [hprodSplit x]
+          simp [g, e, Equiv.piSplitAt, mul_assoc, mul_comm, mul_left_comm]
+    _ = (∑ y : α i₀, μ i₀ y * f y) *
+          (∑ z : ∀ j : J, α j.val, ∏ j : J, μ j.val (z j)) := by
+        rw [Fintype.sum_prod_type]
+        calc
+          _ = ∑ y : α i₀, (μ i₀ y * f y) *
+                (∑ z : ∀ j : J, α j.val, ∏ j : J, μ j.val (z j)) := by
+              apply Finset.sum_congr rfl
+              intro y hy
+              rw [Finset.mul_sum]
+          _ = _ := by rw [← Finset.sum_mul]
+    _ = ∑ y : α i₀, μ i₀ y * f y := by rw [hrest]; ring
+
+private def crtSlotPrimeSwapEquiv {m w V : ℕ} :
+    (Fin m → CRTResidues w V) ≃
+      (∀ p : CRTPrimeRange w V, Fin m → Fin p.val) where
+  toFun r p i := r i p
+  invFun s i p := s p i
+  left_inv r := by funext i p; rfl
+  right_inv s := by funext p i; rfl
+
+private theorem uniformPrimeTupleCRTLaw_factor {m w V : ℕ}
+    (s : ∀ p : CRTPrimeRange w V, Fin m → Fin p.val) :
+    uniformPrimeTupleCRTLaw w V (fun i p => s p i) =
+      ∏ p : CRTPrimeRange w V, uniformUnitTupleMass p.val m (s p) := by
+  classical
+  unfold uniformPrimeTupleCRTLaw
+  rw [Finset.prod_comm]
+  apply Finset.prod_congr rfl
+  intro p hp
+  have hpPrime : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  by_cases hunit : ∀ i, Nat.Coprime (s p i).val p.val
+  · have hprod : (∏ i, if Nat.Coprime (s p i).val p.val then
+        1 / ((p.val - 1 : ℕ) : ℝ) else 0) =
+        (1 / ((p.val - 1 : ℕ) : ℝ)) ^ m := by
+      calc
+        _ = ∏ _i : Fin m, (1 / ((p.val - 1 : ℕ) : ℝ)) := by
+          apply Finset.prod_congr rfl
+          intro i hi
+          simp [hunit i]
+        _ = _ := by simp [Finset.prod_const, Fintype.card_fin]
+    have hmass : uniformUnitTupleMass p.val m (s p) =
+        (1 / ((p.val - 1 : ℕ) : ℝ)) ^ m := by
+      simp [uniformUnitTupleMass, hunit, Nat.totient_prime hpPrime, one_div_pow]
+    exact hprod.trans hmass.symm
+  · obtain ⟨i, hi⟩ := not_forall.mp hunit
+    have hprod : (∏ i, if Nat.Coprime (s p i).val p.val then
+        1 / ((p.val - 1 : ℕ) : ℝ) else 0) = 0 := by
+      exact Finset.prod_eq_zero (Finset.mem_univ i) (if_neg hi)
+    have hmass : uniformUnitTupleMass p.val m (s p) = 0 := by
+      simp [uniformUnitTupleMass, hunit, Nat.totient_prime hpPrime]
+    exact hprod.trans hmass.symm
+
+private theorem uniformPrimeTupleCRTLaw_marginal {m w V : ℕ}
+    (p₀ : CRTPrimeRange w V) (E : (Fin m → Fin p₀.val) → Prop) :
+    (∑ r : Fin m → CRTResidues w V,
+      uniformPrimeTupleCRTLaw w V r *
+        (if E (fun i => r i p₀) then 1 else 0)) =
+      uniformUnitTupleProbability p₀.val m E := by
+  classical
+  let α : CRTPrimeRange w V → Type := fun p => Fin m → Fin p.val
+  let μ : ∀ p, α p → ℝ := fun p => uniformUnitTupleMass p.val m
+  have hμ (p : CRTPrimeRange w V) : ∑ x : α p, μ p x = 1 := by
+    apply uniformUnitTupleMass_total
+    exact Nat.Prime.pos ((Finset.mem_filter.mp p.property).2)
+  let swap := crtSlotPrimeSwapEquiv (m := m) (w := w) (V := V)
+  calc
+    _ = ∑ s : ∀ p : CRTPrimeRange w V, α p,
+        (∏ p, μ p (s p)) * (if E (s p₀) then 1 else 0) := by
+          apply Fintype.sum_equiv swap
+          intro r
+          rw [uniformPrimeTupleCRTLaw_factor (fun p i => r i p)]
+          rfl
+    _ = ∑ x : α p₀, μ p₀ x * (if E x then 1 else 0) :=
+      piProductMarginal α μ hμ p₀ (fun x => if E x then 1 else 0)
+    _ = uniformUnitTupleProbability p₀.val m E := by
+      rfl
+
+private def linearFormsTestHeight {m : ℕ}
+    (tests : Finset (IntegerPolynomial m)) : ℕ :=
+  1 + ∑ Q ∈ tests, (integerPolynomialContent Q + Q.totalDegree)
+
+private theorem linearFormsTestHeight_spec {m : ℕ}
+    (tests : Finset (IntegerPolynomial m)) :
+    ∀ Q ∈ tests, integerPolynomialContent Q < linearFormsTestHeight tests ∧
+      Q.totalDegree ≤ linearFormsTestHeight tests := by
+  classical
+  intro Q hQ
+  have hsingle : integerPolynomialContent Q + Q.totalDegree ≤
+      ∑ R ∈ tests, (integerPolynomialContent R + R.totalDegree) :=
+    Finset.single_le_sum (f := fun R => integerPolynomialContent R + R.totalDegree)
+      (by intro R hR; exact Nat.zero_le _) hQ
+  constructor <;> dsimp [linearFormsTestHeight] <;> omega
+
+private theorem uniformCRTTestBad_probability_bound {m w V : ℕ}
+    (tests : Finset (IntegerPolynomial m)) (htests : ∀ Q ∈ tests, Q ≠ 0)
+    (B : ℕ) (hB : 0 < B)
+    (hsize : ∀ Q ∈ tests, integerPolynomialContent Q < B ∧ Q.totalDegree ≤ B)
+    (p : CRTPrimeRange w V) :
+    (∑ r : Fin m → CRTResidues w V,
+      uniformPrimeTupleCRTLaw w V r *
+        (if ∃ Q ∈ tests,
+          (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => ((r i p).val : ℤ)) then 1 else 0)) ≤
+      2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / (p.val : ℝ) := by
+  classical
+  have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  let E : (Fin m → Fin p.val) → Prop := fun r =>
+    ∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (r i).val)
+  have hmarg := uniformPrimeTupleCRTLaw_marginal p E
+  calc
+    _ = uniformUnitTupleProbability p.val m E := by
+      simpa [E, Function.comp_apply] using hmarg
+    _ ≤ 2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / (p.val : ℝ) :=
+      uniformUnitTuple_testBad_probability_bound hp tests htests B hB hsize
+
+private def comparisonPrimeValuationWeight {q b : ℕ} (p : ℕ)
+    (a : Fin q → ℕ) : ℝ :=
+  ∏ u, (((a u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a u))
+
+private theorem comparisonPrimeValuation_regularTerm_le {p q b : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (u v : Fin q) (huv : u ≠ v)
+    (hcond : 1 ≤ a v ∧ a v ≤ a u ∧ ∀ w, w ≠ u → a w ≤ a v) :
+    comparisonPrimeValuationWeight (b := b) p a *
+        ((p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1) ≤
+      ((a u + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (a u + a v) := by
+  classical
+  let total : ℕ := ∑ w, a w
+  have hpairSum : a u + a v ≤ total := rowValuationPair_le_sum a u v huv
+  have hpowExponent : (∑ w, a w) - a u - a v = total - (a u + a v) := by
+    dsimp [total]
+    omega
+  have htop (w : Fin q) : a w ≤ a u := by
+    by_cases hwu : w = u
+    · subst w
+      exact le_rfl
+    · exact (hcond.2.2 w hwu).trans hcond.2.1
+  have hpoly :
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) ≤
+        ((a u + 1 : ℕ) : ℝ) ^ (b * q) := by
+    calc
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) ≤
+          ∏ _w : Fin q, ((a u + 1 : ℕ) : ℝ) ^ b := by
+            exact finset_prod_le_prod_of_nonneg Finset.univ
+              (fun w => ((a w + 1 : ℕ) : ℝ) ^ b)
+              (fun _ => ((a u + 1 : ℕ) : ℝ) ^ b)
+              (by intro w hw; positivity)
+              (by intro w hw; positivity)
+              (by
+                intro w hw
+                gcongr
+                exact htop w)
+      _ = ((a u + 1 : ℕ) : ℝ) ^ (b * q) := by
+            simp [Finset.prod_const, Fintype.card_fin, pow_mul]
+  have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+  have hpowPos : 0 < (p : ℝ) ^ (total - (a u + a v)) := by positivity
+  have hpowOne : (1 : ℝ) ≤ (p : ℝ) ^ (total - (a u + a v)) :=
+    one_le_pow₀ (by exact_mod_cast hp.one_le)
+  have hpowFactor : (p : ℝ) ^ total =
+      (p : ℝ) ^ (a u + a v) * (p : ℝ) ^ (total - (a u + a v)) := by
+    have hexp : a u + a v + (total - (a u + a v)) = total := by omega
+    calc
+      (p : ℝ) ^ total = (p : ℝ) ^ (a u + a v + (total - (a u + a v))) := by rw [hexp]
+      _ = (p : ℝ) ^ (a u + a v) * (p : ℝ) ^ (total - (a u + a v)) := by rw [pow_add]
+  have hweight : comparisonPrimeValuationWeight (b := b) p a =
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) / (p : ℝ) ^ total := by
+    unfold comparisonPrimeValuationWeight
+    rw [Finset.prod_div_distrib, Finset.prod_pow_eq_pow_sum]
+  have hcancel :
+      ((p : ℝ) ^ (total - (a u + a v)) - 1) / (p : ℝ) ^ total =
+        (1 - ((p : ℝ) ^ (total - (a u + a v)))⁻¹) /
+          (p : ℝ) ^ (a u + a v) := by
+    rw [hpowFactor]
+    field_simp [ne_of_gt hpR, ne_of_gt hpowPos]
+  have hfactorBound :
+      ((p : ℝ) ^ (total - (a u + a v)) - 1) / (p : ℝ) ^ total ≤
+        1 / (p : ℝ) ^ (a u + a v) := by
+    rw [hcancel]
+    have hnonneg : 0 ≤ ((p : ℝ) ^ (total - (a u + a v)))⁻¹ := by positivity
+    have hle : 1 - ((p : ℝ) ^ (total - (a u + a v)))⁻¹ ≤ 1 := by linarith
+    exact mul_le_mul_of_nonneg_right hle (by positivity)
+  calc
+    comparisonPrimeValuationWeight p a *
+        ((p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1) =
+        (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) *
+          (((p : ℝ) ^ (total - (a u + a v)) - 1) / (p : ℝ) ^ total) := by
+          rw [hweight, hpowExponent]
+          ring
+    _ ≤ ((a u + 1 : ℕ) : ℝ) ^ (b * q) /
+          (p : ℝ) ^ (a u + a v) := by
+          exact (mul_le_mul hpoly hfactorBound (by positivity) (by positivity)).trans_eq
+            (by ring)
+    _ = ((a u + 1 : ℕ) : ℝ) ^ (b * q) /
+          (p : ℝ) ^ (a u + a v) := rfl
+
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
