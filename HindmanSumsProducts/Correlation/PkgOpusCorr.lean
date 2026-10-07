@@ -1341,5 +1341,163 @@ theorem opus_corr_balancedBranchStateIntegrand_identity {r' : ℕ}
 
 end BalancedBranches
 
+
+/-! ## The second factor equals the next correlation (pointwise and averaged) -/
+
+section BalancedNext
+
+variable {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+/-- An invariant row weight is unchanged by the absorption `z_u ↦ p₁p₀z_u` (04:241–247). -/
+theorem opus_corr_chainWeight_absorb_eq (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ) (T : RowTemplate m q)
+    (p : Fin q → ℕ) (u v : Fin m) (huv : u ≠ v) (k₁ k₀ : ℕ) (z : Fin m → ℤ)
+    (hcase : (u ∉ T.support ∧ v ∉ T.support) ∨ T.support = {u} ∨ T.support = {v})
+    (hcu : c u ≠ 0) (hk₁ : k₁.Prime) (hk₀ : k₀.Prime)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < k₁)
+    (hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < k₀)
+    (hdenOld : (rowForm c T p (fun j => (z j : ℚ))).den = 1) :
+    chainWeight S.core.parameters C N d
+        (rowForm c T p (fun j => (Function.update z u ((k₁ : ℤ) * k₀ * z u) j : ℚ))).num =
+      chainWeight S.core.parameters C N d (rowForm c T p (fun j => (z j : ℚ))).num := by
+  have hcast : (fun j => (Function.update z u ((k₁ : ℤ) * k₀ * z u) j : ℚ)) =
+      Function.update (fun j => (z j : ℚ)) u (((k₁ * k₀ : ℕ) : ℚ) * (z u : ℚ)) := by
+    funext j
+    by_cases hj : j = u
+    · subst j; simp [Function.update_self]
+    · simp [Function.update_of_ne hj]
+  rw [hcast]
+  have hu : u ∉ T.support ∨ T.support = {u} := by
+    rcases hcase with ⟨hu, _⟩ | h | h
+    · exact Or.inl hu
+    · exact Or.inr h
+    · left
+      rw [h]
+      simp [huv]
+  rcases hu with hu | hsingle
+  · rw [rowForm_update_of_not_mem_support c T p _ u _ hu]
+  · rw [rowForm_update_mul_singleton c T p _ u _ hsingle hcu]
+    set ℓ := rowForm c T p (fun j => (z j : ℚ))
+    have hℓ : (ℓ.num : ℚ) = ℓ := (Rat.den_eq_one_iff ℓ).mp hdenOld
+    have hval : ((k₁ * k₀ : ℕ) : ℚ) * ℓ = (((k₁ : ℤ) * ((k₀ : ℤ) * ℓ.num) : ℤ) : ℚ) := by
+      push_cast
+      rw [hℓ]
+      ring
+    rw [hval, Rat.num_intCast, chainWeight_mul_eq_of_prime_gt S C N d k₁ hk₁ hV₁,
+      chainWeight_mul_eq_of_prime_gt S C N d k₀ hk₀ hV₀]
+
+theorem opus_corr_extend_mem_support {q : ℕ} (lo hi : ℕ) (p : Fin q → ℕ) (k₁ k₀ : ℕ)
+    (hp : p ∈ independentPrimePoolSupport (fun _ : Fin q => lo) (fun _ : Fin q => hi))
+    (hk₁ : k₁ ∈ primePoolSupport lo hi) (hk₀ : k₀ ∈ primePoolSupport lo hi) :
+    extendPrimeTuple (extendPrimeTuple p k₁) k₀ ∈
+      independentPrimePoolSupport (fun _ : Fin (q + 2) => lo) (fun _ : Fin (q + 2) => hi) := by
+  rw [independentPrimePoolSupport_mem_iff] at hp ⊢
+  intro j
+  refine Fin.cases ?_ (fun j' => ?_) j
+  · exact hk₀
+  · refine Fin.cases ?_ (fun j'' => ?_) j'
+    · exact hk₁
+    · exact hp j''
+
+/-- Pointwise: after absorption, `Ω·H_{p₁}·H_{p₀}` is the next-state integrand at the extended
+tuple (04:241–262). -/
+theorem opus_corr_balanced_pointwise {r' : ℕ}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u v : Fin m) (huv : u ≠ v)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBalancedP u v).Parallel
+        ((st.shape.row i).scaleBalancedQ u v)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBalancedP u v)
+      (fun i => (st.shape.row i).scaleBalancedQ u v) x.val.1 x.val.2)
+    (p : Fin q → ℕ) (k₁ k₀ : ℕ) (z : Fin m → ℤ)
+    (hgood : extendPrimeTuple (extendPrimeTuple p k₁) k₀ ∈ independentPrimePoolSupport
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper))
+    (hcu : chainScale S.core.parameters C a N u ≠ 0)
+    (hcv : chainScale S.core.parameters C a N v ≠ 0)
+    (hpoolLower : FromArithmetic.masterScaleV S.core.parameters N C.gap <
+      (S.primeStage.pool N C.gap).lower)
+    (hdenOld : ∀ (T : RowTemplate m q) (z : Fin m → ℤ),
+      (rowForm (chainScale S.core.parameters C a N) T p fun k => (z k : ℚ)).den = 1)
+    (hdenNew : ∀ T : RowTemplate m (q + 2),
+      (rowForm (chainScale S.core.parameters C a N) T
+        (extendPrimeTuple (extendPrimeTuple p k₁) k₀) fun k => (z k : ℚ)).den = 1) :
+    opus_corr_balancedOmega st S C a N u v (p, Function.update z u ((k₁ : ℤ) * k₀ * z u)) *
+        opus_corr_balancedResidual st S C a N U u v
+          (p, Function.update z u ((k₁ : ℤ) * k₀ * z u)) k₁ *
+        opus_corr_balancedResidual st S C a N U u v
+          (p, Function.update z u ((k₁ : ℤ) * k₀ * z u)) k₀ =
+      MaskRemovalState.pkgMask_stateIntegrand
+        (pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e) S C a N
+        (extendPrimeTuple (extendPrimeTuple p k₁) k₀) z := by
+  classical
+  set pp := extendPrimeTuple (extendPrimeTuple p k₁) k₀ with hpp
+  set z' := Function.update z u ((k₁ : ℤ) * k₀ * z u) with hz'
+  set c := chainScale S.core.parameters C a N with hc
+  have hp0 : pp 0 = k₀ := rfl
+  have hp1 : pp 1 = k₁ := rfl
+  have hdrop : dropPrimeTuple2 pp = p := dropPrimeTuple2_extend p k₁ k₀
+  have hslot (j : Fin (q + 2)) :
+      pp j ∈ primePoolSupport (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper :=
+    (independentPrimePoolSupport_mem_iff _ _ pp).mp hgood j
+  have hslotFacts (j : Fin (q + 2)) := opus_corr_pool_prime_coprime S C.gap N (pp j) hpoolLower
+    (hslot j)
+  have hp : ∀ j, pp j ≠ 0 := fun j => (hslotFacts j).1.ne_zero
+  have hk₁ : k₁.Prime := (hslotFacts 1).1
+  have hk₀ : k₀.Prime := (hslotFacts 0).1
+  have hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < k₁ := (hslotFacts 1).2.1
+  have hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < k₀ := (hslotFacts 0).2.1
+  have hcore := opus_corr_balancedBranchStateIntegrand_identity S C a N st U u v huv Sh' e hrow
+    pp hgood z hp hdenNew
+  rw [hdrop, hp0, hp1] at hcore
+  have hP : opus_corr_balancedVec u v k₁ z' = opus_corr_branchP u v k₀ k₁ z :=
+    opus_corr_balancedVec_absorb_P u v huv k₁ k₀ hk₁.ne_zero z
+  have hQ : opus_corr_balancedVec u v k₀ z' = opus_corr_branchQ u v k₀ k₁ z :=
+    opus_corr_balancedVec_absorb_Q u v huv k₁ k₀ hk₀.ne_zero z
+  set Ω' := opus_corr_balancedOmega st S C a N u v (p, z') with hΩ'
+  have hΩ'pos : 0 < Ω' :=
+    lt_of_lt_of_le one_pos (opus_corr_balancedOmega_ge_one st S C a N u v (p, z'))
+  have hweights :
+      (∏ i : Fin r, if hi :
+          ((st.shape.row i).scaleBalancedP u v).Parallel ((st.shape.row i).scaleBalancedQ u v)
+          then 1 + chainWeight S.core.parameters C N (st.shape.row i).anchor
+            (rowForm c ((st.shape.row i).scaleBalancedP u v) pp (fun k => (z k : ℚ))).num
+          else 1) = Ω' := by
+    rw [hΩ']
+    unfold opus_corr_balancedOmega pkgMask_invariantRowWeight
+    apply Finset.prod_congr rfl
+    intro i _
+    by_cases hi : ((st.shape.row i).scaleBalancedP u v).Parallel
+        ((st.shape.row i).scaleBalancedQ u v)
+    · have hi' : opus_corr_balancedInv st u v i := hi
+      rw [dif_pos hi, dif_pos hi']
+      have hcase := RowTemplate.scaleBalancedBranches_parallel_support (st.shape.row i) u v huv hi
+      have htuple := rowForm_scaleBalancedP_tuple2 c (st.shape.row i) u v huv pp z
+      rw [hdrop, hp0, hp1] at htuple
+      have hdenBr : (rowForm c (st.shape.row i) p
+          (Function.update (Function.update (fun k => (z k : ℚ)) u ((k₀ : ℚ) * (z u : ℚ))) v
+            ((k₁ : ℚ) * (z v : ℚ)))).den = 1 := by
+        rw [← htuple]
+        exact hdenNew _
+      have h1 := pkgMask_chainWeight_balancedUpdate_eq S C N (st.shape.row i).anchor c
+        (st.shape.row i) p u v huv k₀ k₁ z hcase hcu hcv hk₀ hk₁ hV₀ hV₁ (hdenOld _ z) hdenBr
+      have h2 := opus_corr_chainWeight_absorb_eq S C N (st.shape.row i).anchor c
+        (st.shape.row i) p u v huv k₁ k₀ z hcase hcu hk₁ hk₀ hV₁ hV₀ (hdenOld _ z)
+      rw [htuple, h1]
+      simp only [z']
+      rw [h2]
+    · have hi' : ¬ opus_corr_balancedInv st u v i := hi
+      rw [dif_neg hi, dif_neg hi']
+  rw [hweights] at hcore
+  unfold opus_corr_balancedResidual
+  rw [← hΩ', hP, hQ]
+  field_simp
+  rw [← hcore]
+
+end BalancedNext
+
 end
 end HindmanSumsProducts
