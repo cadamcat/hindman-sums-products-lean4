@@ -4594,6 +4594,82 @@ theorem pkgMask_gapRestMass_tsum_one {K s m q : ℕ} {Aset : Finset ℚ}
       exact hDzero x hx
     _ = 1 := hfinite
 
+theorem pkgMask_weightedError_tsum_le {α : Type*} [Countable α]
+    (μ f : α → ℝ) (ε : ℝ) (hμ : ∀ a, 0 ≤ μ a)
+    (hμsum : Summable μ) (hμtotal : ∑' a, μ a = 1)
+    (hε : 0 ≤ ε) (hbound : ∀ a, |f a| ≤ ε) :
+    |∑' a, μ a * f a| ≤ ε := by
+  have hnormle (a : α) : ‖μ a * f a‖ ≤ μ a * ε := by
+    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hμ a)]
+    exact mul_le_mul_of_nonneg_left (hbound a) (hμ a)
+  have hprodSummable : Summable (fun a => μ a * f a) := by
+    apply (hμsum.mul_right ε).of_norm_bounded
+    exact hnormle
+  calc
+    |∑' a, μ a * f a| = ‖∑' a, μ a * f a‖ := by rw [Real.norm_eq_abs]
+    _ ≤ ∑' a, ‖μ a * f a‖ := norm_tsum_le_tsum_norm hprodSummable.norm
+    _ ≤ ∑' a, μ a * ε := hprodSummable.norm.tsum_le_tsum hnormle
+      (hμsum.mul_right ε)
+    _ = ε := by rw [hμsum.tsum_mul_right ε, hμtotal]; ring
+
+theorem pkgMask_gapRestMass_summable {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) :
+    Summable (fun x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) =>
+        gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let B := Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  apply summable_of_ne_finset_zero (s := P ×ˢ B)
+  intro x hx
+  by_cases hp : x.1 ∈ P
+  · have hw : x.2 ∉ B := by
+      intro hw
+      exact hx (Finset.mem_product.mpr ⟨hp, hw⟩)
+    rw [pkgMask_pivotRestMass_zero_of_not_mem S C N u x.2 hw]
+    simp
+  · unfold gapSlotMass
+    rw [independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) x.1 hp]
+    simp
+
+theorem pkgMask_gapRestAverage_error_le {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper)
+    (E : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) → ℝ)
+    (ε : ℝ) (hε : 0 ≤ ε)
+    (hE : ∀ x, |E x| ≤ ε) :
+    |∑' x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+        (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * E x| ≤ ε := by
+  apply pkgMask_weightedError_tsum_le
+    (μ := fun x => gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2)
+    E ε
+  · intro x
+    apply mul_nonneg
+    · unfold gapSlotMass independentPrimePoolMass
+      exact Finset.prod_nonneg fun i _ =>
+        primePoolLaw_nonneg (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper (x.1 i) hMass
+    · unfold pkgMask_pivotRestMass
+      apply Finset.prod_nonneg
+      intro i hi
+      exact harmonicLaw_nonneg_of_normalizer_pos _ _
+        (harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+          (S.gapStage.valid_raw_cutoffs N (C.block i.1).1)) (x.2 i)
+  · exact pkgMask_gapRestMass_summable S C N u
+  · exact pkgMask_gapRestMass_tsum_one S C N u hMass
+  · exact hε
+  · exact hE
+
 theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
