@@ -1585,6 +1585,335 @@ private lemma parameterBlock_l1_le_dilationError {n : ℕ}
       fun z => ∑ r ∈ R, restWeight r * ν r z by funext z; exact href z]
   exact hmix.trans hupper
 
+private lemma dominates_nat_of_log_dominates_scale {X : ℕ → ℕ} {S T : ℕ → ℝ}
+    (hS : ∀ N, 1 ≤ S N) (hTpos : ∀ N, 0 < T N)
+    (hTle : ∀ N, T N ≤ 2 * S N)
+    (hlog : OAI.MicrocellScale.Dominates (fun N => Real.log (X N : ℝ)) S) :
+    OAI.MicrocellScale.Dominates (fun N => (X N : ℝ)) T := by
+  intro C hC
+  have hLog := hlog C hC
+  have hLow := hLog.atTop_div_const (Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) C)
+  apply tendsto_atTop_mono' atTop _ hLow
+  filter_upwards [hLog.eventually_gt_atTop 0] with N hN
+  have hSpos : 0 < S N := by linarith [hS N]
+  have hTposN : 0 < T N := hTpos N
+  have hSexp : 0 < (S N) ^ C := Real.rpow_pos_of_pos hSpos C
+  have hTexp : 0 < (T N) ^ C := Real.rpow_pos_of_pos hTposN C
+  have hConst : 0 < (2 : ℝ) ^ C := Real.rpow_pos_of_pos (by norm_num) C
+  have hLogPos : 0 < Real.log (X N : ℝ) := by
+    rcases (div_pos_iff.mp hN) with hpos | hneg
+    · exact hpos.1
+    · linarith [hSexp, hneg.2]
+  have hpow : (T N) ^ C ≤ (2 : ℝ) ^ C * (S N) ^ C := by
+    calc
+      (T N) ^ C ≤ (2 * S N) ^ C := Real.rpow_le_rpow (by positivity) (hTle N) hC.le
+      _ = _ := by rw [Real.mul_rpow (by norm_num) hSpos.le]
+  have hbigpos : 0 < (2 : ℝ) ^ C * (S N) ^ C := mul_pos hConst hSexp
+  have hcross : Real.log (X N : ℝ) * (T N) ^ C ≤
+      (X N : ℝ) * ((2 : ℝ) ^ C * (S N) ^ C) := by
+    calc
+      _ ≤ Real.log (X N : ℝ) * ((2 : ℝ) ^ C * (S N) ^ C) :=
+        mul_le_mul_of_nonneg_left hpow hLogPos.le
+      _ ≤ _ := mul_le_mul_of_nonneg_right
+        (Real.log_le_self (by positivity)) hbigpos.le
+  calc
+    ((Real.log (X N : ℝ) / (S N) ^ C) / (2 : ℝ) ^ C) =
+        Real.log (X N : ℝ) / ((2 : ℝ) ^ C * (S N) ^ C) := by ring
+    _ ≤ (X N : ℝ) / (T N) ^ C :=
+      (div_le_div_iff₀ hbigpos hTexp).2 hcross
+
+private lemma arithmeticL1_pi_product_eq_finiteL1
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (Z : Finset ℤ)
+    (μ ν : ι → ℤ → ℝ)
+    (hμ : ∀ i z, z ∉ Z → μ i z = 0)
+    (hν : ∀ i z, z ∉ Z → ν i z = 0) :
+    arithmeticL1 (fun z : ι → ℤ => ∏ i, μ i (z i))
+        (fun z => ∏ i, ν i (z i)) =
+      finiteL1
+        (fun x : ι → {z : ℤ // z ∈ Z} => ∏ i, μ i (x i).val)
+        (fun x => ∏ i, ν i (x i).val) := by
+  classical
+  let S : Finset (ι → ℤ) := Fintype.piFinset (fun _ : ι => Z)
+  have hzero (z : ι → ℤ) (hz : z ∉ S) :
+      |(∏ i, μ i (z i)) - (∏ i, ν i (z i))| = 0 := by
+    have hnot : ∃ i, z i ∉ Z := by
+      by_contra h
+      push_neg at h
+      exact hz (Fintype.mem_piFinset.mpr h)
+    obtain ⟨i, hi⟩ := hnot
+    have hμzero : (∏ j, μ j (z j)) = 0 := by
+      apply Finset.prod_eq_zero (Finset.mem_univ i)
+      exact hμ i (z i) hi
+    have hνzero : (∏ j, ν j (z j)) = 0 := by
+      apply Finset.prod_eq_zero (Finset.mem_univ i)
+      exact hν i (z i) hi
+    simp [hμzero, hνzero]
+  let e : (ι → {z : ℤ // z ∈ Z}) ≃ {z : ι → ℤ // z ∈ S} := {
+    toFun := fun x => ⟨(fun i => (x i).val),
+      (show (fun i => (x i).val) ∈ S from
+        Fintype.mem_piFinset.mpr (fun i => (x i).property))⟩
+    invFun := fun z i => ⟨z.val i, Fintype.mem_piFinset.mp z.property i⟩
+    left_inv := by
+      intro x
+      funext i
+      apply Subtype.ext
+      rfl
+    right_inv := by
+      intro z
+      apply Subtype.ext
+      funext i
+      rfl }
+  have hsum :
+      (∑ x : ι → {z : ℤ // z ∈ Z},
+        |(∏ i, μ i (x i).val) - (∏ i, ν i (x i).val)|) =
+      ∑ z : {z : ι → ℤ // z ∈ S},
+        |(∏ i, μ i (z.val i)) - (∏ i, ν i (z.val i))| := by
+    apply Fintype.sum_equiv e
+    intro x
+    simp [e]
+  unfold arithmeticL1
+  rw [tsum_eq_sum (s := S) (fun z hz => hzero z hz)]
+  unfold finiteL1
+  calc
+    (∑ z ∈ S, |(∏ i, μ i (z i)) - (∏ i, ν i (z i))|) =
+        ∑ z : {z : ι → ℤ // z ∈ S},
+          |(∏ i, μ i (z.val i)) - (∏ i, ν i (z.val i))| := by
+      rw [← Finset.sum_attach S
+        (fun z : ι → ℤ => |(∏ i, μ i (z i)) - (∏ i, ν i (z i))|)]
+      rw [Finset.sum_coe_sort_eq_attach]
+    _ = ∑ x : ι → {z : ℤ // z ∈ Z},
+          |(∏ i, μ i (x i).val) - (∏ i, ν i (x i).val)| := hsum.symm
+
+private def parameterGlobalProductCutoff {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) : ℕ :=
+  ∏ j, (A.X N j)^2
+
+private lemma blockProduct_le_globalCutoff {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : OAI.SourceBlocks.Block n) (t : Fin n → ℕ)
+    (ht : ∀ j, t j ≤ (A.X N j)^2)
+    (hone : ∀ j, 1 ≤ (A.X N j)^2) :
+    (∏ j ∈ B.set, t j) ≤ parameterGlobalProductCutoff A N := by
+  calc
+    (∏ j ∈ B.set, t j) ≤ ∏ j ∈ B.set, (A.X N j)^2 :=
+      Finset.prod_le_prod fun j hj => ht j
+    _ ≤ ∏ j : Fin n, (A.X N j)^2 :=
+      Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _)
+        (fun j hj hnot => hone j)
+    _ = parameterGlobalProductCutoff A N := rfl
+
+private lemma parameterBlockProductMass_zero_outside_globalCutoff {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j) (z : ℤ)
+    (hz : z ∉ Finset.Icc (0 : ℤ) (parameterGlobalProductCutoff A N : ℤ)) :
+    parameterBlockProductMass A N B hX z = 0 := by
+  classical
+  by_cases hzneg : z < 0
+  · unfold parameterBlockProductMass
+    simp [not_le_of_gt hzneg]
+  · have hzpos : 0 ≤ z := le_of_not_gt hzneg
+    have hnotupper : ¬ z ≤ (parameterGlobalProductCutoff A N : ℤ) := by
+      intro hzle
+      exact hz (Finset.mem_Icc.mpr ⟨hzpos, hzle⟩)
+    rw [parameterBlockProductMass_finset]
+    simp only [if_pos hzpos]
+    let W := primorial (N + 1)
+    let U : Fin n → Finset ℕ := fun j =>
+      OAI.RawHarmonicProbability.units (A.X N j) W
+    have hdom : OAI.ProductExposureLaw.outsideDomain (A.X N) W =
+        Fintype.piFinset U := rfl
+    rw [hdom]
+    apply Finset.sum_eq_zero
+    intro t ht
+    by_cases heq : (∏ j ∈ B.set, t j) = z.toNat
+    · have hone : ∀ j, 1 ≤ (A.X N j)^2 := by
+        intro j
+        have hw : 1 ≤ primorial (N + 1) :=
+          Nat.one_le_iff_ne_zero.mpr (primorial_pos _).ne'
+        have hxi : 1 ≤ A.X N j := by nlinarith [hX j]
+        exact Nat.one_le_pow _ _ hxi
+      have htbound : ∀ j, t j ≤ (A.X N j)^2 := by
+        intro j
+        have hu := Fintype.mem_piFinset.mp ht j
+        rcases Finset.mem_filter.mp hu with ⟨hI, _⟩
+        exact Nat.le_of_lt (Finset.mem_Ico.mp hI).2
+      have hprod := blockProduct_le_globalCutoff A N B t htbound hone
+      have hzNat : z.toNat ≤ parameterGlobalProductCutoff A N := by
+        rw [← heq]
+        exact hprod
+      have hzle : z ≤ (parameterGlobalProductCutoff A N : ℤ) := by
+        rw [← Int.natCast_toNat_eq_self.mpr hzpos]
+        exact_mod_cast hzNat
+      exact (hnotupper hzle).elim
+    · simp [heq]
+
+private lemma parameterBlockProductMass_sum_globalCutoff {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j) :
+    (∑ z ∈ Finset.Icc (0 : ℤ) (parameterGlobalProductCutoff A N : ℤ),
+      parameterBlockProductMass A N B hX z) = 1 := by
+  classical
+  let Z : Finset ℤ := Finset.Icc (0 : ℤ) (parameterGlobalProductCutoff A N : ℤ)
+  let W := primorial (N + 1)
+  let U : Fin n → Finset ℕ := fun j =>
+    OAI.RawHarmonicProbability.units (A.X N j) W
+  let D := OAI.ProductExposureLaw.outsideDomain (A.X N) W
+  have hD : D = Fintype.piFinset U := rfl
+  have hD0 : OAI.ProductExposureLaw.outsideDomain (A.X N) (primorial (N + 1)) = D := rfl
+  have hone : ∀ j, 1 ≤ (A.X N j)^2 := by
+    intro j
+    have hw : 1 ≤ primorial (N + 1) :=
+      Nat.one_le_iff_ne_zero.mpr (primorial_pos _).ne'
+    have hxi : 1 ≤ A.X N j := by nlinarith [hX j]
+    exact Nat.one_le_pow _ _ hxi
+  have htbound (t : Fin n → ℕ) (ht : t ∈ D) :
+      (∏ j ∈ B.set, t j) ≤ parameterGlobalProductCutoff A N := by
+    rw [hD] at ht
+    have hu : ∀ j, t j ≤ (A.X N j)^2 := by
+      intro j
+      have hm := Fintype.mem_piFinset.mp ht j
+      rcases Finset.mem_filter.mp hm with ⟨hI, _⟩
+      exact Nat.le_of_lt (Finset.mem_Ico.mp hI).2
+    exact blockProduct_le_globalCutoff A N B t hu hone
+  have hrawGlobal :
+      (∑ t ∈ D, ∏ j, harmonicNatLaw (A.X N j) W (t j)) = 1 := by
+    have hraw :
+        (∑ t ∈ Fintype.piFinset U, ∏ j, harmonicNatLaw (A.X N j) W (t j)) = 1 := by
+      rw [← Finset.prod_univ_sum]
+      have hcoord (j : Fin n) :
+          (∑ a ∈ U j, harmonicNatLaw (A.X N j) W a) = 1 :=
+        harmonicNatLaw_sum_units (A.X N j) W (primorial_pos _) (hX j)
+      calc
+        _ = ∏ j : Fin n, (1 : ℝ) := by
+          apply Finset.prod_congr rfl
+          intro j hj
+          exact hcoord j
+        _ = 1 := by simp
+    simpa [hD] using hraw
+  have hgrouped :
+      (∑ z ∈ Z, parameterBlockProductMass A N B hX z) =
+        ∑ t ∈ D, ∏ j, harmonicNatLaw (A.X N j) W (t j) := by
+    calc
+      _ = ∑ z ∈ Z, ∑ t ∈ D,
+            if (∏ j ∈ B.set, t j) = z.toNat then
+              ∏ j, harmonicNatLaw (A.X N j) W (t j) else 0 := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        have hzpos : 0 ≤ z := (Finset.mem_Icc.mp hz).1
+        rw [parameterBlockProductMass_finset]
+        simp only [if_pos hzpos]
+        rw [hD0]
+      _ = ∑ t ∈ D, ∑ z ∈ Z,
+            if (∏ j ∈ B.set, t j) = z.toNat then
+              ∏ j, harmonicNatLaw (A.X N j) W (t j) else 0 := by
+        rw [Finset.sum_comm]
+      _ = ∑ t ∈ D, ∏ j, harmonicNatLaw (A.X N j) W (t j) := by
+        apply Finset.sum_congr rfl
+        intro t ht
+        let P := ∏ j ∈ B.set, t j
+        have hPmem : (P : ℤ) ∈ Z := by
+          apply Finset.mem_Icc.mpr
+          constructor
+          · exact Int.natCast_nonneg _
+          · exact_mod_cast htbound t ht
+        have hconvert :
+            (∑ z ∈ Z, if P = z.toNat then
+                ∏ j, harmonicNatLaw (A.X N j) W (t j) else 0) =
+              ∑ z ∈ Z, if (P : ℤ) = z then
+                ∏ j, harmonicNatLaw (A.X N j) W (t j) else 0 := by
+          apply Finset.sum_congr rfl
+          intro z hz
+          have hzpos : 0 ≤ z := (Finset.mem_Icc.mp hz).1
+          have hcast : (z.toNat : ℤ) = z := Int.natCast_toNat_eq_self.mpr hzpos
+          have hequiv : P = z.toNat ↔ (P : ℤ) = z := by
+            constructor
+            · intro heq
+              rw [← hcast]
+              exact_mod_cast heq
+            · intro heq
+              have heq' : (P : ℤ) = (z.toNat : ℤ) := by simpa [hcast] using heq
+              exact_mod_cast heq'
+          exact if_congr hequiv rfl rfl
+        rw [hconvert, Finset.sum_ite_eq]
+        simp [hPmem]
+  have hsum := hgrouped.trans hrawGlobal
+  simpa [Z] using hsum
+
+private lemma weightedPivotMass_zero_outside_globalCutoff {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j) (z : ℤ)
+    (hz : z ∉ Finset.Icc (0 : ℤ) (parameterGlobalProductCutoff A N : ℤ)) :
+    weightedPivotMass A N B z = 0 := by
+  classical
+  by_cases hzneg : z < 0
+  · unfold weightedPivotMass
+    simp [harmonicLaw, not_le_of_gt hzneg]
+  · have hzpos : 0 ≤ z := le_of_not_gt hzneg
+    have hnotupper : ¬ z ≤ (parameterGlobalProductCutoff A N : ℤ) := by
+      intro hzle
+      exact hz (Finset.mem_Icc.mpr ⟨hzpos, hzle⟩)
+    have hone : ∀ j, 1 ≤ (A.X N j)^2 := by
+      intro j
+      have hw : 1 ≤ primorial (N + 1) :=
+        Nat.one_le_iff_ne_zero.mpr (primorial_pos _).ne'
+      have hxi : 1 ≤ A.X N j := by nlinarith [hX j]
+      exact Nat.one_le_pow _ _ hxi
+    have hpivot : (A.X N B.1)^2 ≤ parameterGlobalProductCutoff A N :=
+      Finset.single_le_prod (fun j hj => hone j) (Finset.mem_univ B.1)
+    have hzero : harmonicLaw (A.X N B.1) (primorial (N + 1)) z = 0 := by
+      unfold harmonicLaw
+      split_ifs with h
+      · exfalso
+        have hzNat : z.toNat ≤ parameterGlobalProductCutoff A N := by
+          have hlt : z.toNat < (A.X N B.1)^2 := h.2.2.1
+          exact (Nat.le_of_lt hlt).trans hpivot
+        have hzle : z ≤ (parameterGlobalProductCutoff A N : ℤ) := by
+          rw [← Int.natCast_toNat_eq_self.mpr hzpos]
+          exact_mod_cast hzNat
+        exact hnotupper hzle
+      · rfl
+    unfold weightedPivotMass
+    simp [hzero]
+
+private lemma arithmeticL1_eq_finiteL1_of_support (Z : Finset ℤ)
+    (μ ν : ℤ → ℝ) (hμ : ∀ z ∉ Z, μ z = 0) (hν : ∀ z ∉ Z, ν z = 0) :
+    arithmeticL1 μ ν =
+      finiteL1 (fun z : {z : ℤ // z ∈ Z} => μ z.val)
+        (fun z => ν z.val) := by
+  classical
+  unfold arithmeticL1 finiteL1
+  rw [tsum_eq_sum (s := Z) (fun z hz => by simp [hμ z hz, hν z hz])]
+  rw [← Finset.sum_attach Z (fun z : ℤ => |μ z - ν z|)]
+  rw [Finset.sum_coe_sort_eq_attach]
+
+private lemma finsetSubtype_sum {α β : Type*} [AddCommMonoid β]
+    (s : Finset α) (f : α → β) :
+    (∑ x : {x // x ∈ s}, f x.val) = ∑ x ∈ s, f x := by
+  classical
+  rw [Finset.sum_coe_sort_eq_attach]
+  exact Finset.sum_attach s f
+
+private lemma real_finset_prod_le_two_pow_card {ι : Type*} (s : Finset ι)
+    (f : ι → ℝ) (hnonneg : ∀ i ∈ s, 0 ≤ f i) (hbound : ∀ i ∈ s, f i ≤ 2) :
+    ∏ i ∈ s, f i ≤ (2 : ℝ) ^ s.card := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | @insert a s ha ih =>
+      have hnonnegS : ∀ i ∈ s, 0 ≤ f i := fun i hi => hnonneg i (Finset.mem_insert_of_mem hi)
+      have hboundS : ∀ i ∈ s, f i ≤ 2 := fun i hi => hbound i (Finset.mem_insert_of_mem hi)
+      have hprodNonneg : 0 ≤ ∏ i ∈ s, f i := Finset.prod_nonneg hnonnegS
+      rw [Finset.prod_insert ha, Finset.card_insert_of_notMem ha]
+      calc
+        f a * ∏ i ∈ s, f i ≤ 2 * ∏ i ∈ s, f i :=
+          mul_le_mul_of_nonneg_right (hbound a (Finset.mem_insert_self _ _)) hprodNonneg
+        _ ≤ 2 * (2 : ℝ) ^ s.card :=
+          mul_le_mul_of_nonneg_left (ih hnonnegS hboundS) (by norm_num)
+        _ = (2 : ℝ) ^ (s.card + 1) := by rw [pow_succ]; ring
+
 /-- The block product law, including its joint version for fixed pairwise disjoint blocks.
 This is Corollary `cor:product-law` (§3 lines 152–166). -/
 theorem cor_product_law {n r : ℕ} (A : OAI.SourceAdmissible.Parameters n)
@@ -1599,9 +1928,355 @@ theorem cor_product_law {n r : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     SuperPolynomialSmall
       (fun N => arithmeticL1
         (parameterJointBlockProductMass A N B (hX N))
-        (weightedPivotTupleMass A N B))
+      (weightedPivotTupleMass A N B))
       (fun N => (V N : ℝ)) := by
-  sorry
+  classical
+  have hJointFactor (N : ℕ) (z : Fin r → ℤ) :
+      parameterJointBlockProductMass A N B (hX N) z =
+        ∏ d, parameterBlockProductMass A N (B d) (hX N) (z d) := by
+    calc
+      _ = ∏ d, localBlockMass A N (B d) (z d) :=
+        parameterJointBlockProductMass_eq_localBlockMass_product A N B (hX N) hdisj z
+      _ = _ := by
+        apply Finset.prod_congr rfl
+        intro d hd
+        exact localBlockMass_eq_parameterBlockProductMass A N (B d) (hX N) (z d)
+  have hBlockSmall (d : Fin r) :
+      SuperPolynomialSmall
+        (fun N => arithmeticL1 (parameterBlockProductMass A N (B d) (hX N))
+          (weightedPivotMass A N (B d))) (fun N => (V N : ℝ)) := by
+    let W : ℕ → ℕ := fun N => primorial (N + 1)
+    let K : ℕ → ℕ := fun N =>
+      ∏ j ∈ (B d).2.val, (A.X N j)^2
+    let H : ℕ → ℕ := fun _ => 1
+    let X : ℕ → ℕ := fun N => A.X N (B d).1
+    let S0 : ℕ → ℝ := fun N => 2 + (W N : ℝ) + (K N : ℝ) + (V N : ℝ)
+    let S1 : ℕ → ℝ := fun N => S0 N + 1
+    have hK : ∀ N, 1 ≤ K N := by
+      intro N
+      have hprod : 0 < K N := by
+        dsimp [K]
+        apply Finset.prod_pos
+        intro j hj
+        have hW : 0 < primorial (N + 1) := primorial_pos _
+        have hXj : 0 < A.X N j := by
+          have h4 : 0 < 4 * primorial (N + 1) := Nat.mul_pos (by norm_num) hW
+          exact lt_of_lt_of_le h4 (hX N j)
+        exact Nat.pow_pos hXj
+      dsimp [K] at hprod ⊢
+      exact Nat.one_le_iff_ne_zero.mpr hprod.ne'
+    have hH : ∀ N, 1 ≤ H N := by intro N; simp [H]
+    have hS0 : ∀ N, 1 ≤ S0 N := by
+      intro N
+      dsimp [S0]
+      nlinarith [Nat.cast_nonneg (α := ℝ) (W N), Nat.cast_nonneg (α := ℝ) (K N),
+        Nat.cast_nonneg (α := ℝ) (V N)]
+    have hS1pos : ∀ N, 0 < S1 N := by
+      intro N
+      dsimp [S1]
+      positivity
+    have hS1le : ∀ N, S1 N ≤ 2 * S0 N := by
+      intro N
+      dsimp [S1]
+      nlinarith [hS0 N]
+    have hDomLog : OAI.MicrocellScale.Dominates
+        (fun N => Real.log (X N : ℝ)) S0 := by
+      simpa [S0, W, K, X] using hDom d
+    have hDomX0 : OAI.MicrocellScale.Dominates (fun N => (X N : ℝ)) S1 :=
+      dominates_nat_of_log_dominates_scale hS0 hS1pos hS1le hDomLog
+    have hDomX : OAI.MicrocellScale.Dominates (fun N => (X N : ℝ))
+        (fun N => 2 + W N + K N + H N + V N) := by
+      simpa [S0, S1, W, K, H, add_assoc, add_comm, add_left_comm] using hDomX0
+    have hDomLogX : OAI.MicrocellScale.Dominates (fun N => Real.log (X N : ℝ))
+        (fun N => 2 + W N + K N + V N) := by
+      simpa [S0, W, K] using hDom d
+    have hRatio1 : Tendsto (fun N => Real.log (X N : ℝ) / S0 N) atTop atTop := by
+      simpa only [Real.rpow_one] using hDomLog 1 (by norm_num)
+    have hKX : ∀ᶠ N in atTop, K N ≤ X N := by
+      filter_upwards [hRatio1.eventually_gt_atTop 2] with N hlarge
+      have hSpos : 0 < S0 N := by linarith [hS0 N]
+      have hloglarge : 2 * S0 N < Real.log (X N : ℝ) :=
+        (lt_div_iff₀ hSpos).mp hlarge
+      have hKle : (K N : ℝ) ≤ S0 N := by
+        dsimp [S0]
+        nlinarith [Nat.cast_nonneg (α := ℝ) (W N), Nat.cast_nonneg (α := ℝ) (V N)]
+      have hlogle := Real.log_le_self (show (0 : ℝ) ≤ X N by positivity)
+      have hNat : (K N : ℝ) ≤ X N := by nlinarith
+      exact_mod_cast hNat
+    have hXlarge : ∀ᶠ N in atTop, 2 ≤ X N :=
+      Filter.Eventually.of_forall fun N => by
+        have hW : 0 < primorial (N + 1) := primorial_pos _
+        have hcut := hX N (B d).1
+        exact le_trans (by omega) hcut
+    have hden : ∀ᶠ N in atTop, Real.log (X N) > (W N : ℝ) / X N := by
+      filter_upwards [hRatio1.eventually_gt_atTop 2] with N hlarge
+      have hSpos : 0 < S0 N := by linarith [hS0 N]
+      have hloglarge : 2 * S0 N < Real.log (X N : ℝ) :=
+        (lt_div_iff₀ hSpos).mp hlarge
+      have hXnat : 0 < X N := by
+        dsimp [X]
+        have hcut := hX N (B d).1
+        exact lt_of_lt_of_le (Nat.mul_pos (by norm_num) (primorial_pos _)) hcut
+      have hXpos : 0 < (X N : ℝ) := by exact_mod_cast hXnat
+      have hcut : 4 * (W N : ℝ) ≤ X N := by
+        dsimp [W, X]
+        exact_mod_cast hX N (B d).1
+      have hWratio : (W N : ℝ) / X N ≤ 1 / 4 := by
+        apply (div_le_iff₀ hXpos).2
+        nlinarith [hcut]
+      have hlogpos : 2 < Real.log (X N : ℝ) := by nlinarith [hS0 N, hloglarge]
+      linarith
+    have hAsym := sampling_asymptotics W K H V X
+      hK hH hV (by intro N; rfl) hXlarge hden hDomX hDomLogX
+    rcases hAsym with ⟨_, _, hDilSmall, _⟩
+    have hErrBound : ∀ᶠ N in atTop,
+        arithmeticL1 (parameterBlockProductMass A N (B d) (hX N))
+          (weightedPivotMass A N (B d)) ≤
+          harmonicDilationUniformError (X N) (W N) (K N) := by
+      let i := (B d).1
+      let T := (B d).2.val
+      let R : ℕ → Finset (PivotRest i → ℕ) := fun N =>
+        Fintype.piFinset (fun j : PivotRest i =>
+          OAI.RawHarmonicProbability.units (A.X N j.val) (W N))
+      have hTailPos (N : ℕ) : ∀ r ∈ R N, 1 ≤ blockTailProductOnRest (B d) r := by
+        intro r hr
+        unfold blockTailProductOnRest
+        rw [Finset.prod_coe_sort_eq_attach]
+        apply Finset.one_le_prod
+        intro j hj
+        let q : PivotRest i := ⟨j.val, ne_of_lt ((B d).2.property.2 j.val j.property)⟩
+        have hu := Fintype.mem_piFinset.mp hr q
+        rcases Finset.mem_filter.mp hu with ⟨hI, _⟩
+        have hlo := (Finset.mem_Ico.mp hI).1
+        have hWpos : 0 < W N := by dsimp [W]; exact primorial_pos _
+        have hcut : 4 * primorial (N + 1) ≤ A.X N j.val := hX N j.val
+        have hWone : 1 ≤ primorial (N + 1) :=
+          Nat.one_le_iff_ne_zero.mpr (primorial_pos _).ne'
+        have hXlo : 1 ≤ A.X N j.val := by nlinarith
+        have hXr : A.X N j.val ≤ r q := by simpa [q] using hlo
+        exact le_trans hXlo hXr
+      have hTailLe (N : ℕ) : ∀ r ∈ R N, blockTailProductOnRest (B d) r ≤ K N := by
+        intro r hr
+        unfold blockTailProductOnRest
+        rw [Finset.prod_coe_sort_eq_attach]
+        calc
+          _ ≤ ∏ j ∈ (B d).2.val.attach, (A.X N j.val)^2 := by
+            apply Finset.prod_le_prod
+            · intro j hj
+              let q : PivotRest i := ⟨j.val, ne_of_lt ((B d).2.property.2 j.val j.property)⟩
+              have hu := Fintype.mem_piFinset.mp hr q
+              rcases Finset.mem_filter.mp hu with ⟨hI, _⟩
+              exact Nat.le_of_lt (Finset.mem_Ico.mp hI).2
+          _ = K N := by
+            change (∏ j ∈ T.attach, (A.X N j.val)^2) =
+              ∏ j ∈ T, (A.X N j)^2
+            exact Finset.prod_attach T (fun j => (A.X N j)^2)
+      have hTailCoprime (N : ℕ) : ∀ r ∈ R N,
+          Nat.Coprime (blockTailProductOnRest (B d) r) (W N) := by
+        intro r hr
+        unfold blockTailProductOnRest
+        rw [Finset.prod_coe_sort_eq_attach]
+        apply Nat.coprime_prod_left_iff.mpr
+        intro j hj
+        let q : PivotRest i := ⟨j.val, ne_of_lt ((B d).2.property.2 j.val j.property)⟩
+        have hu := Fintype.mem_piFinset.mp hr q
+        exact (Finset.mem_filter.mp hu).2.symm
+      filter_upwards [hKX, hden] with N hKXN hlog
+      have hXi : 2 ≤ X N := by
+        dsimp [X]
+        have hW : 1 ≤ primorial (N + 1) :=
+          Nat.one_le_iff_ne_zero.mpr (primorial_pos _).ne'
+        have hcut := hX N (B d).1
+        omega
+      have hPoint : SamplingPointwiseBounds (X N) (W N) :=
+        sampling_pointwise_claim (X N) (W N) (primorial_pos _) hXi hlog
+      exact parameterBlock_l1_le_dilationError A N (B d) (hX N) hPoint hXi hlog
+        (K N) (hK N) hKXN (hTailPos N) (hTailLe N) (hTailCoprime N)
+    intro C hC
+    have hDil := hDilSmall C hC
+    apply squeeze_zero' ?_ ?_ hDil
+    · filter_upwards [] with N
+      apply mul_nonneg
+      · unfold arithmeticL1
+        exact tsum_nonneg fun z => abs_nonneg _
+      · exact Real.rpow_nonneg (by positivity) C
+    filter_upwards [hErrBound] with N hN
+    exact mul_le_mul_of_nonneg_right hN (by positivity)
+  intro C hC
+  let err : Fin r → ℕ → ℝ := fun d N =>
+    arithmeticL1 (parameterBlockProductMass A N (B d) (hX N))
+      (weightedPivotMass A N (B d))
+  have herrNonneg (d : Fin r) (N : ℕ) : 0 ≤ err d N := by
+    unfold err arithmeticL1
+    exact tsum_nonneg fun z => abs_nonneg _
+  have hsmallD (d : Fin r) : ∀ᶠ N in atTop, err d N ≤ 1 := by
+    have hlt : ∀ᶠ N in atTop, err d N * (V N : ℝ) < 1 := by
+      have := hBlockSmall d 1 (by norm_num)
+      filter_upwards [this.eventually (Iio_mem_nhds (by norm_num : (0 : ℝ) < 1))]
+        with N hN
+      simpa [err, Real.rpow_one] using hN
+    filter_upwards [hlt] with N hN
+    have hVreal : 1 ≤ (V N : ℝ) := by exact_mod_cast hV N
+    have hmul : err d N ≤ err d N * (V N : ℝ) := by
+      simpa using mul_le_mul_of_nonneg_left hVreal (herrNonneg d N)
+    linarith
+  have hsmallAll : ∀ᶠ N in atTop, ∀ d, err d N ≤ 1 := by
+    rw [Filter.eventually_all]
+    exact fun d => hsmallD d
+  have hProductBound (N : ℕ) (hsmall : ∀ d, err d N ≤ 1) :
+      arithmeticL1 (parameterJointBlockProductMass A N B (hX N))
+          (weightedPivotTupleMass A N B) ≤
+        (2 : ℝ) ^ r * ∑ d, err d N := by
+    let Z : Finset ℤ := Finset.Icc (0 : ℤ)
+      (parameterGlobalProductCutoff A N : ℤ)
+    let α := {z : ℤ // z ∈ Z}
+    let μfull : Fin r → ℤ → ℝ := fun d z =>
+      parameterBlockProductMass A N (B d) (hX N) z
+    let νfull : Fin r → ℤ → ℝ := fun d z => weightedPivotMass A N (B d) z
+    let μ : Fin r → α → ℝ := fun d z => μfull d z.val
+    let ν : Fin r → α → ℝ := fun d z => νfull d z.val
+    have hμsupport (d : Fin r) (z : ℤ) (hz : z ∉ Z) : μfull d z = 0 := by
+      exact parameterBlockProductMass_zero_outside_globalCutoff A N (B d)
+        (hX N) z (by simpa [Z] using hz)
+    have hνsupport (d : Fin r) (z : ℤ) (hz : z ∉ Z) : νfull d z = 0 := by
+      exact weightedPivotMass_zero_outside_globalCutoff A N (B d) (hX N) z
+        (by simpa [Z] using hz)
+    have hJointId :
+        arithmeticL1 (parameterJointBlockProductMass A N B (hX N))
+            (weightedPivotTupleMass A N B) =
+          finiteL1 (fun x : Fin r → α => ∏ d, μ d (x d))
+            (fun x => ∏ d, ν d (x d)) := by
+      calc
+        _ = arithmeticL1 (fun z : Fin r → ℤ => ∏ d, μfull d (z d))
+              (fun z => ∏ d, νfull d (z d)) := by
+                unfold arithmeticL1
+                apply tsum_congr
+                intro z
+                rw [hJointFactor N z]
+                rfl
+        _ = _ := arithmeticL1_pi_product_eq_finiteL1 Z μfull νfull
+          (fun d z hz => hμsupport d z hz) (fun d z hz => hνsupport d z hz)
+    have hμnonneg (d : Fin r) (z : ℤ) : 0 ≤ μfull d z := by
+      dsimp [μfull]
+      unfold parameterBlockProductMass
+      split_ifs with hz
+      · exact measureReal_nonneg
+      · exact le_of_eq rfl
+    have hμnorm (d : Fin r) : (∑ z : α, |μ d z|) = 1 := by
+      calc
+        _ = ∑ z ∈ Z, |μfull d z| := finsetSubtype_sum Z (fun z => |μfull d z|)
+        _ = ∑ z ∈ Z, μfull d z := by
+          apply Finset.sum_congr rfl
+          intro z hz
+          exact abs_of_nonneg (hμnonneg d z)
+        _ = 1 := by
+          simpa [Z, μfull] using
+            parameterBlockProductMass_sum_globalCutoff A N (B d) (hX N)
+    have hlocalEq (d : Fin r) :
+        arithmeticL1 (μfull d) (νfull d) = finiteL1 (μ d) (ν d) := by
+      exact arithmeticL1_eq_finiteL1_of_support Z (μfull d) (νfull d)
+        (fun z hz => hμsupport d z hz) (fun z hz => hνsupport d z hz)
+    have hνnorm (d : Fin r) : (∑ z : α, |ν d z|) ≤ 2 := by
+      have htriangle :
+          (∑ z : α, |ν d z|) ≤
+            (∑ z : α, |μ d z|) + finiteL1 (μ d) (ν d) := by
+        calc
+          _ ≤ ∑ z : α, (|μ d z| + |μ d z - ν d z|) := by
+            apply Finset.sum_le_sum
+            intro z hz
+            calc
+              |ν d z| = |μ d z - (μ d z - ν d z)| := by congr 1 <;> ring
+              _ ≤ |μ d z| + |μ d z - ν d z| := abs_sub _ _
+          _ = _ := by
+            simp only [finiteL1]
+            rw [Finset.sum_add_distrib]
+      calc
+        _ ≤ (∑ z : α, |μ d z|) + finiteL1 (μ d) (ν d) := htriangle
+        _ = 1 + err d N := by rw [hμnorm d, ← hlocalEq d]
+        _ ≤ 2 := by linarith [hsmall d]
+    have hfactor (d : Fin r) :
+        ∏ j ∈ Finset.univ.erase d,
+            max (∑ z : α, |μ j z|) (∑ z : α, |ν j z|) ≤ (2 : ℝ) ^ r := by
+      have hbase := real_finset_prod_le_two_pow_card
+        (Finset.univ.erase d)
+        (fun j => max (∑ z : α, |μ j z|) (∑ z : α, |ν j z|))
+        (fun j hj => le_max_of_le_left (Finset.sum_nonneg fun z hz => abs_nonneg _))
+        (fun j hj => max_le (by rw [hμnorm j]; norm_num) (hνnorm j))
+      have hcard : (Finset.univ.erase d).card ≤ r := by
+        have hc := Finset.card_le_card (Finset.erase_subset d (Finset.univ : Finset (Fin r)))
+        simpa using hc
+      exact hbase.trans (pow_le_pow_right₀ (by norm_num) hcard)
+    have htel := finite_product_l1_telescoping
+      (ι := Fin r) (α := α) (μ := μ) (ν := ν)
+    have hfiniteBound :
+        finiteL1 (fun x : Fin r → α => ∏ d, μ d (x d))
+          (fun x => ∏ d, ν d (x d)) ≤
+          (2 : ℝ) ^ r * ∑ d, err d N := by
+      calc
+        _ ≤ ∑ d, finiteL1 (μ d) (ν d) *
+            ∏ j ∈ Finset.univ.erase d,
+              max (∑ z : α, |μ j z|) (∑ z : α, |ν j z|) := htel
+        _ ≤ ∑ d, err d N * (2 : ℝ) ^ r := by
+          apply Finset.sum_le_sum
+          intro d hd
+          have hloc : finiteL1 (μ d) (ν d) = err d N := by
+              simpa [err] using (hlocalEq d).symm
+          have hfactornonneg : 0 ≤
+              ∏ j ∈ Finset.univ.erase d,
+                max (∑ z : α, |μ j z|) (∑ z : α, |ν j z|) := by positivity
+          calc
+            _ ≤ err d N *
+                ∏ j ∈ Finset.univ.erase d,
+                  max (∑ z : α, |μ j z|) (∑ z : α, |ν j z|) := by
+                    rw [hloc]
+            _ ≤ err d N * (2 : ℝ) ^ r :=
+              mul_le_mul_of_nonneg_left (hfactor d) (herrNonneg d N)
+        _ = (∑ d, err d N) * (2 : ℝ) ^ r := by rw [Finset.sum_mul]
+        _ = (2 : ℝ) ^ r * ∑ d, err d N := by ring
+    rw [hJointId]
+    exact hfiniteBound
+  have hsum :
+      Tendsto (fun N => ∑ d, err d N * (V N : ℝ) ^ C) atTop (𝓝 0) := by
+    have hterm (d : Fin r) :
+        Tendsto (fun N => err d N * (V N : ℝ) ^ C) atTop (𝓝 0) := by
+      simpa [err] using hBlockSmall d C hC
+    have hind : ∀ s : Finset (Fin r),
+        Tendsto (fun N => ∑ d ∈ s, err d N * (V N : ℝ) ^ C) atTop (𝓝 0) := by
+      intro s
+      induction s using Finset.induction_on with
+      | empty => simp
+      | @insert a s ha ih =>
+          have heq : (fun N => ∑ d ∈ insert a s, err d N * (V N : ℝ) ^ C) =
+              fun N => err a N * (V N : ℝ) ^ C +
+                ∑ d ∈ s, err d N * (V N : ℝ) ^ C := by
+            funext N
+            rw [Finset.sum_insert ha]
+          rw [heq]
+          simpa using (hterm a).add ih
+    simpa using hind Finset.univ
+  have hUpper : ∀ᶠ N in atTop,
+      arithmeticL1 (parameterJointBlockProductMass A N B (hX N))
+          (weightedPivotTupleMass A N B) * (V N : ℝ) ^ C ≤
+        (2 : ℝ) ^ r * ∑ d, err d N * (V N : ℝ) ^ C := by
+    filter_upwards [hsmallAll] with N hsmall
+    have hB := hProductBound N hsmall
+    have hpow : 0 ≤ (V N : ℝ) ^ C := Real.rpow_nonneg (by positivity) C
+    calc
+      _ ≤ ((2 : ℝ) ^ r * ∑ d, err d N) * (V N : ℝ) ^ C :=
+        mul_le_mul_of_nonneg_right hB hpow
+      _ = (2 : ℝ) ^ r * ((∑ d, err d N) * (V N : ℝ) ^ C) := by ring
+      _ = (2 : ℝ) ^ r * ∑ d, err d N * (V N : ℝ) ^ C := by
+        rw [Finset.sum_mul]
+  have hUpperTendsto :
+      Tendsto (fun N => (2 : ℝ) ^ r * ∑ d, err d N * (V N : ℝ) ^ C)
+        atTop (𝓝 0) := by
+    simpa using
+      (tendsto_const_nhds : Tendsto (fun _ : ℕ => (2 : ℝ) ^ r) atTop (𝓝 ((2 : ℝ) ^ r))).mul hsum
+  apply squeeze_zero' (Filter.Eventually.of_forall fun N => by
+    unfold arithmeticL1
+    apply mul_nonneg
+    · exact tsum_nonneg fun z => abs_nonneg _
+    · exact Real.rpow_nonneg (by positivity) C) hUpper hUpperTendsto
 
 /-- Conditioning on `t_T=σ` expresses the block-product law as the mixture of the pivot
 dilation laws (§3 lines 168–172). -/
