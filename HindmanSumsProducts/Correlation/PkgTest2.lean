@@ -4808,4 +4808,77 @@ theorem c_test2_masterCRT_error_superpoly {K s : ℕ}
       0 ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by positivity
   exact c_test2_superPolynomialSmall_of_eventually_le hnonneg hVnonneg hbound herrSum
 
+theorem c_test2_rowCoefficientNatFactors {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) (hscale : c_test2_ScaleData S C a N)
+    (T : RowTemplate m q) (p : Fin q → ℕ) :
+    ∃ alpha rho : Fin m → ℕ,
+      (∀ i, chainScale S.core.parameters C a N i /
+          chainScale S.core.parameters C a N T.anchor * T.value p i =
+            (alpha i : ℚ)) ∧
+      (∀ i, i < T.anchor →
+        (rho i : ℚ) = chainScale S.core.parameters C a N i /
+          chainScale S.core.parameters C a N T.anchor) ∧
+      (∀ i, alpha i =
+        if hi : i < T.anchor then rho i * c_test2_rowValueNat T p i
+        else if i = T.anchor then c_test2_rowValueNat T p i else 0) := by
+  classical
+  rcases Classical.choose_spec hscale with ⟨hc, hcpos, hratio, hmod⟩
+  let cint := Classical.choose hscale
+  let rho : Fin m → ℕ := fun i =>
+    if hi : i < T.anchor then
+      Classical.choose (c_test2_scaleRatioNat S N cint hcpos hratio hmod i T.anchor hi)
+    else 1
+  let alpha : Fin m → ℕ := fun i =>
+    if hi : i < T.anchor then rho i * c_test2_rowValueNat T p i
+    else if i = T.anchor then c_test2_rowValueNat T p i else 0
+  have hrho (i : Fin m) (hi : i < T.anchor) :
+      (rho i : ℚ) = chainScale S.core.parameters C a N i /
+        chainScale S.core.parameters C a N T.anchor := by
+    have hspec := Classical.choose_spec
+      (c_test2_scaleRatioNat S N cint hcpos hratio hmod i T.anchor hi)
+    have hc' (d : Fin m) :
+        (cint d : ℚ) = chainScale S.core.parameters C a N d := by
+      simpa [cint, chainScale] using hc d
+    calc
+      (rho i : ℚ) = (cint i : ℚ) / (cint T.anchor : ℚ) := by
+        simpa [rho, hi] using hspec.2.1
+      _ = _ := by rw [hc' i, hc' T.anchor]
+  have hnone (i : Fin m) (hi : T.anchor < i) : T.entry i = none := by
+    by_contra hsome
+    obtain ⟨e, he⟩ : ∃ e, T.entry i = some e := by
+      cases h : T.entry i with
+      | none => exact (hsome h).elim
+      | some e => exact ⟨e, rfl⟩
+    have hmem : i ∈ T.support := by simpa [RowTemplate.support, he]
+    have hle := Finset.le_max' T.support i hmem
+    change i ≤ T.anchor at hle
+    omega
+  refine ⟨alpha, rho, ?_, ?_, ?_⟩
+  · intro i
+    by_cases hi : i < T.anchor
+    · simp only [alpha, dif_pos hi, Nat.cast_mul]
+      rw [hrho i hi, c_test2_rowValue_eq_cast]
+    · by_cases hEq : i = T.anchor
+      · subst i
+        have hcne : chainScale S.core.parameters C a N T.anchor ≠ 0 := by
+          rcases Classical.choose_spec hscale with ⟨hc, hcpos, _, _⟩
+          have hc' : (cint T.anchor : ℚ) =
+              chainScale S.core.parameters C a N T.anchor := by
+            simpa [cint, chainScale] using hc T.anchor
+          have hpos : (0 : ℚ) < chainScale S.core.parameters C a N T.anchor := by
+            rw [← hc']
+            exact_mod_cast hcpos T.anchor
+          exact ne_of_gt hpos
+        rw [div_self hcne, c_test2_rowValue_eq_cast]
+        simp [alpha]
+      · have hi' : T.anchor < i := by omega
+        have hzero : T.value p i = 0 := by
+          simp [RowTemplate.value, hnone i hi']
+        simp [alpha, hi, hEq, hzero]
+  · exact fun i hi => hrho i hi
+  · intro i
+    by_cases hi : i < T.anchor <;> simp [alpha, rho, hi]
+
 end HindmanSumsProducts
