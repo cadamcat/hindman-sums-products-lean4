@@ -2,6 +2,7 @@ import HindmanSumsProducts.Prediction.Projections
 import HindmanSumsProducts.Concatenation
 import HindmanSumsProducts.Prediction.PkgG
 import HindmanSumsProducts.Prediction.Pkgg2
+import HindmanSumsProducts.Prediction.PkgG3
 
 /-!
 # Subgroup cubes and the inverse theorem (§5.3, `05_prediction.tex` 432–683)
@@ -164,7 +165,13 @@ theorem projection_lower_bound (t : ℕ) (ht : 2 ≤ t) (δ : ℝ) (hδ : 0 < δ
       ∀ h : ℕ → ℤ → ℝ, (∀ N y, |h N y| ≤ 1) →
         (∀ᶠ N in (U : Filter ℕ), δ ^ (2 ^ t) ≤ cellGlobalMoment A N i l t (h N)) →
         c ≤ projNorm A U i l s h := by
-  sorry
+  change ∃ c : ℝ, 0 < c ∧ ∀ s : ℕ, 2 * (t - 1) ≤ s →
+    ∀ {K : ℕ} (A : Parameters K) (i l : Fin K), l < i →
+    ∀ (U : Ultrafilter ℕ), (U : Filter ℕ) ≤ Filter.cofinite →
+    ∀ h : ℕ → ℤ → ℝ, (∀ N y, |h N y| ≤ 1) →
+      (∀ᶠ N in (U : Filter ℕ), δ ^ (2 ^ t) ≤ p_g3_cellGlobalMoment A N i l t (h N)) →
+      c ≤ projNorm A U i l s h
+  exact p_g3_projection_lower_bound t ht δ hδ
 
 /-- Lemma `lem:subgroup-inverse` (eq:prediction-subgroup-conclusion), 05:491–510, 676–683, with
 the changed hypothesis `inverseStep d ≤ s`: for a cube type of order `d ≥ 1`, `J₀` and `γ > 0`
