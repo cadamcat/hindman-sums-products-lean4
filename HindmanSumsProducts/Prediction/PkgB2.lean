@@ -4228,6 +4228,31 @@ private theorem pkgB2_divisorFamily_support_specs {K sl q : ℕ} {As : Finset �
       omega
     · simpa [hσone]
 
+private theorem pkgB2_divisorFamily_nuB {K sl q : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (U : Finset (Fin q)) (u : Fin q) (N : ℕ) (y : ℤ) :
+    nuB (divisorTemplateLaw MS.core.parameters N (pkgB2_divisorFamily B U u)) y =
+      if u ∈ U then nu MS.core.parameters N B y else 1 := by
+  classical
+  by_cases hu : u ∈ U
+  · simp only [pkgB2_divisorFamily, if_pos hu]
+    have hLaw := pkgB2_tailDivisorTemplate_law_eq MS B N
+      (MS.gapStage.valid_raw_cutoffs N)
+    have h := congrArg (fun L : ℕ → ℝ => nuB L y) hLaw
+    simpa [nu] using h
+  · let D0 : FromArithmetic.DivisorTemplate K K :=
+      { arity := 0, arity_le := Nat.zero_le K, cutoff := Fin.elim0 }
+    have hFrom : nuB (FromArithmetic.divisorTemplateLaw MS.core.parameters N D0) y = 1 :=
+      HindmanSumsProducts.nuB_divisorTemplate_arity_zero
+        MS.core.parameters N D0 rfl y
+    have hLaw : divisorTemplateLaw MS.core.parameters N (pkgB2_unitDivisorTemplate K) =
+        FromArithmetic.divisorTemplateLaw MS.core.parameters N D0 := by rfl
+    have hunitNu :
+        nuB (divisorTemplateLaw MS.core.parameters N (pkgB2_unitDivisorTemplate K)) y = 1 := by
+      have hEq := congrArg (fun L : ℕ → ℝ => nuB L y) hLaw
+      exact hEq.trans hFrom
+    simpa [pkgB2_divisorFamily, hu] using hunitNu
+
 private theorem pkgB2_momentPivotLog_dominates_gap_scale {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
