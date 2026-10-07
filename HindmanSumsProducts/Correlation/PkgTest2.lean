@@ -4881,4 +4881,275 @@ theorem c_test2_rowCoefficientNatFactors {K s m q : ℕ}
   · intro i
     by_cases hi : i < T.anchor <;> simp [alpha, rho, hi]
 
+theorem c_test2_harmonicResidueUniformError_mono {X W k K : ℕ}
+    (hkK : k ≤ K) (hX : 2 ≤ X) (hlog : Real.log X > (W : ℝ) / X) :
+    FromArithmetic.harmonicResidueUniformError X W k ≤
+      FromArithmetic.harmonicResidueUniformError X W K := by
+  have hden : 0 < (X : ℝ) * (Real.log X - (W : ℝ) / X) := by
+    apply mul_pos
+    · exact_mod_cast (by omega : 0 < X)
+    · exact sub_pos.mpr hlog
+  have hnum : (W : ℝ) * (k + 1 : ℕ) ≤ (W : ℝ) * (K + 1 : ℕ) := by
+    have hcast : (k + 1 : ℕ) ≤ (K + 1 : ℕ) := Nat.add_le_add_right hkK 1
+    exact mul_le_mul_of_nonneg_left (by exact_mod_cast hcast) (by positivity)
+  unfold FromArithmetic.harmonicResidueUniformError FromArithmetic.harmonicResidueError
+  exact div_le_div_of_nonneg_right hnum hden.le
+
+def c_test2_rowWeightedGoodDomain {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ι : Fin q ↪ Fin s) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (N : ℕ) (p : Fin s → ℕ) : Prop :=
+  c_test2_ScaleData S C a N ∧
+    (∀ i, (S.primeStage.pool N C.gap).lower ≤ p i ∧
+      p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) ∧
+    GoodTuple S C.gap N tests dirs.poly (fun i => p (ι i))
+
+def c_test2_rowWeightedCoeff {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ι : Fin q ↪ Fin s) (Sh : RowShape m q r)
+    (N : ℕ) (p : Fin s → ℕ) (u : Fin r) (j : Fin m) : ℚ :=
+  chainScale S.core.parameters C a N j /
+      chainScale S.core.parameters C a N (Sh.row u).anchor *
+    (Sh.row u).value (fun i => p (ι i)) j
+
+noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (ι : Fin q ↪ Fin s) (tests : Finset (IntegerPolynomial q))
+    (hlisted : TestsListed Dm ι tests)
+    (hPrimitive : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        ∀ u, ∃ j,
+          FromArithmetic.rationalResidue r' hr
+            (c_test2_rowWeightedCoeff S C a ι Sh N p u j) ≠ 0)
+    (hPairwise : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        (∀ Q ∈ Dm, ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+        ∀ u v, u ≠ v → ∃ i j,
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v j) ≠
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v i)) :
+    FromArithmetic.WeightedLinearFormsData (q := r) (d := m) (b := K) S := by
+  classical
+  let A := S.core.parameters
+  let W : ℕ → ℕ := fun N => primorial (N + 1)
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV A N C.gap
+  let goodDomain : ℕ → (Fin s → ℕ) → Prop :=
+    c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests
+  let rowCoeff : ℕ → (Fin s → ℕ) → Fin r → Fin m → ℚ :=
+    c_test2_rowWeightedCoeff S C a ι Sh
+  let tail : Fin r → Finset (Fin K) :=
+    fun u => (C.block (Sh.row u).anchor).2.val
+  let divisor : Fin r → FromArithmetic.DivisorTemplate K K :=
+    fun u => c_test2_divisorTemplateOfTail (tail u)
+  let epsilonBase : ℕ → ℝ := fun N =>
+    ∑ i : Fin m, FromArithmetic.harmonicResidueUniformError
+      (A.X N (C.block i).1) (primorial (N + 1)) (V N ^ r)
+  let epsilonCRT : ℕ → ℝ := fun N =>
+    finiteL1
+      (FromArithmetic.primeTupleCRTLaw
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ => (S.primeStage.pool N C.gap).upper) (N + 1) (V N))
+      (FromArithmetic.uniformPrimeTupleCRTLaw (N + 1) (V N))
+  let baseMass : ℕ → (Fin s → ℕ) → (Fin m → ℤ) → ℝ :=
+    fun N _ x => pivotMass A C N x
+  have hnorm (N : ℕ) (i : Fin m) :
+      0 < harmonicNormalizer (A.X N (C.block i).1) (primorial (N + 1)) :=
+    c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block i).1)
+  have hnormAll (N : ℕ) (i : Fin K) :
+      0 < harmonicNormalizer (A.X N i) (primorial (N + 1)) :=
+    c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N i)
+  have htailLaw (N : ℕ) (u : Fin r) (σ : ℕ) :
+      FromArithmetic.divisorTemplateLaw A N (divisor u) σ =
+        FromArithmetic.parameterTailProductLaw A N (tail u) σ := by
+    simpa [divisor, tail] using
+      c_test2_divisorTemplateLaw_eq_parameterTailProductLaw A N (tail u)
+        (fun i => hnormAll N i) σ
+  refine
+    { gap := fun _ => C.gap
+      rowCoeff := rowCoeff
+      divisor := divisor
+      V := V
+      epsilonBase := epsilonBase
+      epsilonCRT := epsilonCRT
+      baseMass := baseMass
+      goodDomain := goodDomain
+      epsilonBase_nonnegative := ?_
+      V_lower := ?_
+      V_tendsto := ?_
+      slot_gap_bound := ?_
+      base_nonnegative := ?_
+      base_normalized := ?_
+      divisor_positive := ?_
+      divisor_bounded := ?_
+      base_residue_uniform := ?_
+      row_integer_on_support := ?_
+      row_denominators_are_units := ?_
+      row_primitive := ?_
+      pairwise_row_tests := ?_
+      crt_error_bound := ?_
+      epsilonBase_superpolynomial := ?_
+      epsilonCRT_superpolynomial := ?_ }
+  · intro N
+    unfold epsilonBase
+    apply Finset.sum_nonneg
+    intro i hi
+    unfold FromArithmetic.harmonicResidueUniformError FromArithmetic.harmonicResidueError
+    apply div_nonneg
+    · positivity
+    · apply mul_nonneg
+      · positivity
+      · have hlog := c_test2_samplingDenominator_of_cutoff
+          (primorial_pos (N + 1))
+          (S.gapStage.valid_raw_cutoffs N (C.block i).1)
+        exact le_of_lt (sub_pos.mpr hlog)
+  · intro N
+    change A.M N ≤ FromArithmetic.masterScaleV A N C.gap
+    unfold FromArithmetic.masterScaleV
+    omega
+  · apply Filter.tendsto_atTop.2
+    intro b
+    have hV := (Filter.tendsto_atTop.1 (c_test2_masterScaleV_tendsto A C.gap)) (b : ℝ)
+    filter_upwards [hV] with N hN
+    exact_mod_cast hN
+  · intro N i
+    rfl
+  · intro N p x
+    unfold baseMass pivotMass
+    apply Finset.prod_nonneg
+    intro i hi
+    exact c_test2_harmonicLaw_nonneg_of_normalizer_pos (hnorm N i) (x i)
+  · intro N p
+    unfold baseMass pivotMass
+    exact c_test2_harmonicProductMass_tsum_one
+      (fun i : Fin m => A.X N (C.block i).1) (primorial (N + 1))
+      (fun i => A.Xpos N (C.block i).1) (fun i => hnorm N i)
+  · intro N u σ hσ
+    have htailNZ : FromArithmetic.parameterTailProductLaw A N (tail u) σ ≠ 0 := by
+      intro hz
+      apply hσ
+      rw [htailLaw N u σ, hz]
+    exact c_test2_parameterTailProductLaw_pos_of_nonzero A N (tail u) σ htailNZ
+  · intro N u σ hσ
+    have htailNZ : FromArithmetic.parameterTailProductLaw A N (tail u) σ ≠ 0 := by
+      intro hz
+      apply hσ
+      rw [htailLaw N u σ, hz]
+    exact c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor σ
+      htailNZ
+  · intro N p σ hgood hdivNZ hσ
+    let Kprod : ℕ := ∏ u : Fin r, σ u
+    have hK : 0 < Kprod := by
+      dsimp [Kprod]
+      exact Finset.prod_pos fun u _ => hσ u
+    have htailNZ (u : Fin r) :
+        FromArithmetic.parameterTailProductLaw A N (tail u) (σ u) ≠ 0 := by
+      intro hz
+      have heq := htailLaw N u (σ u)
+      apply hdivNZ u
+      rw [heq, hz]
+    have hKcop : Nat.Coprime Kprod (primorial (N + 1)) := by
+      dsimp [Kprod]
+      rw [Nat.coprime_fintype_prod_left_iff]
+      intro u
+      exact c_test2_parameterTailProductLaw_coprime_of_nonzero A N
+        (tail u) (σ u) (htailNZ u)
+    have hσle (u : Fin r) : σ u ≤ V N :=
+      c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor
+        (σ u) (htailNZ u)
+    have hKbound : Kprod ≤ V N ^ r := by
+      calc
+        _ ≤ ∏ _u : Fin r, V N := by
+          apply Finset.prod_le_prod
+          · intro u hu
+            exact hσle u
+        _ = V N ^ r := by simp
+    have hErr (i : Fin m) :
+        finiteL1
+          (harmonicResidueLaw
+            (harmonicLaw (A.X N (C.block i).1) (primorial (N + 1))) Kprod)
+          (uniformResidueLaw Kprod) ≤
+          FromArithmetic.harmonicResidueUniformError
+            (A.X N (C.block i).1) (primorial (N + 1)) (V N ^ r) := by
+      have hcut := S.gapStage.valid_raw_cutoffs N (C.block i).1
+      have hX : 2 ≤ A.X N (C.block i).1 := by
+        have hW : 1 ≤ primorial (N + 1) :=
+          Nat.one_le_iff_ne_zero.mpr (ne_of_gt (primorial_pos (N + 1)))
+        have hX4 : 4 ≤ A.X N (C.block i).1 := by
+          calc
+            4 = 4 * 1 := by norm_num
+            _ ≤ 4 * primorial (N + 1) :=
+              Nat.mul_le_mul_left 4 hW
+            _ ≤ A.X N (C.block i).1 :=
+              S.gapStage.valid_raw_cutoffs N (C.block i).1
+        omega
+      have hlog := c_test2_samplingDenominator_of_cutoff
+        (primorial_pos (N + 1)) hcut
+      have hsamp := FromArithmetic.sampling_pointwise_claim
+        (A.X N (C.block i).1) (primorial (N + 1))
+        (primorial_pos (N + 1)) hX hlog
+      have htotal := hsamp.residue_total_mass hX hlog Kprod hKcop hK
+      exact htotal.trans
+        (c_test2_harmonicResidueUniformError_mono hKbound hX hlog)
+    exact c_test2_pivotBaseResidueLaw_finiteL1_bound A C N
+      hK (fun i => hnorm N i)
+      (fun i => FromArithmetic.harmonicResidueUniformError
+        (A.X N (C.block i).1) (primorial (N + 1)) (V N ^ r)) hErr
+  · intro N p x hgood hNZ u
+    have hscale : c_test2_ScaleData S C a N := hgood.1
+    obtain ⟨alpha, rho, hrep, _, _⟩ := c_test2_rowCoefficientNatFactors
+      S C a N hscale (Sh.row u) (fun i => p (ι i))
+    have hcoeff : ∀ j, rowCoeff N p u j = (alpha j : ℚ) := by
+      intro j
+      simpa [rowCoeff, c_test2_rowWeightedCoeff] using hrep j
+    change (FromArithmetic.linearRowValue rowCoeff N p u x).den = 1
+    rw [show FromArithmetic.linearRowValue rowCoeff N p u x =
+        ((∑ j, (alpha j : ℤ) * x j : ℤ) : ℚ) by
+          unfold FromArithmetic.linearRowValue
+          simp_rw [hcoeff]
+          norm_cast]
+    simp only [Rat.den_intCast]
+  · intro N p hgood r' hr hlarge hrV u j
+    have hscale : c_test2_ScaleData S C a N := hgood.1
+    obtain ⟨alpha, rho, hrep, _, _⟩ := c_test2_rowCoefficientNatFactors
+      S C a N hscale (Sh.row u) (fun i => p (ι i))
+    have hcoeff : rowCoeff N p u j = (alpha j : ℚ) := by
+      simpa [rowCoeff, c_test2_rowWeightedCoeff] using hrep j
+    rw [hcoeff]
+    simp
+  · exact hPrimitive
+  · exact hPairwise
+  · intro N
+    rfl
+  · have hsmall :
+        SuperPolynomialSmall
+          (fun N => ∑ i : Fin m,
+            FromArithmetic.harmonicResidueUniformError
+              (A.X N (C.block i).1) (primorial (N + 1))
+              (FromArithmetic.masterScaleV A N C.gap ^ r))
+          (fun N => (FromArithmetic.masterScaleV A N C.gap : ℝ)) :=
+      c_test2_superPolynomialSmall_finset_sum
+        (fun i N => FromArithmetic.harmonicResidueUniformError
+          (A.X N (C.block i).1) (primorial (N + 1))
+          (FromArithmetic.masterScaleV A N C.gap ^ r))
+        (fun N => (FromArithmetic.masterScaleV A N C.gap : ℝ))
+        (fun i => c_test2_samplingResidueError_superpoly S C i r)
+    simpa [epsilonBase, V] using hsmall
+  · simpa [epsilonCRT, V] using c_test2_masterCRT_error_superpoly S C.gap
+
 end HindmanSumsProducts
