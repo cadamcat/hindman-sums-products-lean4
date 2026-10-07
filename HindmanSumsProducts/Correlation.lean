@@ -9,6 +9,7 @@ import HindmanSumsProducts.Correlation.PkgTest
 import HindmanSumsProducts.Correlation.PkgTest2
 import HindmanSumsProducts.Correlation.PkgOpusCorr
 import HindmanSumsProducts.Correlation.PkgVarS
+import HindmanSumsProducts.Correlation.PkgMsoS
 
 /-!
 # Removing multiplicative masks and detecting a shifted error (§4)
@@ -136,7 +137,7 @@ theorem opus_corr_mask_step_outside {m q r : ℕ} (Jstar : Finset (Fin m)) (hJ :
           ∃ st' : MaskRemovalState m (q + 2) r',
             st'.shape = Sh' ∧ st'.masks = masks.erase U ∧ st'.Valid S C a N Jstar gstar ∧
             |st.correlation S C a N| ^ 2 ≤ C₁ * |st'.correlation S C a N| + ε := by
-  sorry
+  exact sol_mso_mask_step_outside Jstar hJ Sh hStar masks U hU u huJ huU
 
 /-- Part of Lemma `lem:mask-removal`: one step with the balanced substitution
 `z_u ↦ z_u/p`, `z_v ↦ pz_v` (equation `eq:balanced-prime-substitution`, 04:176–186), for distinct
