@@ -3512,6 +3512,78 @@ theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
       intro i hi
       exact hcoordinate i
 
+theorem harmonicResidueLaw_nonneg (X W modulus : ℕ)
+    (hNorm : 0 < harmonicNormalizer X W) (a : Fin modulus) :
+    0 ≤ harmonicResidueLaw (harmonicLaw X W) modulus a := by
+  unfold harmonicResidueLaw
+  apply tsum_nonneg
+  intro z
+  split_ifs
+  · exact harmonicLaw_nonneg_of_normalizer_pos X W hNorm z
+  · positivity
+
+theorem harmonicResidueLaw_sum_one (X W modulus : ℕ) (hmodulus : 0 < modulus)
+    (hX : 0 < X) (hNorm : 0 < harmonicNormalizer X W) :
+    ∑ a : Fin modulus, harmonicResidueLaw (harmonicLaw X W) modulus a = 1 := by
+  classical
+  let supp := harmonicLawSupport X W
+  have hzero (a : Fin modulus) (z : ℤ) (hz : z ∉ supp) :
+      (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) = 0 := by
+    by_cases hc : 0 ≤ z ∧ z.toNat % modulus = a.val
+    · simp [hc, harmonicLaw_zero_of_not_mem_support X W z hz]
+    · simp [hc]
+  have hfinite (a : Fin modulus) :
+      harmonicResidueLaw (harmonicLaw X W) modulus a =
+        ∑ z ∈ supp,
+          (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) := by
+    unfold harmonicResidueLaw
+    exact tsum_eq_sum (s := supp) (hzero a)
+  have hfiber (z : ℤ) (hz : z ∈ supp) :
+      ∑ a : Fin modulus,
+        (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) =
+          harmonicLaw X W z := by
+    have hznonneg : 0 ≤ z := by
+      rcases Finset.mem_image.mp hz with ⟨n, hn, rfl⟩
+      exact Int.natCast_nonneg n
+    let a₀ : Fin modulus := ⟨z.toNat % modulus, Nat.mod_lt _ hmodulus⟩
+    have hcond (a : Fin modulus) :
+        (0 ≤ z ∧ z.toNat % modulus = a.val) ↔ a = a₀ := by
+      constructor
+      · intro h
+        apply Fin.ext
+        simpa [a₀] using h.2.symm
+      · intro h
+        subst a
+        exact ⟨hznonneg, rfl⟩
+    calc
+      (∑ a : Fin modulus,
+        if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) =
+        ∑ a : Fin modulus, if a = a₀ then harmonicLaw X W z else 0 := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          simp [hcond]
+      _ = harmonicLaw X W z := by simp
+  calc
+    (∑ a : Fin modulus, harmonicResidueLaw (harmonicLaw X W) modulus a) =
+        ∑ a : Fin modulus, ∑ z ∈ supp,
+          (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) := by
+      apply Finset.sum_congr rfl
+      intro a ha
+      exact hfinite a
+    _ = ∑ z ∈ supp, ∑ a : Fin modulus,
+          (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) := by
+      rw [Finset.sum_comm]
+    _ = ∑ z ∈ supp, harmonicLaw X W z := by
+      apply Finset.sum_congr rfl
+      intro z hz
+      exact hfiber z hz
+    _ = ∑' z : ℤ, harmonicLaw X W z := by
+      symm
+      apply tsum_eq_sum (s := supp)
+      intro z hz
+      exact harmonicLaw_zero_of_not_mem_support X W z hz
+    _ = 1 := harmonicLaw_tsum_one_of_normalizer_pos X W hX hNorm
+
 noncomputable def gapPivotMass {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
