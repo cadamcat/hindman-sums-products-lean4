@@ -3791,6 +3791,108 @@ private theorem momentCRTProjection_integerCRTResidues {w e V : ℕ} (n : ℕ) :
     (momentCRTPrimeProduct_dvd_master w e V)
   simp [integerCRTResidues, momentCRTProjection, Q, Nat.mod_mod_of_dvd n hpQ]
 
+private theorem momentPrimePoolCRTProjectionLaw_eq {w e V lo hi : ℕ}
+    (r : CRTResidues w V) :
+    (∑' n : ℕ, primePoolLaw lo hi n *
+      (if integerCRTResidues w V n = r then (1 : ℝ) else 0)) =
+      ∑ a : Fin (masterCRTModulus w e V),
+        primePoolResidueLaw lo hi (masterCRTModulus w e V) a *
+          (if momentCRTProjection w V (masterCRTModulus w e V) a = r then
+            (1 : ℝ) else 0) := by
+  classical
+  let Q := masterCRTModulus w e V
+  let S := momentPrimePoolSupport lo hi
+  have hQpos : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  have hzero (n : ℕ) (hn : n ∉ S) :
+      primePoolLaw lo hi n *
+        (if integerCRTResidues w V n = r then (1 : ℝ) else 0) = 0 := by
+    rw [momentPrimePoolLaw_zero_of_not_mem lo hi n (by simpa [S] using hn)]
+    simp
+  have hresidue (n : ℕ) :
+      ∑ a : Fin Q, (if n % Q = a.val then (1 : ℝ) else 0) *
+        (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) =
+      (if momentCRTProjection w V Q
+          ⟨n % Q, Nat.mod_lt _ hQpos⟩ = r then (1 : ℝ) else 0) := by
+    let a₀ : Fin Q := ⟨n % Q, Nat.mod_lt _ hQpos⟩
+    have hcond (a : Fin Q) : n % Q = a.val ↔ a = a₀ := by
+      constructor
+      · intro h
+        apply Fin.ext
+        exact h.symm
+      · intro h
+        simpa [a₀] using congrArg Fin.val h.symm
+    calc
+      _ = ∑ a : Fin Q,
+            if a = a₀ then
+              (if momentCRTProjection w V Q a₀ = r then (1 : ℝ) else 0) else 0 := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          by_cases ha₀ : a = a₀
+          · subst a
+            simp [a₀]
+          · have hnot : n % Q ≠ a.val := by
+              intro h
+              exact ha₀ ((hcond a).mp h)
+            simp [ha₀, hnot]
+      _ = (if momentCRTProjection w V Q a₀ = r then (1 : ℝ) else 0) := by
+        simp [a₀]
+  have hcrt (n : ℕ) :
+      integerCRTResidues w V n =
+        momentCRTProjection w V Q ⟨n % Q, Nat.mod_lt _ hQpos⟩ := by
+    simpa [Q] using momentCRTProjection_integerCRTResidues (w := w) (e := e) (V := V) n
+  have hproject (n : ℕ) :
+      (if integerCRTResidues w V n = r then (1 : ℝ) else 0) =
+        ∑ a : Fin Q, (if n % Q = a.val then (1 : ℝ) else 0) *
+          (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+    rw [hcrt n]
+    exact (hresidue n).symm
+  calc
+    _ = ∑ n ∈ S, primePoolLaw lo hi n *
+          (if integerCRTResidues w V n = r then (1 : ℝ) else 0) := by
+        rw [tsum_eq_sum (s := S) hzero]
+    _ = ∑ n ∈ S, primePoolLaw lo hi n *
+          ∑ a : Fin Q,
+            (if n % Q = a.val then (1 : ℝ) else 0) *
+              (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro n hn
+        rw [hproject n]
+    _ = ∑ n ∈ S, ∑ a : Fin Q,
+          primePoolLaw lo hi n * (if n % Q = a.val then (1 : ℝ) else 0) *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro n hn
+        calc
+          _ = ∑ a : Fin Q,
+                primePoolLaw lo hi n *
+                  ((if n % Q = a.val then (1 : ℝ) else 0) *
+                    (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0)) :=
+              Finset.mul_sum (Finset.univ : Finset (Fin Q))
+                (fun a => (if n % Q = a.val then (1 : ℝ) else 0) *
+                  (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0))
+                (primePoolLaw lo hi n)
+          _ = ∑ a : Fin Q,
+                (primePoolLaw lo hi n * (if n % Q = a.val then (1 : ℝ) else 0)) *
+                  (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+                apply Finset.sum_congr rfl
+                intro a ha
+                ring
+    _ = ∑ a : Fin Q, ∑ n ∈ S,
+          primePoolLaw lo hi n * (if n % Q = a.val then (1 : ℝ) else 0) *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        rw [Finset.sum_comm]
+    _ = ∑ a : Fin Q,
+          primePoolResidueLaw lo hi Q a *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [← Finset.sum_mul, momentPrimePoolResidueLaw_eq_sum]
+
 end Prediction
 
 end HindmanSumsProducts
