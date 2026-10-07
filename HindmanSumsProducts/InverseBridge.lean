@@ -1,6 +1,11 @@
 import OAI.Combinatorics.Progressions.Estimates.AxisCompression
 import OAI.Combinatorics.SumProduct.Alignment.MenuLiteral01
 import HindmanSumsProducts.InverseBridge.AdjointExp
+import HindmanSumsProducts.InverseBridge.Canonical
+import HindmanSumsProducts.InverseBridge.Linear
+import HindmanSumsProducts.InverseBridge.Observable
+import HindmanSumsProducts.InverseBridge.Menu
+import HindmanSumsProducts.InverseBridge.Assembly
 
 /-!
 # The Gowers inverse theorem in the form §5 consumes
@@ -26,7 +31,7 @@ theorem cyclic_inverse_menu (t : ℕ) (ht : 2 ≤ t) (δ : ℝ) (hδ : 0 < δ) :
       ∀ (N : ℕ) [NeZero N] (v : ZMod N → ℝ), (∀ x, |v x| ≤ 1) →
         δ ≤ gowersNorm t (fun x => (v x : ℂ)) →
         ∃ P : CosetPiece 𝔐 K, c ≤ 𝔼 x, v x * (2 * P.eval ((x.val : ℕ) : ℤ) - 1) := by
-  sorry
+  exact inverse_bridge_assembly t ht δ hδ
 
 /-- IB.a6: the adjoint formula `Ad (exp a) = exp (ad a)` in BCH form, for a nilpotent rational
 Lie algebra of step `S`. -/
