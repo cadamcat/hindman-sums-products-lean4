@@ -354,7 +354,7 @@ private theorem realTranslationCoordinate_lieBCH {L : Type*} [LieRing L] [LieAlg
     _ = realTranslationCoordinate F x + realTranslationCoordinate F y := by
           rw [(TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ).map_add, ← hcoord, ← hcoord]
 
-private noncomputable def realTranslationElement {L : Type*} [LieRing L]
+noncomputable def realTranslationElement {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
     (c : ℝ) : (weightFiltration F hs).realification.Group :=
   ⟨c • realDhat F⟩
@@ -513,7 +513,7 @@ private theorem linearizedObservablePoint_factor {L : Type*} [LieRing L]
   change QuotientGroup.mk (a * b) = QuotientGroup.mk a
   exact hquot
 
-private theorem linearizedObservableLift_invariant {L : Type*} [LieRing L]
+theorem linearizedObservableLift_invariant {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s d : ℕ}
     (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
     (B : ℕ) (GammaHat : Subgroup (weightFiltration D.filtration hs).Group)
@@ -761,6 +761,302 @@ private theorem linearizedObservableLift_range {L : Type*} [LieRing L]
     (liftObs_mem_Icc (fun X => realTranslationCoordinate D.filtration X.coord)
       (fun X n => linearizedObservablePoint D hs n X) H hH X)
 
+private theorem bumpSupport_in_floorInterval {r₀ r : ℝ} (hr : |r - r₀| < 1)
+    {m : ℤ} (hm : bump (r - m) ≠ 0) :
+    m ∈ Finset.Icc (Int.floor r₀ - 3) (Int.floor r₀ + 3) := by
+  have hb := (bump_ne_zero_iff (r - m)).mp hm
+  have hL : -(1 / 3 : ℝ) < r - m := (abs_lt.mp hb).1
+  have hU : r - m < 1 / 3 := (abs_lt.mp hb).2
+  have hrL : -1 < r - r₀ := (abs_lt.mp hr).1
+  have hrU : r - r₀ < 1 := (abs_lt.mp hr).2
+  have hfL := Int.floor_le r₀
+  have hfU := Int.lt_floor_add_one r₀
+  have hmL : ((Int.floor r₀ - 3 : ℤ) : ℝ) ≤ (m : ℝ) := by
+    push_cast
+    linarith
+  have hmU : (m : ℝ) ≤ ((Int.floor r₀ + 3 : ℤ) : ℝ) := by
+    push_cast
+    linarith
+  exact Finset.mem_Icc.mpr ⟨by exact_mod_cast hmL, by exact_mod_cast hmU⟩
+
+private theorem liftObs_sum_on_interval {X Y : Type*} (r : X → ℝ)
+    (point : X → ℤ → Y) (H : Y → ℝ) (I : Finset ℤ) (x : X)
+    (hI : {m : ℤ | bump (r x - m) ≠ 0} ⊆ I) :
+    liftObs r point H x =
+      ∑ m ∈ I, bump (r x - m) * H (point x m) := by
+  rw [liftObs_finite_sum]
+  apply Finset.sum_subset
+  · intro m hm
+    exact hI ((bump_integer_support_finite (r x)).mem_toFinset.mp hm)
+  · intro m hm hmI
+    have hzero : bump (r x - m) = 0 := by
+      by_contra hne
+      exact hmI ((bump_integer_support_finite (r x)).mem_toFinset.mpr hne)
+    simp [hzero]
+
+private theorem bump_lipschitz : LipschitzWith 3 bump := by
+  have hlin : LipschitzWith 3 (fun x : ℝ => 1 - 3 * |x|) := by
+    apply LipschitzWith.of_dist_le_mul
+    intro x y
+    change abs ((1 - 3 * abs x) - (1 - 3 * abs y)) ≤ (3 : ℝ) * dist x y
+    rw [dist_eq_norm, Real.norm_eq_abs]
+    calc
+      abs ((1 - 3 * abs x) - (1 - 3 * abs y)) = 3 * abs (abs x - abs y) := by
+        rw [show (1 - 3 * |x|) - (1 - 3 * |y|) = -3 * (|x| - |y|) by ring]
+        rw [abs_mul]
+        norm_num
+      _ ≤ 3 * abs (x - y) := by
+        exact mul_le_mul_of_nonneg_left (abs_abs_sub_abs_le_abs_sub x y) (by norm_num)
+  change LipschitzWith 3 (fun x : ℝ => max 0 (1 - 3 * abs x))
+  exact hlin.const_max 0
+
+private theorem continuous_linearizedObservablePoint {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)]
+    [TopologicalSpace (ℝ ⊗[ℚ] Lin D.filtration)]
+    [IsTopologicalAddGroup (ℝ ⊗[ℚ] Lin D.filtration)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] Lin D.filtration)]
+    [T2Space (ℝ ⊗[ℚ] Lin D.filtration)]
+    [FiniteDimensional ℝ (ℝ ⊗[ℚ] Lin D.filtration)]
+    [IsTopologicalGroup (weightFiltration D.filtration hs).realification.Group]
+    (m : ℤ) :
+    Continuous (linearizedObservablePoint D hs m) := by
+  let F := D.filtration
+  have hcoord : Continuous (fun X : (weightFiltration F hs).realification.Group => X.coord) :=
+    NilpotentLieBCHGroup.continuous_coord
+  have hr : Continuous (fun X : (weightFiltration F hs).realification.Group =>
+      realTranslationCoordinate F X.coord) :=
+    (LinearMap.continuous_of_finiteDimensional (realTranslationCoordinate F)).comp hcoord
+  have hscalar : Continuous (fun X : (weightFiltration F hs).realification.Group =>
+      -realTranslationCoordinate F X.coord) := continuous_neg.comp hr
+  have hvector : Continuous (fun _ : (weightFiltration F hs).realification.Group =>
+      realDhat F) := continuous_const
+  have hshift : Continuous (fun X : (weightFiltration F hs).realification.Group =>
+      (⟨-realTranslationCoordinate F X.coord • realDhat F⟩ :
+        (weightFiltration F hs).realification.Group)) := by
+    exact NilpotentLieBCHGroup.continuous_mk.comp
+      (hscalar.smul hvector)
+  have hmul : Continuous (fun X =>
+      (⟨-realTranslationCoordinate F X.coord • realDhat F⟩ :
+        (weightFiltration F hs).realification.Group) * X) :=
+    hshift.mul continuous_id
+  have hcoord' : Continuous (fun X =>
+      ((⟨-realTranslationCoordinate F X.coord • realDhat F⟩ :
+        (weightFiltration F hs).realification.Group) * X).coord) :=
+    hcoord.comp hmul
+  have hev : Continuous (fun X => evLinReal F m
+      ((⟨-realTranslationCoordinate F X.coord • realDhat F⟩ :
+        (weightFiltration F hs).realification.Group) * X).coord) :=
+    (LinearMap.continuous_of_finiteDimensional (evLinReal F m)).comp hcoord'
+  exact QuotientGroup.continuous_mk.comp
+    (NilpotentLieBCHGroup.continuous_mk.comp hev)
+
+theorem linearizedObservableLift_locally_equi {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)]
+    [TopologicalSpace (ℝ ⊗[ℚ] Lin D.filtration)]
+    [IsTopologicalAddGroup (ℝ ⊗[ℚ] Lin D.filtration)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] Lin D.filtration)]
+    [T2Space (ℝ ⊗[ℚ] Lin D.filtration)]
+    [FiniteDimensional ℝ (ℝ ⊗[ℚ] Lin D.filtration)]
+    [IsTopologicalGroup (weightFiltration D.filtration hs).realification.Group]
+    (X₀ : (weightFiltration D.filtration hs).realification.Group)
+    (ε : ℝ) (hε : 0 < ε) :
+    letI : MetricSpace D.Space := D.metricSpace;
+    ∃ U ∈ 𝓝 X₀, ∀ X ∈ U, ∀ H : LipOne D.Space,
+      |linearizedObservableLift D hs H.1 X - linearizedObservableLift D hs H.1 X₀| < ε := by
+  classical
+  letI : MetricSpace D.Space := D.metricSpace
+  let F := D.filtration
+  let r : (weightFiltration F hs).realification.Group → ℝ :=
+    fun X => realTranslationCoordinate F X.coord
+  let point := fun X m => linearizedObservablePoint D hs m X
+  let I : Finset ℤ := Finset.Icc (Int.floor (r X₀) - 3) (Int.floor (r X₀) + 3)
+  let τ : ℝ := ε / (4 * ((I.card : ℝ) + 1))
+  have hτ : 0 < τ := by dsimp [τ]; positivity
+  have hrcont : Continuous r := by
+    exact (LinearMap.continuous_of_finiteDimensional (realTranslationCoordinate F)).comp
+      NilpotentLieBCHGroup.continuous_coord
+  have hnearR : ∀ᶠ X in 𝓝 X₀, |r X - r X₀| < 1 := by
+    have hball : Metric.ball (r X₀) 1 ∈ 𝓝 (r X₀) := Metric.ball_mem_nhds _ (by norm_num)
+    have hpre := hrcont.continuousAt.preimage_mem_nhds hball
+    filter_upwards [hpre] with X hX
+    have hdist : dist (r X) (r X₀) < 1 := by
+      simpa [Metric.mem_ball] using hX
+    simpa [dist_eq_norm, Real.norm_eq_abs, abs_sub_comm] using hdist
+  have htermNear (m : ℤ) : ∀ᶠ X in 𝓝 X₀,
+      |bump (r X - m) - bump (r X₀ - m)| < τ ∧
+        dist (point X m) (point X₀ m) < τ := by
+    have hbcont : Continuous (fun X : (weightFiltration F hs).realification.Group =>
+        bump (r X - m)) := by fun_prop [bump]
+    have hbball : Metric.ball (bump (r X₀ - m)) τ ∈ 𝓝 (bump (r X₀ - m)) :=
+      Metric.ball_mem_nhds _ hτ
+    have hbevent := hbcont.continuousAt.preimage_mem_nhds hbball
+    have hpcont := continuous_linearizedObservablePoint D hs m
+    have htop : D.metricSpace.toUniformSpace.toTopologicalSpace =
+        QuotientGroup.instTopologicalSpace D.realLattice := by
+      exact realificationQuotientMetricSpace_topology D.basis D.lattice D.grid
+        D.grid_pos D.outer_grid
+    have hpball : Metric.ball (point X₀ m) τ ∈ 𝓝 (point X₀ m) := by
+      have hpballMetric : Metric.ball (point X₀ m) τ ∈
+          @nhds D.Space D.metricSpace.toUniformSpace.toTopologicalSpace (point X₀ m) :=
+        Metric.ball_mem_nhds _ hτ
+      rw [htop] at hpballMetric
+      exact hpballMetric
+    have hpevent := hpcont.continuousAt.preimage_mem_nhds hpball
+    filter_upwards [hbevent, hpevent] with X hb hp
+    constructor
+    · have hd : dist (bump (r X - m)) (bump (r X₀ - m)) < τ := by
+        simpa [Metric.mem_ball] using hb
+      simpa [dist_eq_norm, Real.norm_eq_abs, abs_sub_comm] using hd
+    · simpa [Metric.mem_ball] using hp
+  have htermAll : ∀ᶠ X in 𝓝 X₀, ∀ m ∈ I,
+      |bump (r X - m) - bump (r X₀ - m)| < τ ∧
+        dist (point X m) (point X₀ m) < τ := by
+    classical
+    induction I using Finset.induction_on with
+    | empty => exact Filter.Eventually.of_forall (by simp)
+    | @insert m I hm ih =>
+        filter_upwards [htermNear m, ih] with X hX hI
+        intro j hj
+        rcases Finset.mem_insert.mp hj with rfl | hj
+        · exact hX
+        · exact hI j hj
+  let U : Set (weightFiltration F hs).realification.Group := fun X =>
+    (abs (r X - r X₀) < 1) ∧
+      ∀ m ∈ I, |bump (r X - m) - bump (r X₀ - m)| < τ ∧
+        dist (point X m) (point X₀ m) < τ
+  have hU : U ∈ 𝓝 X₀ := by
+    filter_upwards [hnearR, htermAll] with X hR hterms
+    exact ⟨hR, hterms⟩
+  refine ⟨U, hU, ?_⟩
+  intro X hX H
+  have hsupport (Y : (weightFiltration F hs).realification.Group)
+      (hY : |r Y - r X₀| < 1) :
+      {m : ℤ | bump (r Y - m) ≠ 0} ⊆ (I : Set ℤ) := by
+    intro m hm
+    change m ∈ I
+    exact bumpSupport_in_floorInterval hY hm
+  have hsumY : linearizedObservableLift D hs H.1 X =
+      ∑ m ∈ I, bump (r X - m) * H.1 (point X m) := by
+    unfold linearizedObservableLift
+    exact liftObs_sum_on_interval r point H.1 I X (hsupport X hX.1)
+  have hsum0 : linearizedObservableLift D hs H.1 X₀ =
+      ∑ m ∈ I, bump (r X₀ - m) * H.1 (point X₀ m) := by
+    unfold linearizedObservableLift
+    exact liftObs_sum_on_interval r point H.1 I X₀ (hsupport X₀ (by simp))
+  have hterm (m : ℤ) (hm : m ∈ I) :
+      |bump (r X - m) * H.1 (point X m) -
+        bump (r X₀ - m) * H.1 (point X₀ m)| ≤ 2 * τ := by
+    have hn := hX.2 m hm
+    have hHlip : |H.1 (point X m) - H.1 (point X₀ m)| ≤
+        dist (point X m) (point X₀ m) := by
+      have h := H.2.2.dist_le_mul (point X m) (point X₀ m)
+      simpa [dist_eq_norm, Real.norm_eq_abs] using h
+    have hboundX := H.2.1 (point X m)
+    have hb0 : |bump (r X₀ - m)| ≤ 1 := by
+      rw [abs_of_nonneg (bump_nonneg _)]
+      exact bump_le_one _
+    calc
+      _ = |(bump (r X - m) - bump (r X₀ - m)) * H.1 (point X m) +
+            bump (r X₀ - m) * (H.1 (point X m) - H.1 (point X₀ m))| := by
+              congr 1
+              ring
+      _ ≤ |(bump (r X - m) - bump (r X₀ - m)) * H.1 (point X m)| +
+            |bump (r X₀ - m) * (H.1 (point X m) - H.1 (point X₀ m))| := abs_add_le _ _
+      _ = |bump (r X - m) - bump (r X₀ - m)| *
+            |H.1 (point X m)| + |bump (r X₀ - m)| *
+            |H.1 (point X m) - H.1 (point X₀ m)| := by rw [abs_mul, abs_mul]
+      _ ≤ τ * 1 + 1 * τ := by
+            have hdiffH : |H.1 (point X m) - H.1 (point X₀ m)| ≤ τ :=
+              hHlip.trans (le_of_lt hn.2)
+            have hfirst :
+                |bump (r X - m) - bump (r X₀ - m)| * |H.1 (point X m)| ≤ τ * 1 := by
+              calc
+                _ ≤ τ * |H.1 (point X m)| :=
+                  mul_le_mul_of_nonneg_right hn.1.le (abs_nonneg _)
+                _ ≤ τ * 1 := mul_le_mul_of_nonneg_left hboundX (le_of_lt hτ)
+            have hsecond :
+                |bump (r X₀ - m)| * |H.1 (point X m) - H.1 (point X₀ m)| ≤ 1 * τ :=
+              mul_le_mul hb0 hdiffH (abs_nonneg _) (by norm_num)
+            exact add_le_add hfirst hsecond
+      _ = 2 * τ := by ring
+  have hsumdiff : |linearizedObservableLift D hs H.1 X -
+      linearizedObservableLift D hs H.1 X₀| ≤ (I.card : ℝ) * (2 * τ) := by
+    rw [hsumY, hsum0]
+    calc
+      |(∑ m ∈ I, bump (r X - m) * H.1 (point X m)) -
+        (∑ m ∈ I, bump (r X₀ - m) * H.1 (point X₀ m))| =
+        |∑ m ∈ I, (bump (r X - m) * H.1 (point X m) -
+          bump (r X₀ - m) * H.1 (point X₀ m))| := by rw [← Finset.sum_sub_distrib]
+      _ ≤ ∑ m ∈ I, |bump (r X - m) * H.1 (point X m) -
+          bump (r X₀ - m) * H.1 (point X₀ m)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _m ∈ I, 2 * τ := by
+        apply Finset.sum_le_sum
+        intro m hm
+        exact hterm m hm
+      _ = (I.card : ℝ) * (2 * τ) := by simp
+  have hsmall : (I.card : ℝ) * (2 * τ) < ε := by
+    dsimp [τ]
+    have hc : (I.card : ℝ) < (I.card : ℝ) + 1 := by exact_mod_cast Nat.lt_succ_self _
+    have hratio : (I.card : ℝ) / (2 * ((I.card : ℝ) + 1)) < 1 / 2 := by
+      apply (div_lt_iff₀ (by positivity)).2
+      nlinarith
+    calc
+      (I.card : ℝ) * (2 * (ε / (4 * ((I.card : ℝ) + 1)))) =
+          ((I.card : ℝ) / (2 * ((I.card : ℝ) + 1))) * ε := by
+        have hden : (4 : ℝ) + (I.card : ℝ) * 4 ≠ 0 := by positivity
+        field_simp
+        <;> ring
+      _ < (1 / 2) * ε := mul_lt_mul_of_pos_right hratio hε
+      _ < ε := by linarith
+  exact lt_of_le_of_lt hsumdiff hsmall
+
+/-- A uniform neighborhood estimate for an invariant lift descends to any
+compatible metric on the quotient. -/
+theorem ObservableDescent.equicontinuous_of_lift {G : Type*} [Group G]
+    [TopologicalSpace G] [IsTopologicalGroup G] {Γ : Subgroup G}
+    [MetricSpace (G ⧸ Γ)] {Y : Type*} [MetricSpace Y]
+    (O : ObservableDescent G Γ Y)
+    (hmetric : QuotientGroup.instTopologicalSpace Γ =
+      (inferInstance : MetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace)
+    (hloc : ∀ g ε, 0 < ε →
+      ∃ U ∈ 𝓝 g, ∀ g' ∈ U, ∀ H : LipOne Y,
+        |O.lift H.1 g' - O.lift H.1 g| < ε) :
+    ∀ x ε, 0 < ε →
+      ∃ δ, 0 < δ ∧ ∀ y, dist y x < δ → ∀ H : LipOne Y,
+        |O.desc H.1 y - O.desc H.1 x| < ε := by
+  intro x ε hε
+  refine Quotient.inductionOn x ?_
+  intro g
+  obtain ⟨U, hU, hclose⟩ := hloc g ε hε
+  obtain ⟨V, hVU, hVopen, hgV⟩ := mem_nhds_iff.mp hU
+  let q : G → G ⧸ Γ := QuotientGroup.mk
+  have hqopen : IsOpen (q '' V) :=
+    QuotientGroup.isOpenQuotientMap_mk.isOpenMap V hVopen
+  have hqg : q g ∈ q '' V := ⟨g, hgV, rfl⟩
+  have hqmem : q '' V ∈ 𝓝 (q g) := hqopen.mem_nhds hqg
+  have hqmemMetric : q '' V ∈
+      @nhds (G ⧸ Γ)
+        (inferInstance : MetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace (q g) := by
+    rw [← hmetric]
+    exact hqmem
+  obtain ⟨δ, hδ, hball⟩ := Metric.mem_nhds_iff.mp hqmemMetric
+  refine ⟨δ, hδ, ?_⟩
+  intro y hy H
+  have hyball : y ∈ Metric.ball (q g) δ := by
+    simpa [Metric.mem_ball, dist_comm] using hy
+  obtain ⟨g', hg'V, hgy⟩ := hball hyball
+  calc
+    |O.desc H.1 y - O.desc H.1 (q g)| =
+        |O.desc H.1 (q g') - O.desc H.1 (q g)| := by rw [← hgy]
+    _ = |O.lift H.1 g' - O.lift H.1 g| := by rw [O.desc_mk, O.desc_mk]
+    _ < ε := hclose g' (hVU hg'V) H
+
 private theorem realTranslationElement_zero {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s) :
     realTranslationElement F hs 0 = 1 := by
@@ -795,7 +1091,7 @@ private theorem realTranslationElement_zpow {L : Type*} [LieRing L]
 
 /-- At an integer orbit point the interpolation selects exactly the matching
 evaluation of the adapted polynomial log. -/
-private theorem linearizedObservableLift_orbit_eval {L : Type*} [LieRing L]
+theorem linearizedObservableLift_orbit_eval {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s d : ℕ}
     (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
     (H : D.Space → ℝ)

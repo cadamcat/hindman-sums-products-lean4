@@ -1,5 +1,6 @@
 import HindmanSumsProducts.InverseBridge.Observable
 import HindmanSumsProducts.InverseBridge.Canonical
+import HindmanSumsProducts.InverseBridge.SmallModel
 import OAI.Combinatorics.SumProduct.Alignment.MenuLiteral01
 
 /-!
@@ -9,6 +10,7 @@ Charted menus and constructors for observable pieces (IB.b1--b3).
 namespace HindmanSumsProducts.InverseBridge
 
 open OAI OAI.Erdos3 OAI.SourceChartedMenu OAI.SourceProductChart OAI.SourceMenuLiteral
+open Module
 open scoped NNReal BoundedContinuousFunction TensorProduct
 open scoped Manifold ContDiff Topology
 
@@ -480,6 +482,110 @@ theorem exists_menu_of_descent {s : ℕ} {G : Type} [Group G] [TopologicalSpace 
   }
   exact ⟨P, fun _ => rfl⟩
 
+/-- The fixed linearized quotient gives one charted menu representing every
+normalized Lipschitz observable along every polynomial orbit. -/
+theorem exists_linearized_fixedModelRepresentation {L : Type} [LieRing L] [LieAlgebra ℚ L]
+    [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)]
+    {s d : ℕ} (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    (n : ℕ) (ê : Basis (Fin n) ℚ (Lin D.filtration))
+    (grid : ℕ) (GammaHat : Subgroup (weightFiltration D.filtration hs).Group)
+    (hgrid : 0 < grid)
+    (hcoords : bchSubgroupCoordinates ê GammaHat = scaledIntegerGrid grid)
+    (hcoord : ∀ γ ∈ GammaHat,
+      ∃ z : ℤ, (rLin D.filtration γ.coord : ℚ) = grid * z)
+    (hshift : ∀ z : ℤ,
+      (⟨(grid * z : ℚ) • Dhat D.filtration⟩ : (weightFiltration D.filtration hs).Group)
+        ∈ GammaHat)
+    (hEval : ∀ (g : (weightFiltration D.filtration hs).Group), g ∈ GammaHat →
+      rLin D.filtration g.coord = 0 → ∀ m : ℤ,
+        (⟨evLin D.filtration m g.coord⟩ : D.filtration.Group) ∈ D.lattice) :
+    ∃ M : Menu (2 * s), 0 < M.size ∧ FixedModelRepresentation D M := by
+  classical
+  let F := D.filtration
+  let G := (weightFiltration F hs).realification.Group
+  let GammaReal := GammaHat.map (NilpotentLieBCHGroup.realificationHom
+    (hnil := (weightFiltration F hs).lowerCentralSeries_eq_bot))
+  have houter : bchSubgroupCoordinates ê GammaHat ⊆ denominatorGrid grid := by
+    rw [hcoords]
+    exact scaledIntegerGrid_le_denominatorGrid grid grid
+  have hinner : scaledIntegerGrid grid ⊆ bchSubgroupCoordinates ê GammaHat := by
+    rw [hcoords]
+  obtain ⟨τ, htopAdd, hsmul, hT2, htopGroup, hconnected, hsimply, hclosed, hdiscrete⟩ :=
+    exists_realification_topology_of_grid ê GammaHat grid hgrid houter
+  letI : TopologicalSpace (ℝ ⊗[ℚ] Lin F) := τ
+  letI : IsTopologicalAddGroup (ℝ ⊗[ℚ] Lin F) := htopAdd
+  letI : ContinuousSMul ℝ (ℝ ⊗[ℚ] Lin F) := hsmul
+  letI : T2Space (ℝ ⊗[ℚ] Lin F) := hT2
+  letI : IsTopologicalGroup G := htopGroup
+  letI : ConnectedSpace G := hconnected
+  letI : SimplyConnectedSpace G := hsimply
+  letI : DiscreteTopology GammaReal := isDiscrete_iff_discreteTopology.mp hdiscrete
+  let eR : Basis (Fin n) ℝ (ℝ ⊗[ℚ] Lin F) := ê.baseChange ℝ
+  letI : FiniteDimensional ℝ (ℝ ⊗[ℚ] Lin F) := eR.finiteDimensional_of_finite
+  letI : ChartedSpace (Fin n → ℝ) G :=
+    NilpotentLieBCHGroup.basisChartedSpace
+      (hnil := (weightFiltration F hs).realification.lowerCentralSeries_eq_bot) eR
+  letI : LieGroup 𝓘(ℝ, Fin n → ℝ) ∞ G :=
+    NilpotentLieBCHGroup.lieGroup_basis
+      (hnil := (weightFiltration F hs).realification.lowerCentralSeries_eq_bot) eR ∞
+  letI : MetricSpace (G ⧸ GammaReal) :=
+    realificationQuotientMetricSpace ê GammaHat grid hgrid houter
+  letI : CompactSpace (G ⧸ GammaReal) :=
+    realificationQuotientMetricSpace_compact ê GammaHat grid hgrid hinner houter
+  letI : T2Space (G ⧸ GammaReal) := inferInstance
+  letI : MetricSpace D.Space := D.metricSpace
+  have hmetric : QuotientGroup.instTopologicalSpace GammaReal =
+      (inferInstance : MetricSpace (G ⧸ GammaReal)).toUniformSpace.toTopologicalSpace := by
+    exact (realificationQuotientMetricSpace_topology ê GammaHat grid hgrid houter).symm
+  have hstop : (⊤ : Subgroup G).lowerCentralSeries (2 * s) = ⊥ :=
+    NilpotentLieBCHGroup.lowerCentralSeries_eq_bot
+      (hnil := (weightFiltration F hs).realification.lowerCentralSeries_eq_bot)
+  have hchart : Nonempty (Chart (2 * s) G GammaReal) :=
+    OAI.RawLieIntegration.rawChart_of_nilpotent (E₀ := Fin n → ℝ) hstop GammaReal
+  have hinv : ∀ H X γ, γ ∈ GammaReal →
+      linearizedObservableLift D hs H (X * γ) = linearizedObservableLift D hs H X := by
+    intro H X γ hγ
+    exact linearizedObservableLift_invariant D hs grid GammaHat hcoord hshift hEval H X hγ
+  obtain ⟨O, hO, hrange⟩ := exists_linearized_descent D hs GammaReal hinv
+  have hloc : ∀ X ε, 0 < ε →
+      ∃ U ∈ 𝓝 X, ∀ Y ∈ U, ∀ H : LipOne D.Space,
+        |O.lift H.1 Y - O.lift H.1 X| < ε := by
+    intro X ε hε
+    obtain ⟨U, hU, hnear⟩ := linearizedObservableLift_locally_equi D hs X ε hε
+    refine ⟨U, hU, ?_⟩
+    intro Y hY H
+    rw [hO]
+    exact hnear Y hY H
+  have heq := O.equicontinuous_of_lift hmetric hloc
+  obtain ⟨M, hM, hmenu⟩ :=
+    exists_menu_of_descent (s := 2 * s) GammaReal (Classical.choice hchart)
+      O hmetric heq hrange
+  refine ⟨M, hM, ?_⟩
+  intro K H hH hK p
+  obtain ⟨xhat, hxhat, hxEval⟩ :=
+    exists_linearized_basepoint F p.log p.adapted
+  let xgroup : G := ⟨xhat⟩
+  let x : G ⧸ GammaReal := QuotientGroup.mk xgroup
+  let g : G := realTranslationElement F hs 1
+  obtain ⟨P, hP⟩ := hmenu K H hH hK g x
+  refine ⟨P, ?_⟩
+  intro m
+  rw [hP m]
+  have hxcoord : realTranslationCoordinate F xgroup.coord = 0 := by
+    simpa [xgroup, realTranslationCoordinate, hxhat]
+  have heval := linearizedObservableLift_orbit_eval D hs H xgroup hxcoord p.log hxEval m
+  calc
+    O.desc H (g ^ m • x) = O.lift H (g ^ m * xgroup) := by
+      rw [show g ^ m • x = QuotientGroup.mk (g ^ m * xgroup) by rfl, O.desc_mk]
+    _ = linearizedObservableLift D hs H (g ^ m * xgroup) := by rw [hO]
+    _ = H (QuotientGroup.mk
+        (⟨VectorPolynomial.eval (fun _ : Unit => (m : ℚ)) p.log⟩ :
+          D.filtration.realification.Group)) := by
+      simpa [g] using heval
+    _ = H (D.integerOrbitPoint p m) := by
+      congr 1
+
 /-- Finiteness reduces the frozen theorem to one model menu per original datum.
 The local hypothesis is an explicit open obligation, not an axiom. -/
 theorem exists_bridgeMenu_of_datawise (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀)
@@ -594,7 +700,36 @@ theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
         ∀ u : ℂ, ‖u‖ = 1 →
           ∃ P : CosetPiece M K, ∀ n : ℤ,
             2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
-  sorry
+  by_cases hs : s = 0
+  · subst s
+    exact exists_bridgeMenu_zero K₀ hK₀
+  · have hspos : 0 < s := Nat.pos_of_ne_zero hs
+    refine exists_bridgeMenu_of_datawise s K₀ hK₀ ?_
+    intro δ hrealizable
+    obtain ⟨L, hL, hA, D, _, hDdata⟩ := hrealizable
+    letI : LieRing L := hL
+    letI : LieAlgebra ℚ L := hA
+    obtain ⟨V, hV, hVA, W, hWD, _⟩ := exists_small_model D
+    letI : LieRing V := hV
+    letI : LieAlgebra ℚ V := hVA
+    have hWdata : baseData W = δ := hWD.trans hDdata
+    obtain ⟨E, _, _, _, hEcoords, hcover⟩ :=
+      exists_canonical_covering_model W
+    obtain ⟨τ, htopAdd, hsmul, hT2, _, _, _, _, _⟩ :=
+      exists_realification_topology_of_grid E.basis E.lattice E.grid E.grid_pos E.outer_grid
+    letI : TopologicalSpace (ℝ ⊗[ℚ] V) := τ
+    letI : IsTopologicalAddGroup (ℝ ⊗[ℚ] V) := htopAdd
+    letI : ContinuousSMul ℝ (ℝ ⊗[ℚ] V) := hsmul
+    letI : T2Space (ℝ ⊗[ℚ] V) := hT2
+    obtain ⟨n, ê, grid, GammaHat, hgrid, hcoords, hcoord, hshift, hEval⟩ :=
+      exists_linearized_lattice E.filtration hspos E.basis E.lattice E.grid E.grid_pos hEcoords
+    obtain ⟨M, hM, hfixed⟩ := exists_linearized_fixedModelRepresentation
+      E hspos n ê grid GammaHat hgrid hcoords hcoord hshift hEval
+    refine ⟨M, ?_⟩
+    exact Exists.imp (fun _ hrepresentation => ⟨hM, hrepresentation⟩)
+      (dataRepresentation_of_cover K₀ δ E (by
+        intro L' _ _ D' hD'
+        exact hcover L' D' (hWdata.trans hD'.symm)) M hfixed)
 
 /-- Construct a menu piece from a point, translation, and bounded continuous observable. -/
 def ofObservable {M : Menu s} {K : ℝ≥0} (i : Fin M.size)
