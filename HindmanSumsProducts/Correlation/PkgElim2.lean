@@ -826,6 +826,27 @@ noncomputable def c_elim2_boxBranchInsertEquiv {α : Type u} [Fintype α]
       (Equiv.prodCongr (Equiv.refl (c_elim2_BoxBranch E))
         (Equiv.punitArrowEquiv (Fin 2))) )
 
+noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
+    (hR : R ∉ E) (hI : I ∈ E) :
+    c_elim2_BoxRetainedBranch (insert R E) I ≃
+      c_elim2_BoxRetainedBranch E I × Fin 2 := by
+  classical
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  have hSet : (insert R E).erase I = insert R (E.erase I) :=
+    Finset.erase_insert_of_ne hRI
+  have hR' : R ∉ E.erase I := by
+    intro h
+    exact hR (Finset.mem_erase.mp h).2
+  let eDom : {i : α // i ∈ (insert R E).erase I} ≃
+      {i : α // i ∈ insert R (E.erase I)} :=
+    Equiv.subtypeEquivRight (fun i => by rw [hSet])
+  exact (Equiv.arrowCongr eDom (Equiv.refl (Fin 2))).trans
+    (c_elim2_boxBranchInsertEquiv (E.erase I) R hR')
+
 @[simp] theorem c_elim2_boxBranchInsertEquiv_apply_old {α : Type u} [Fintype α]
     [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
     (ω : c_elim2_BoxBranch (insert R E)) (i : {i : α // i ∈ E}) :
