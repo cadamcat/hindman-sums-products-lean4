@@ -9464,4 +9464,46 @@ theorem pkgMask_poolAverage_mul {K s : ℕ} {Aset : Finset ℚ}
             (F pq.1 * G pq.2) := by
       symm
       exact tsum_eq_sum (s := P ×ˢ P) hpairzero
+theorem MaskRemovalState.pkgMask_stateCoordinatePrimeInsertion_weightedCS
+    {m q r K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (U : Finset (Fin m)) (u : Fin m) (hU : U ∈ st.masks) (hu : u ∉ U)
+    (Ω : (Fin q → ℕ) × (Fin m → ℤ) → ℝ)
+    (hΩ : ∀ x, 0 ≤ Ω x) (hΩne : ∀ x, Ω x ≠ 0) :
+    |pkgMask_stateCoordinatePrimeInsertion st S C a N u| ^ 2 ≤
+      (∑' x, gapPivotMass S C N x.1 x.2 * Ω x) *
+        ∑' x, gapPivotMass S C N x.1 x.2 *
+          (Ω x *
+            (poolAverage S C.gap N
+              (pkgMask_outsideStepAverageFunction st S C a N U u Ω x)) ^ 2) := by
+  classical
+  let H₀ : (Fin q → ℕ) × (Fin m → ℤ) → ℝ := fun x =>
+    st.maskFunction U x.1 (∏ k ∈ U, x.2 k) * Ω x
+  let H₁ : (Fin q → ℕ) × (Fin m → ℤ) → ℝ := fun x =>
+    poolAverage S C.gap N
+      (pkgMask_outsideStepAverageFunction st S C a N U u Ω x)
+  have h0 (x : (Fin q → ℕ) × (Fin m → ℤ)) : |H₀ x| ≤ Ω x := by
+    have hb := hvalid.2.1 U hU x.1 (∏ k ∈ U, x.2 k)
+    dsimp [H₀]
+    rw [abs_mul, abs_of_nonneg (hΩ x)]
+    calc
+      |st.maskFunction U x.1 (∏ k ∈ U, x.2 k)| * Ω x ≤ 1 * Ω x :=
+        mul_le_mul_of_nonneg_right hb (hΩ x)
+      _ = Ω x := one_mul _
+  have hfactor := pkgMask_stateCoordinatePrimeInsertion_outside_factor
+    st S C a N U u hU hu Ω hΩne
+  have hsum :
+      pkgMask_stateCoordinatePrimeInsertion st S C a N u =
+        ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+          gapPivotMass S C N x.1 x.2 * (H₀ x * H₁ x) := by
+    rw [hfactor]
+  have hCS := gapPivot_weighted_cauchy_schwarz S C N hMass Ω H₀ H₁ hΩ h0
+  rw [← hsum] at hCS
+  exact hCS
+
 end HindmanSumsProducts
