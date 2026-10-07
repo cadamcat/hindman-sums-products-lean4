@@ -4355,16 +4355,22 @@ private theorem exists_top_two_positive_valuations {q : ℕ}
   · have hwa : a w = 0 := by omega
     omega
 
+private def regularPrimeLocalExcessTerm {q : ℕ} (p : ℕ)
+    (a : Fin q → ℕ) (u v : Fin q) : ℝ :=
+  if u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+      ∀ w, w ≠ u → a w ≤ a v then
+    (p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1 else 0
+
 private def regularPrimeLocalExcess {q : ℕ} (p : ℕ) (a : Fin q → ℕ) : ℝ :=
-  ∑ u : Fin q, ∑ v : Fin q,
-    if u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
-        ∀ w, w ≠ u → a w ≤ a v then
-      (p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1 else 0
+  ∑ u : Fin q, ∑ v : Fin q, regularPrimeLocalExcessTerm p a u v
+
+private def exceptionalPrimeLocalExcessTerm {q : ℕ} (p : ℕ)
+    (a : Fin q → ℕ) (u : Fin q) : ℝ :=
+  if 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u then
+    (p : ℝ) ^ ((∑ w, a w) - a u) - 1 else 0
 
 private def exceptionalPrimeLocalExcess {q : ℕ} (p : ℕ) (a : Fin q → ℕ) : ℝ :=
-  ∑ u : Fin q,
-    if 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u then
-      (p : ℝ) ^ ((∑ w, a w) - a u) - 1 else 0
+  ∑ u : Fin q, exceptionalPrimeLocalExcessTerm p a u
 
 private theorem rowValuationPair_le_sum {q : ℕ} (a : Fin q → ℕ)
     (u v : Fin q) (huv : u ≠ v) :
@@ -4383,42 +4389,73 @@ private theorem rowValuation_le_sum {q : ℕ} (a : Fin q → ℕ) (u : Fin q) :
     a u ≤ ∑ w, a w :=
   Finset.single_le_sum (f := a) (fun w hw => Nat.zero_le _) (Finset.mem_univ u)
 
-private theorem regularPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
-    (a : Fin q → ℕ) : 0 ≤ regularPrimeLocalExcess p a := by
-  classical
+private theorem regularPrimeLocalExcessTerm_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u v : Fin q) : 0 ≤ regularPrimeLocalExcessTerm p a u v := by
   have hpR : (1 : ℝ) ≤ (p : ℝ) := by
     have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
     exact_mod_cast hpNat
+  unfold regularPrimeLocalExcessTerm
+  split_ifs with h
+  · have hsum := rowValuationPair_le_sum a u v h.1
+    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u - a v) := one_le_pow₀ hpR
+    linarith
+  · norm_num
+
+private theorem exceptionalPrimeLocalExcessTerm_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u : Fin q) : 0 ≤ exceptionalPrimeLocalExcessTerm p a u := by
+  have hpR : (1 : ℝ) ≤ (p : ℝ) := by
+    have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
+    exact_mod_cast hpNat
+  unfold exceptionalPrimeLocalExcessTerm
+  split_ifs with h
+  · have hsum := rowValuation_le_sum a u
+    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u) := one_le_pow₀ hpR
+    linarith
+  · norm_num
+
+private theorem regularPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) : 0 ≤ regularPrimeLocalExcess p a := by
+  classical
   unfold regularPrimeLocalExcess
   apply Finset.sum_nonneg
   intro u hu
   apply Finset.sum_nonneg
   intro v hv
-  split_ifs with h
-  · have hsum := rowValuationPair_le_sum a u v h.1
-    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u - a v) :=
-      one_le_pow₀ hpR
-    linarith
-  · norm_num
+  exact regularPrimeLocalExcessTerm_nonneg p hp a u v
 
 private theorem exceptionalPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
     (a : Fin q → ℕ) : 0 ≤ exceptionalPrimeLocalExcess p a := by
   classical
-  have hpR : (1 : ℝ) ≤ (p : ℝ) := by
-    have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
-    exact_mod_cast hpNat
   unfold exceptionalPrimeLocalExcess
   apply Finset.sum_nonneg
   intro u hu
-  split_ifs with h
-  · have hsum := rowValuation_le_sum a u
-    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u) :=
-      one_le_pow₀ hpR
-    linarith
-  · norm_num
+  exact exceptionalPrimeLocalExcessTerm_nonneg p hp a u
+
+private theorem regularPrimeLocalExcessTerm_le {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u v : Fin q) :
+    regularPrimeLocalExcessTerm p a u v ≤ regularPrimeLocalExcess p a := by
+  classical
+  have hinnerNonneg (x : Fin q) : 0 ≤ ∑ y : Fin q, regularPrimeLocalExcessTerm p a x y :=
+    Finset.sum_nonneg fun y hy => regularPrimeLocalExcessTerm_nonneg p hp a x y
+  have hv := Finset.single_le_sum
+    (f := fun y => regularPrimeLocalExcessTerm p a u y)
+    (fun y hy => regularPrimeLocalExcessTerm_nonneg p hp a u y) (Finset.mem_univ v)
+  have hu := Finset.single_le_sum
+    (f := fun x => ∑ y : Fin q, regularPrimeLocalExcessTerm p a x y)
+    (fun x hx => hinnerNonneg x) (Finset.mem_univ u)
+  exact hv.trans hu
+
+private theorem exceptionalPrimeLocalExcessTerm_le {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) (u : Fin q) :
+    exceptionalPrimeLocalExcessTerm p a u ≤ exceptionalPrimeLocalExcess p a := by
+  classical
+  have htermNonneg (x : Fin q) : 0 ≤ exceptionalPrimeLocalExcessTerm p a x :=
+    exceptionalPrimeLocalExcessTerm_nonneg p hp a x
+  exact Finset.single_le_sum (f := fun x => exceptionalPrimeLocalExcessTerm p a x)
+    (fun x hx => htermNonneg x) (Finset.mem_univ u)
 
 set_option maxHeartbeats 1000000 in
-private theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
+theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
     (hp : p.Prime) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
     (coeff : Fin q → Fin d → ZMod (p ^ A))
     (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
@@ -4480,6 +4517,89 @@ private theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
           exact hupper
         _ = 1 := by rw [hprod]; exact div_self (ne_of_gt (pow_pos hpR _))
     exact le_antisymm hupperOne hbase.1
+
+set_option maxHeartbeats 1000000 in
+private theorem localKernel_regularExcess_bound {p A q d : ℕ}
+    (hp : p.Prime) (hA : 0 < A) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
+    (coeff : Fin q → Fin d → ZMod (p ^ A))
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
+    (hminor : ∀ u v, u ≠ v → ∃ i j,
+      IsUnit (coeff u i * coeff v j - coeff u j * coeff v i)) :
+    normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+      1 + regularPrimeLocalExcess p a := by
+  classical
+  letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  by_cases hlarge : 2 ≤ U.card
+  · obtain ⟨u, v, huPos, hvPos, huv, hvu, htop⟩ :=
+      exists_top_two_positive_valuations a (by simpa [U] using hlarge)
+    obtain ⟨i, j, hdet⟩ := hminor u v huv
+    have hAmod : 1 < p ^ A := Nat.one_lt_pow (Nat.ne_of_gt hA) hp.one_lt
+    letI : Fact (1 < p ^ A) := ⟨hAmod⟩
+    have hij : i ≠ j := by
+      intro heq
+      subst j
+      have hdet0 : IsUnit (0 : ZMod (p ^ A)) := by simpa using hdet
+      have hunit : ((↑(hdet0.unit⁻¹) : ZMod (p ^ A)) * ↑hdet0.unit) = 1 := by
+        simpa using Units.inv_val hdet0.unit
+      have hzero : ((↑(hdet0.unit⁻¹) : ZMod (p ^ A)) * ↑hdet0.unit) = 0 := by
+        rw [hdet0.unit_spec]
+        simp
+      exact one_ne_zero (hunit.symm.trans hzero)
+    have htwo := localKernel_upper_two_rows hp a ha coeff u v i j hij hdet
+    let total : ℕ := ∑ w, a w
+    have hpairSum : a u + a v ≤ total := rowValuationPair_le_sum a u v huv
+    have hprodPow : (∏ w : Fin q, (p : ℝ) ^ (a w)) = (p : ℝ) ^ total := by
+      simp [total, Finset.prod_pow_eq_pow_sum]
+    have hpR : (p : ℝ) ≠ 0 := by exact_mod_cast hp.ne_zero
+    have hpowRatio :
+        (p : ℝ) ^ total / ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) =
+          (p : ℝ) ^ (total - a u - a v) := by
+      calc
+        (p : ℝ) ^ total / ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) =
+            (p : ℝ) ^ total / (p : ℝ) ^ (a u + a v) := by rw [pow_add]
+        _ = (p : ℝ) ^ (total - (a u + a v)) := by
+          simpa [div_eq_mul_inv] using
+            (pow_sub₀ (p : ℝ) hpR hpairSum).symm
+        _ = (p : ℝ) ^ (total - a u - a v) := by
+          congr 1
+          omega
+    have hratio :
+        (∏ w : Fin q, (p : ℝ) ^ (a w)) /
+            ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) =
+          (p : ℝ) ^ (total - a u - a v) := by
+      simpa [hprodPow] using hpowRatio
+    have hcond : u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+        (∀ w, w ≠ u → a w ≤ a v) := ⟨huv, huPos, hvPos, hvu, htop⟩
+    have htermVal : regularPrimeLocalExcessTerm p a u v =
+        (p : ℝ) ^ (total - a u - a v) - 1 := by
+      unfold regularPrimeLocalExcessTerm
+      rw [if_pos hcond]
+    have htermLE := regularPrimeLocalExcessTerm_le p hp a u v
+    have hAlphaUpper : normalizedKernelCount f ≤
+        (p : ℝ) ^ (total - a u - a v) := by
+      calc
+        normalizedKernelCount f ≤
+            (∏ w : Fin q, (p : ℝ) ^ (a w)) /
+              ((p : ℝ) ^ (a u) * (p : ℝ) ^ (a v)) := by
+                change normalizedKernelCount
+                    (localDivisibilityAddHom a ha coeff).toMultiplicative ≤ _
+                exact htwo
+        _ = _ := hratio
+    calc
+      normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+          (p : ℝ) ^ (total - a u - a v) := by
+        simpa [f] using hAlphaUpper
+      _ = 1 + ((p : ℝ) ^ (total - a u - a v) - 1) := by ring
+      _ ≤ 1 + regularPrimeLocalExcess p a := by
+        rw [← htermVal]
+        nlinarith [htermLE]
+  · have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
+      simpa [U] using (Nat.le_of_not_ge hlarge))
+    rw [hEq]
+    exact add_le_add_left (regularPrimeLocalExcess_nonneg p hp a) 1
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
