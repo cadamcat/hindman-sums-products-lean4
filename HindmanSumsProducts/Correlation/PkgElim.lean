@@ -1906,7 +1906,7 @@ theorem finiteSum_mul_singletonIndicator {α : Type*} [Fintype α] [DecidableEq 
     simp [hxa]
   · simp
 
-theorem sum_ne_subtype_eq_filter {α : Type*} [Fintype α] [DecidableEq α]
+theorem pkgElim_sum_ne_subtype_eq_filter {α : Type*} [Fintype α] [DecidableEq α]
     (I : α) (f : {x : α // x ≠ I} → ℝ) :
     (∑ x : α, if h : x ≠ I then f ⟨x, h⟩ else 0) =
       ∑ x : {x : α // x ≠ I}, f x := by
@@ -3390,7 +3390,7 @@ def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
   arity_le := Nat.zero_le K
   cutoff := Fin.elim0
 
-noncomputable def retainedChoice {m q r : ℕ} (Sh : RowShape m q r)
+noncomputable def pkgElim_retainedChoice {m q r : ℕ} (Sh : RowShape m q r)
     (I : NonTarget Sh) (η : {R : NonTarget Sh // R ≠ I} → Fin 2)
     (R : NonTarget Sh) : Fin 2 := by
   classical
@@ -3442,7 +3442,7 @@ theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
     Fin.sum_univ_two]
   rw [Finset.mul_sum]
 
-theorem occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+theorem pkgElim_occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
@@ -3453,7 +3453,7 @@ theorem occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
         (fun k => (x (.inl k) : ℚ)) := by
   simp [occurrenceCoeff, occurrenceRow, rowTemplateCoefficient, rowForm]
 
-theorem occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+theorem pkgElim_occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
@@ -3472,7 +3472,7 @@ theorem occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     simp [occurrenceCoeff, occurrenceRow, hj]
   · simp
 
-theorem occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+theorem pkgElim_occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
@@ -3485,7 +3485,7 @@ theorem occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
         rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
           (dirs.translation (chainScale S.core.parameters C a N)
             (directionModulus S N dirs.poly p) p R.1) *
-          (x (.inr (.inl (R, retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
+          (x (.inr (.inl (R, pkgElim_retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
   classical
   apply Finset.sum_congr rfl
   intro R hR
@@ -3524,14 +3524,14 @@ theorem occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
             rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
               (dirs.translation (chainScale S.core.parameters C a N)
                 (directionModulus S N dirs.poly p) p R.1) *
-              (x (.inr (.inl (R, retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
-        have hchoice : retainedChoice Sh I η R = e₀ := by
-          simp [retainedChoice, e₀, h]
+              (x (.inr (.inl (R, pkgElim_retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
+        have hchoice : pkgElim_retainedChoice Sh I η R = e₀ := by
+          simp [pkgElim_retainedChoice, e₀, h]
         simp [h, hchoice]
   · have hEq : R = I := by simpa using h
-    simp [occurrenceCoeff, occurrenceRow, retainedChoice, h, hEq]
+    simp [occurrenceCoeff, occurrenceRow, pkgElim_retainedChoice, h, hEq]
 
-theorem occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
+theorem pkgElim_occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
@@ -3544,15 +3544,15 @@ theorem occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
         rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
           (dirs.translation (chainScale S.core.parameters C a N)
             (directionModulus S N dirs.poly p) p R.1) *
-          (x (.inr (.inl (R, retainedChoice Sh I η R)) : Coordinate Sh) : ℚ)) +
+          (x (.inr (.inl (R, pkgElim_retainedChoice Sh I η R)) : Coordinate Sh) : ℚ)) +
       rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
         (dirs.rootTranslation (chainScale S.core.parameters C a N)
           (S.core.parameters.M N) p) * (x (.inr (.inr j) : Coordinate Sh) : ℚ) := by
   classical
   unfold occurrenceValue
   rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_prod_type]
-  rw [occurrencePivotContribution, occurrenceOldShiftContribution,
-    occurrenceRootContribution]
+  rw [pkgElim_occurrencePivotContribution, pkgElim_occurrenceOldShiftContribution,
+    pkgElim_occurrenceRootContribution]
   simp only [occurrenceRow]
   ring
 
