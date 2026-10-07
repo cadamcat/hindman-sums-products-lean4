@@ -47,12 +47,25 @@ representing families at gap `l'` are representing families at gap `l` (pieces a
 the global progression index is unchanged). -/
 theorem repSpan_antitone (A : Parameters K) (s : ℕ) {l l' : Fin K}
     (hdiv : ∀ N, A.H N l ∣ A.H N l') : repSpan A l' s ≤ repSpan A l s := by
-  sorry
+  apply Submodule.span_le.mpr
+  intro v hv
+  rcases hv with ⟨Fm, Km, Φ, rfl⟩
+  obtain ⟨Ψ, hΨ⟩ := Φ.reindex_of_dvd hdiv
+  apply Submodule.subset_span
+  refine ⟨Fm, Km, Ψ, ?_⟩
+  funext N y
+  exact (hΨ N y).symm
 
 /-- Raising the step bound only enlarges the span (`OAI.SourceMenuLiteral.raiseMenu`). -/
 theorem repSpan_mono_step (A : Parameters K) (l : Fin K) {s s' : ℕ} (h : s ≤ s') :
     repSpan A l s ≤ repSpan A l s' := by
-  sorry
+  apply Submodule.span_le.mpr
+  intro v hv
+  rcases hv with ⟨Fm, Km, Φ, rfl⟩
+  apply Submodule.subset_span
+  refine ⟨OAI.SourceMenuLiteral.raiseMenu Fm h, Km, Φ.raise h, ?_⟩
+  funext N y
+  exact (RepFamily.raise_eval Φ h N y).symm
 
 /-- Projection lower bound (05:670–674): a span element `V` with `‖V‖₂ ≤ 1` and
 `⟨h, V⟩ ≥ c` forces `‖P_{i,l} h‖₂ ≥ c`, for a bounded family `h`. -/
@@ -60,7 +73,110 @@ theorem le_projNorm (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K) (s : 
     (h V : ℕ → ℤ → ℝ) (hb : ∃ C, ∀ N y, |h N y| ≤ C) (hV : V ∈ repSpan A l s)
     (hVn : familyInner A U i V V ≤ 1) :
     familyInner A U i h V ≤ projNorm A U i l s h := by
-  sorry
+  obtain ⟨C, hCb⟩ := hb
+  have hC : 0 ≤ C := (abs_nonneg (h 0 0)).trans (hCb 0 0)
+  change V ∈ Submodule.span ℝ
+    {w | ∃ (Fm : Menu s) (Km : ℝ≥0) (Φ : RepFamily A l Fm Km), w = Φ.eval} at hV
+  have hgen : ∀ w ∈
+      {w | ∃ (Fm : Menu s) (Km : ℝ≥0) (Φ : RepFamily A l Fm Km), w = Φ.eval},
+      ∃ D : ℝ, 0 ≤ D ∧ ∀ N y, |w N y| ≤ D := by
+    rintro w ⟨Fm, Km, Φ, rfl⟩
+    refine ⟨1, by norm_num, ?_⟩
+    intro N y
+    simp only [RepFamily.eval]
+    let P := Φ.piece N (y / (A.H N l : ℤ)) (y % (A.M N : ℤ))
+    change |P.eval ((y - y % (A.M N : ℤ)) / (A.M N : ℤ))| ≤ 1
+    have hrange := P.range (P.g ^ ((y - y % (A.M N : ℤ)) / (A.M N : ℤ)) • P.x)
+    have hval : |P.obs (P.g ^ ((y - y % (A.M N : ℤ)) / (A.M N : ℤ)) • P.x)| ≤ 1 :=
+      abs_le.mpr ⟨by linarith [hrange.1], hrange.2⟩
+    simpa [OAI.SourceMenuLiteral.CosetPiece.eval] using hval
+  let S := (fun u => familyInner A U i h u) ''
+    {u | u ∈ repSpan A l s ∧ familyInner A U i u u ≤ 1}
+  let B : ℝ := (C ^ 2 + 1) / 2
+  have hBdd : BddAbove S := by
+    refine ⟨B, ?_⟩
+    rintro x ⟨u, hu, rfl⟩
+    obtain ⟨D, hD, huB⟩ := HindmanSumsProducts.Prediction.bounded_span hgen hu.1
+    let m : ℕ → ℝ := fun N => Emu A N i (fun _ => 1)
+    let a : ℕ → ℝ := fun N => Emu A N i (fun y => u N y * u N y)
+    let b : ℕ → ℝ := fun N => Emu A N i (fun y => h N y * u N y)
+    have hm0 : ∀ N, 0 ≤ m N := fun N => by
+      exact Emu_nonneg A N i (fun _ => 1) (fun _ => by norm_num)
+    have hm1 : ∀ N, m N ≤ 1 := fun N => Emu_mass_le_one A N i
+    have ha0 : ∀ N, 0 ≤ a N := fun N => by
+      exact Emu_nonneg A N i (fun y => u N y * u N y) (fun _ => mul_self_nonneg _)
+    have ha1 : ∀ N, a N ≤ D ^ 2 := by
+      intro N
+      change Emu A N i (fun y => u N y * u N y) ≤ D ^ 2
+      rw [Emu_eq_sum_support]
+      calc
+        (∑ y ∈ HindmanSumsProducts.Prediction.muSupport A N i,
+            mu A N i y * (u N y * u N y)) ≤
+          ∑ y ∈ HindmanSumsProducts.Prediction.muSupport A N i,
+            mu A N i y * D ^ 2 := by
+          apply Finset.sum_le_sum
+          intro y hy
+          have hy2 : u N y * u N y ≤ D ^ 2 := by
+            have habs := abs_le.mp (huB N y)
+            nlinarith
+          exact mul_le_mul_of_nonneg_left hy2 (mu_nonneg A N i y)
+        _ = (∑ y ∈ HindmanSumsProducts.Prediction.muSupport A N i, mu A N i y) * D ^ 2 := by
+          rw [← Finset.sum_mul]
+        _ = m N * D ^ 2 := by
+          have hmEq : m N =
+              ∑ y ∈ HindmanSumsProducts.Prediction.muSupport A N i, mu A N i y := by
+            dsimp [m]
+            rw [Emu_eq_sum_support]
+            simp
+          rw [hmEq]
+        _ ≤ D ^ 2 := by
+          simpa only [one_mul] using
+            (mul_le_mul_of_nonneg_right (hm1 N) (sq_nonneg D))
+    have hmBound : ∃ E : ℝ, ∀ N, |m N| ≤ E := by
+      refine ⟨1, fun N => abs_le.mpr ⟨by linarith [hm0 N], hm1 N⟩⟩
+    have haBound : ∃ E : ℝ, ∀ N, |a N| ≤ E := by
+      refine ⟨D ^ 2, fun N => abs_le.mpr ⟨by nlinarith [sq_nonneg D, ha0 N], ha1 N⟩⟩
+    have hbBound : ∃ E : ℝ, ∀ N, |b N| ≤ E := by
+      refine ⟨(C ^ 2 + D ^ 2) / 2, ?_⟩
+      intro N
+      have hbN := Emu_abs_inner_le A N i (fun y => h N y) (fun y => u N y)
+        C hC (fun y => hCb N y)
+      have hbN' : |b N| ≤ (C ^ 2 * m N + a N) / 2 := by
+        simpa [b, m, a] using hbN
+      have hmul : C ^ 2 * m N ≤ C ^ 2 := by
+        nlinarith [mul_le_mul_of_nonneg_left (hm1 N) (sq_nonneg C)]
+      have hDsq : 0 ≤ D ^ 2 := sq_nonneg D
+      calc
+        |b N| ≤ (C ^ 2 * m N + a N) / 2 := hbN'
+        _ ≤ (C ^ 2 + D ^ 2) / 2 := by nlinarith [ha1 N, hmul]
+    have hmT := HindmanSumsProducts.Prediction.ulim_tendsto_of_bounded U m hmBound
+    have haT := HindmanSumsProducts.Prediction.ulim_tendsto_of_bounded U a haBound
+    have hbT := HindmanSumsProducts.Prediction.ulim_tendsto_of_bounded U b hbBound
+    have hmLim : ulim U m ≤ 1 :=
+      le_of_tendsto_of_tendsto' hmT tendsto_const_nhds hm1
+    have haLim : ulim U a ≤ 1 := by
+      simpa [familyInner, a] using hu.2
+    have hqT : Tendsto (fun N => (C ^ 2 * m N + a N) / 2) (U : Filter ℕ)
+        (𝓝 ((C ^ 2 * ulim U m + ulim U a) / 2)) := by
+      simpa using ((tendsto_const_nhds.mul hmT).add haT).div_const 2
+    have hseq : ∀ N, b N ≤ (C ^ 2 * m N + a N) / 2 := by
+      intro N
+      have hbN := Emu_abs_inner_le A N i (fun y => h N y) (fun y => u N y)
+        C hC (fun y => hCb N y)
+      have hbN' : |b N| ≤ (C ^ 2 * m N + a N) / 2 := by
+        simpa [b, m, a] using hbN
+      exact (le_abs_self (b N)).trans hbN'
+    have hlim := le_of_tendsto_of_tendsto' hbT hqT hseq
+    change ulim U b ≤ B
+    dsimp [B]
+    calc
+      ulim U b ≤ (C ^ 2 * ulim U m + ulim U a) / 2 := hlim
+      _ ≤ (C ^ 2 + 1) / 2 := by
+        have hc2 : 0 ≤ C ^ 2 := sq_nonneg C
+        nlinarith [mul_le_mul_of_nonneg_left hmLim hc2]
+  have hmem : familyInner A U i h V ∈ S := by
+    exact ⟨V, ⟨hV, hVn⟩, rfl⟩
+  exact le_csSup hBdd hmem
 
 /-- A Lipschitz map of `[0,1]` into itself, applied to a representing family, is a representing
 family on the same menu (05:374–376, used for `ψ(S)` at 05:729–731). -/
@@ -68,7 +184,7 @@ theorem RepFamily.comp_exists {A : Parameters K} {l : Fin K} {s : ℕ} {Fm : Men
     {Km : ℝ≥0} (Φ : RepFamily A l Fm Km) (ψ : ℝ → ℝ) (L : ℝ≥0) (hψ : LipschitzWith L ψ)
     (hψ01 : ∀ x ∈ Set.Icc (0 : ℝ) 1, ψ x ∈ Set.Icc (0 : ℝ) 1) :
     ∃ Ψ : RepFamily A l Fm (L * Km), ∀ N y, Ψ.eval N y = ψ (Φ.eval N y) := by
-  sorry
+  exact Φ.compMap ψ L hψ hψ01
 
 /-- Closure of the model class (02:103–105, 05:374–376, 05:407–419; blueprint X.1): for finitely
 many menus of step `≤ s` there is one menu (built from product nilmanifolds of the charted menus)
@@ -81,7 +197,19 @@ theorem rep_menu_combination (A : Parameters K) (l : Fin K) {k s : ℕ} (Fm : Fi
       (∀ x : Fin k → ℝ, (∀ t, x t ∈ Set.Icc (0 : ℝ) 1) → G x ∈ Set.Icc (0 : ℝ) 1) →
       ∃ (K' : ℝ≥0) (Ψ : RepFamily A l F' K'),
         ∀ N y, Ψ.eval N y = G (fun t => (Φ t).eval N y) := by
-  sorry
+  refine ⟨repProductMenu Fm, ?_⟩
+  intro Km Φ G L hG hG01
+  refine ⟨L * ∑ t, Km t, {
+    piece := fun N q r => repProductPiece Fm Km Φ G L hG hG01 N q r }, ?_⟩
+  intro N y
+  change (repProductPiece Fm Km Φ G L hG hG01 N
+      (y / (A.H N l : ℤ)) (y % (A.M N : ℤ))).eval
+      ((y - y % (A.M N : ℤ)) / (A.M N : ℤ)) =
+    G (fun t => (Φ t).eval N y)
+  rw [repProductPiece_eval]
+  apply congrArg G
+  funext t
+  simp [RepFamily.eval]
 
 /-- The coarse approximant (05:407–419): a `[0,1]`-valued family `F` has a `[0,1]`-valued
 representing family `S` at gap `l` with `‖P_{i,l}(F − S)‖₂ ≤ ε` (approximate `P F` by a finite
