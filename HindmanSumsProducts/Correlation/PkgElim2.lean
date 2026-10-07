@@ -149,6 +149,25 @@ theorem c_elim2_uniformFintypeAverage_sq {α : Type*} [Fintype α]
     ← Fintype.sum_mul_sum, mul_inv_rev]
   ring
 
+theorem c_elim2_uniformFintypeAverage_const {α : Type*} [Fintype α] [Nonempty α]
+    (c : ℝ) : c_elim2_uniformFintypeAverage (fun _ : α => c) = c := by
+  classical
+  unfold c_elim2_uniformFintypeAverage
+  have hcard : (Fintype.card α : ℝ) ≠ 0 := by
+    exact_mod_cast (Fintype.card_ne_zero (α := α))
+  have hsum : (∑ x : α, c) = (Fintype.card α : ℝ) * c := by simp
+  rw [hsum]
+  field_simp
+
+theorem c_elim2_uniformFintypeAverage_const_mul {α : Type*} [Fintype α]
+    (c : ℝ) (f : α → ℝ) :
+    c_elim2_uniformFintypeAverage (fun x => c * f x) =
+      c * c_elim2_uniformFintypeAverage f := by
+  classical
+  unfold c_elim2_uniformFintypeAverage
+  rw [← Finset.mul_sum]
+  ring
+
 noncomputable def c_elim2_shiftStateAverage {α : Type*} [Fintype α]
     [DecidableEq α] (E : Finset α) (L : ℕ)
     (F : (c_elim2_ShiftCoord E → Fin L) → ℝ) : ℝ := by
