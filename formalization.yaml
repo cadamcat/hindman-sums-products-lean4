@@ -106,7 +106,19 @@ review:
   status: "agent-reviewed"
   reviewers: []
   notes: >-
-    {{REVIEW_NOTES}}
+    The release commit builds; #print axioms on
+    HindmanSumsProducts.hindman_finite_sums_products shows only propext,
+    Classical.choice and Quot.sound (scripts/verify.sh). The theorem's
+    statement is checked against Challenge.lean by definitional equality
+    with a displayed statement in Verification/ChallengeStatement.lean and
+    Verification/MainStatement.lean, and Challenge.lean is unchanged since
+    the target was reviewed. Every intermediate statement was frozen with
+    a hash of its elaborated type before its proof, and all frozen records
+    were checked again on the release commit. A fresh-clone build, a
+    kernel replay (leanchecker --fresh) and a Comparator run with
+    Challenge.json on Linux follow the release; their results are recorded
+    in docs/verification.md. No independent human expert has reviewed the
+    formalization.
 
 alignment:
   namespace: "HindmanSumsProducts"
