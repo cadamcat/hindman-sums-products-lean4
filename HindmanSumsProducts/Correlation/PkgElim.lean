@@ -3309,8 +3309,123 @@ theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
         ∑ R : NonTarget Sh, (x (.inr (.inl (R, ω R)) : Coordinate Sh) : ℚ) := by
   classical
   simp [occurrenceValue, occurrenceCoeff, occurrenceRow, rowTemplateCoefficient,
-    rowForm, Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.sum_ite_eq']
+    rowForm, Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.sum_ite_eq',
+    Fin.sum_univ_two]
   rw [Finset.mul_sum]
+
+theorem occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (o : Occurrence Sh) (x : Coordinate Sh → ℤ) :
+    (∑ k : Fin m, occurrenceCoeff S C a Sh dirs N p o (.inl k) *
+      (x (.inl k) : ℚ)) =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row (occurrenceRow Sh o)) p
+        (fun k => (x (.inl k) : ℚ)) := by
+  simp [occurrenceCoeff, occurrenceRow, rowTemplateCoefficient, rowForm]
+
+theorem occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
+    (∑ j' : Fin 2,
+      occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+        (.inr (.inr j')) * (x (.inr (.inr j')) : ℚ)) =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (dirs.rootTranslation (chainScale S.core.parameters C a N)
+          (S.core.parameters.M N) p) * (x (.inr (.inr j) : Coordinate Sh) : ℚ) := by
+  classical
+  rw [Finset.sum_eq_single j]
+  · simp [occurrenceCoeff, occurrenceRow]
+  · intro j' hj' hj
+    simp [occurrenceCoeff, occurrenceRow, hj]
+  · simp
+
+theorem occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
+    (∑ R : NonTarget Sh, ∑ e : Fin 2,
+      occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+        (.inr (.inl (R, e))) * (x (.inr (.inl (R, e))) : ℚ)) =
+      ∑ R : NonTarget Sh, if h : R ≠ I then
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1) *
+          (x (.inr (.inl (R, η ⟨R, h⟩)) : Coordinate Sh) : ℚ)
+        else 0 := by
+  classical
+  apply Finset.sum_congr rfl
+  intro R hR
+  by_cases h : R ≠ I
+  · let e₀ := η ⟨R, h⟩
+    have hcoeff (e : Fin 2) :
+        occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+          (.inr (.inl (R, e))) =
+        if e = e₀ then
+          rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+            (dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1)
+        else 0 := by
+      simp [occurrenceCoeff, occurrenceRow, e₀, h]
+    calc
+      _ = ∑ e : Fin 2, if e = e₀ then
+            rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+              (dirs.translation (chainScale S.core.parameters C a N)
+                (directionModulus S N dirs.poly p) p R.1) *
+              (x (.inr (.inl (R, e)) : Coordinate Sh) : ℚ)
+          else 0 := by
+        apply Finset.sum_congr rfl
+        intro e he
+        rw [hcoeff e]
+        by_cases he₀ : e = e₀ <;> simp [he₀]
+      _ = rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+            (dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1) *
+          (x (.inr (.inl (R, e₀)) : Coordinate Sh) : ℚ) := by
+        rw [Finset.sum_eq_single e₀]
+        · simp
+        · intro e he he₀
+          simp [he₀]
+        · simp
+      _ = if h : R ≠ I then
+            rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+              (dirs.translation (chainScale S.core.parameters C a N)
+                (directionModulus S N dirs.poly p) p R.1) *
+              (x (.inr (.inl (R, η ⟨R, h⟩)) : Coordinate Sh) : ℚ)
+          else 0 := by
+        rw [dif_pos h]
+  · simp [occurrenceCoeff, occurrenceRow, h]
+
+theorem occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
+    occurrenceValue S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) x =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (fun k => (x (.inl k) : ℚ)) +
+      (∑ R : NonTarget Sh, if h : R ≠ I then
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1) *
+          (x (.inr (.inl (R, η ⟨R, h⟩)) : Coordinate Sh) : ℚ)
+        else 0) +
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (dirs.rootTranslation (chainScale S.core.parameters C a N)
+          (S.core.parameters.M N) p) * (x (.inr (.inr j) : Coordinate Sh) : ℚ) := by
+  classical
+  unfold occurrenceValue
+  rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_prod_type]
+  rw [occurrencePivotContribution, occurrenceOldShiftContribution,
+    occurrenceRootContribution]
+  simp only [occurrenceRow]
+  ring
 
 end AdditiveMoment
 
