@@ -153,6 +153,11 @@ theorem RowTemplate.padSlot_entry {m q : ℕ} (T : RowTemplate m q) (k : Fin m)
     T.padSlot.entry k = some (Fin.cases 0 e) := by
   simp [RowTemplate.padSlot, he]
 
+theorem RowTemplate.poly_entry {m q : ℕ} (T : RowTemplate m q) (k : Fin m)
+    (e : Fin q → ℕ) (he : T.entry k = some e) :
+    T.poly k = MvPolynomial.monomial (Finsupp.equivFunOnFinite.symm e) 1 := by
+  simp [RowTemplate.poly, he]
+
 theorem RowTemplate.scaleColumn_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
     (hT : T.ExponentsBinary) (u : Fin m) : (T.scaleColumn u).ExponentsBinary := by
   intro k e he i
@@ -343,6 +348,81 @@ theorem RowTemplate.entry_exists_of_mem_support {m q : ℕ} (T : RowTemplate m q
   cases h : T.entry k with
   | none => simp [h] at hsome
   | some e => exact ⟨e, rfl⟩
+
+theorem RowTemplate.poly_ne_zero_of_mem_support {m q : ℕ} (T : RowTemplate m q)
+    (k : Fin m) (hk : k ∈ T.support) : T.poly k ≠ 0 := by
+  obtain ⟨e, he⟩ := T.entry_exists_of_mem_support k hk
+  rw [T.poly_entry k e he]
+  intro hz
+  exact one_ne_zero (MvPolynomial.monomial_eq_zero.mp hz)
+
+theorem RowTemplate.parallel_of_all_minors_zero {m q : ℕ} {T T' : RowTemplate m q}
+    (hminor : ∀ j k, T.poly j * T'.poly k - T.poly k * T'.poly j = 0) :
+    T.Parallel T' := by
+  classical
+  have entry_exists {U : RowTemplate m q} (k : Fin m) (hk : k ∈ U.support) :
+      ∃ e, U.entry k = some e := U.entry_exists_of_mem_support k hk
+  have hsupport : T.support = T'.support := by
+    apply Finset.Subset.antisymm
+    · intro k hk
+      by_contra hk'
+      have hnone : T'.entry k = none := by
+        cases h : T'.entry k with
+        | none => rfl
+        | some e => simp [RowTemplate.support, h] at hk'
+      obtain ⟨j, hj⟩ := T'.support_nonempty
+      have hleft : T.poly k * T'.poly j ≠ 0 :=
+        mul_ne_zero (T.poly_ne_zero_of_mem_support k hk)
+          (T'.poly_ne_zero_of_mem_support j hj)
+      have hright : T.poly j * T'.poly k = 0 := by
+        simp [RowTemplate.poly, hnone]
+      have hz := hminor k j
+      rw [hright, sub_zero] at hz
+      exact hleft hz
+    · intro k hk
+      by_contra hk'
+      have hnone : T.entry k = none := by
+        cases h : T.entry k with
+        | none => rfl
+        | some e => simp [RowTemplate.support, h] at hk'
+      obtain ⟨j, hj⟩ := T.support_nonempty
+      have hleft : T.poly k * T'.poly j = 0 := by
+        simp [RowTemplate.poly, hnone]
+      have hright : T.poly j * T'.poly k ≠ 0 :=
+        mul_ne_zero (T.poly_ne_zero_of_mem_support j hj)
+          (T'.poly_ne_zero_of_mem_support k hk)
+      have hz := hminor k j
+      rw [hleft, zero_sub] at hz
+      exact hright (neg_eq_zero.mp hz)
+  obtain ⟨k₀, hk₀⟩ := T.support_nonempty
+  obtain ⟨e₀, he₀⟩ := entry_exists k₀ hk₀
+  have hk₀' : k₀ ∈ T'.support := by rw [← hsupport]; exact hk₀
+  obtain ⟨e₀', he₀'⟩ := entry_exists k₀ hk₀'
+  refine ⟨hsupport, ⟨fun i => (e₀' i : ℤ) - (e₀ i : ℤ), ?_⟩⟩
+  intro k e e' he he' i
+  have hk : k ∈ T.support := by simp [RowTemplate.support, he]
+  have hk' : k ∈ T'.support := by rw [← hsupport]; exact hk
+  have heqpoly : T.poly k * T'.poly k₀ = T.poly k₀ * T'.poly k :=
+    sub_eq_zero.mp (hminor k k₀)
+  rw [T.poly_entry k e he, T'.poly_entry k₀ e₀' he₀',
+    T.poly_entry k₀ e₀ he₀, T'.poly_entry k e' he'] at heqpoly
+  simp only [MvPolynomial.monomial_mul_monomial, one_mul] at heqpoly
+  have hexp := MvPolynomial.monomial_left_injective
+    (one_ne_zero : (1 : ℤ) ≠ 0) heqpoly
+  have hnat : e i + e₀' i = e₀ i + e' i := by
+    have hcoord := congrArg (fun f : Fin q →₀ ℕ => f i) hexp
+    simpa using hcoord
+  have hnatZ : (e i : ℤ) + (e₀' i : ℤ) = (e₀ i : ℤ) + (e' i : ℤ) := by
+    exact_mod_cast hnat
+  change (e' i : ℤ) = (e i : ℤ) + ((e₀' i : ℤ) - (e₀ i : ℤ))
+  omega
+
+theorem RowTemplate.exists_nonzero_minor_of_not_parallel {m q : ℕ}
+    {T T' : RowTemplate m q} (h : ¬ T.Parallel T') :
+    ∃ j k, T.poly j * T'.poly k - T.poly k * T'.poly j ≠ 0 := by
+  by_contra hnone
+  push_neg at hnone
+  exact h (T.parallel_of_all_minors_zero hnone)
 
 theorem RowTemplate.scaleBranchP_entry {m q : ℕ} (T : RowTemplate m q) (u k : Fin m)
     (e : Fin q → ℕ) (he : T.entry k = some e) :
