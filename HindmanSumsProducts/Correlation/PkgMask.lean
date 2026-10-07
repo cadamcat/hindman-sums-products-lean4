@@ -887,9 +887,11 @@ noncomputable def pkgMask_rowBranchSigmaEquiv {r : ℕ} (I : Fin r → Prop) :
     | mk i b => cases b with | mk b hb => rfl
 
 theorem pkgMask_prodRowBranchAllowed {r : ℕ} (I : Fin r → Prop)
-    (i : Fin r) [Fintype (pkgMask_RowBranchAllowed I i)] (g : Fin 2 → ℝ) :
-    (∏ b : pkgMask_RowBranchAllowed I i, g b.val) =
-      if I i then g 0 else g 0 * g 1 := by
+    (i : Fin r) [Fintype (pkgMask_RowBranchAllowed I i)]
+    (g : pkgMask_RowBranchAllowed I i → ℝ) :
+    (∏ b : pkgMask_RowBranchAllowed I i, g b) =
+      if hi : I i then g ⟨0, Or.inl rfl⟩ else
+        g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by
   classical
   letI : DecidablePred (fun b : Fin 2 => b.val = 0 ∨ ¬ I i) := Classical.decPred _
   by_cases hi : I i
@@ -904,32 +906,51 @@ theorem pkgMask_prodRowBranchAllowed {r : ℕ} (I : Fin r → Prop)
           · exact hb.symm
           · exact False.elim (hnot hi)
         right_inv := by intro x; cases x; rfl }
-    have hzero (b : pkgMask_RowBranchAllowed I i) : b.val = 0 := by
-      apply Fin.ext
-      rcases b.property with hb | hnot
-      · exact hb
-      · exact False.elim (hnot hi)
+    have hzero : e.symm PUnit.unit = ⟨0, Or.inl rfl⟩ := by
+      apply Subtype.ext
+      rfl
     calc
-      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g 0 := by
-        apply Finset.prod_congr rfl
-        intro b hb
-        rw [hzero b]
-      _ = ∏ x : PUnit.{1}, g 0 := Equiv.prod_comp e (fun _ => g 0)
-      _ = g 0 := by simp
-      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+      (∏ b : pkgMask_RowBranchAllowed I i, g b) =
+          ∏ x : PUnit.{1}, g (e.symm x) := (Equiv.prod_comp e.symm g).symm
+      _ = g (e.symm PUnit.unit) := by simp
+      _ = g ⟨0, Or.inl rfl⟩ := by rw [hzero]
+      _ = if hi : I i then g ⟨0, Or.inl rfl⟩ else
+            g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by simp [hi]
   · let e : pkgMask_RowBranchAllowed I i ≃ Fin 2 :=
       { toFun := fun b => b.val
         invFun := fun b => ⟨b, Or.inr hi⟩
         left_inv := by intro b; apply Subtype.ext; rfl
         right_inv := by intro b; rfl }
+    have hzero : e.symm (0 : Fin 2) = ⟨0, Or.inl rfl⟩ := by
+      apply Subtype.ext
+      rfl
+    have hone : e.symm (1 : Fin 2) = ⟨1, Or.inr hi⟩ := by
+      rfl
     calc
-      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g (e b) := by
-        apply Finset.prod_congr rfl
-        intro b hb
-        rfl
-      _ = ∏ b : Fin 2, g b := Equiv.prod_comp e g
-      _ = g 0 * g 1 := Fin.prod_univ_two g
-      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+      (∏ b : pkgMask_RowBranchAllowed I i, g b) =
+          ∏ b : Fin 2, g (e.symm b) := (Equiv.prod_comp e.symm g).symm
+      _ = g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by
+        rw [Fin.prod_univ_two]
+        rw [hzero, hone]
+      _ = if hi : I i then g ⟨0, Or.inl rfl⟩ else
+            g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by simp [hi]
+
+theorem pkgMask_rowBranchProduct_sigma {r : ℕ} (I : Fin r → Prop)
+    [Fintype (RowBranchIndex I)]
+    [∀ i : Fin r, Fintype (pkgMask_RowBranchAllowed I i)]
+    (g : RowBranchIndex I → ℝ) :
+    (∏ x : RowBranchIndex I, g x) =
+      ∏ i : Fin r, ∏ b : pkgMask_RowBranchAllowed I i,
+        g ⟨(i, b.val), b.property⟩ := by
+  classical
+  calc
+    (∏ x : RowBranchIndex I, g x) =
+        ∏ x : Σ i : Fin r, pkgMask_RowBranchAllowed I i,
+          g ((pkgMask_rowBranchSigmaEquiv I).symm x) :=
+      (Equiv.prod_comp (pkgMask_rowBranchSigmaEquiv I).symm g).symm
+    _ = ∏ i : Fin r, ∏ b : pkgMask_RowBranchAllowed I i,
+          g ((pkgMask_rowBranchSigmaEquiv I).symm ⟨i, b⟩) := by
+      rw [Fintype.prod_sigma]
 
 def RowBranchTemplate {m q r : ℕ} (Sh : RowShape m q r)
     (L R : Fin r → RowTemplate m (q + 2)) (i : Fin r) (b : Fin 2) :
@@ -3908,6 +3929,140 @@ theorem pkgMask_mergedNonInvariantRow_eq {m q r r' : ℕ} {I : Fin r → Prop}
   funext y
   unfold mergedBranchRowFunction
   simp [Equiv.symm_apply_apply, hx]
+
+theorem pkgMask_branchRowProductIdentity {m q r r' : ℕ} {I : Fin r → Prop}
+    (Sh : RowShape m q r) (Sh' : RowShape m (q + 2) r')
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (hrow : ∀ x, Sh'.row (e x) =
+      RowBranchTemplate Sh L R x.val.1 x.val.2)
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (c : Fin m → ℚ) (p : Fin (q + 2) → ℕ) (hgood : good p) (z : Fin m → ℚ)
+    (hp : ∀ j, p j ≠ 0)
+    (hdenL : ∀ i, (rowForm c (L i) p z).den = 1)
+    (hscaleDen : ∀ i (hi : I i),
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p *
+        ((rowForm c (L i) p z).num : ℚ)).den = 1)
+    (hWpos : ∀ i, 0 < W i (rowForm c (L i) p z).num) :
+    (∏ i : Fin r, if hi : I i then
+        W i (rowForm c (L i) p z).num else 1) *
+      ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv f W p j)
+        (rowForm c (Sh'.row j) p z) =
+      (∏ i : Fin r, atQ (f i (dropPrimeTuple2 p)) (rowForm c (L i) p z)) *
+        ∏ i : Fin r, atQ (f i (dropPrimeTuple2 p)) (rowForm c (R i) p z) := by
+  classical
+  letI : DecidablePred I := Classical.decPred I
+  letI : Finite (RowBranchIndex I) :=
+    Finite.of_injective Subtype.val Subtype.val_injective
+  letI : Fintype (RowBranchIndex I) := Fintype.ofFinite _
+  letI : ∀ i : Fin r, Fintype (pkgMask_RowBranchAllowed I i) := fun i => by
+    letI : DecidablePred (fun b : Fin 2 => b.val = 0 ∨ ¬ I i) := Classical.decPred _
+    letI : Finite (pkgMask_RowBranchAllowed I i) :=
+      Finite.of_injective Subtype.val Subtype.val_injective
+    exact Fintype.ofFinite _
+  let branchEval : RowBranchIndex I → ℝ := fun x =>
+    atQ (mergedBranchRowFunction good L R e hInv f W p (e x))
+      (rowForm c (RowBranchTemplate Sh L R x.val.1 x.val.2) p z)
+  let branchValue (i : Fin r) (b : pkgMask_RowBranchAllowed I i) : ℝ :=
+    branchEval ⟨(i, b.val), b.property⟩
+  let leftValue (i : Fin r) : ℝ :=
+    atQ (f i (dropPrimeTuple2 p)) (rowForm c (L i) p z)
+  let rightValue (i : Fin r) : ℝ :=
+    atQ (f i (dropPrimeTuple2 p)) (rowForm c (R i) p z)
+  have hshapeProd :
+      (∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv f W p j)
+        (rowForm c (Sh'.row j) p z)) = ∏ x : RowBranchIndex I, branchEval x := by
+    calc
+      _ = ∏ x : RowBranchIndex I,
+          atQ (mergedBranchRowFunction good L R e hInv f W p (e x))
+            (rowForm c (Sh'.row (e x)) p z) :=
+        (Equiv.prod_comp e (fun j =>
+          atQ (mergedBranchRowFunction good L R e hInv f W p j)
+            (rowForm c (Sh'.row j) p z))).symm
+      _ = _ := by
+        apply Finset.prod_congr rfl
+        intro x hx
+        simp [branchEval, hrow x]
+  have hbranchProd := pkgMask_rowBranchProduct_sigma I branchEval
+  have hperRow (i : Fin r) :
+      (if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+        ∏ b : pkgMask_RowBranchAllowed I i, branchValue i b =
+          leftValue i * rightValue i := by
+    rw [pkgMask_prodRowBranchAllowed I i (branchValue i)]
+    by_cases hi : I i
+    · simp [hi]
+      let x0 : RowBranchIndex I := ⟨(i, 0), Or.inl rfl⟩
+      have hform : rowForm c (L i) p z = ((rowForm c (L i) p z).num : ℚ) :=
+        (Rat.den_eq_one_iff _).mp (hdenL i) |>.symm
+      have hpar := (hInv i).mp hi
+      have hrowScale := RowTemplate.rowForm_eq_monomial_scale_of_parallel
+        c (L i) (R i) hpar p hp z
+      have hRform : rowForm c (R i) p z =
+          RowTemplate.parallelScaleFactor (L i) (R i) hpar p *
+            ((rowForm c (L i) p z).num : ℚ) := by
+        exact hrowScale.trans (congrArg
+          (fun t : ℚ => RowTemplate.parallelScaleFactor (L i) (R i) hpar p * t) hform)
+      have hleft : leftValue i = f i (dropPrimeTuple2 p)
+          (rowForm c (L i) p z).num := by
+        simp [leftValue, atQ, hdenL i]
+      have hright : rightValue i = f i (dropPrimeTuple2 p)
+          (RowTemplate.parallelScaleFactor (L i) (R i) hpar p *
+            ((rowForm c (L i) p z).num : ℚ)).num := by
+        dsimp [rightValue]
+        rw [hRform]
+        simp [atQ, hscaleDen i hi]
+      have hInvEval := pkgMask_mergedInvariantRow_eval good L R e hInv f W p
+        i hi hgood c z (rowForm c (L i) p z).num hform
+        (hscaleDen i hi) (hWpos i)
+      let b0 : pkgMask_RowBranchAllowed I i := ⟨0, Or.inl rfl⟩
+      have hb0 : branchValue i ⟨0, Or.inl rfl⟩ =
+          atQ (mergedBranchRowFunction good L R e hInv f W p (e x0))
+            (rowForm c (L i) p z) := by
+        change branchValue i b0 = _
+        simp [branchValue, branchEval, b0, x0, RowBranchTemplate]
+      rw [hb0]
+      calc
+        W i (rowForm c (L i) p z).num *
+            atQ (mergedBranchRowFunction good L R e hInv f W p (e x0))
+              (rowForm c (L i) p z) =
+            f i (dropPrimeTuple2 p) (rowForm c (L i) p z).num *
+              f i (dropPrimeTuple2 p)
+                (RowTemplate.parallelScaleFactor (L i) (R i) hpar p *
+                  ((rowForm c (L i) p z).num : ℚ)).num := hInvEval
+        _ = leftValue i * rightValue i := by rw [hleft, hright]
+    · simp [hi, one_mul]
+      let x0 : RowBranchIndex I := ⟨(i, 0), Or.inl rfl⟩
+      let x1 : RowBranchIndex I := ⟨(i, 1), Or.inr hi⟩
+      let b0 : pkgMask_RowBranchAllowed I i := ⟨0, Or.inl rfl⟩
+      let b1 : pkgMask_RowBranchAllowed I i := ⟨1, Or.inr hi⟩
+      have hleft : branchValue i b0 = leftValue i := by
+        dsimp [branchValue, branchEval, b0]
+        rw [pkgMask_mergedNonInvariantRow_eq good L R e hInv f W p x0 hi]
+        simp [leftValue, x0, RowBranchTemplate]
+      have hright : branchValue i b1 = rightValue i := by
+        dsimp [branchValue, branchEval, b1]
+        rw [pkgMask_mergedNonInvariantRow_eq good L R e hInv f W p x1 hi]
+        simp [rightValue, x1, RowBranchTemplate]
+      rw [hleft, hright]
+  calc
+    (∏ i : Fin r, if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+        ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv f W p j)
+          (rowForm c (Sh'.row j) p z) =
+      (∏ i : Fin r, if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+        ∏ i : Fin r, ∏ b : pkgMask_RowBranchAllowed I i, branchValue i b := by
+          rw [hshapeProd, hbranchProd]
+    _ = ∏ i : Fin r,
+          ((if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+            ∏ b : pkgMask_RowBranchAllowed I i, branchValue i b) := by
+          rw [← Finset.prod_mul_distrib]
+    _ = ∏ i : Fin r, leftValue i * rightValue i := by
+          apply Finset.prod_congr rfl
+          intro i hi
+          exact hperRow i
+    _ = (∏ i : Fin r, leftValue i) * ∏ i : Fin r, rightValue i :=
+          Finset.prod_mul_distrib
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
