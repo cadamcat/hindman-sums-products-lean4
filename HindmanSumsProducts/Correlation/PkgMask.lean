@@ -869,6 +869,68 @@ theorem RowTemplate.parallel_symm {m q : ℕ} {T T' : RowTemplate m q}
 def RowBranchIndex {r : ℕ} (I : Fin r → Prop) :=
   {x : Fin r × Fin 2 // x.2.val = 0 ∨ ¬ I x.1}
 
+def pkgMask_RowBranchAllowed {r : ℕ} (I : Fin r → Prop) (i : Fin r) :=
+  {b : Fin 2 // b.val = 0 ∨ ¬ I i}
+
+noncomputable def pkgMask_rowBranchSigmaEquiv {r : ℕ} (I : Fin r → Prop) :
+    RowBranchIndex I ≃ Σ i : Fin r, pkgMask_RowBranchAllowed I i := by
+  refine
+    { toFun := fun x => ⟨x.val.1, ⟨x.val.2, x.property⟩⟩
+      invFun := fun x => ⟨(x.1, x.2.val), x.2.property⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro x
+    apply Subtype.ext
+    rfl
+  · intro x
+    cases x with
+    | mk i b => cases b with | mk b hb => rfl
+
+theorem pkgMask_prodRowBranchAllowed {r : ℕ} (I : Fin r → Prop)
+    (i : Fin r) [Fintype (pkgMask_RowBranchAllowed I i)] (g : Fin 2 → ℝ) :
+    (∏ b : pkgMask_RowBranchAllowed I i, g b.val) =
+      if I i then g 0 else g 0 * g 1 := by
+  classical
+  letI : DecidablePred (fun b : Fin 2 => b.val = 0 ∨ ¬ I i) := Classical.decPred _
+  by_cases hi : I i
+  · let e : pkgMask_RowBranchAllowed I i ≃ PUnit.{1} :=
+      { toFun := fun _ => PUnit.unit
+        invFun := fun _ => ⟨0, Or.inl rfl⟩
+        left_inv := by
+          intro b
+          apply Subtype.ext
+          apply Fin.ext
+          rcases b.property with hb | hnot
+          · exact hb.symm
+          · exact False.elim (hnot hi)
+        right_inv := by intro x; cases x; rfl }
+    have hzero (b : pkgMask_RowBranchAllowed I i) : b.val = 0 := by
+      apply Fin.ext
+      rcases b.property with hb | hnot
+      · exact hb
+      · exact False.elim (hnot hi)
+    calc
+      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g 0 := by
+        apply Finset.prod_congr rfl
+        intro b hb
+        rw [hzero b]
+      _ = ∏ x : PUnit.{1}, g 0 := Equiv.prod_comp e (fun _ => g 0)
+      _ = g 0 := by simp
+      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+  · let e : pkgMask_RowBranchAllowed I i ≃ Fin 2 :=
+      { toFun := fun b => b.val
+        invFun := fun b => ⟨b, Or.inr hi⟩
+        left_inv := by intro b; apply Subtype.ext; rfl
+        right_inv := by intro b; rfl }
+    calc
+      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g (e b) := by
+        apply Finset.prod_congr rfl
+        intro b hb
+        rfl
+      _ = ∏ b : Fin 2, g b := Equiv.prod_comp e g
+      _ = g 0 * g 1 := Fin.prod_univ_two g
+      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+
 def RowBranchTemplate {m q r : ℕ} (Sh : RowShape m q r)
     (L R : Fin r → RowTemplate m (q + 2)) (i : Fin r) (b : Fin 2) :
     RowTemplate m (q + 2) :=
