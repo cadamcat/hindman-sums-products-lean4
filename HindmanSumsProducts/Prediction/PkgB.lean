@@ -3322,6 +3322,647 @@ theorem prod_ite_factorization {ι : Type*} [DecidableEq ι] (s : Finset ι)
     _ = a * ∏ j ∈ s, if j = i then 1 else f j := by
           rw [prod_ite_singleton s i hi a]
 
+private noncomputable def momentCRTPrimeProduct (w V : ℕ) : ℕ :=
+  ∏ p : CRTPrimeRange w V, p.val
+
+open scoped Function in
+private theorem momentCRTPrimePairwiseCoprime (w V : ℕ) :
+    Pairwise (Nat.Coprime on fun p : CRTPrimeRange w V => p.val) := by
+  intro p q hpq
+  have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  have hq : q.val.Prime := (Finset.mem_filter.mp q.property).2
+  have hpne : p.val ≠ q.val := by
+    intro h
+    apply hpq
+    exact Subtype.ext h
+  exact (hp.coprime_iff_not_dvd).2 (fun hdiv =>
+    hpne ((Nat.prime_dvd_prime_iff_eq hp hq).1 hdiv))
+
+private noncomputable def momentCRTPrimeRingEquiv (w V : ℕ) :
+    ZMod (momentCRTPrimeProduct w V) ≃+*
+      (∀ p : CRTPrimeRange w V, ZMod p.val) := by
+  exact ZMod.prodEquivPi (fun p : CRTPrimeRange w V => p.val)
+    (momentCRTPrimePairwiseCoprime w V)
+
+private noncomputable def momentCRTPrimeUnitsEquiv (w V : ℕ) :
+    (ZMod (momentCRTPrimeProduct w V))ˣ ≃*
+      (∀ p : CRTPrimeRange w V, (ZMod p.val)ˣ) :=
+  (Units.mapEquiv (momentCRTPrimeRingEquiv w V).toMulEquiv).trans
+    MulEquiv.piUnits
+
+private theorem momentCRTPrimeProduct_eq_finset (w V : ℕ) :
+    momentCRTPrimeProduct w V =
+      ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p := by
+  unfold momentCRTPrimeProduct CRTPrimeRange
+  symm
+  exact Finset.prod_subtype _ (by intro p; rfl) (fun p => p)
+
+private theorem momentCRTPrimeProduct_dvd_master (w e V : ℕ) :
+    momentCRTPrimeProduct w V ∣ masterCRTModulus w e V := by
+  rw [masterCRTModulus, momentCRTPrimeProduct_eq_finset]
+  exact dvd_mul_of_dvd_right (dvd_refl _) _
+
+private noncomputable def momentCRTUnitMap (w e V : ℕ) :
+    (ZMod (masterCRTModulus w e V))ˣ →*
+      (∀ p : CRTPrimeRange w V, (ZMod p.val)ˣ) :=
+  (momentCRTPrimeUnitsEquiv w V).toMonoidHom.comp
+    (ZMod.unitsMap (momentCRTPrimeProduct_dvd_master w e V))
+
+private theorem momentCRTUnitMap_surjective (w e V : ℕ) :
+    Function.Surjective (momentCRTUnitMap w e V) := by
+  let Q := masterCRTModulus w e V
+  have hQ : Q ≠ 0 := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change masterCRTModulus w e V ≠ 0
+    rw [masterCRTModulus]
+    exact (Nat.mul_pos (pow_pos (primorial_pos w) e) hprod).ne'
+  letI : NeZero Q := ⟨hQ⟩
+  exact (momentCRTPrimeUnitsEquiv w V).surjective.comp
+    (ZMod.unitsMap_surjective (momentCRTPrimeProduct_dvd_master w e V))
+
+private noncomputable def momentCRTProjection (w V Q : ℕ) :
+    Fin Q → CRTResidues w V := fun a p =>
+  ⟨a.val % p.val, Nat.mod_lt _ ((Finset.mem_filter.mp p.property).2.pos)⟩
+
+private noncomputable def momentFinCoprimeEquivUnits (Q : ℕ) (hQ : 0 < Q) :
+    {a : Fin Q // Nat.Coprime a.val Q} ≃ (ZMod Q)ˣ := by
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  refine
+    { toFun := fun a => ZMod.unitOfCoprime a.val a.property
+      invFun := fun u =>
+        ⟨⟨(u : ZMod Q).val, ZMod.val_lt _⟩, ZMod.val_coe_unit_coprime u⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro a
+    apply Subtype.ext
+    apply Fin.ext
+    simp [ZMod.coe_unitOfCoprime, ZMod.val_natCast, Nat.mod_eq_of_lt a.1.isLt]
+  · intro u
+    apply Units.ext
+    simp [ZMod.coe_unitOfCoprime, ZMod.natCast_zmod_val]
+
+private theorem momentCRTUnitMap_apply {w e V : ℕ}
+    (u : (ZMod (masterCRTModulus w e V))ˣ) (p : CRTPrimeRange w V) :
+    (momentCRTUnitMap w e V u p : ZMod p.val) =
+      ((u : ZMod (masterCRTModulus w e V)).cast : ZMod p.val) := by
+  let P := ∏ p : CRTPrimeRange w V, p.val
+  have hpP : p.val ∣ P := Finset.dvd_prod_of_mem _ (Finset.mem_univ p)
+  have hPQ : P ∣ masterCRTModulus w e V := by
+    dsimp [P]
+    exact momentCRTPrimeProduct_dvd_master w e V
+  have hpQ : p.val ∣ masterCRTModulus w e V := Nat.dvd_trans hpP hPQ
+  have hcomp := ZMod.unitsMap_comp hpP hPQ
+  have hunit : momentCRTUnitMap w e V u p = ZMod.unitsMap hpQ u := by
+    change ((momentCRTPrimeUnitsEquiv w V) (ZMod.unitsMap hPQ u)) p = _
+    apply Units.ext
+    change (ZMod.prodEquivPi (fun p : CRTPrimeRange w V => p.val)
+      (momentCRTPrimePairwiseCoprime w V)
+      ((↑(ZMod.unitsMap hPQ u) : ZMod P) :
+        ZMod (∏ p : CRTPrimeRange w V, p.val))) p =
+        (ZMod.unitsMap hpQ u : ZMod p.val)
+    rw [ZMod.prodEquivPi_apply]
+    rw [ZMod.unitsMap_val hPQ u, ZMod.unitsMap_val hpQ u]
+    change (ZMod.castHom hpP (ZMod p.val))
+      ((ZMod.castHom hPQ (ZMod P)) (u : ZMod (masterCRTModulus w e V))) =
+      (ZMod.castHom hpQ (ZMod p.val)) (u : ZMod (masterCRTModulus w e V))
+    rw [← RingHom.comp_apply, ZMod.castHom_comp]
+  rw [hunit, ZMod.unitsMap_val]
+
+private theorem momentCRTProjection_eq_mappedUnit {w e V : ℕ}
+    (hQ : 0 < masterCRTModulus w e V)
+    (a : Fin (masterCRTModulus w e V))
+    (ha : Nat.Coprime a.val (masterCRTModulus w e V)) (p : CRTPrimeRange w V) :
+    (momentCRTProjection w V (masterCRTModulus w e V) a p).val =
+      ((momentCRTUnitMap w e V
+        (momentFinCoprimeEquivUnits (masterCRTModulus w e V) hQ ⟨a, ha⟩) p :
+          ZMod p.val).val) := by
+  have hpPrime : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  letI : NeZero p.val := ⟨hpPrime.ne_zero⟩
+  have hpQ : p.val ∣ masterCRTModulus w e V := by
+    exact Nat.dvd_trans (Finset.dvd_prod_of_mem _ (Finset.mem_univ p))
+      (momentCRTPrimeProduct_dvd_master w e V)
+  have haUnit :
+      (momentFinCoprimeEquivUnits (masterCRTModulus w e V) hQ ⟨a, ha⟩ :
+        ZMod (masterCRTModulus w e V)) = (a.val : ZMod (masterCRTModulus w e V)) := by
+    simp [momentFinCoprimeEquivUnits, ZMod.coe_unitOfCoprime]
+  rw [momentCRTUnitMap_apply]
+  rw [haUnit]
+  simp [momentCRTProjection, momentFinCoprimeEquivUnits,
+    ZMod.coe_unitOfCoprime, ZMod.cast_natCast hpQ, ZMod.val_natCast]
+
+private abbrev MomentCRTUnitTuple (w V : ℕ) :=
+  ∀ p : CRTPrimeRange w V, (ZMod p.val)ˣ
+
+private noncomputable instance momentCRTUnitTupleFintype (w V : ℕ) :
+    Fintype (MomentCRTUnitTuple w V) := by
+  classical
+  letI : Fintype (CRTPrimeRange w V) :=
+    Finset.Subtype.fintype ((Finset.Ioc w (V + 1)).filter Nat.Prime)
+  letI : ∀ p : CRTPrimeRange w V, Fintype (ZMod p.val)ˣ := fun p => Fintype.ofFinite _
+  infer_instance
+
+private noncomputable def momentCRTUniformLaw {w V : ℕ} (r : CRTResidues w V) : ℝ :=
+  ∏ p : CRTPrimeRange w V,
+    if Nat.Coprime (r p).val p.val then 1 / ((p.val - 1 : ℕ) : ℝ) else 0
+
+attribute [local instance] Classical.propDecidable in
+private theorem momentCRTUniformLaw_eq_inv_card {w V : ℕ} (r : CRTResidues w V)
+    (hr : ∀ p : CRTPrimeRange w V, Nat.Coprime (r p).val p.val) :
+    momentCRTUniformLaw r = 1 / (Fintype.card (MomentCRTUnitTuple w V) : ℝ) := by
+  classical
+  letI : Fintype (CRTPrimeRange w V) :=
+    Finset.Subtype.fintype ((Finset.Ioc w (V + 1)).filter Nat.Prime)
+  letI : ∀ p : CRTPrimeRange w V, Fintype (ZMod p.val)ˣ := fun p => Fintype.ofFinite _
+  have hcardN : Fintype.card (MomentCRTUnitTuple w V) =
+      ∏ p : CRTPrimeRange w V, (p.val - 1) := by
+    change Fintype.card (∀ p : CRTPrimeRange w V, (ZMod p.val)ˣ) = _
+    rw [Fintype.card_pi]
+    exact Fintype.prod_congr
+      (fun p : CRTPrimeRange w V => Fintype.card (ZMod p.val)ˣ)
+      (fun p => p.val - 1)
+      (fun p => by
+        letI : NeZero p.val := ⟨(Finset.mem_filter.mp p.property).2.ne_zero⟩
+        rw [ZMod.card_units_eq_totient, Nat.totient_prime
+          ((Finset.mem_filter.mp p.property).2)])
+  have hcardR : (Fintype.card (MomentCRTUnitTuple w V) : ℝ) =
+      ∏ p : CRTPrimeRange w V, ((p.val - 1 : ℕ) : ℝ) := by
+    exact_mod_cast hcardN
+  unfold momentCRTUniformLaw
+  simp_rw [if_pos (hr _)]
+  calc
+    _ = ∏ p : CRTPrimeRange w V, ((p.val - 1 : ℕ) : ℝ)⁻¹ := by
+      apply Finset.prod_congr rfl
+      intro p hp
+      simp
+    _ = (∏ p : CRTPrimeRange w V, ((p.val - 1 : ℕ) : ℝ))⁻¹ := by
+      rw [Finset.prod_inv_distrib]
+    _ = 1 / (Fintype.card (MomentCRTUnitTuple w V) : ℝ) := by
+      rw [hcardR]
+      simp [one_div]
+
+attribute [local instance] Classical.propDecidable in
+private theorem pkgB_uniform_pushforward_finite_group {G H : Type*} [Group G] [Group H]
+    [Fintype G] [Fintype H]
+    (f : G →* H) (hf : Function.Surjective f) (y : H) :
+    ∑ x : G, (1 / (Fintype.card G : ℝ)) * (if f x = y then (1 : ℝ) else 0) =
+      1 / (Fintype.card H : ℝ) := by
+  classical
+  let x₀ : G := Classical.choose (hf y)
+  have hx₀ : f x₀ = y := Classical.choose_spec (hf y)
+  let fiber := {x : G // f x = y}
+  let e : fiber ≃ f.ker := {
+    toFun := fun x : fiber => (⟨x.1 * x₀⁻¹, by
+      change f (x.1 * x₀⁻¹) = 1
+      rw [map_mul, map_inv, x.2, hx₀, mul_inv_cancel]⟩ : f.ker)
+    invFun := fun k : f.ker => (⟨k.1 * x₀, by
+      change f (k.1 * x₀) = y
+      rw [map_mul, k.2, one_mul, hx₀]⟩ : fiber)
+    left_inv x := by
+      apply Subtype.ext
+      change (x.1 * x₀⁻¹) * x₀ = x.1
+      simp [mul_assoc]
+    right_inv k := by
+      apply Subtype.ext
+      change (k.1 * x₀) * x₀⁻¹ = k.1
+      simp [mul_assoc]
+  }
+  have hfiber :
+      ∑ x : G, (if f x = y then (1 : ℝ) else 0) =
+        (Fintype.card f.ker : ℝ) := by
+    calc
+      _ = ((Finset.univ.filter fun x : G => f x = y).card : ℝ) := by
+        rw [← Finset.sum_filter]
+        simp [Finset.sum_const, nsmul_eq_mul]
+      _ = (Fintype.card fiber : ℝ) := by
+        exact_mod_cast (Fintype.card_subtype (fun x : G => f x = y)).symm
+      _ = (Fintype.card f.ker : ℝ) := by
+        exact_mod_cast Fintype.card_congr e
+  have hrange : Fintype.card f.range = Fintype.card H := by
+    exact Fintype.card_congr (Equiv.ofBijective (fun x : f.range => (x : H))
+      ⟨Subtype.val_injective, fun z => ⟨⟨z, hf z⟩, rfl⟩⟩)
+  have hcardN : Fintype.card G = Fintype.card f.ker * Fintype.card H := by
+    rw [← hrange]
+    exact finite_group_kernel_cardinality f
+  have hcardR : (Fintype.card G : ℝ) =
+      (Fintype.card f.ker : ℝ) * (Fintype.card H : ℝ) := by
+    exact_mod_cast hcardN
+  calc
+    _ = (1 / (Fintype.card G : ℝ)) * (Fintype.card f.ker : ℝ) := by
+      rw [← Finset.mul_sum, hfiber]
+    _ = 1 / (Fintype.card H : ℝ) := by rw [hcardR]; field_simp
+
+attribute [local instance] Classical.propDecidable in
+private theorem momentCRTUniformProjectionLaw_eq {w e V : ℕ} (r : CRTResidues w V) :
+    (∑ a : Fin (masterCRTModulus w e V),
+      uniformUnitResidueLaw (masterCRTModulus w e V) a *
+        (if momentCRTProjection w V (masterCRTModulus w e V) a = r then (1 : ℝ) else 0)) =
+      momentCRTUniformLaw r := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hQpos : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQpos⟩
+  let Source := {a : Fin Q // Nat.Coprime a.val Q}
+  let G := (ZMod Q)ˣ
+  let c : ℝ := 1 / (Fintype.card G : ℝ)
+  let ind : Fin Q → ℝ := fun a =>
+    if momentCRTProjection w V Q a = r then 1 else 0
+  let good : Fin Q → Prop := fun a => Nat.Coprime a.val Q
+  let eUnit : Source ≃ G := momentFinCoprimeEquivUnits Q hQpos
+  have hcardR : (Fintype.card G : ℝ) = (Nat.totient Q : ℝ) := by
+    have hcard : Fintype.card (ZMod Q)ˣ = Nat.totient Q :=
+      ZMod.card_units_eq_totient (n := Q)
+    exact_mod_cast hcard
+  have hsource :
+      (∑ a : Fin Q, uniformUnitResidueLaw Q a * ind a) =
+        ∑ a : Source, c * ind a.1 := by
+    have hterm (a : Fin Q) :
+        uniformUnitResidueLaw Q a * ind a =
+          if good a then c * ind a else 0 := by
+      by_cases ha : Nat.Coprime a.val Q <;>
+        by_cases hi : momentCRTProjection w V Q a = r <;>
+        simp [uniformUnitResidueLaw, good, c, ind, ha, hi, hcardR]
+    calc
+      _ = ∑ a : Fin Q, if good a then c * ind a else 0 := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        exact hterm a
+      _ = (∑ a : Source, (if good a.1 then c * ind a.1 else 0)) +
+            ∑ a : {a : Fin Q // ¬ good a}, (if good a.1 then c * ind a.1 else 0) := by
+        exact (Fintype.sum_subtype_add_sum_subtype good
+          (fun a : Fin Q => if good a then c * ind a else 0)).symm
+      _ = ∑ a : Source, c * ind a.1 := by
+        have hgoodSum :
+            (∑ a : Source, (if good a.1 then c * ind a.1 else 0)) =
+              ∑ a : Source, c * ind a.1 := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          exact if_pos a.property
+        have hbadSum :
+            (∑ a : {a : Fin Q // ¬ good a},
+              (if good a.1 then c * ind a.1 else 0)) = 0 := by
+          apply Finset.sum_eq_zero
+          intro a ha
+          exact if_neg a.property
+        rw [hgoodSum, hbadSum]
+        simp
+  by_cases hgood : ∀ p : CRTPrimeRange w V, Nat.Coprime (r p).val p.val
+  · let rUnit : MomentCRTUnitTuple w V := fun p =>
+      ZMod.unitOfCoprime (r p).val (hgood p)
+    let groupInd : G → ℝ := fun u =>
+      @ite ℝ (momentCRTUnitMap w e V u = rUnit)
+        (Classical.propDecidable _) 1 0
+    have hiff (a : Source) :
+        momentCRTProjection w V Q a.1 = r ↔
+          momentCRTUnitMap w e V (eUnit a) = rUnit := by
+      constructor
+      · intro hr
+        funext p
+        have hpPrime : p.val.Prime := (Finset.mem_filter.mp p.property).2
+        letI : NeZero p.val := ⟨hpPrime.ne_zero⟩
+        apply Units.ext
+        apply ZMod.val_injective p.val
+        calc
+          (momentCRTUnitMap w e V (eUnit a) p : ZMod p.val).val =
+              (momentCRTProjection w V Q a.1 p).val :=
+                (momentCRTProjection_eq_mappedUnit hQpos a.1 a.2 p).symm
+          _ = (r p).val := congrArg Fin.val (congrFun hr p)
+          _ = (rUnit p : ZMod p.val).val := by
+                simp [rUnit, ZMod.coe_unitOfCoprime, ZMod.val_natCast,
+                  Nat.mod_eq_of_lt (r p).isLt]
+      · intro hu
+        funext p
+        have hpPrime : p.val.Prime := (Finset.mem_filter.mp p.property).2
+        letI : NeZero p.val := ⟨hpPrime.ne_zero⟩
+        apply Fin.ext
+        have hv := congrArg (fun u : (ZMod p.val)ˣ => (u : ZMod p.val).val)
+          (congrFun hu p)
+        calc
+          (momentCRTProjection w V Q a.1 p).val =
+              (momentCRTUnitMap w e V (eUnit a) p : ZMod p.val).val :=
+                momentCRTProjection_eq_mappedUnit hQpos a.1 a.2 p
+          _ = (r p).val := by
+                simpa [rUnit, ZMod.coe_unitOfCoprime, ZMod.val_natCast,
+                  Nat.mod_eq_of_lt (r p).isLt] using hv
+    have hsumGroup :
+        (∑ a : Source, c * ind a.1) =
+          ∑ u : G, c * groupInd u := by
+      calc
+        _ = ∑ a : Source,
+              c * groupInd (eUnit a) := by
+                apply Finset.sum_congr rfl
+                intro a ha
+                by_cases h : momentCRTProjection w V Q a.1 = r
+                · simp [ind, groupInd, h, (hiff a).mp h]
+                · have hh : momentCRTUnitMap w e V (eUnit a) ≠ rUnit := by
+                    intro hu
+                    exact h ((hiff a).mpr hu)
+                  simp [ind, groupInd, h, hh]
+        _ = ∑ u : G, c * groupInd u :=
+              Fintype.sum_equiv eUnit _ _ (fun _ => rfl)
+    have hgroup := pkgB_uniform_pushforward_finite_group
+      (momentCRTUnitMap w e V) (momentCRTUnitMap_surjective w e V) rUnit
+    calc
+      _ = ∑ a : Source, c * ind a.1 := hsource
+      _ = 1 / (Fintype.card (MomentCRTUnitTuple w V) : ℝ) := by
+            rw [hsumGroup]
+            dsimp [c, groupInd]
+            exact hgroup
+      _ = momentCRTUniformLaw r := (momentCRTUniformLaw_eq_inv_card r hgood).symm
+  · push_neg at hgood
+    obtain ⟨p, hpBad⟩ := hgood
+    have hzero : (∑ a : Source, c * ind a.1) = 0 := by
+      apply Finset.sum_eq_zero
+      intro a ha
+      by_cases h : momentCRTProjection w V Q a.1 = r
+      · have hu := ZMod.val_coe_unit_coprime (momentCRTUnitMap w e V (eUnit a) p)
+        rw [← momentCRTProjection_eq_mappedUnit hQpos a.1 a.2 p] at hu
+        have hr : Nat.Coprime (r p).val p.val := by
+          rw [← congrArg Fin.val (congrFun h p)]
+          exact hu
+        exact (hpBad hr).elim
+      · simp [ind, h]
+    have hLawZero : momentCRTUniformLaw r = 0 := by
+      unfold momentCRTUniformLaw
+      apply Finset.prod_eq_zero (Finset.mem_univ p)
+      simp [hpBad]
+    calc
+      _ = ∑ a : Source, c * ind a.1 := hsource
+      _ = 0 := hzero
+      _ = momentCRTUniformLaw r := hLawZero.symm
+
+private theorem pkgB_finiteL1_pushforward_le {α β : Type*} [Fintype α] [Fintype β]
+    [DecidableEq β] (f : α → β) (μ ν : α → ℝ) :
+    finiteL1
+      (fun b => ∑ a, μ a * if f a = b then (1 : ℝ) else 0)
+      (fun b => ∑ a, ν a * if f a = b then (1 : ℝ) else 0) ≤ finiteL1 μ ν := by
+  classical
+  unfold finiteL1
+  have hdiff (b : β) :
+      (∑ a, μ a * (if f a = b then (1 : ℝ) else 0)) -
+        (∑ a, ν a * (if f a = b then (1 : ℝ) else 0)) =
+      ∑ a, (μ a - ν a) * (if f a = b then (1 : ℝ) else 0) := by
+    calc
+      _ = ∑ a ∈ (Finset.univ : Finset α),
+            (μ a * (if f a = b then (1 : ℝ) else 0) -
+              ν a * (if f a = b then (1 : ℝ) else 0)) := by
+          change
+            (∑ a ∈ (Finset.univ : Finset α), μ a *
+                (if f a = b then (1 : ℝ) else 0)) -
+              ∑ a ∈ (Finset.univ : Finset α), ν a *
+                (if f a = b then (1 : ℝ) else 0) = _
+          rw [← Finset.sum_sub_distrib]
+      _ = ∑ a, (μ a - ν a) * (if f a = b then (1 : ℝ) else 0) := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          ring
+  calc
+    _ = ∑ b, |∑ a, (μ a - ν a) * if f a = b then (1 : ℝ) else 0| := by
+      apply Finset.sum_congr rfl
+      intro b hb
+      rw [← hdiff b]
+    _ ≤ ∑ b, ∑ a, |(μ a - ν a) * if f a = b then (1 : ℝ) else 0| := by
+      apply Finset.sum_le_sum
+      intro b hb
+      exact Finset.abs_sum_le_sum_abs _ _
+    _ = ∑ a, |μ a - ν a| := by
+      rw [Finset.sum_comm]
+      apply Finset.sum_congr rfl
+      intro a ha
+      calc
+        _ = ∑ b, if f a = b then |μ a - ν a| else 0 := by
+          apply Finset.sum_congr rfl
+          intro b hb
+          by_cases h : f a = b <;> simp [h, abs_mul]
+        _ = |μ a - ν a| := by simp
+
+private noncomputable def momentPrimePoolSupport (lo hi : ℕ) : Finset ℕ :=
+  (Finset.Ico lo hi).filter Nat.Prime
+
+private theorem momentPrimePoolLaw_zero_of_not_mem (lo hi p : ℕ)
+    (hp : p ∉ momentPrimePoolSupport lo hi) : primePoolLaw lo hi p = 0 := by
+  have hcond : ¬(lo ≤ p ∧ p < hi ∧ p.Prime) := by
+    intro h
+    exact hp (Finset.mem_filter.mpr ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩)
+  simp [primePoolLaw, hcond]
+
+private theorem momentPrimePoolResidueLaw_eq_sum {lo hi Q : ℕ} (a : Fin Q) :
+    primePoolResidueLaw lo hi Q a =
+      ∑ p ∈ momentPrimePoolSupport lo hi,
+        primePoolLaw lo hi p * if p % Q = a.val then (1 : ℝ) else 0 := by
+  classical
+  unfold primePoolResidueLaw
+  rw [Finset.sum_div]
+  apply Finset.sum_congr rfl
+  intro p hp
+  have hpIco : p ∈ Finset.Ico lo hi := (Finset.mem_filter.mp hp).1
+  have hcond : lo ≤ p ∧ p < hi ∧ p.Prime :=
+    ⟨(Finset.mem_Ico.mp hpIco).1, (Finset.mem_Ico.mp hpIco).2,
+      (Finset.mem_filter.mp hp).2⟩
+  by_cases hres : p % Q = a.val <;> simp [primePoolLaw, hcond, hres]
+
+private theorem momentCRTProjection_integerCRTResidues {w e V : ℕ} (n : ℕ) :
+    integerCRTResidues w V n =
+      momentCRTProjection w V (masterCRTModulus w e V)
+        ⟨n % masterCRTModulus w e V, Nat.mod_lt _ (by
+          have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+            Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+          rw [masterCRTModulus]
+          exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod)⟩ := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hQ : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  funext p
+  apply Fin.ext
+  have hpPrime : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  have hpQ : p.val ∣ Q := Nat.dvd_trans
+    (Finset.dvd_prod_of_mem _ (Finset.mem_univ p))
+    (momentCRTPrimeProduct_dvd_master w e V)
+  simp [integerCRTResidues, momentCRTProjection, Q, Nat.mod_mod_of_dvd n hpQ]
+
+private theorem momentPrimePoolCRTProjectionLaw_eq {w e V lo hi : ℕ}
+    (r : CRTResidues w V) :
+    (∑' n : ℕ, primePoolLaw lo hi n *
+      (if integerCRTResidues w V n = r then (1 : ℝ) else 0)) =
+      ∑ a : Fin (masterCRTModulus w e V),
+        primePoolResidueLaw lo hi (masterCRTModulus w e V) a *
+          (if momentCRTProjection w V (masterCRTModulus w e V) a = r then
+            (1 : ℝ) else 0) := by
+  classical
+  let Q := masterCRTModulus w e V
+  let S := momentPrimePoolSupport lo hi
+  have hQpos : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  have hzero (n : ℕ) (hn : n ∉ S) :
+      primePoolLaw lo hi n *
+        (if integerCRTResidues w V n = r then (1 : ℝ) else 0) = 0 := by
+    rw [momentPrimePoolLaw_zero_of_not_mem lo hi n (by simpa [S] using hn)]
+    simp
+  have hresidue (n : ℕ) :
+      ∑ a : Fin Q, (if n % Q = a.val then (1 : ℝ) else 0) *
+        (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) =
+      (if momentCRTProjection w V Q
+          ⟨n % Q, Nat.mod_lt _ hQpos⟩ = r then (1 : ℝ) else 0) := by
+    let a₀ : Fin Q := ⟨n % Q, Nat.mod_lt _ hQpos⟩
+    have hcond (a : Fin Q) : n % Q = a.val ↔ a = a₀ := by
+      constructor
+      · intro h
+        apply Fin.ext
+        exact h.symm
+      · intro h
+        simpa [a₀] using congrArg Fin.val h.symm
+    calc
+      _ = ∑ a : Fin Q,
+            if a = a₀ then
+              (if momentCRTProjection w V Q a₀ = r then (1 : ℝ) else 0) else 0 := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          by_cases ha₀ : a = a₀
+          · subst a
+            simp [a₀]
+          · have hnot : n % Q ≠ a.val := by
+              intro h
+              exact ha₀ ((hcond a).mp h)
+            simp [ha₀, hnot]
+      _ = (if momentCRTProjection w V Q a₀ = r then (1 : ℝ) else 0) := by
+        simp [a₀]
+  have hcrt (n : ℕ) :
+      integerCRTResidues w V n =
+        momentCRTProjection w V Q ⟨n % Q, Nat.mod_lt _ hQpos⟩ := by
+    simpa [Q] using momentCRTProjection_integerCRTResidues (w := w) (e := e) (V := V) n
+  have hproject (n : ℕ) :
+      (if integerCRTResidues w V n = r then (1 : ℝ) else 0) =
+        ∑ a : Fin Q, (if n % Q = a.val then (1 : ℝ) else 0) *
+          (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+    rw [hcrt n]
+    exact (hresidue n).symm
+  calc
+    _ = ∑ n ∈ S, primePoolLaw lo hi n *
+          (if integerCRTResidues w V n = r then (1 : ℝ) else 0) := by
+        rw [tsum_eq_sum (s := S) hzero]
+    _ = ∑ n ∈ S, primePoolLaw lo hi n *
+          ∑ a : Fin Q,
+            (if n % Q = a.val then (1 : ℝ) else 0) *
+              (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro n hn
+        rw [hproject n]
+    _ = ∑ n ∈ S, ∑ a : Fin Q,
+          primePoolLaw lo hi n * (if n % Q = a.val then (1 : ℝ) else 0) *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro n hn
+        calc
+          _ = ∑ a : Fin Q,
+                primePoolLaw lo hi n *
+                  ((if n % Q = a.val then (1 : ℝ) else 0) *
+                    (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0)) :=
+              Finset.mul_sum (Finset.univ : Finset (Fin Q))
+                (fun a => (if n % Q = a.val then (1 : ℝ) else 0) *
+                  (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0))
+                (primePoolLaw lo hi n)
+          _ = ∑ a : Fin Q,
+                (primePoolLaw lo hi n * (if n % Q = a.val then (1 : ℝ) else 0)) *
+                  (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+                apply Finset.sum_congr rfl
+                intro a ha
+                ring
+    _ = ∑ a : Fin Q, ∑ n ∈ S,
+          primePoolLaw lo hi n * (if n % Q = a.val then (1 : ℝ) else 0) *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        rw [Finset.sum_comm]
+    _ = ∑ a : Fin Q,
+          primePoolResidueLaw lo hi Q a *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [← Finset.sum_mul, momentPrimePoolResidueLaw_eq_sum]
+
+private noncomputable def momentPrimePoolCRTActualLaw (w V lo hi : ℕ)
+    (r : CRTResidues w V) : ℝ :=
+  ∑' n : ℕ, primePoolLaw lo hi n *
+    (if integerCRTResidues w V n = r then (1 : ℝ) else 0)
+
+private theorem momentPrimeTupleCRTLaw_eq_prod {m w V : ℕ}
+    (lo upper : Fin m → ℕ) (r : Fin m → CRTResidues w V) :
+    primeTupleCRTLaw lo upper w V r =
+      ∏ i : Fin m, momentPrimePoolCRTActualLaw w V (lo i) (upper i) (r i) := by
+  classical
+  let S : Fin m → Finset ℕ := fun i => momentPrimePoolSupport (lo i) (upper i)
+  let T : Finset (Fin m → ℕ) := Fintype.piFinset S
+  let f : Fin m → ℕ → ℝ := fun i n => primePoolLaw (lo i) (upper i) n *
+    (if integerCRTResidues w V n = r i then (1 : ℝ) else 0)
+  have hindicator (p : Fin m → ℕ) :
+      (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) =
+        ∏ i : Fin m, if integerCRTResidues w V (p i) = r i then (1 : ℝ) else 0 := by
+    by_cases hEq : (fun i => integerCRTResidues w V (p i)) = r
+    · subst r
+      simp
+    · have hne : ∃ i, integerCRTResidues w V (p i) ≠ r i := by
+        by_contra h
+        apply hEq
+        funext i
+        exact not_ne_iff.mp (not_exists.mp h i)
+      obtain ⟨i, hrow⟩ := hne
+      simp only [if_neg hEq]
+      exact (Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hrow])).symm
+  have hterm (p : Fin m → ℕ) :
+      independentPrimePoolMass lo upper p *
+        (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) =
+      ∏ i : Fin m, f i (p i) := by
+    unfold independentPrimePoolMass
+    rw [hindicator]
+    rw [← Finset.prod_mul_distrib]
+  have hzero (p : Fin m → ℕ) (hp : p ∉ T) :
+      independentPrimePoolMass lo upper p *
+        (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) = 0 := by
+    rw [hterm p]
+    have hnot : ¬∀ i : Fin m, p i ∈ S i := by simpa [T] using hp
+    obtain ⟨i, hmem⟩ := not_forall.mp hnot
+    have hlaw : primePoolLaw (lo i) (upper i) (p i) = 0 :=
+      momentPrimePoolLaw_zero_of_not_mem (lo i) (upper i) (p i)
+        (by simpa [S] using hmem)
+    have hfi : f i (p i) = 0 := by simp [f, hlaw]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hfi
+  calc
+    _ = ∑ p ∈ T, independentPrimePoolMass lo upper p *
+          (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) := by
+        unfold primeTupleCRTLaw
+        rw [tsum_eq_sum (s := T) hzero]
+    _ = ∑ p ∈ T, ∏ i : Fin m, f i (p i) := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        exact hterm p
+    _ = ∏ i : Fin m, ∑ n ∈ S i, f i n := by
+        symm
+        exact Finset.prod_univ_sum S f
+    _ = ∏ i : Fin m, momentPrimePoolCRTActualLaw w V (lo i) (upper i) (r i) := by
+        apply Finset.prod_congr rfl
+        intro i himem
+        unfold momentPrimePoolCRTActualLaw
+        symm
+        apply tsum_eq_sum (s := S i)
+        intro n hn
+        have hlaw : primePoolLaw (lo i) (upper i) n = 0 :=
+          momentPrimePoolLaw_zero_of_not_mem (lo i) (upper i) n
+            (by simpa [S] using hn)
+        simp [f, hlaw]
+
 end Prediction
 
 end HindmanSumsProducts
