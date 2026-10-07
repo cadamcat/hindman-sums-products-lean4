@@ -4095,6 +4095,144 @@ theorem pkgElim_harmonicResidueError_mono {X W k K : ℕ}
   unfold FromArithmetic.harmonicResidueUniformError FromArithmetic.harmonicResidueError
   exact div_le_div_of_nonneg_right hnum hden.le
 
+theorem pkgElim_superPolynomialSmall_monoScale {e V T : ℕ → ℝ}
+    (hsmall : SuperPolynomialSmall e T) (hVpos : ∀ N, 0 < V N)
+    (hVleT : ∀ N, V N ≤ T N) (heNonneg : ∀ N, 0 ≤ e N) :
+    SuperPolynomialSmall e V := by
+  intro c hc
+  have htop := hsmall c hc
+  have hbound : ∀ᶠ N in atTop, e N * V N ^ c ≤ e N * T N ^ c := by
+    filter_upwards [] with N
+    have hp := Real.rpow_le_rpow (le_of_lt (hVpos N)) (hVleT N) hc.le
+    exact mul_le_mul_of_nonneg_left hp (heNonneg N)
+  exact squeeze_zero' (Filter.Eventually.of_forall fun N =>
+    mul_nonneg (heNonneg N) (Real.rpow_nonneg (le_of_lt (hVpos N)) _)) hbound htop
+
+theorem pkgElim_superPolynomialSmall_constMul {e V : ℕ → ℝ}
+    (hsmall : SuperPolynomialSmall e V) (c : ℝ) :
+    SuperPolynomialSmall (fun N => c * e N) V := by
+  intro r hr
+  have h := hsmall r hr
+  simpa [mul_assoc] using (tendsto_const_nhds.mul h)
+
+theorem pkgElim_superPolynomialSmall_add {e f V : ℕ → ℝ}
+    (he : SuperPolynomialSmall e V) (hf : SuperPolynomialSmall f V) :
+    SuperPolynomialSmall (fun N => e N + f N) V := by
+  intro r hr
+  simpa [add_mul] using (he r hr).add (hf r hr)
+
+theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (Sh : RowShape m q r)
+    (J0 B : ℕ) (hJ0 : 0 < J0) :
+    SuperPolynomialSmall (fun N => pkgElim_momentBaseError S C Sh J0 B N)
+      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+  classical
+  let V : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  let T : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper + V N
+  have hVtendsto : Tendsto (fun N => (V N : ℝ)) atTop atTop :=
+    pkgElim_masterScaleV_tendsto S.core.parameters C.gap
+  have hTtendsto : Tendsto (fun N => (T N : ℝ)) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ hVtendsto
+    filter_upwards [] with N
+    dsimp [T]
+    exact_mod_cast Nat.le_add_left (V N) (S.primeStage.pool N C.gap).upper
+  have hTnat : ∀ N, 2 ≤ T N := by
+    intro N
+    dsimp [T, V]
+    have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+      unfold masterScaleV
+      omega
+    omega
+  have hT1 : ∀ᶠ N in atTop, 1 ≤ T N :=
+    Filter.Eventually.of_forall fun N => le_trans (by omega) (hTnat N)
+  have hT1R : ∀ᶠ N in atTop, 1 ≤ (T N : ℝ) := by
+    filter_upwards [hT1] with N hN
+    exact_mod_cast hN
+  have hDom : OAI.MicrocellScale.Dominates
+      (fun N => (S.core.parameters.H N C.gap : ℝ)) (fun N => (T N : ℝ)) := by
+    simpa [T] using S.gapStage.gap_dominates_pool_and_bound C.gap
+  let oldErr : ℕ → ℝ := fun N => pkgElim_momentOldResidueError S C Sh J0 B N
+  have hOldT : SuperPolynomialSmall oldErr (fun N => (T N : ℝ)) := by
+    simpa [oldErr, pkgElim_momentOldResidueError, T, V] using
+      (intervalResidueError_superpoly_of_dominance hT1 hTtendsto hDom J0 B
+        (Fintype.card (Occurrence Sh)) hJ0)
+  have hVpos : ∀ N, 0 < (V N : ℝ) := by
+    intro N
+    dsimp [V, masterScaleV]
+    positivity
+  have hVleT : ∀ N, (V N : ℝ) ≤ (T N : ℝ) := by
+    intro N
+    dsimp [T]
+    exact_mod_cast Nat.le_add_left (V N) (S.primeStage.pool N C.gap).upper
+  have hOldNonneg : ∀ N, 0 ≤ oldErr N := by
+    intro N
+    dsimp [oldErr, pkgElim_momentOldResidueError]
+    positivity
+  have hOldV := pkgElim_superPolynomialSmall_monoScale hOldT hVpos hVleT hOldNonneg
+  let rootErr : ℕ → ℝ := fun N => pkgElim_momentRootResidueError S C Sh N
+  have hRootRatio : SuperPolynomialSmall
+      (fun N => (T N : ℝ) ^ Fintype.card (Occurrence Sh) /
+        S.core.parameters.H N C.gap) (fun N => (T N : ℝ)) := by
+    exact microcellDominates_ratio_superPolynomial hT1R hDom (Fintype.card (Occurrence Sh))
+  have hRootT : SuperPolynomialSmall rootErr (fun N => (T N : ℝ)) := by
+    simpa [rootErr, pkgElim_momentRootResidueError, T, V, div_eq_mul_inv,
+      mul_assoc, mul_left_comm, mul_comm] using
+      (pkgElim_superPolynomialSmall_constMul hRootRatio 2)
+  have hRootNonneg : ∀ N, 0 ≤ rootErr N := by
+    intro N
+    dsimp [rootErr, pkgElim_momentRootResidueError, T, V]
+    positivity
+  have hRootV := pkgElim_superPolynomialSmall_monoScale hRootT hVpos hVleT hRootNonneg
+  have hPivot : SuperPolynomialSmall
+      (fun N => ∑ k : Fin m, FromArithmetic.harmonicResidueUniformError
+        (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
+        (V N ^ Fintype.card (Occurrence Sh)))
+      (fun N => (V N : ℝ)) := by
+    apply superPolynomialSmall_fintype_sum
+    intro k
+    exact chainPivot_harmonicResidueError_superpoly
+      (q := Fintype.card (Occurrence Sh)) S C k
+  have hOldScaled := pkgElim_superPolynomialSmall_constMul hOldV
+    (((2 * Fintype.card (NonTarget Sh) : ℕ) : ℝ))
+  have hRootScaled := pkgElim_superPolynomialSmall_constMul hRootV 2
+  have hsum := pkgElim_superPolynomialSmall_add hPivot hOldScaled
+  have hsum := pkgElim_superPolynomialSmall_add hsum hRootScaled
+  simpa [pkgElim_momentBaseError, V, oldErr, rootErr] using hsum
+
+theorem pkgElim_momentCRTError_superpolynomial {K m q r s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 B : ℕ)
+    (hGlobalEvent : ∀ᶠ N in atTop,
+      pkgElim_momentGlobalData S C a Sh dirs tests J0 B N) :
+    SuperPolynomialSmall (fun N => pkgElim_momentCRTError S C a Sh dirs tests J0 B N)
+      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+  classical
+  let V : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  let lo : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).lower
+  let hi : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper
+  let e : ℕ → ℕ := fun N => S.primeStage.e0 N
+  let δ : ℕ → ℝ := fun N => finiteL1
+    (primePoolResidueLaw (lo N) (hi N)
+      (FromArithmetic.masterCRTModulus (N + 1) (e N) (V N)))
+    (uniformUnitResidueLaw (FromArithmetic.masterCRTModulus (N + 1) (e N) (V N)))
+  have hδ : SuperPolynomialSmall δ (fun N => (V N : ℝ)) := by
+    simpa [δ, lo, hi, e, V] using S.primeStage.pool_residue_error C.gap
+  have hscaled : SuperPolynomialSmall (fun N => (s : ℝ) * δ N) (fun N => (V N : ℝ)) := by
+    intro c hc
+    have h := hδ c hc
+    simpa [mul_assoc, mul_left_comm, mul_comm] using
+      (tendsto_const_nhds.mul h)
+  intro c hc
+  have heq : (fun N => pkgElim_momentCRTError S C a Sh dirs tests J0 B N *
+        (masterScaleV S.core.parameters N C.gap : ℝ) ^ c) =ᶠ[atTop]
+      fun N => (s : ℝ) * δ N * (V N : ℝ) ^ c := by
+    filter_upwards [hGlobalEvent] with N hN
+    simp [pkgElim_momentCRTError, hN, δ, lo, hi, e, V]
+  exact (tendsto_congr' heq).2 (hscaled c hc)
+
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
