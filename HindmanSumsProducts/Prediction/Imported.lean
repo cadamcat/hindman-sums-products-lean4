@@ -127,11 +127,12 @@ structure MasterScaleWitness (K : ℕ) where
   gap_growth : ∀ j,
     dominatesPowers (fun N => R N j)
       (fun N => (primeUpper N j : ℝ) + masterComplexityScale M X N j)
-  /-- The unlisted divisibilities are precisely the finitely many polynomial tests in the input
-  template list `𝒟`; values zero and small-prime exceptional tuples are removed as in §3. -/
+  -- GAP: expand these three predicates as the exact polynomial-divisibility, small-prime
+  -- exception-probability, and CRT-residue formulas from §3 before freezing this package.
   templateDivisibility : Prop
   smallPrimeExceptionalProbability : Prop
   residueUniformity : Prop
+  -- GAP: expand the eventual rational-scale integrality and adding-ratio clauses from §3.
   smoothAddedBlockRatios : Prop
 
 /-- §3, Lemma `lem:master-scales` (lines 197–252): choose the scales, cutoffs, prime pools, and
@@ -211,6 +212,8 @@ structure WeightedLinearFormsSystem (q d : ℕ) where
   epsilonCRT : ℝ
   impliedErrorConstant : ℝ
   impliedErrorConstant_nonneg : 0 ≤ impliedErrorConstant
+  -- GAP: expand the total-variation residue hypothesis (1), row-minor hypothesis (2), and CRT
+  -- law in Proposition `prop:linear-forms`; these markers are not the final statement.
   uniformBaseResidues : Prop
   independentRowsAtRoughPrimes : Prop
   crtResidualPrimeLaw : Prop
@@ -237,6 +240,8 @@ theorem weighted_linear_forms_restricted {q d : ℕ}
 structure AdditiveEliminationInstance (d : ℕ) where
   initialAverage : ℕ → ℝ
   targetCubeAverage : ℕ → ℝ
+  -- GAP: replace these markers by the actual row forms, translation directions, and sampling
+  -- bounds in the paper's weighted Cauchy–Schwarz hypothesis.
   rowBounds : Prop
   rowDirections : Prop
   samplingErrors : Prop
@@ -266,6 +271,8 @@ structure CorrelationTestInstance (m : ℕ) where
   C_nonneg : 0 ≤ C
   theta_pos : 0 < theta
   theta_le_one : theta ≤ 1
+  -- GAP: expand the fixed polynomial template, normalized good-prime-tuple law, and shift
+  -- distribution from Lemma `lem:row-directions` and Proposition `prop:correlation-test`.
   fixedTemplate : Prop
   goodPrimeTupleLaw : Prop
   shiftsHaveLawOfDualTest : Prop

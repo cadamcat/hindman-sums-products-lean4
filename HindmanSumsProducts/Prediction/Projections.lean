@@ -9,12 +9,17 @@ namespace HindmanSumsProducts.Prediction
 represents `P_{i,l}`; `represented i l f` means the family belongs to `𝒩_{i,l}`. -/
 structure HilbertGapProjectionSystem (n : ℕ) where
   base : GapProjection n
+  inner : (i : Fin n) → (ℕ → ℤ → ℝ) → (ℕ → ℤ → ℝ) → ℝ
+  inner_cauchy_schwarz : ∀ i f g,
+    |inner i f g| ≤ base.norm i f * base.norm i g
   represented : (i l : Fin n) → l < i → (ℕ → ℤ → ℝ) → Prop
   nested_subspace_inclusion : ∀ (i l l' : Fin n) (h : l < i) (h' : l' < i)
     (hll' : l < l') (v : ℕ → ℤ → ℝ),
       represented i l' h' v → represented i l h v
   project_represented : ∀ i l (h : l < i) f,
     represented i l h (base.project i l h f)
+  project_pairing : ∀ i l (h : l < i) f g, represented i l h g →
+    inner i (base.project i l h f) g = inner i f g
   nested_projection_identity : ∀ (i l l' : Fin n) (h : l < i) (h' : l' < i)
     (_hll' : l < l') (v : ℕ → ℤ → ℝ),
       base.norm i (base.project i l h v - base.project i l' h' v) ^ 2 =
@@ -56,6 +61,8 @@ structure EnergySelectionContext (M r : ℕ) (As : Finset ℚ) where
       (a : ℚ) → a ∈ As → Fin r → ℝ
   energy_range : ∀ B l hT hl a ha c,
     0 ≤ energy B l hT hl a ha c ∧ energy B l hT hl a ha c ≤ 1
+  -- GAP: spell out that `energy` is the squared projection norm and that coarse projection
+  -- approximants are finite combinations of the representing families from §5, lines 398–419.
   energy_is_projection_energy : Prop
   coarseApproximation : Prop
 
@@ -135,14 +142,43 @@ theorem short_cube_to_subgroup_norm (d : ℕ) (J0 : ℕ) (hJ0 : 0 < J0) :
         |S.shortCube N| ≤ S.constant * S.subgroupNorm N + C / J0 + ε := by
   sorry
 
-/-- A positive global finite `U^t` norm produces one of the fixed-list GTZ correlators on
-positive-probability many cyclic cells; the combined piecewise sequence has bounded complexity. -/
-theorem global_gowers_norm_forces_piecewise_correlation
-    (t : ℕ) (ht : 2 ≤ t) (δ : ℝ) (hδ : 0 < δ) :
-    ∃ c : ℝ, 0 < c ∧ ∀ (α : ℕ → ℝ) (cellCorrelation : ℕ → ℝ),
-      (∀ N, 0 ≤ α N) →
-      (∀ᶠ N in atTop, δ ≤ cellCorrelation N) →
-      ∀ ε > 0, ∀ᶠ N in atTop, c - ε ≤ α N := by
+/-- Finite cell decomposition for the global `U^t` norm in (eq:prediction-cyclic-interval).
+The moment identity is exactly the cellwise decomposition of the global cube mean. -/
+structure FiniteCellGowersData (t : ℕ) where
+  Cell : Type
+  [cellFintype : Fintype Cell]
+  [cellDecidableEq : DecidableEq Cell]
+  weight : Cell → ℝ
+  weight_nonneg : ∀ C, 0 ≤ weight C
+  weight_sum_one : ∑ C, weight C = 1
+  localNorm : Cell → ℝ
+  localNorm_nonneg : ∀ C, 0 ≤ localNorm C
+  localNorm_le_one : ∀ C, localNorm C ≤ 1
+  globalNorm : ℝ
+  globalNorm_nonneg : 0 ≤ globalNorm
+  moment_identity : globalNorm ^ (2 ^ t) =
+    ∑ C, weight C * localNorm C ^ (2 ^ t)
+
+attribute [instance] FiniteCellGowersData.cellFintype
+  FiniteCellGowersData.cellDecidableEq
+
+/-- The cells with local `U^t` norm at least `δ/2` have total probability at least
+`δ^(2^t)/2`, as used in §5, lines 644–652. -/
+theorem global_gowers_norm_large_cells {t : ℕ} (S : FiniteCellGowersData t)
+    (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hglobal : δ ≤ S.globalNorm) :
+    δ ^ (2 ^ t) / 2 ≤
+      ∑ C, S.weight C * (if δ / 2 ≤ S.localNorm C then 1 else 0) := by
+  sorry
+
+/-- A piecewise nilsequence with positive Hilbert pairing forces the fine orthogonal projection
+to have at least that norm. This is the final orthogonality/Cauchy–Schwarz step in §5, lines
+667–674. -/
+theorem projection_lower_bound_of_correlator {n : ℕ}
+    (P : HilbertGapProjectionSystem n) (i l : Fin n) (hl : l < i)
+    (h : ℕ → ℤ → ℝ) (V : ℕ → ℤ → ℝ) (c : ℝ)
+    (hc : 0 < c) (hVrep : P.represented i l hl V)
+    (hVnorm : P.base.norm i V ≤ 1) (hcor : c ≤ P.inner i h V) :
+    c ≤ fineProjectionNorm P i l hl h := by
   sorry
 
 /-- Cyclic-to-interval comparison from (eq:prediction-cyclic-interval), §5, lines 601–642. The
@@ -155,19 +191,6 @@ theorem cyclic_to_interval_cube_mean (t q K : ℕ) [NeZero q]
         ∏ ω : Finset (Fin t), v (x + ∑ j ∈ ω, a j)) /
         ((Fintype.card (ZMod q) : ℝ) ^ (t + 1))| ≤
       (t + 1 : ℝ) ^ 3 / K := by
-  sorry
-
-/-- A nonprincipal-ultrafilter set of global norms bounded below by `δ` gives a fixed positive
-projection onto the fine nilsequence subspace. The lower bound depends only on `t,δ` and the
-finite GTZ menu. -/
-theorem global_norm_forces_fine_projection {n : ℕ} (P : HilbertGapProjectionSystem n)
-    (i l : Fin n) (hl : l < i) (U : Ultrafilter ℕ)
-    (hU : (U : Filter ℕ) ≤ Filter.cofinite)
-    (t : ℕ) (ht : 2 ≤ t) (δ : ℝ) (hδ : 0 < δ)
-    (h : ℕ → ℤ → ℝ) (hbound : ∀ N y, |h N y| ≤ 1)
-    (globalNorm : ℕ → ℝ) (hlarge : ∀ᶠ N in (U : Filter ℕ), δ ≤ globalNorm N) :
-    ∃ c : ℝ, 0 < c ∧ ∀ᶠ N in (U : Filter ℕ),
-      c ≤ fineProjectionNorm P i l hl h := by
   sorry
 
 /-- From subgroup cubes to a fine nilsequence projection, Lemma `lem:subgroup-inverse`,

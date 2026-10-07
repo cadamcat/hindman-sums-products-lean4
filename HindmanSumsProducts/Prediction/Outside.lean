@@ -106,6 +106,8 @@ structure FiniteBesselSystem (k : ℕ) where
   highNorm_nonneg : ∀ i j, 0 ≤ highNorm i j
   lowNorm_nonneg : ∀ i, 0 ≤ lowNorm i
   functionBounded : Prop
+  -- GAP: instantiate these values with an explicit finite probability action and subgroups
+  -- `Qα`; the outside theorem statement below currently packages that interpretation.
   subgroupNormInterpretation : Prop
 
 attribute [instance] FiniteBesselSystem.indexFintype
