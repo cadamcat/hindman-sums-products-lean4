@@ -2384,6 +2384,41 @@ theorem exists_maskShape_after_list {m : ℕ} (Jstar : Finset (Fin m))
         _ ≤ 2 * (maskCount m * 2 ^ rest.length) := Nat.mul_le_mul_left 2 hr
         _ = maskCount m * 2 ^ (rest.length + 1) := by rw [pow_succ]; ring
 
+def nonemptyMaskFinset (m : ℕ) : Finset (Finset (Fin m)) :=
+  Finset.univ.filter Finset.Nonempty
+
+theorem nonemptyMaskFinset_card (m : ℕ) :
+    (nonemptyMaskFinset m).card = maskCount m := by
+  classical
+  have hcard : Fintype.card {U : Finset (Fin m) // U.Nonempty} =
+      (nonemptyMaskFinset m).card := by
+    apply Fintype.card_of_subtype (nonemptyMaskFinset m)
+    intro U
+    simp [nonemptyMaskFinset]
+  calc
+    (nonemptyMaskFinset m).card = Fintype.card {U : Finset (Fin m) // U.Nonempty} := hcard.symm
+    _ = maskCount m := card_nonempty_mask_subsets m
+
+theorem exists_maskRowShape (m : ℕ) (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jstar.card) :
+    ∃ (q r : ℕ) (Sh : RowShape m q r), q ≤ 2 * maskCount m ∧
+      r ≤ maskRowBound m ∧ (Sh.row Sh.star).support = Jstar := by
+  classical
+  let Ulist := (nonemptyMaskFinset m).toList
+  have hMasks : ∀ U ∈ Ulist, U.Nonempty := by
+    intro U hU
+    have hU' : U ∈ nonemptyMaskFinset m := by simpa [Ulist] using hU
+    exact (Finset.mem_filter.mp hU').2
+  obtain ⟨q, r, Sh, hq, hr, hstar⟩ :=
+    exists_maskShape_after_list Jstar hJ Ulist hMasks
+  have hlen : Ulist.length = maskCount m := by
+    dsimp [Ulist]
+    simp [nonemptyMaskFinset_card]
+  refine ⟨q, r, Sh, ?_, ?_, hstar⟩
+  · rw [hq, hlen]
+  · unfold maskRowBound
+    rw [hlen] at hr
+    exact hr
+
 theorem initialMaskRemovalState_valid {m K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (Jstar : Finset (Fin m))
