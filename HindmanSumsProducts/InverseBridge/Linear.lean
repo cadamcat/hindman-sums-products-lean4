@@ -1380,4 +1380,19 @@ theorem evLin_conjugation_shift {L : Type*} [LieRing L] [LieAlgebra ℚ L]
     _ = VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c) Q := by
           rw [VectorPolynomial.eval_translate]
 
+/-- The adjoint polynomial sum itself shifts evaluation by the same amount. -/
+theorem evLin_adjoint_sum {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (hs : 0 < s)
+    (c : ℚ) (m : ℤ) (Q : Poly F) :
+    evLin F m (∑ j ∈ Finset.range (2 * s + 1),
+      ((j.factorial : ℚ)⁻¹) •
+        ((LieAlgebra.ad ℚ (Lin F) (c • Dhat F)) ^ j)
+          (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q)) =
+      VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c)
+        (Q : VectorPolynomial Unit ℚ L) := by
+  have h := evLin_conjugation_shift F hs c m Q
+  rw [AssemblyAdjoint.lieBCH_conj_eq_exp_ad_aux
+    ((weightFiltration F hs).lowerCentralSeries_eq_bot)] at h
+  exact h
+
 end HindmanSumsProducts.InverseBridge
