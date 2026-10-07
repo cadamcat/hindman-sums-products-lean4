@@ -657,7 +657,509 @@ theorem modelMean_sub_chainCount {n m s : ℕ} {A : Parameters K} {A' : Paramete
     (hμ : ∀ N (hX : ∀ i, 4 * primorial (N + 1) ≤ A'.X N i), μ N = A'.law N hX) :
     Tendsto (fun N => modelIntegrandMeanUnder S (μ N) N χ c b B' -
       chainCount A χ C (fun d => blockScale b (B' d)) N c (Sm N)) atTop (𝓝 0) := by
-  sorry
+  classical
+  obtain ⟨Aplus, hXplus, hXplusEq⟩ := parameters_allRawCutoffs_eventually_eq A'
+  have hXAevent : ∀ᶠ N in atTop, ∀ j,
+      4 * primorial (N + 1) ≤ A.X N j := by
+    have hall : ∀ᶠ N in atTop, ∀ j ∈ (Finset.univ : Finset (Fin K)),
+        4 * primorial (N + 1) ≤ A.X N j := by
+      apply (eventually_all_finset (Finset.univ : Finset (Fin K))).2
+      intro j hj
+      exact A.eventual_X j
+    filter_upwards [hall] with N hN
+    intro j
+    exact hN j (Finset.mem_univ j)
+  have hXA'event : ∀ᶠ N in atTop, ∀ i,
+      4 * primorial (N + 1) ≤ A'.X N i := by
+    have hall : ∀ᶠ N in atTop, ∀ i ∈ (Finset.univ : Finset (Fin n)),
+        4 * primorial (N + 1) ≤ A'.X N i := by
+      apply (eventually_all_finset (Finset.univ : Finset (Fin n))).2
+      intro i hi
+      exact A'.eventual_X i
+    filter_upwards [hall] with N hN
+    intro i
+    exact hN i (Finset.mem_univ i)
+  let a : Fin m → ℚ := fun d => blockScale b (B' d)
+  let V : ℕ → ℕ := fun _ => 1
+  have hV : ∀ N, 1 ≤ V N := by intro N; simp [V]
+  let productErrorTarget : Fin m → ℕ → ℝ := fun d N =>
+    2 + (primorial (N + 1) : ℝ) +
+      ((∏ j ∈ (B' d).2.val, (Aplus.X N j) ^ 2 : ℕ) : ℝ) + (V N : ℝ)
+  have hdisj : ∀ i j, i ≠ j → Disjoint (B' i).set (B' j).set := by
+    change IsChain (fun d => (B' d).2.val) (fun d => (B' d).1) at hB'
+    rcases hB' with ⟨hne, htails, htailPivot, hpivots⟩
+    intro i j hij
+    apply Finset.disjoint_left.mpr
+    intro x hxi hxj
+    have hxi' : x = (B' i).1 ∨ x ∈ (B' i).2.val := by
+      simpa [OAI.SourceBlocks.Block.set] using hxi
+    have hxj' : x = (B' j).1 ∨ x ∈ (B' j).2.val := by
+      simpa [OAI.SourceBlocks.Block.set] using hxj
+    rcases hxi' with hxiP | hxiT <;> rcases hxj' with hxjP | hxjT
+    · exact hij (hpivots.injective (hxiP.symm.trans hxjP))
+    · subst x
+      exact (Fin.lt_irrefl _ (htailPivot j i _ hxjT))
+    · subst x
+      exact (Fin.lt_irrefl _ (htailPivot i j _ hxiT))
+    · rcases lt_trichotomy i j with hij' | hij' | hji'
+      · exact (Fin.lt_irrefl _ (htails i j hij' x hxiT x hxjT))
+      · exact hij hij'
+      · exact (Fin.lt_irrefl _ (htails j i hji' x hxjT x hxiT))
+  have hDom : ∀ d, OAI.MicrocellScale.Dominates
+      (fun N => Real.log (Aplus.X N (B' d).1 : ℝ)) (productErrorTarget d) := by
+    intro d
+    let tailSet : Finset (Fin n) := (B' d).2.val
+    let earlier : Finset (Fin n) := Finset.univ.filter (fun j => j < (B' d).1)
+    let prevR : ℕ → ℝ := fun N => ∏ j ∈ earlier, (Aplus.X N j : ℝ)
+    let Sdom : ℕ → ℝ := fun N => OAI.AdmissibleMicrocellBoundary.earlierScale Aplus.M
+      (fun N => OAI.SourceAdmissible.previous (Aplus.X N) (B' d).1) N
+    have htailSub : tailSet ⊆ earlier := by
+      intro j hj
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, (B' d).2.property.2 j hj⟩
+    have hprevCast (N : ℕ) :
+        (OAI.SourceAdmissible.previous (Aplus.X N) (B' d).1 : ℝ) = prevR N := by
+      simp [prevR, earlier, OAI.SourceAdmissible.previous, Nat.cast_prod]
+    have hSval (N : ℕ) :
+        Sdom N = 2 + (Aplus.M N : ℝ) + prevR N := by
+      simp [Sdom, OAI.AdmissibleMicrocellBoundary.earlierScale, hprevCast]
+    have htailProd (N : ℕ) :
+        (∏ j ∈ tailSet, (Aplus.X N j : ℝ)) ≤ prevR N := by
+      apply Finset.prod_le_prod_of_subset_of_one_le₀ htailSub
+      · intro j hj
+        positivity
+      · intro j hj hjnot
+        exact_mod_cast (Nat.succ_le_of_lt (Aplus.Xpos N j))
+    have htailSq (N : ℕ) :
+        (∏ j ∈ tailSet, (Aplus.X N j : ℝ) ^ 2) ≤ (prevR N) ^ 2 := by
+      rw [Finset.prod_pow]
+      nlinarith [htailProd N, show 0 ≤ ∏ j ∈ tailSet, (Aplus.X N j : ℝ) from by positivity]
+    have htargetSq (N : ℕ) : productErrorTarget d N ≤ (Sdom N) ^ 2 := by
+      have hW : (primorial (N + 1) : ℝ) ≤ (Aplus.M N : ℝ) := by
+        exact_mod_cast Aplus.Wle N
+      have hM : (1 : ℝ) ≤ (Aplus.M N : ℝ) := by
+        exact_mod_cast (Nat.succ_le_of_lt (Aplus.Mpos N))
+      have hprevNat : 0 < OAI.SourceAdmissible.previous (Aplus.X N) (B' d).1 := by
+        unfold OAI.SourceAdmissible.previous
+        apply Finset.prod_pos
+        intro j hj
+        exact Aplus.Xpos N j
+      have hprev : (1 : ℝ) ≤ prevR N := by
+        have hn : 1 ≤ OAI.SourceAdmissible.previous (Aplus.X N) (B' d).1 :=
+          Nat.succ_le_of_lt hprevNat
+        have hnR : (1 : ℝ) ≤
+            (OAI.SourceAdmissible.previous (Aplus.X N) (B' d).1 : ℝ) := by
+          exact_mod_cast hn
+        rw [hprevCast N] at hnR
+        exact hnR
+      rw [hSval]
+      have htailSqCast :
+          ((∏ j ∈ tailSet, (Aplus.X N j) ^ 2 : ℕ) : ℝ) ≤ (prevR N) ^ 2 := by
+        simpa [Nat.cast_prod, Finset.prod_pow] using htailSq N
+      change (2 : ℝ) + (primorial (N + 1) : ℝ) +
+          ((∏ j ∈ (B' d).2.val, (Aplus.X N j) ^ 2 : ℕ) : ℝ) + (V N : ℝ) ≤
+        (2 + (Aplus.M N : ℝ) + prevR N) ^ 2
+      calc
+        _ ≤ 3 + (Aplus.M N : ℝ) + (prevR N) ^ 2 := by
+          have htailSqCast' :
+              ((∏ j ∈ (B' d).2.val, (Aplus.X N j) ^ 2 : ℕ) : ℝ) ≤ (prevR N) ^ 2 := by
+            simpa [tailSet] using htailSqCast
+          have hVn : (V N : ℝ) = 1 := by simp [V]
+          rw [hVn]
+          have hsum : (primorial (N + 1) : ℝ) +
+              ((∏ j ∈ (B' d).2.val, (Aplus.X N j) ^ 2 : ℕ) : ℝ) ≤
+                (Aplus.M N : ℝ) + (prevR N) ^ 2 := add_le_add hW htailSqCast'
+          calc
+            2 + (primorial (N + 1) : ℝ) +
+                ((∏ j ∈ (B' d).2.val, (Aplus.X N j) ^ 2 : ℕ) : ℝ) + 1 =
+                3 + ((primorial (N + 1) : ℝ) +
+                  ((∏ j ∈ (B' d).2.val, (Aplus.X N j) ^ 2 : ℕ) : ℝ)) := by ring
+            _ ≤ 3 + ((Aplus.M N : ℝ) + (prevR N) ^ 2) := by
+              have hsum3 := add_le_add_right hsum (3 : ℝ)
+              nlinarith [hsum3]
+            _ = 3 + (Aplus.M N : ℝ) + (prevR N) ^ 2 := by ring
+        _ ≤ (2 + (Aplus.M N : ℝ) + prevR N) ^ 2 := by
+          have hMpow : (Aplus.M N : ℝ) ≤ (Aplus.M N : ℝ) ^ 2 := by
+            nlinarith [sq_nonneg ((Aplus.M N : ℝ) - 1), hM]
+          calc
+            3 + (Aplus.M N : ℝ) + (prevR N) ^ 2 ≤
+                3 + (Aplus.M N : ℝ) ^ 2 + (prevR N) ^ 2 := by nlinarith [hMpow]
+            _ ≤ (2 + (Aplus.M N : ℝ) + prevR N) ^ 2 := by
+              nlinarith [hM, hprev]
+    have hSpos (N : ℕ) : 0 < Sdom N := by rw [hSval]; positivity
+    have hHlarge : ∀ᶠ N in atTop,
+        1 ≤ (Aplus.H N (B' d).1 : ℝ) / (Sdom N) ^ (2 : ℝ) := by
+      simpa [Sdom] using
+        (Aplus.Hdom (B' d).1 2 (by norm_num)).eventually_ge_atTop 1
+    have htargetH : ∀ᶠ N in atTop,
+        productErrorTarget d N ≤ (Aplus.H N (B' d).1 : ℝ) := by
+      filter_upwards [hHlarge] with N hN
+      have hSH : (Sdom N) ^ 2 ≤ (Aplus.H N (B' d).1 : ℝ) := by
+        have hpow : (Sdom N) ^ (2 : ℝ) = (Sdom N) ^ 2 := Real.rpow_natCast _ _
+        have hmul := (le_div_iff₀ (Real.rpow_pos_of_pos (hSpos N) 2)).mp hN
+        rw [← hpow]
+        simpa only [one_mul] using hmul
+      exact (htargetSq N).trans hSH
+    have hlog : ∀ᶠ N in atTop,
+        0 ≤ Real.log (Aplus.X N (B' d).1 : ℝ) := by
+      filter_upwards [(Aplus.Xtendsto (B' d).1).eventually_ge_atTop 1] with N hN
+      exact Real.log_nonneg (by exact_mod_cast hN)
+    have htargetPos : ∀ᶠ N in atTop, 0 < productErrorTarget d N :=
+      Filter.Eventually.of_forall fun N => by positivity
+    exact dominates_of_eventually_le_denominator (Aplus.Xdom (B' d).1)
+      hlog htargetPos htargetH
+  have hcor := cor_product_law Aplus B' hdisj hXplus V hV hDom
+  have herr : Tendsto (fun N => arithmeticL1
+      (parameterJointBlockProductMass Aplus N B' (hXplus N))
+      (weightedPivotTupleMass Aplus N B')) atTop (𝓝 0) := by
+    have h := hcor 1 (by norm_num)
+    simpa [SuperPolynomialSmall, V] using h
+  have hbound : FilterUpperBound atTop
+      (fun N => |modelIntegrandMeanUnder S (μ N) N χ c b B' -
+        chainCount A χ C a N c (Sm N)|) 0 := by
+    have hboundEventually : ∀ᶠ N in atTop,
+        |modelIntegrandMeanUnder S (μ N) N χ c b B' -
+          chainCount A χ C a N c (Sm N)| ≤
+            arithmeticL1 (parameterJointBlockProductMass Aplus N B' (hXplus N))
+              (weightedPivotTupleMass Aplus N B') := by
+      filter_upwards [hXAevent, hXA'event, hXplusEq] with N hXA hXA' hXplusEqN
+      have hmuplus : μ N = Aplus.law N (hXplus N) := by
+        calc
+          μ N = A'.law N hXA' := hμ N hXA'
+          _ = Aplus.law N (hXplus N) := by
+            simp [OAI.SourceAdmissible.Parameters.law, hXplusEqN]
+      let e : Fin n ↪ Fin K := ⟨R.prin, R.prin_strictMono.injective⟩
+      have hmapBlock (B0 : Block n) :
+          (mapBlock R.prin R.prin_strictMono B0).set = B0.set.map e := by
+        simp [mapBlock, OAI.SourceBlocks.Block.set, e]
+      have hht : A'.ht N = fun i => A.ht N (R.prin i) := by
+        funext i
+        exact R.ht_eq N i
+      have hheight (d : Fin m) :
+          OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+              (A'.ht N) (B' d).set =
+            OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+              (A.ht N) (C.block d).set := by
+        rw [hht, hC d, hmapBlock]
+        exact height_map_embedding e (A.ht N) (B' d).set
+      have hscale : ∀ d,
+          (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+            (A'.ht N) (B' d).set : ℚ) * blockScale b (B' d) = chainScale A C a N d := by
+        intro d
+        rw [hheight d]
+        rfl
+      have hTail : ∀ d, (C.block d).2.val =
+          (B' d).2.val.map ⟨R.prin, R.prin_strictMono.injective⟩ := by
+        intro d
+        rw [hC d]
+        rfl
+      have hXroot (d : Fin m) : A.X N (C.block d).1 = A'.X N (B' d).1 := by
+        rw [hC d]
+        exact (R.X_eq N (B' d).1).symm
+      have hXeqPlus (i : Fin n) : Aplus.X N i = A.X N (R.prin i) := by
+        rw [hXplusEqN]
+        exact R.X_eq N i
+      have hnu (d : Fin m) (y : ℤ) :
+          nu Aplus N (B' d) y = nu A N (C.block d) y := by
+        calc
+          nu Aplus N (B' d) y =
+              divisorWeightUnder (Aplus.law N (hXplus N)) (B' d) y :=
+                (divisorWeightUnder_eq_nu Aplus N (hXplus N) (B' d) y).symm
+          _ = nu A N (C.block d) y :=
+            divisorWeightUnder_principal A Aplus N R.prin
+              R.prin_strictMono.injective hXeqPlus hXA (hXplus N)
+              (B' d) (C.block d) (hTail d) y
+      have hnuHarmonic (d : Fin m) (y : ℤ) :
+          weightedPivotMass Aplus N (B' d) y =
+            nu A N (C.block d) y *
+              harmonicLaw (A.X N (C.block d).1) (primorial (N + 1)) y := by
+        calc
+          weightedPivotMass Aplus N (B' d) y =
+              nu Aplus N (B' d) y *
+                harmonicLaw (Aplus.X N (B' d).1) (primorial (N + 1)) y := rfl
+          _ = nu A N (C.block d) y *
+                harmonicLaw (A.X N (C.block d).1) (primorial (N + 1)) y := by
+            rw [hnu d y, hXplusEqN, hXroot d]
+      have hweightTuple (z : Fin m → ℤ) :
+          weightedPivotTupleMass Aplus N B' z =
+            pivotMass A C N z * ∏ d, nu A N (C.block d) (z d) := by
+        calc
+          weightedPivotTupleMass Aplus N B' z =
+              ∏ d, (nu A N (C.block d) (z d) *
+                harmonicLaw (A.X N (C.block d).1) (primorial (N + 1)) (z d)) := by
+                  unfold weightedPivotTupleMass
+                  apply Finset.prod_congr rfl
+                  intro d hd
+                  exact hnuHarmonic d (z d)
+          _ = (∏ d, nu A N (C.block d) (z d)) *
+                ∏ d, harmonicLaw (A.X N (C.block d).1) (primorial (N + 1)) (z d) :=
+                  Finset.prod_mul_distrib
+          _ = pivotMass A C N z * ∏ d, nu A N (C.block d) (z d) := by
+                unfold pivotMass
+                ring
+      let coeff' : Fin m → ℚ := fun d =>
+        (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (A'.ht N) (B' d).set : ℚ) * blockScale b (B' d)
+      let coeff : Fin m → ℚ := fun d => chainScale A C a N d
+      let zNat (t : Fin n → ℕ) : Fin m → ℕ :=
+        fun d => ∏ j ∈ (B' d).set, t j
+      let zInt (t : Fin n → ℕ) : Fin m → ℤ := blockProductTuple B' t
+      have hcoeff (d : Fin m) : coeff' d = coeff d := hscale d
+      have hblockProd (t : Fin n → ℕ) (d : Fin m) :
+          zNat t d = tailValue (B' d) t * t (B' d).1 := by
+        have hpivotNot : (B' d).1 ∉ (B' d).2.val := by
+          intro hj
+          exact (Fin.lt_irrefl _) ((B' d).2.property.2 _ hj)
+        simp [zNat, tailValue, OAI.SourceBlocks.Block.set, hpivotNot, mul_comm]
+      have hArg (t : Fin n → ℕ) (U : Finset (Fin m)) :
+          (∏ k ∈ U, coeff' k * (zNat t k : ℚ)) =
+            (∏ k ∈ U, coeff k) * ((∏ k ∈ U, zInt t k : ℤ) : ℚ) := by
+        calc
+          (∏ k ∈ U, coeff' k * (zNat t k : ℚ)) =
+              (∏ k ∈ U, coeff' k) * ∏ k ∈ U, (zNat t k : ℚ) := Finset.prod_mul_distrib
+          _ = (∏ k ∈ U, coeff k) * ∏ k ∈ U, (zInt t k : ℚ) := by
+              have hcoeffProd : (∏ k ∈ U, coeff' k) = ∏ k ∈ U, coeff k := by
+                apply Finset.prod_congr rfl
+                intro k hk
+                exact hcoeff k
+              have hzProd : (∏ k ∈ U, (zNat t k : ℚ)) =
+                  ∏ k ∈ U, (zInt t k : ℚ) := by
+                apply Finset.prod_congr rfl
+                intro k hk
+                simp [zNat, zInt, blockProductTuple]
+              rw [hcoeffProd, hzProd]
+          _ = (∏ k ∈ U, coeff k) * ((∏ k ∈ U, zInt t k : ℤ) : ℚ) := by
+              congr 1
+              simp [Int.cast_prod]
+      have hmask (t : Fin n → ℕ) : productMask χ c coeff' (zNat t) =
+          ∏ U ∈ Finset.univ.filter Finset.Nonempty,
+            countMask A χ C a N c U (∏ k ∈ U, zInt t k) := by
+        rw [productMask_eq_filteredProduct]
+        apply Finset.prod_congr rfl
+        intro U hU
+        unfold countMask
+        rw [hArg t U]
+      let maskFactor : (Fin m → ℤ) → ℝ := fun z =>
+        ∏ U ∈ Finset.univ.filter Finset.Nonempty,
+          countMask A χ C a N c U (∏ k ∈ U, z k)
+      let allFactor : Finset (Fin m) → (Fin m → ℤ) → ℝ := fun J z =>
+        atQ (countFunctions A C a N c (Sm N) J) (chainForm coeff J z)
+      let modelFactor : NonsingletonSubsets m → (Fin m → ℤ) → ℝ := fun J z =>
+        allFactor J.val z
+      let g : (Fin m → ℤ) → ℝ := fun z => maskFactor z * ∏ J, modelFactor J z
+      have hform (t : Fin n → ℕ) (J : NonsingletonSubsets m)
+          (hJ : J.val.Nonempty) :
+          sumForm coeff' J.val hJ (zNat t) = chainForm coeff J.val (zInt t) := by
+        simp [sumForm, chainForm, hJ, coeff', coeff, hcoeff, zNat, zInt,
+          blockProductTuple]
+      have hmodelEq (J : NonsingletonSubsets m) (hJ : J.val.Nonempty)
+          (t : Fin n → ℕ) :
+          rationalModelValue S N (B' (J.val.max' hJ))
+            (blockScale b (B' (J.val.max' hJ))) c
+            (sumForm coeff' J.val hJ (zNat t)) =
+          modelFactor J (zInt t) := by
+        let d := J.val.max' hJ
+        have hmax : anchor J.val J.property = d := by
+          change J.val.max' (nonempty_of_two_le_card J.property) = J.val.max' hJ
+          exact congrArg J.val.max' (Subsingleton.elim _ _)
+        have hcount : countFunctions A C a N c (Sm N) J.val =
+            Sm N (C.block d) (a d) c := by
+          have hcard : 2 ≤ J.val.card := J.property
+          unfold countFunctions
+          rw [dif_pos hcard, hmax]
+        have hmodel (y : ℤ) : S.model N (B' d) (blockScale b (B' d)) c y =
+            Sm N (C.block d) (a d) c y := by
+          calc
+            S.model N (B' d) (blockScale b (B' d)) c y =
+                Sm N (mapBlock R.prin R.prin_strictMono (B' d))
+                  (blockScale b (B' d)) c y := hS N (B' d) _ (hb (B' d)) c y
+            _ = Sm N (C.block d) (a d) c y := by rw [hC d]
+        rw [rationalModelValue_eq_atQ]
+        rw [hform t J hJ]
+        dsimp [modelFactor, allFactor]
+        rw [hcount]
+        congr 1
+        funext y
+        exact hmodel y
+      have hModelPoint (t : Fin n → ℕ) :
+          modelIntegrand S N χ c b B' t = g (zInt t) := by
+        have hzt : (fun d => tailValue (B' d) t * t (B' d).1) = zNat t := by
+          funext d
+          exact (hblockProd t d).symm
+        calc
+          modelIntegrand S N χ c b B' t =
+              productMask χ c coeff' (fun d => tailValue (B' d) t * t (B' d).1) *
+                (∏ J : NonsingletonSubsets m, by
+                  let hJ : J.val.Nonempty := Finset.card_pos.mp
+                    (lt_of_lt_of_le (by decide) J.property)
+                  let d := J.val.max' hJ
+                  exact rationalModelValue S N (B' d) (blockScale b (B' d)) c
+                    (sumForm coeff' J.val hJ (fun d => tailValue (B' d) t * t (B' d).1))) := by
+              unfold modelIntegrand
+              rfl
+          _ = productMask χ c coeff' (zNat t) *
+                (∏ J : NonsingletonSubsets m, by
+                  let hJ : J.val.Nonempty := Finset.card_pos.mp
+                    (lt_of_lt_of_le (by decide) J.property)
+                  let d := J.val.max' hJ
+                  exact rationalModelValue S N (B' d) (blockScale b (B' d)) c
+                    (sumForm coeff' J.val hJ (zNat t))) := by
+              rw [hzt]
+          _ = g (zInt t) := by
+              rw [hmask t]
+              dsimp [g]
+              congr 1
+              apply Finset.prod_congr rfl
+              intro J hJ
+              exact hmodelEq J (Finset.card_pos.mp
+                (lt_of_lt_of_le (by decide) J.property)) t
+      have hmaskBound (z : Fin m → ℤ) : maskFactor z ∈ Set.Icc (0 : ℝ) 1 := by
+        constructor
+        · unfold maskFactor
+          exact Finset.prod_nonneg fun U hU =>
+            (rationalColorIndicator_mem_Icc χ c _).1
+        · unfold maskFactor
+          exact Finset.prod_le_one₀
+            (fun U hU => (rationalColorIndicator_mem_Icc χ c _).1)
+            (fun U hU => (rationalColorIndicator_mem_Icc χ c _).2)
+      have hmodelFactorBound (J : NonsingletonSubsets m) (z : Fin m → ℤ) :
+          modelFactor J z ∈ Set.Icc (0 : ℝ) 1 := by
+        let hJ : J.val.Nonempty := Finset.card_pos.mp
+          (lt_of_lt_of_le (by decide) J.property)
+        let d := J.val.max' hJ
+        have hcard : 2 ≤ J.val.card := J.property
+        have hmax : anchor J.val hcard = d := by
+          change J.val.max' (nonempty_of_two_le_card hcard) = J.val.max' hJ
+          exact congrArg J.val.max' (Subsingleton.elim _ _)
+        have hcount : countFunctions A C a N c (Sm N) J.val =
+            Sm N (C.block d) (a d) c := by
+          unfold countFunctions
+          rw [dif_pos hcard, hmax]
+        dsimp [modelFactor, allFactor]
+        rw [hcount]
+        exact atQ_mem_Icc_of_mem
+          (fun y => Sm N (C.block d) (a d) c y) (chainForm coeff J.val z)
+          (fun y => hSm N (C.block d) (a d) c y)
+      have hmodelProdBound (z : Fin m → ℤ) :
+          (∏ J, modelFactor J z) ∈ Set.Icc (0 : ℝ) 1 := by
+        constructor
+        · apply Finset.prod_nonneg
+          intro J hJ
+          exact (hmodelFactorBound J z).1
+        · exact Finset.prod_le_one₀
+            (fun J hJ => (hmodelFactorBound J z).1)
+            (fun J hJ => (hmodelFactorBound J z).2)
+      have hgBound (z : Fin m → ℤ) : g z ∈ Set.Icc (0 : ℝ) 1 := by
+        have hm := hmaskBound z
+        have hp := hmodelProdBound z
+        constructor
+        · dsimp [g]
+          exact mul_nonneg hm.1 hp.1
+        · dsimp [g]
+          exact mul_le_one₀ hm.2 hp.1 hp.2
+      have hgAbs (z : Fin m → ℤ) : |g z| ≤ 1 := by
+        have h := hgBound z
+        have hlow : -1 ≤ g z := by
+          calc
+            (-1 : ℝ) ≤ 0 := by norm_num
+            _ ≤ g z := h.1
+        exact abs_le.mpr ⟨hlow, h.2⟩
+      have hIntegrable : Integrable g
+          (Measure.map (blockProductTuple B') (Aplus.law N (hXplus N))) := by
+        refine Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable 1 ?_
+        exact Filter.Eventually.of_forall fun z => by
+          rw [Real.norm_eq_abs]
+          exact hgAbs z
+      have hmean : modelIntegrandMeanUnder S (μ N) N χ c b B' =
+          ∑' z, parameterJointBlockProductMass Aplus N B' (hXplus N) z * g z := by
+        rw [hmuplus]
+        unfold modelIntegrandMeanUnder
+        calc
+          ∫ t, modelIntegrand S N χ c b B' t ∂Aplus.law N (hXplus N) =
+              ∫ t, g (blockProductTuple B' t) ∂Aplus.law N (hXplus N) := by
+                apply integral_congr_ae
+                exact Filter.Eventually.of_forall hModelPoint
+          _ = ∑' z, parameterJointBlockProductMass Aplus N B' (hXplus N) z * g z := by
+                calc
+                  _ = ∑' z, (Measure.map (blockProductTuple B')
+                        (Aplus.law N (hXplus N))).real {z} * g z :=
+                      integral_eq_tsum_map_real_singleton _ _ (measurable_of_countable _)
+                        g hIntegrable
+                  _ = ∑' z, parameterJointBlockProductMass Aplus N B' (hXplus N) z * g z := by
+                      apply tsum_congr
+                      intro z
+                      rw [← parameterJointBlockProductMass_eq_map_real]
+      have hcolorZero : rationalColorIndicator χ c 0 = 0 := by
+        unfold rationalColorIndicator rationalColorHit
+        simp
+      have hpoint (z : Fin m → ℤ) :
+          pivotMass A C N z *
+            (maskFactor z * ∏ J ∈ Finset.univ.filter Finset.Nonempty,
+              allFactor J z) = weightedPivotTupleMass Aplus N B' z * g z := by
+        by_cases hcoeff : ∀ d, chainScale A C a N d ≠ 0
+        · have hsingleton (d : Fin m) : allFactor {d} z =
+              nu A N (C.block d) (z d) := by
+            have hJ : ({d} : Finset (Fin m)).Nonempty :=
+              ⟨d, Finset.mem_singleton_self d⟩
+            have hmax : ({d} : Finset (Fin m)).max' hJ = d := by simp
+            have hformSing : chainForm (chainScale A C a N) ({d} : Finset (Fin m)) z =
+                (z d : ℚ) := by
+              unfold chainForm
+              rw [dif_pos hJ, hmax]
+              simp [hcoeff d]
+            dsimp [allFactor]
+            rw [hformSing]
+            simp [countFunctions, atQ]
+          have hsplit := prod_nonempty_eq_singleton_nonsingleton (allFactor · z)
+          have hsingleprod : (∏ d, allFactor {d} z) =
+              ∏ d, nu A N (C.block d) (z d) := by
+            apply Finset.prod_congr rfl
+            intro d hd
+            exact hsingleton d
+          rw [hsplit, hsingleprod, hweightTuple z]
+          dsimp [g, maskFactor, allFactor]
+          ring
+        · push_neg at hcoeff
+          obtain ⟨d, hd⟩ := hcoeff
+          have hmaskZero : maskFactor z = 0 := by
+            unfold maskFactor
+            let U : Finset (Fin m) := {d}
+            have hU : U ∈ Finset.univ.filter Finset.Nonempty := by
+              simp [U]
+            apply Finset.prod_eq_zero hU
+            simp [U, countMask, hd, hcolorZero]
+          rw [hmaskZero]
+          simp [g, hmaskZero]
+      have hchain : chainCount A χ C a N c (Sm N) =
+          ∑' z, weightedPivotTupleMass Aplus N B' z * g z := by
+        unfold chainCount maskedCorrelation
+        apply tsum_congr
+        intro z
+        exact hpoint z
+      have hjointSupport := parameterJointBlockProductMass_support_finite
+        Aplus N B' (hXplus N)
+      have hpivotSupport := weightedPivotTupleMass_support_finite Aplus N B'
+      have hsumBound := abs_tsum_mul_sub_le_tsum_abs_diff
+        (parameterJointBlockProductMass Aplus N B' (hXplus N))
+        (weightedPivotTupleMass Aplus N B') g hjointSupport hpivotSupport hgAbs
+      calc
+        |modelIntegrandMeanUnder S (μ N) N χ c b B' -
+            chainCount A χ C a N c (Sm N)| =
+          |(∑' z, parameterJointBlockProductMass Aplus N B' (hXplus N) z * g z) -
+            ∑' z, weightedPivotTupleMass Aplus N B' z * g z| := by
+              rw [hmean, hchain]
+        _ ≤ arithmeticL1 (parameterJointBlockProductMass Aplus N B' (hXplus N))
+            (weightedPivotTupleMass Aplus N B') := by
+              simpa [arithmeticL1] using hsumBound
+    have herrSmall : ∀ ε > 0, ∀ᶠ N in atTop,
+        arithmeticL1 (parameterJointBlockProductMass Aplus N B' (hXplus N))
+          (weightedPivotTupleMass Aplus N B') ≤ ε := by
+      intro ε hε
+      filter_upwards [herr.eventually (Iio_mem_nhds hε)] with N hN
+      exact le_of_lt hN
+    intro ε hε
+    filter_upwards [herrSmall ε hε, hboundEventually] with N hsmall hboundN
+    exact hboundN.trans (by simpa using hsmall)
+  exact filterUpperBound_abs_tendsto_zero hbound
 
 /-! ### Calibration -/
 
