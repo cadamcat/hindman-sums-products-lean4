@@ -633,6 +633,103 @@ theorem exists_branch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
     simp [btemp, RowBranchTemplate, xstar, hStarSupport]
   exact ⟨Fintype.card β, Sh', hcard, hstar⟩
 
+theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
+    (Jstar : Finset (Fin m)) (hStarSupport : (Sh.row Sh.star).support = Jstar)
+    (u v : Fin m) (hu : u ∈ (Sh.row Sh.star).support)
+    (hv : v ∈ (Sh.row Sh.star).support) (hvu : v ≠ u) :
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r'),
+      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchQ u
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  have hI : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  have hAcross : ∀ i j, i ≠ j → ∀ b c : Fin 2,
+      ¬ (RowBranchTemplate Sh L R i b).Parallel (RowBranchTemplate Sh L R j c) := by
+    intro i j hij b c
+    by_cases hb : b.val = 0
+    · by_cases hc : c.val = 0
+      · intro hpar
+        have hp : ((Sh.row i).scaleBranchP u).Parallel ((Sh.row j).scaleBranchP u) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_of_scaleBranchP _ _ u hp)
+      · intro hpar
+        have hp : ((Sh.row i).scaleBranchP u).Parallel ((Sh.row j).scaleBranchQ u) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_old_of_scaleBranchP_Q _ _ u hp)
+    · by_cases hc : c.val = 0
+      · intro hpar
+        have hp : ((Sh.row i).scaleBranchQ u).Parallel ((Sh.row j).scaleBranchP u) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_old_of_scaleBranchQ_P _ _ u hp)
+      · intro hpar
+        have hp : ((Sh.row i).scaleBranchQ u).Parallel ((Sh.row j).scaleBranchQ u) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_of_scaleBranchQ _ _ u hp)
+  have hStar : ¬ I Sh.star := by
+    change ¬ ((Sh.row Sh.star).scaleBranchP u).Parallel
+      ((Sh.row Sh.star).scaleBranchQ u)
+    apply RowTemplate.scaleBranches_not_parallel
+    · exact hu
+    · exact ⟨v, hv, hvu⟩
+  have hTarget : (L Sh.star).support = Jstar := by
+    dsimp [L]
+    calc
+      ((Sh.row Sh.star).scaleBranchP u).support = (Sh.row Sh.star).support :=
+        RowTemplate.scaleBranchP_support _ _
+      _ = Jstar := hStarSupport
+  exact exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
+
+theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
+    (Jstar : Finset (Fin m)) (hStarSupport : (Sh.row Sh.star).support = Jstar)
+    (u v : Fin m) (hu : u ∈ (Sh.row Sh.star).support)
+    (hv : v ∈ (Sh.row Sh.star).support) (huv : u ≠ v) :
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r'),
+      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedP u v
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedQ u v
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  have hI : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  have hAcross : ∀ i j, i ≠ j → ∀ b c : Fin 2,
+      ¬ (RowBranchTemplate Sh L R i b).Parallel (RowBranchTemplate Sh L R j c) := by
+    intro i j hij b c
+    by_cases hb : b.val = 0
+    · by_cases hc : c.val = 0
+      · intro hpar
+        have hp : ((Sh.row i).scaleBalancedP u v).Parallel
+            ((Sh.row j).scaleBalancedP u v) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_of_scaleBalancedP _ _ u v hp)
+      · intro hpar
+        have hp : ((Sh.row i).scaleBalancedP u v).Parallel
+            ((Sh.row j).scaleBalancedQ u v) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_old_of_scaleBalancedP_Q _ _ u v hp)
+    · by_cases hc : c.val = 0
+      · intro hpar
+        have hp : ((Sh.row i).scaleBalancedQ u v).Parallel
+            ((Sh.row j).scaleBalancedP u v) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_old_of_scaleBalancedQ_P _ _ u v hp)
+      · intro hpar
+        have hp : ((Sh.row i).scaleBalancedQ u v).Parallel
+            ((Sh.row j).scaleBalancedQ u v) := by
+          simpa [RowBranchTemplate, L, R, hb, hc] using hpar
+        exact Sh.nonparallel i j hij (RowTemplate.parallel_of_scaleBalancedQ _ _ u v hp)
+  have hStar : ¬ I Sh.star := by
+    change ¬ ((Sh.row Sh.star).scaleBalancedP u v).Parallel
+      ((Sh.row Sh.star).scaleBalancedQ u v)
+    apply RowTemplate.scaleBalanced_not_parallel
+    · exact huv
+    · exact hu
+    · exact hv
+  have hTarget : (L Sh.star).support = Jstar := by
+    dsimp [L]
+    calc
+      ((Sh.row Sh.star).scaleBalancedP u v).support = (Sh.row Sh.star).support :=
+        RowTemplate.scaleBalancedP_support _ _ _
+      _ = Jstar := hStarSupport
+  exact exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
+
 theorem card_nonempty_mask_subsets (m : ℕ) :
     Fintype.card {U : Finset (Fin m) // U.Nonempty} = maskCount m := by
   classical
