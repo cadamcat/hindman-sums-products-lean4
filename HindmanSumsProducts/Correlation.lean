@@ -317,6 +317,77 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
             |maskedCorrelation S.core.parameters C a N b g| ≤
               ε + Cm * |T.cubeTest S C.gap (C.block (Jstar.max' hJ)).1 J0 N (g Jstar)| ^
                 ((2 : ℝ) ^ (maskCount m + T.d))⁻¹ := by
+  classical
+  obtain ⟨q, r, Sh0, maskTests, CmMask, hrMask, hqMask, hstar0,
+      hmaskTests, hCmMask, hMaskRemoval⟩ := weighted_mask_removal m Jstar hJcard
+  let completion :=
+    c_test2_completeRows Sh0 Jstar hJcard hstar0 hrMask
+  let Sh := completion.shape
+  have hstar : (Sh.row Sh.star).support = Jstar := by
+    rw [completion.star_eq, completion.row_eq]
+    exact hstar0
+  obtain ⟨dirs, hdirs, hdir⟩ := row_directions Sh
+  let testList := dirs.tests ∪ maskTests
+  have htests : ∀ P ∈ testList, P ≠ 0 := by
+    intro P hP
+    rcases Finset.mem_union.mp hP with hP | hP
+    · have hpoly : dirs.poly ≠ 0 := by
+        unfold RowDirections.poly
+        apply Finset.prod_ne_zero_iff.mpr
+        intro R hR
+        have hRne : R ≠ Sh.star := (Finset.mem_erase.mp hR).1
+        have hresp := hdirs.2.1 R Sh.star hRne (Ne.symm hRne)
+        simpa [RowDirections.targetResponse] using hresp
+      have htestsDirs : ∀ P ∈ dirs.tests, P ≠ 0 := by
+        intro Q hQ
+        simp only [RowDirections.tests, Finset.mem_insert, Finset.mem_union] at hQ
+        rcases hQ with hQ | hQ
+        · simpa [hQ] using hpoly
+        · rcases hQ with hQ | hQ
+          · exact (Finset.mem_filter.mp hQ).2
+          · exact (Finset.mem_filter.mp hQ).2
+      exact htestsDirs P hP
+    · exact hmaskTests P hP
+  have htestsSub : dirs.tests ⊆ testList := Finset.subset_union_left
+  obtain ⟨B, hdirections⟩ := hdir testList htests htestsSub
+  let T : CubeTemplate := {
+    q := q
+    d := Fintype.card (NonTarget Sh)
+    D := dirs.poly
+    tests := testList
+    D_mem := by
+      have hmem : dirs.poly ∈ dirs.tests := by simp [RowDirections.tests]
+      exact Finset.mem_union_left _ hmem
+    tests_ne_zero := htests
+  }
+  have hcardNT : T.d = completion.r' - 1 := by
+    dsimp [T]
+    exact c_test2_nonTarget_card Sh
+  have hrowCount : 2 ≤ completion.r' := completion.two_rows
+  have hrowBound : completion.r' ≤ maskRowBound m := completion.row_bound
+  have hTlower : 1 ≤ T.d := by rw [hcardNT]; omega
+  have hTupper : T.d ≤ maskRowBound m - 1 := by
+    rw [hcardNT]
+    exact Nat.sub_le_sub_right hrowBound 1
+  refine ⟨T, hTlower, hTupper, 1, by norm_num, B, ?_⟩
+  intro K s Aset Dm S ι hlistedAll C a ha
+  have hlistedMask : TestsListed Dm ι maskTests := by
+    intro P hP
+    exact hlistedAll P (Finset.mem_union_right _ hP)
+  have hrowFacts := hdirections S ι hlistedAll C a ha
+  have hmodBound : ∀ᶠ N in atTop, ∀ p, T.Good S C.gap N p →
+      T.modulus S N p ≤
+        ((S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B := by
+    filter_upwards [hrowFacts.2.2] with N hfacts
+    intro p hp
+    change GoodTuple S C.gap N testList dirs.poly p at hp
+    have hInt : IntegerDirectionFacts S C a N dirs testList B p := hfacts p hp
+    rcases hInt with ⟨_, _, hMp, _, _, _, _, _⟩
+    change directionModulus S N dirs.poly p ≤ _
+    exact hMp
+  refine ⟨hrowFacts.2.1, hrowFacts.1, hmodBound, ?_⟩
+  intro J0s hJ0s ε hε
   sorry
 
 end
