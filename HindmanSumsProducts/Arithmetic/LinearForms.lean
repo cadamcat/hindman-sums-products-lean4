@@ -2274,6 +2274,144 @@ private theorem harmonicProductLaw_primeValuationMass_eq {k : ℕ} (W p a : ℕ)
         weight t * (if (∑ i, Nat.factorization (t i) p) = a then 1 else 0) :=
       (tsum_eq_sum (s := T) htermzero).symm
 
+private theorem harmonicProductLaw_primeVectorMass_eq {k : ℕ} (W : ℕ)
+    (P : Finset ℕ) (a : ℕ → ℕ) (X : Fin k → ℕ)
+    (hX : ∀ i, 0 < X i) (hH : ∀ i, 0 < harmonicNormalizer (X i) W) :
+    (∑' σ : ℕ, harmonicProductLaw W X σ *
+      (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)) =
+      ∑' t : Fin k → ℕ,
+        (∏ i, harmonicNatLaw (X i) W (t i)) *
+          (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := by
+  classical
+  let S : Fin k → Finset ℕ := fun i => harmonicNatSupport (X i) W
+  let T : Finset (Fin k → ℕ) := Fintype.piFinset S
+  let product : (Fin k → ℕ) → ℕ := fun t => ∏ i, t i
+  let weight : (Fin k → ℕ) → ℝ := fun t => ∏ i, harmonicNatLaw (X i) W (t i)
+  have hweight_zero (t : Fin k → ℕ) (ht : t ∉ T) : weight t = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hμ : harmonicNatLaw (X i) W (t i) = 0 :=
+      harmonicNatLaw_zero_of_not_mem (X i) W (t i) (by simpa [S] using hi)
+    dsimp [weight]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hμ
+  have hterm_zero_out (σ : ℕ) (t : Fin k → ℕ) (ht : t ∉ T) :
+      (if product t = σ then 1 else 0) * weight t = 0 := by
+    simp [hweight_zero t ht]
+  have hLawZero (σ : ℕ) (hσ : σ ∉ T.image product) :
+      harmonicProductLaw W X σ = 0 := by
+    unfold harmonicProductLaw
+    rw [tsum_eq_sum (s := T) (hterm_zero_out σ)]
+    apply Finset.sum_eq_zero
+    intro t ht
+    have hne : product t ≠ σ := by
+      intro heq
+      exact hσ (Finset.mem_image.mpr ⟨t, ht, heq⟩)
+    simp [hne]
+  have hLawEq (σ : ℕ) : harmonicProductLaw W X σ =
+      ∑ t ∈ T, (if product t = σ then 1 else 0) * weight t := by
+    unfold harmonicProductLaw
+    rw [tsum_eq_sum (s := T) (hterm_zero_out σ)]
+  have hfacprod (t : Fin k → ℕ) (ht : t ∈ T) (p : ℕ) :
+      Nat.factorization (product t) p = ∑ i, Nat.factorization (t i) p := by
+    have hnonzero : ∀ i ∈ (Finset.univ : Finset (Fin k)), t i ≠ 0 := by
+      intro i hi
+      have hiS : t i ∈ S i := by simpa [S] using (Fintype.mem_piFinset.mp ht i)
+      have hiRange := Finset.mem_Ico.mp (Finset.mem_filter.mp hiS).1
+      exact Nat.ne_of_gt (lt_of_lt_of_le (hX i) hiRange.1)
+    have hfactor := Nat.factorization_prod hnonzero
+    have hcoord := congrArg (fun z : ℕ →₀ ℕ => z p) hfactor
+    simpa [Finsupp.sum_apply] using hcoord
+  have hmassFinite :
+      (∑' σ : ℕ, harmonicProductLaw W X σ *
+        (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)) =
+        ∑ t ∈ T, weight t *
+          (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := by
+    have hmassZero (σ : ℕ) (hσ : σ ∉ T.image product) :
+        harmonicProductLaw W X σ *
+          (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0) = 0 := by
+      rw [hLawZero σ hσ]
+      simp
+    rw [tsum_eq_sum (s := T.image product) hmassZero]
+    have hcollapse (t : Fin k → ℕ) (ht : t ∈ T) :
+        (∑ σ ∈ T.image product,
+          ((if product t = σ then 1 else 0) * weight t) *
+            (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)) =
+          weight t *
+            (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := by
+      have hprodMem : product t ∈ T.image product :=
+        Finset.mem_image.mpr ⟨t, ht, rfl⟩
+      have hfac (p : ℕ) (hp : p ∈ P) :
+          Nat.factorization (product t) p = ∑ i, Nat.factorization (t i) p :=
+        hfacprod t ht p
+      have hcond :
+          (∀ p ∈ P, Nat.factorization (product t) p = a p) ↔
+            (∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p) := by
+        constructor
+        · intro h p hp
+          calc
+            (∑ i, Nat.factorization (t i) p) = Nat.factorization (product t) p :=
+              (hfac p hp).symm
+            _ = a p := h p hp
+        · intro h p hp
+          calc
+            Nat.factorization (product t) p = ∑ i, Nat.factorization (t i) p :=
+              hfac p hp
+            _ = a p := h p hp
+      calc
+        _ = ∑ σ ∈ T.image product,
+            if σ = product t then
+              weight t * (if ∀ p ∈ P,
+                Nat.factorization (product t) p = a p then 1 else 0)
+            else 0 := by
+          apply Finset.sum_congr rfl
+          intro σ hσ
+          by_cases heq : σ = product t
+          · subst σ
+            simp
+          · simp [heq, eq_comm]
+        _ = _ := by
+          simp [Finset.sum_ite_eq', hprodMem, hcond]
+    calc
+      (∑ σ ∈ T.image product,
+          harmonicProductLaw W X σ *
+            (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)) =
+        ∑ σ ∈ T.image product,
+          (∑ t ∈ T, (if product t = σ then 1 else 0) * weight t) *
+            (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0) := by
+          apply Finset.sum_congr rfl
+          intro σ hσ
+          rw [hLawEq σ]
+      _ = ∑ σ ∈ T.image product, ∑ t ∈ T,
+          ((if product t = σ then 1 else 0) * weight t) *
+            (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0) := by
+        apply Finset.sum_congr rfl
+        intro σ hσ
+        rw [Finset.sum_mul]
+      _ = ∑ t ∈ T, ∑ σ ∈ T.image product,
+          ((if product t = σ then 1 else 0) * weight t) *
+            (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0) := by
+        rw [Finset.sum_comm]
+      _ = ∑ t ∈ T, weight t *
+          (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := by
+        apply Finset.sum_congr rfl
+        intro t ht
+        exact hcollapse t ht
+  have htermzero (t : Fin k → ℕ) (ht : t ∉ T) :
+      weight t * (if ∀ p ∈ P,
+        (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) = 0 := by
+    simp [hweight_zero t ht]
+  calc
+    (∑' σ : ℕ, harmonicProductLaw W X σ *
+      (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)) =
+        ∑ t ∈ T, weight t *
+          (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := hmassFinite
+    _ = ∑' t : Fin k → ℕ, weight t *
+        (if ∀ p ∈ P,
+          (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) :=
+      (tsum_eq_sum (s := T) htermzero).symm
+
 private theorem finset_prod_le_prod_of_nonneg {α : Type*} [DecidableEq α]
     (s : Finset α) (f g : α → ℝ)
     (hf : ∀ i ∈ s, 0 ≤ f i) (hg : ∀ i ∈ s, 0 ≤ g i)
@@ -2296,6 +2434,308 @@ private theorem finset_prod_le_prod_of_nonneg {α : Type*} [DecidableEq α]
       have hleS : ∀ i ∈ s, f i ≤ g i := fun i hi => hle i (Finset.mem_insert_of_mem hi)
       have hprodF : 0 ≤ ∏ i ∈ s, f i := Finset.prod_nonneg hfS
       exact mul_le_mul hleA (ih hfS hgS hleS) hprodF hgA
+
+private theorem harmonicProductLaw_primeVectorMass_le {k : ℕ} (W : ℕ)
+    (P : Finset ℕ) (hprime : ∀ p ∈ P, p.Prime) (hcop : ∀ p ∈ P, Nat.Coprime p W)
+    (X : Fin k → ℕ) (hW : 0 < W) (hX : ∀ i, 0 < X i)
+    (hXscale : ∀ i, 4 * W ≤ X i)
+    (hlog : ∀ i, 4 * (W : ℝ) ≤ Real.log (X i : ℝ))
+    (hH : ∀ i, 0 < harmonicNormalizer (X i) W) (a : ℕ → ℕ) :
+    (∑' σ : ℕ, harmonicProductLaw W X σ *
+      (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)) ≤
+      (6 : ℝ) ^ k * ∏ p ∈ P,
+        (((a p + 1 : ℕ) : ℝ) ^ k / (p : ℝ) ^ (a p)) := by
+  classical
+  let PrimeIndex := {p : ℕ // p ∈ P}
+  letI : Fintype PrimeIndex := Finset.fintypeCoeSort P
+  have hprodSubtypeReal (f : ℕ → ℝ) :
+      (∏ p : PrimeIndex, f p.val) = ∏ p ∈ P, f p := by
+    simpa [PrimeIndex] using
+      (Finset.prod_subtype (p := fun x : ℕ => x ∈ P)
+        (F := (inferInstance : Fintype PrimeIndex)) (s := P)
+        (h := fun x : ℕ => Iff.rfl) (f := f)).symm
+  have hprodSubtypeNat (f : ℕ → ℕ) :
+      (∏ p : PrimeIndex, f p.val) = ∏ p ∈ P, f p := by
+    simpa [PrimeIndex] using
+      (Finset.prod_subtype (p := fun x : ℕ => x ∈ P)
+        (F := (inferInstance : Fintype PrimeIndex)) (s := P)
+        (h := fun x : ℕ => Iff.rfl) (f := f)).symm
+  let S : Fin k → Finset ℕ := fun i => harmonicNatSupport (X i) W
+  let T : Finset (Fin k → ℕ) := Fintype.piFinset S
+  let weight : (Fin k → ℕ) → ℝ := fun t => ∏ i, harmonicNatLaw (X i) W (t i)
+  let rawMass : Fin k → (PrimeIndex → ℕ) → ℝ := fun i v =>
+    ∑' n : ℕ, harmonicNatLaw (X i) W n *
+      (if ∀ p : PrimeIndex, Nat.factorization n p.val = v p then 1 else 0)
+  let rowVectors : Fin k → Finset (PrimeIndex → ℕ) := fun _ =>
+    Fintype.piFinset (fun p : PrimeIndex => Finset.Iic (a p.val))
+  let allAlloc : Finset (Fin k → PrimeIndex → ℕ) := Fintype.piFinset rowVectors
+  let allocations := allAlloc.filter (fun v => ∀ p : PrimeIndex, ∑ i, v i p = a p.val)
+  let allocOf (t : Fin k → ℕ) : Fin k → PrimeIndex → ℕ := fun i p =>
+    Nat.factorization (t i) p.val
+  let denominator (v : PrimeIndex → ℕ) : ℝ :=
+    ∏ p : PrimeIndex, (p.val : ℝ) ^ (v p)
+  have hweight_zero (t : Fin k → ℕ) (ht : t ∉ T) : weight t = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hμ : harmonicNatLaw (X i) W (t i) = 0 :=
+      harmonicNatLaw_zero_of_not_mem (X i) W (t i) (by simpa [S] using hi)
+    dsimp [weight]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hμ
+  have hLawNonneg (i : Fin k) (n : ℕ) : 0 ≤ harmonicNatLaw (X i) W n := by
+    unfold harmonicNatLaw
+    split_ifs with h
+    · have hnpos : 0 < n := lt_of_lt_of_le (hX i) h.1
+      positivity [hH i]
+    · simp
+  have hrawNonneg (i : Fin k) (v : PrimeIndex → ℕ) : 0 ≤ rawMass i v := by
+    apply tsum_nonneg
+    intro n
+    exact mul_nonneg (hLawNonneg i n) (by split_ifs <;> norm_num)
+  have hrawSum (i : Fin k) (v : PrimeIndex → ℕ) :
+      rawMass i v = ∑ n ∈ S i, harmonicNatLaw (X i) W n *
+        (if ∀ p : PrimeIndex, Nat.factorization n p.val = v p then 1 else 0) := by
+    have hzero (n : ℕ) (hn : n ∉ S i) :
+        harmonicNatLaw (X i) W n *
+          (if ∀ p : PrimeIndex, Nat.factorization n p.val = v p then 1 else 0) = 0 := by
+      rw [harmonicNatLaw_zero_of_not_mem (X i) W n (by simpa [S] using hn)]
+      simp
+    unfold rawMass
+    rw [tsum_eq_sum (s := S i) hzero]
+  have hrawBound (i : Fin k) (v : PrimeIndex → ℕ) :
+      rawMass i v ≤ 6 / denominator v := by
+    let av : ℕ → ℕ := fun p => if hp : p ∈ P then v ⟨p, hp⟩ else 0
+    have h := harmonicNatPrimeVectorMass_le (X i) W P hprime hcop hW
+      (hXscale i) (hlog i) av
+    have hcond (n : ℕ) : (∀ p ∈ P, Nat.factorization n p = av p) ↔
+        (∀ p : PrimeIndex, Nat.factorization n p.val = v p) := by
+      constructor
+      · intro h p
+        have hp := h p.val p.property
+        simpa [av] using hp
+      · intro h p hp
+        have hp' := h ⟨p, hp⟩
+        simpa [av, hp] using hp'
+    have hav (p : PrimeIndex) : av p.val = v p := by simp [av, p.property]
+    have hprodSubtype :
+        (∏ p : PrimeIndex, (p.val : ℝ) ^ (v p)) =
+          ∏ p ∈ P, (p : ℝ) ^ (av p) := by
+      calc
+        (∏ p : PrimeIndex, (p.val : ℝ) ^ (v p)) =
+            ∏ p : PrimeIndex, (p.val : ℝ) ^ (av p.val) := by
+          apply Finset.prod_congr rfl
+          intro p hp
+          rw [hav p]
+        _ = ∏ p ∈ P, (p : ℝ) ^ (av p) :=
+          hprodSubtypeReal (fun p => (p : ℝ) ^ (av p))
+    have hden : denominator v = ∏ p ∈ P, (p : ℝ) ^ (av p) := by
+      simpa [denominator] using hprodSubtype
+    dsimp [rawMass]
+    simpa only [hcond, denominator, hden] using h
+  have hDenomProduct (v : Fin k → PrimeIndex → ℕ)
+      (hv : v ∈ allocations) :
+      (∏ i, denominator (v i)) = ∏ p ∈ P, (p : ℝ) ^ (a p) := by
+    have hsum (p : PrimeIndex) : ∑ i, v i p = a p.val :=
+      (Finset.mem_filter.mp hv).2 p
+    have hprodSubtype := hprodSubtypeReal (fun p => (p : ℝ) ^ (a p))
+    calc
+      (∏ i, denominator (v i)) =
+          ∏ p : PrimeIndex, ∏ i, (p.val : ℝ) ^ (v i p) := by
+        simp only [denominator]
+        exact Finset.prod_comm
+      _ = ∏ p : PrimeIndex, (p.val : ℝ) ^ (∑ i, v i p) := by
+        apply Finset.prod_congr rfl
+        intro p hp
+        rw [Finset.prod_pow_eq_pow_sum]
+      _ = ∏ p : PrimeIndex, (p.val : ℝ) ^ (a p.val) := by
+        apply Finset.prod_congr rfl
+        intro p hp
+        rw [hsum p]
+      _ = ∏ p ∈ P, (p : ℝ) ^ (a p) := hprodSubtype
+  let rowEvent (i : Fin k) (n : ℕ) (v : PrimeIndex → ℕ) : ℝ :=
+    if ∀ p : PrimeIndex, Nat.factorization n p.val = v p then 1 else 0
+  let allocIndicator (t : Fin k → ℕ) (v : Fin k → PrimeIndex → ℕ) : ℝ :=
+    ∏ i, rowEvent i (t i) (v i)
+  have hallocNonneg (t : Fin k → ℕ) (v : Fin k → PrimeIndex → ℕ) :
+      0 ≤ allocIndicator t v := by
+    dsimp [allocIndicator]
+    apply Finset.prod_nonneg
+    intro i hi
+    dsimp [rowEvent]
+    split_ifs <;> norm_num
+  have hpoint (t : Fin k → ℕ) (ht : t ∈ T) :
+      (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) ≤
+        ∑ v ∈ allocations, allocIndicator t v := by
+    classical
+    by_cases htotal : ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p
+    · let v0 := allocOf t
+      have hv0all : v0 ∈ allAlloc := by
+        apply Fintype.mem_piFinset.mpr
+        intro i
+        apply Fintype.mem_piFinset.mpr
+        intro p
+        apply Finset.mem_Iic.mpr
+        have hle : Nat.factorization (t i) p.val ≤
+            ∑ j, Nat.factorization (t j) p.val :=
+          Finset.single_le_sum
+            (f := fun j => Nat.factorization (t j) p.val)
+            (fun j hj => Nat.zero_le _) (Finset.mem_univ i)
+        rw [htotal p.val p.property] at hle
+        simpa [allocOf] using hle
+      have hv0sum : ∀ p : PrimeIndex, ∑ i, v0 i p = a p.val := by
+        intro p
+        simpa [v0, allocOf] using htotal p.val p.property
+      have hv0 : v0 ∈ allocations := Finset.mem_filter.mpr ⟨hv0all, hv0sum⟩
+      have hsingle := Finset.single_le_sum
+        (f := fun v => allocIndicator t v)
+        (fun v hv => hallocNonneg t v) hv0
+      have hvalue : allocIndicator t v0 = 1 := by
+        simp [allocIndicator, rowEvent, v0, allocOf]
+      rw [hvalue] at hsingle
+      calc
+        (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) = 1 :=
+          if_pos htotal
+        _ ≤ ∑ v ∈ allocations, allocIndicator t v := hsingle
+    · simp only [if_neg htotal]
+      apply Finset.sum_nonneg
+      intro v hv
+      exact hallocNonneg t v
+  have hrawPush (v : Fin k → PrimeIndex → ℕ) :
+      (∑ t ∈ T, weight t * allocIndicator t v) = ∏ i, rawMass i (v i) := by
+    calc
+      (∑ t ∈ T, weight t * allocIndicator t v) =
+          ∑ t ∈ T, ∏ i, (harmonicNatLaw (X i) W (t i) * rowEvent i (t i) (v i)) := by
+        apply Finset.sum_congr rfl
+        intro t ht
+        simp only [weight, allocIndicator, rowEvent]
+        rw [← Finset.prod_mul_distrib]
+      _ = ∏ i, ∑ n ∈ S i,
+          harmonicNatLaw (X i) W n * rowEvent i n (v i) := by
+        simpa [T] using (Finset.prod_univ_sum S
+          (fun i n => harmonicNatLaw (X i) W n * rowEvent i n (v i))).symm
+      _ = ∏ i, rawMass i (v i) := by
+        apply Finset.prod_congr rfl
+        intro i hi
+        rw [← hrawSum i (v i)]
+  have hmass := harmonicProductLaw_primeVectorMass_eq W P a X hX hH
+  let lhs : ℝ := ∑' σ : ℕ, harmonicProductLaw W X σ *
+    (if ∀ p ∈ P, Nat.factorization σ p = a p then 1 else 0)
+  let Kden : ℝ := ∏ p ∈ P, (p : ℝ) ^ (a p)
+  have hmassFinite : lhs =
+      ∑ t ∈ T, weight t *
+        (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := by
+    dsimp [lhs]
+    rw [hmass]
+    have hzero (t : Fin k → ℕ) (ht : t ∉ T) :
+        weight t * (if ∀ p ∈ P,
+          (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) = 0 := by
+      simp [weight, hweight_zero t ht]
+    rw [tsum_eq_sum (s := T) hzero]
+  have hsumUpper :
+      (∑ t ∈ T, weight t *
+        (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0)) ≤
+        ∑ v ∈ allocations, ∏ i, rawMass i (v i) := by
+    calc
+      _ ≤ ∑ t ∈ T, weight t * (∑ v ∈ allocations, allocIndicator t v) := by
+        apply Finset.sum_le_sum
+        intro t ht
+        have hwt : 0 ≤ weight t := by
+          dsimp [weight]
+          apply Finset.prod_nonneg
+          intro i hi
+          exact hLawNonneg i (t i)
+        exact mul_le_mul_of_nonneg_left (hpoint t ht) hwt
+      _ = ∑ t ∈ T, ∑ v ∈ allocations, weight t * allocIndicator t v := by
+        apply Finset.sum_congr rfl
+        intro t ht
+        rw [Finset.mul_sum]
+      _ = ∑ v ∈ allocations, ∑ t ∈ T, weight t * allocIndicator t v := by
+        rw [Finset.sum_comm]
+      _ = ∑ v ∈ allocations, ∏ i, rawMass i (v i) := by
+        apply Finset.sum_congr rfl
+        intro v hv
+        exact hrawPush v
+  have hcardAll : allAlloc.card =
+      ∏ p : PrimeIndex, (a p.val + 1) ^ k := by
+    calc
+      allAlloc.card = ∏ i, (rowVectors i).card := by simp [allAlloc]
+      _ = ∏ i, ∏ p : PrimeIndex, (a p.val + 1) := by
+        apply Finset.prod_congr rfl
+        intro i hi
+        simp only [rowVectors, Fintype.card_piFinset]
+        apply Finset.prod_congr rfl
+        intro p hp
+        simp
+      _ = ∏ p : PrimeIndex, ∏ i, (a p.val + 1) := by rw [Finset.prod_comm]
+      _ = ∏ p : PrimeIndex, (a p.val + 1) ^ k := by
+        apply Finset.prod_congr rfl
+        intro p hp
+        simp [Finset.prod_const, Fintype.card_fin]
+  have hprodSubtype := hprodSubtypeNat (fun p => (a p + 1) ^ k)
+  have hcard : allocations.card ≤ ∏ p ∈ P, (a p + 1) ^ k := by
+    calc
+      allocations.card ≤ allAlloc.card := Finset.card_le_card (Finset.filter_subset _ _)
+      _ = ∏ p ∈ P, (a p + 1) ^ k := by rw [hcardAll, hprodSubtype]
+  have hcardReal : (allocations.card : ℝ) ≤
+      ∏ p ∈ P, ((a p + 1 : ℕ) : ℝ) ^ k := by exact_mod_cast hcard
+  have hKdenPos : 0 < Kden := by
+    dsimp [Kden]
+    apply Finset.prod_pos
+    intro p hp
+    have hpR : 0 < (p : ℝ) := by exact_mod_cast (hprime p hp).pos
+    exact pow_pos hpR _
+  have hbaseBound : 0 ≤ (6 : ℝ) ^ k / Kden :=
+    div_nonneg (by positivity) hKdenPos.le
+  have hallocBound :
+      (∑ v ∈ allocations, ∏ i, rawMass i (v i)) ≤
+        (6 : ℝ) ^ k / Kden * allocations.card := by
+    calc
+      _ ≤ ∑ v ∈ allocations, (6 : ℝ) ^ k / Kden := by
+        apply Finset.sum_le_sum
+        intro v hv
+        have hrowBound :
+            ∏ i, rawMass i (v i) ≤ ∏ i, (6 : ℝ) / denominator (v i) := by
+          exact finset_prod_le_prod_of_nonneg Finset.univ
+            (fun i => rawMass i (v i)) (fun i => (6 : ℝ) / denominator (v i))
+            (by intro i hi; exact hrawNonneg i (v i))
+            (by intro i hi; positivity)
+            (by intro i hi; exact hrawBound i (v i))
+        have hden := hDenomProduct v hv
+        calc
+          ∏ i, rawMass i (v i) ≤ ∏ i, (6 : ℝ) / denominator (v i) := hrowBound
+          _ = (6 : ℝ) ^ k / Kden := by
+            rw [Finset.prod_div_distrib]
+            simp [Kden, denominator, Finset.prod_const, Fintype.card_fin, hden]
+      _ = (6 : ℝ) ^ k / Kden * allocations.card := by
+        simp [Finset.sum_const, nsmul_eq_mul]
+        ring
+  have hfinal :
+      (6 : ℝ) ^ k / Kden * allocations.card ≤
+        (6 : ℝ) ^ k * ∏ p ∈ P,
+          (((a p + 1 : ℕ) : ℝ) ^ k / (p : ℝ) ^ (a p)) := by
+    have hnum : (allocations.card : ℝ) ≤
+        ∏ p ∈ P, ((a p + 1 : ℕ) : ℝ) ^ k := hcardReal
+    have hdenPos : 0 < Kden := hKdenPos
+    calc
+      (6 : ℝ) ^ k / Kden * allocations.card ≤
+          (6 : ℝ) ^ k / Kden * ∏ p ∈ P, ((a p + 1 : ℕ) : ℝ) ^ k :=
+        mul_le_mul_of_nonneg_left hnum (by positivity)
+      _ = (6 : ℝ) ^ k * ∏ p ∈ P,
+          (((a p + 1 : ℕ) : ℝ) ^ k / (p : ℝ) ^ (a p)) := by
+        rw [Finset.prod_div_distrib]
+        change (6 : ℝ) ^ k / Kden *
+            (∏ p ∈ P, ((a p + 1 : ℕ) : ℝ) ^ k) =
+          (6 : ℝ) ^ k *
+            ((∏ p ∈ P, ((a p + 1 : ℕ) : ℝ) ^ k) / Kden)
+        field_simp [ne_of_gt hdenPos]
+  calc
+    lhs = ∑ t ∈ T, weight t *
+        (if ∀ p ∈ P, (∑ i, Nat.factorization (t i) p) = a p then 1 else 0) := hmassFinite
+    _ ≤ ∑ v ∈ allocations, ∏ i, rawMass i (v i) := hsumUpper
+    _ ≤ (6 : ℝ) ^ k / Kden * allocations.card := hallocBound
+    _ ≤ (6 : ℝ) ^ k * ∏ p ∈ P,
+        (((a p + 1 : ℕ) : ℝ) ^ k / (p : ℝ) ^ (a p)) := hfinal
 
 private theorem harmonicProductLaw_valuationMass_le {k : ℕ} (W p a : ℕ)
     (X : Fin k → ℕ) (hX : ∀ i, 0 < X i)
