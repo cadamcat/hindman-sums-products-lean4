@@ -211,7 +211,7 @@ theorem dual_clipping_error (MS : MasterScales K As sl Dm) (B : Block K) (l : Fi
    calc
     Emu MS.core.parameters N B.1 (fun y => w y * |D y - clip Kc (D y)| ^ p)
         ≤ Emu MS.core.parameters N B.1 (fun y => Ctail * (w y * |D y| ^ b)) :=
-      Emu_mono MS.core.parameters N B.1 hpoint
+      pkgB_Emu_mono MS.core.parameters N B.1 hpoint
     _ = Ctail * Emu MS.core.parameters N B.1 (fun y => w y * |D y| ^ b) :=
       Emu_mul_left MS.core.parameters N B.1 Ctail (fun y => w y * |D y| ^ b)
     _ ≤ Ctail * (2 * Astar ^ b + 1) :=
@@ -300,11 +300,11 @@ theorem dual_products_orthogonal_clipped (MS : MasterScales K As sl Dm) (B : Blo
     let w : ℤ → ℝ := fun y => 1 + nu MS.core.parameters N B y
     have hw (y : ℤ) : 0 ≤ w y := by
       dsimp [w]
-      exact add_nonneg (by norm_num) (nu_nonneg MS.core.parameters N B y)
+      exact add_nonneg (by norm_num) (pkgB_nu_nonneg MS.core.parameters N B y)
     have hrootAbs (y : ℤ) :
         |nu MS.core.parameters N B y - 1| ≤ w y := by
       dsimp [w]
-      exact abs_sub_one_le_add_one (nu_nonneg MS.core.parameters N B y)
+      exact abs_sub_one_le_add_one (pkgB_nu_nonneg MS.core.parameters N B y)
     let term : Fin b → ℤ → ℝ := fun i y =>
       |C i y - D i y| *
         ∏ k : Fin b, (if k = i then (1 : ℝ) else |D k y|)
@@ -358,7 +358,7 @@ theorem dual_products_orthogonal_clipped (MS : MasterScales K As sl Dm) (B : Blo
     have hmomentNonneg (i k : Fin b) :
         0 ≤ Emu MS.core.parameters N B.1
           (fun y => w y * |F i k y| ^ b) :=
-      Emu_nonneg MS.core.parameters N B.1
+      pkgB_Emu_nonneg MS.core.parameters N B.1
         (fun y => mul_nonneg (hw y) (pow_nonneg (abs_nonneg _) _))
     have hmomentRootBound (i k : Fin b) :
         (Emu MS.core.parameters N B.1
@@ -445,7 +445,7 @@ theorem dual_products_orthogonal_clipped (MS : MasterScales K As sl Dm) (B : Blo
       calc
         _ ≤ Emu MS.core.parameters N B.1
             (fun y => w y * ∑ k : Fin b, term k y) :=
-          Emu_mono MS.core.parameters N B.1 (fun y =>
+          pkgB_Emu_mono MS.core.parameters N B.1 (fun y =>
             mul_le_mul_of_nonneg_left (htel y) (hw y))
         _ = ∑ k : Fin b, Emu MS.core.parameters N B.1
               (fun y => w y * term k y) := by
@@ -463,11 +463,11 @@ theorem dual_products_orthogonal_clipped (MS : MasterScales K As sl Dm) (B : Blo
         _ ≤ Emu MS.core.parameters N B.1
             (fun y => |(nu MS.core.parameters N B y - 1) *
               ((∏ k : Fin b, C k y) - ∏ k : Fin b, D k y)|) :=
-          Emu_abs_le MS.core.parameters N B.1 _
+          pkgB_Emu_abs_le MS.core.parameters N B.1 _
         _ ≤ Emu MS.core.parameters N B.1
             (fun y => w y *
               |(∏ k : Fin b, C k y) - ∏ k : Fin b, D k y|) :=
-          Emu_mono MS.core.parameters N B.1 (fun y => by
+          pkgB_Emu_mono MS.core.parameters N B.1 (fun y => by
             rw [abs_mul]
             exact mul_le_mul_of_nonneg_right (hrootAbs y) (abs_nonneg _))
         _ ≤ (b : ℝ) * theta := hdiffBound
@@ -487,7 +487,7 @@ theorem dual_products_orthogonal_clipped (MS : MasterScales K As sl Dm) (B : Blo
             congr 1
             funext y
             ring
-        _ = _ := Emu_add MS.core.parameters N B.1 _ _
+        _ = _ := pkgB_Emu_add MS.core.parameters N B.1 _ _
     calc
       |Emu MS.core.parameters N B.1
           (fun y => (nu MS.core.parameters N B y - 1) * ∏ k : Fin b, C k y)|

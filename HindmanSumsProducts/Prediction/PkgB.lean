@@ -1249,20 +1249,20 @@ private theorem harmonicNormalizer_nonneg (X W : ℕ) :
   intro n hn
   positivity
 
-theorem harmonicLaw_nonneg (X W : ℕ) (y : ℤ) : 0 ≤ harmonicLaw X W y := by
+theorem pkgB_harmonicLaw_nonneg (X W : ℕ) (y : ℤ) : 0 ≤ harmonicLaw X W y := by
   unfold harmonicLaw
   split_ifs with h
   · exact div_nonneg (by norm_num)
       (mul_nonneg (by positivity) (harmonicNormalizer_nonneg X W))
   · simp
 
-theorem Emu_mono {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgB_Emu_mono {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     {f g : ℤ → ℝ} (hfg : ∀ y, f y ≤ g y) :
     Emu A N i f ≤ Emu A N i g := by
   unfold Emu
   exact Summable.tsum_le_tsum
     (fun y => mul_le_mul_of_nonneg_left (hfg y)
-      (harmonicLaw_nonneg (A.X N i) (primorial (N + 1)) y))
+      (pkgB_harmonicLaw_nonneg (A.X N i) (primorial (N + 1)) y))
     (harmonicLaw_weight_summable (A.X N i) (primorial (N + 1)) f)
     (harmonicLaw_weight_summable (A.X N i) (primorial (N + 1)) g)
 
@@ -1279,7 +1279,7 @@ theorem Emu_mul_left {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     _ = c * ∑' y, mu A N i y * f y :=
       (harmonicLaw_weight_summable (A.X N i) (primorial (N + 1)) f).tsum_mul_left c
 
-theorem Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgB_Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     (f g : ℤ → ℝ) :
     Emu A N i (fun y => f y + g y) = Emu A N i f + Emu A N i g := by
   unfold Emu
@@ -1294,10 +1294,10 @@ theorem Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     _ = (∑' y, mu A N i y * f y) + ∑' y, mu A N i y * g y :=
       Summable.tsum_add hf hg
 
-theorem Emu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgB_Emu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     {f : ℤ → ℝ} (hf : ∀ y, 0 ≤ f y) :
     0 ≤ Emu A N i f := by
-  have h := Emu_mono A N i (f := fun _ => 0) (g := f) (fun y => hf y)
+  have h := pkgB_Emu_mono A N i (f := fun _ => 0) (g := f) (fun y => hf y)
   simpa [Emu] using h
 
 private theorem harmonicNatLaw_nonneg (X W n : ℕ) :
@@ -1944,7 +1944,7 @@ private theorem momentBaseMass_nonneg {K sl : ℕ} {As : Finset ℚ}
     cases hidx : momentBaseEnum b T.d j with
     | inl i =>
         simpa [momentBaseCoordinateLaw, hidx] using
-          harmonicLaw_nonneg (MS.core.parameters.X N B.1) (primorial (N + 1)) (x j)
+          pkgB_harmonicLaw_nonneg (MS.core.parameters.X N B.1) (primorial (N + 1)) (x j)
     | inr idx =>
         rcases idx with ⟨k, ⟨j', side⟩⟩
         simp only [momentBaseCoordinateLaw]
@@ -1972,7 +1972,7 @@ private theorem momentBaseCoordinateLaw_nonneg {K sl : ℕ} {As : Finset ℚ}
     (i : MomentBaseIndex b T.d) (z : ℤ) :
     0 ≤ momentBaseCoordinateLaw MS B l T J0 N b p i z := by
   cases i with
-  | inl _ => exact harmonicLaw_nonneg _ _ _
+  | inl _ => exact pkgB_harmonicLaw_nonneg _ _ _
   | inr idx =>
       rcases idx with ⟨k, ⟨j, side⟩⟩
       simp only [momentBaseCoordinateLaw, uniformIntegerIntervalLaw]
@@ -2907,7 +2907,7 @@ private theorem momentBaseEpsilonBase_superPolynomial {K sl : ℕ} {As : Finset 
   filter_upwards with N
   exact (hEq N).symm
 
-theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
+theorem pkgB_parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) :
     0 ≤ parameterTailProductLaw A N T σ := by
   unfold parameterTailProductLaw
@@ -2919,12 +2919,12 @@ theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
   · simpa [hσ] using mul_nonneg (by norm_num : (0 : ℝ) ≤ 1) hprod
   · simp [hσ]
 
-theorem nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (B : Block n) (y : ℤ) :
+theorem pkgB_nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (B : Block n) (y : ℤ) :
     0 ≤ nu A N B y := by
   unfold nu nuB
   apply tsum_nonneg
   intro σ
-  have htail := parameterTailProductLaw_nonneg A N B.2.val σ
+  have htail := pkgB_parameterTailProductLaw_nonneg A N B.2.val σ
   by_cases hdiv : (σ : ℤ) ∣ y
   · simpa [hdiv] using
       mul_nonneg (mul_nonneg htail (by positivity)) (by norm_num : (0 : ℝ) ≤ 1)
@@ -2938,7 +2938,7 @@ theorem abs_sub_one_le_add_one {x : ℝ} (hx : 0 ≤ x) :
 noncomputable def emuSupport {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n) : Finset ℤ :=
   (harmonicLaw_support_finite (A.X N i) (primorial (N + 1))).toFinset
 
-theorem Emu_eq_sum_support {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgB_Emu_eq_sum_support {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     (f : ℤ → ℝ) :
     Emu A N i f = ∑ y ∈ emuSupport A N i, mu A N i y * f y := by
   classical
@@ -2958,30 +2958,30 @@ theorem Emu_finset_sum {ι : Type*} {n : ℕ} (A : Parameters n) (N : ℕ) (i : 
     Emu A N i (fun y => ∑ k ∈ s, F k y) =
       ∑ k ∈ s, Emu A N i (F k) := by
   classical
-  rw [Emu_eq_sum_support]
+  rw [pkgB_Emu_eq_sum_support]
   simp_rw [Finset.mul_sum]
   rw [Finset.sum_comm]
   apply Finset.sum_congr rfl
   intro k hk
-  rw [Emu_eq_sum_support]
+  rw [pkgB_Emu_eq_sum_support]
 
-theorem Emu_abs_le {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n) (f : ℤ → ℝ) :
+theorem pkgB_Emu_abs_le {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n) (f : ℤ → ℝ) :
     |Emu A N i f| ≤ Emu A N i (fun y => |f y|) := by
   classical
   calc
     |Emu A N i f| =
         |∑ y ∈ emuSupport A N i, mu A N i y * f y| := by
-          rw [Emu_eq_sum_support]
+          rw [pkgB_Emu_eq_sum_support]
     _ ≤ ∑ y ∈ emuSupport A N i, |mu A N i y * f y| :=
       Finset.abs_sum_le_sum_abs _ _
     _ = ∑ y ∈ emuSupport A N i, mu A N i y * |f y| := by
       apply Finset.sum_congr rfl
       intro y hy
       have hμ : 0 ≤ mu A N i y := by
-        simpa [mu] using harmonicLaw_nonneg (A.X N i) (primorial (N + 1)) y
+        simpa [mu] using pkgB_harmonicLaw_nonneg (A.X N i) (primorial (N + 1)) y
       rw [abs_mul, abs_of_nonneg hμ]
     _ = Emu A N i (fun y => |f y|) :=
-      (Emu_eq_sum_support A N i (fun y => |f y|)).symm
+      (pkgB_Emu_eq_sum_support A N i (fun y => |f y|)).symm
 
 theorem Emu_weighted_cauchy {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     (w f g : ℤ → ℝ) (hw : ∀ y, 0 ≤ w y) :
@@ -2994,12 +2994,12 @@ theorem Emu_weighted_cauchy {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
   let u : ℤ → ℝ := fun y => Real.sqrt (mass y) * f y
   let v : ℤ → ℝ := fun y => Real.sqrt (mass y) * g y
   have hmass (y : ℤ) : 0 ≤ mass y :=
-    mul_nonneg (harmonicLaw_nonneg (A.X N i) (primorial (N + 1)) y) (hw y)
+    mul_nonneg (pkgB_harmonicLaw_nonneg (A.X N i) (primorial (N + 1)) y) (hw y)
   have hsumuv :
       (∑ y ∈ s, u y * v y) = Emu A N i (fun y => w y * f y * g y) := by
     change (∑ y ∈ emuSupport A N i, u y * v y) =
       Emu A N i (fun y => w y * f y * g y)
-    rw [Emu_eq_sum_support]
+    rw [pkgB_Emu_eq_sum_support]
     apply Finset.sum_congr rfl
     intro y hy
     dsimp [u, v, mass]
@@ -3013,7 +3013,7 @@ theorem Emu_weighted_cauchy {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
       (∑ y ∈ s, u y ^ 2) = Emu A N i (fun y => w y * f y ^ 2) := by
     change (∑ y ∈ emuSupport A N i, u y ^ 2) =
       Emu A N i (fun y => w y * f y ^ 2)
-    rw [Emu_eq_sum_support]
+    rw [pkgB_Emu_eq_sum_support]
     apply Finset.sum_congr rfl
     intro y hy
     dsimp [u, mass]
@@ -3023,7 +3023,7 @@ theorem Emu_weighted_cauchy {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
       (∑ y ∈ s, v y ^ 2) = Emu A N i (fun y => w y * g y ^ 2) := by
     change (∑ y ∈ emuSupport A N i, v y ^ 2) =
       Emu A N i (fun y => w y * g y ^ 2)
-    rw [Emu_eq_sum_support]
+    rw [pkgB_Emu_eq_sum_support]
     apply Finset.sum_congr rfl
     intro y hy
     dsimp [v, mass]
@@ -3185,14 +3185,14 @@ theorem Emu_weighted_holder {ι : Type*} (I : Finset ι) (hI : I.Nonempty)
   let s := emuSupport A N pivot
   let mass : ℤ → ℝ := fun y => mu A N pivot y * w y
   have hmass (y : ℤ) : 0 ≤ mass y :=
-    mul_nonneg (harmonicLaw_nonneg (A.X N pivot) (primorial (N + 1)) y) (hw y)
+    mul_nonneg (pkgB_harmonicLaw_nonneg (A.X N pivot) (primorial (N + 1)) y) (hw y)
   have h :=
     finite_holder_weighted I s hI mass f (fun y _ => hmass y)
   have hleft :
       (∑ y ∈ s, mass y * ∏ i ∈ I, |f i y|) =
         Emu A N pivot (fun y => w y * ∏ i ∈ I, |f i y|) := by
     change (∑ y ∈ emuSupport A N pivot, mass y * ∏ i ∈ I, |f i y|) = _
-    rw [Emu_eq_sum_support]
+    rw [pkgB_Emu_eq_sum_support]
     apply Finset.sum_congr rfl
     intro y hy
     dsimp [mass]
@@ -3201,7 +3201,7 @@ theorem Emu_weighted_holder {ι : Type*} (I : Finset ι) (hI : I.Nonempty)
       (∑ y ∈ s, mass y * |f i y| ^ I.card) =
         Emu A N pivot (fun y => w y * |f i y| ^ I.card) := by
     change (∑ y ∈ emuSupport A N pivot, mass y * |f i y| ^ I.card) = _
-    rw [Emu_eq_sum_support]
+    rw [pkgB_Emu_eq_sum_support]
     apply Finset.sum_congr rfl
     intro y hy
     dsimp [mass]
