@@ -1,4 +1,4 @@
-import HindmanSumsProducts.Arithmetic.Defs
+import HindmanSumsProducts.Arithmetic
 
 /-!
 # The §3 results used by §4 (copies)
@@ -69,7 +69,9 @@ structure SamplingPointwiseBounds (X W : ℕ) : Prop where
 -- same statement as on `main`.
 theorem sampling_pointwise_claim (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
     (hlog : Real.log X > (W : ℝ) / X) : SamplingPointwiseBounds X W := by
-  sorry
+  have h := HindmanSumsProducts.sampling_pointwise_claim X W hW hX hlog
+  exact ⟨h.periodic_harmonic, h.normalizer, h.residue_pointwise, h.residue_total_mass,
+    h.translation, h.dilation⟩
 
 private theorem interval_residue_card_error (a T k r : ℕ) (hk : 0 < k)
     (hr : r < k) :
@@ -297,7 +299,7 @@ theorem finite_product_l1_telescoping {ι α : Type*} [Fintype ι] [Fintype α]
     finiteL1 (fun x : ι → α => ∏ i, μ i (x i)) (fun x => ∏ i, ν i (x i)) ≤
       ∑ i, finiteL1 (μ i) (ν i) *
         ∏ j ∈ Finset.univ.erase i, max (∑ a, |μ j a|) (∑ a, |ν j a|) := by
-  sorry
+  exact HindmanSumsProducts.finite_product_l1_telescoping μ ν
 
 /-- Worst-case residue error for `k≤K` in the asymptotic part of `lem:sampling`. -/
 def harmonicResidueUniformError (X W K : ℕ) : ℝ := harmonicResidueError X W K
@@ -336,7 +338,7 @@ theorem sampling_asymptotics
         (harmonicResidueUniformError (X n) (W n) (K n) +
           harmonicTranslationUniformError (X n) (W n) (H n) +
           harmonicDilationUniformError (X n) (W n) (K n))) atTop (𝓝 0)) := by
-  sorry
+  exact HindmanSumsProducts.sampling_asymptotics W K H V X hK hH hV hW hX hden hDomX hDomLogX
 
 /-- Lemma `lem:sampling`: exact periodic harmonic, residue, translation, and dilation
 bounds together with the super-polynomial asymptotic conclusions and their stated growth
@@ -541,7 +543,32 @@ theorem lem_master_scales (n : ℕ) (Aset : Finset ℚ)
     (hA : ∀ a ∈ Aset, 0 < a) (m : ℕ)
     (D : Finset (IntegerPolynomial m)) (hD : ∀ P ∈ D, P ≠ 0) :
     Nonempty (MasterScales n Aset m D) := by
-  sorry
+  rcases HindmanSumsProducts.lem_master_scales n Aset hA m D hD with ⟨S⟩
+  let C : MasterScaleCore n Aset :=
+    { parameters := S.core.parameters
+      height_formula := S.core.height_formula
+      modulus_power := S.core.modulus_power
+      adding_pair_ratio := S.core.adding_pair_ratio
+      chain_coefficients := S.core.chain_coefficients }
+  let P : MasterScalePrimeStage C m D :=
+    { e0 := S.primeStage.e0
+      pool := S.primeStage.pool
+      e0_pos := S.primeStage.e0_pos
+      uniform_small_prime_exception := S.primeStage.uniform_small_prime_exception
+      pool_lower_dominates := S.primeStage.pool_lower_dominates
+      pool_harmonic_mass_dominates := S.primeStage.pool_harmonic_mass_dominates
+      pool_residue_error := S.primeStage.pool_residue_error
+      actual_small_prime_exception := S.primeStage.actual_small_prime_exception
+      zero_and_repeat_probability := S.primeStage.zero_and_repeat_probability }
+  have G : MasterScaleGapStage C P :=
+    { gap_dominates_pool_and_bound := S.gapStage.gap_dominates_pool_and_bound
+      gap_modulus_divides := S.gapStage.gap_modulus_divides
+      earlier_gaps_divide := S.gapStage.earlier_gaps_divide
+      polynomial_values_divide_gap := S.gapStage.polynomial_values_divide_gap
+      raw_cutoff_log_dominates_gap := S.gapStage.raw_cutoff_log_dominates_gap
+      coefficient_divides_modulus := S.gapStage.coefficient_divides_modulus
+      valid_raw_cutoffs := S.gapStage.valid_raw_cutoffs }
+  exact ⟨{ core := C, primeStage := P, gapStage := G }⟩
 
 /-! ## `Arithmetic/LinearForms.lean`
 
@@ -726,7 +753,76 @@ theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
       |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
         C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ q *
           (D.epsilonBase N + D.epsilonCRT N)) := by
-  sorry
+  let core : HindmanSumsProducts.MasterScaleCore n Aset :=
+    { parameters := S.core.parameters
+      height_formula := S.core.height_formula
+      modulus_power := S.core.modulus_power
+      adding_pair_ratio := S.core.adding_pair_ratio
+      chain_coefficients := S.core.chain_coefficients }
+  let primeStage : HindmanSumsProducts.MasterScalePrimeStage core m tests :=
+    { e0 := S.primeStage.e0
+      pool := S.primeStage.pool
+      e0_pos := S.primeStage.e0_pos
+      uniform_small_prime_exception := S.primeStage.uniform_small_prime_exception
+      pool_lower_dominates := S.primeStage.pool_lower_dominates
+      pool_harmonic_mass_dominates := S.primeStage.pool_harmonic_mass_dominates
+      pool_residue_error := S.primeStage.pool_residue_error
+      actual_small_prime_exception := S.primeStage.actual_small_prime_exception
+      zero_and_repeat_probability := S.primeStage.zero_and_repeat_probability }
+  have gapStage : HindmanSumsProducts.MasterScaleGapStage core primeStage :=
+    { gap_dominates_pool_and_bound := S.gapStage.gap_dominates_pool_and_bound
+      gap_modulus_divides := S.gapStage.gap_modulus_divides
+      earlier_gaps_divide := S.gapStage.earlier_gaps_divide
+      polynomial_values_divide_gap := S.gapStage.polynomial_values_divide_gap
+      raw_cutoff_log_dominates_gap := S.gapStage.raw_cutoff_log_dominates_gap
+      coefficient_divides_modulus := S.gapStage.coefficient_divides_modulus
+      valid_raw_cutoffs := S.gapStage.valid_raw_cutoffs }
+  let scales : HindmanSumsProducts.MasterScales n Aset m tests :=
+    { core := core, primeStage := primeStage, gapStage := gapStage }
+  let data : HindmanSumsProducts.WeightedLinearFormsData (q := q) (d := d) (b := b) scales :=
+    { gap := D.gap
+      rowCoeff := D.rowCoeff
+      divisor := fun u =>
+        { arity := (D.divisor u).arity
+          arity_le := (D.divisor u).arity_le
+          cutoff := (D.divisor u).cutoff }
+      V := D.V
+      epsilonBase := D.epsilonBase
+      epsilonCRT := D.epsilonCRT
+      baseMass := D.baseMass
+      goodDomain := D.goodDomain
+      epsilonBase_nonnegative := D.epsilonBase_nonnegative
+      V_lower := D.V_lower
+      V_tendsto := D.V_tendsto
+      slot_gap_bound := D.slot_gap_bound
+      base_nonnegative := D.base_nonnegative
+      base_normalized := D.base_normalized
+      divisor_positive := D.divisor_positive
+      divisor_bounded := D.divisor_bounded
+      base_residue_uniform := D.base_residue_uniform
+      row_integer_on_support := D.row_integer_on_support
+      row_denominators_are_units := D.row_denominators_are_units
+      row_primitive := D.row_primitive
+      pairwise_row_tests := D.pairwise_row_tests
+      crt_error_bound := D.crt_error_bound
+      epsilonBase_superpolynomial := D.epsilonBase_superpolynomial
+      epsilonCRT_superpolynomial := D.epsilonCRT_superpolynomial }
+  have hAverage (N : ℕ) (E : (Fin m → ℕ) → Prop) :
+      HindmanSumsProducts.weightedLinearFormsAverage data N E =
+        weightedLinearFormsAverage D N E := by
+    rfl
+  have hProbability (N : ℕ) (E : (Fin m → ℕ) → Prop) :
+      HindmanSumsProducts.weightedLinearFormsEventProbability data N E =
+        weightedLinearFormsEventProbability D N E := by
+    rfl
+  rcases HindmanSumsProducts.prop_linear_forms data with ⟨C, hC, hbound⟩
+  refine ⟨C, hC, ?_⟩
+  intro N E hE
+  have hE' : ∀ p, E p → data.goodDomain N p := by
+    simpa [data] using hE
+  have h := hbound N E hE'
+  rw [← hAverage N E, ← hProbability N E]
+  exact h
 
 end LinearForms
 
