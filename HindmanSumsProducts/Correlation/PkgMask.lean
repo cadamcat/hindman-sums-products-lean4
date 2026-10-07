@@ -3602,6 +3602,95 @@ theorem pkgMask_chainWeight_rowUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
     rw [hnum]
     exact chainWeight_mul_eq_of_prime_gt S C N d p₀ hp₀ hV₀ oldValue.num
 
+theorem pkgMask_chainWeight_balancedUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (u v : Fin m) (huv : u ≠ v)
+    (p₀ p₁ : ℕ) (z : Fin m → ℤ)
+    (hcase : (u ∉ T.support ∧ v ∉ T.support) ∨ T.support = {u} ∨ T.support = {v})
+    (hcu : c u ≠ 0) (hcv : c v ≠ 0)
+    (hp₀ : p₀.Prime) (hp₁ : p₁.Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p₁)
+    (hdenOld : (rowForm c T p (fun k => (z k : ℚ))).den = 1)
+    (hdenNew : (rowForm c T p
+      (Function.update (Function.update (fun k => (z k : ℚ)) u
+        ((p₀ : ℚ) * (z u : ℚ))) v ((p₁ : ℚ) * (z v : ℚ)))).den = 1) :
+    chainWeight S.core.parameters C N d
+        ((rowForm c T p (Function.update (Function.update (fun k => (z k : ℚ)) u
+          ((p₀ : ℚ) * (z u : ℚ))) v ((p₁ : ℚ) * (z v : ℚ)))).num) =
+      chainWeight S.core.parameters C N d ((rowForm c T p (fun k => (z k : ℚ))).num) := by
+  let oldValue := rowForm c T p (fun k => (z k : ℚ))
+  let z₁ := Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ))
+  let z₂ := Function.update z₁ v ((p₁ : ℚ) * (z v : ℚ))
+  let newValue := rowForm c T p z₂
+  have holdNum : (oldValue.num : ℚ) = oldValue :=
+    (Rat.den_eq_one_iff oldValue).mp (by simpa [oldValue] using hdenOld)
+  have hnewNum : (newValue.num : ℚ) = newValue :=
+    (Rat.den_eq_one_iff newValue).mp (by simpa [newValue, z₁, z₂] using hdenNew)
+  have hweightOfEq (hEq : newValue = oldValue) :
+      chainWeight S.core.parameters C N d newValue.num =
+        chainWeight S.core.parameters C N d oldValue.num := by
+    have hnumQ : (newValue.num : ℚ) = (oldValue.num : ℚ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = oldValue := hEq
+        _ = (oldValue.num : ℚ) := holdNum.symm
+    have hnum : newValue.num = oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+  have hweightOfMul (p' : ℕ) (hp' : p'.Prime)
+      (hV' : masterScaleV S.core.parameters N C.gap < p')
+      (hEq : newValue = (p' : ℚ) * oldValue) :
+      chainWeight S.core.parameters C N d newValue.num =
+        chainWeight S.core.parameters C N d oldValue.num := by
+    have hnumQ : (newValue.num : ℚ) = ((p' : ℤ) * oldValue.num : ℤ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = (p' : ℚ) * oldValue := hEq
+        _ = (p' : ℚ) * (oldValue.num : ℚ) := by rw [holdNum]
+        _ = ((p' : ℤ) * oldValue.num : ℤ) := by norm_cast
+    have hnum : newValue.num = (p' : ℤ) * oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+    exact chainWeight_mul_eq_of_prime_gt S C N d p' hp' hV' oldValue.num
+  rcases hcase with ⟨hu, hv⟩ | hsingleU | hsingleV
+  · have hEq : newValue = oldValue := by
+      dsimp [newValue, z₂]
+      rw [rowForm_update_of_not_mem_support c T p z₁ v
+        ((p₁ : ℚ) * (z v : ℚ)) hv]
+      dsimp [z₁, oldValue]
+      exact rowForm_update_of_not_mem_support c T p (fun k => (z k : ℚ)) u
+        ((p₀ : ℚ) * (z u : ℚ)) hu
+    exact hweightOfEq hEq
+  · have hv : v ∉ T.support := by
+      rw [hsingleU]
+      simp [Ne.symm huv]
+    have hEq : newValue = (p₀ : ℚ) * oldValue := by
+      dsimp [newValue, z₂]
+      rw [rowForm_update_of_not_mem_support c T p z₁ v
+        ((p₁ : ℚ) * (z v : ℚ)) hv]
+      exact rowForm_update_mul_singleton c T p (fun k => (z k : ℚ)) u
+        (p₀ : ℚ) hsingleU hcu
+    exact hweightOfMul p₀ hp₀ hV₀ hEq
+  · have hu : u ∉ T.support := by
+      rw [hsingleV]
+      simp [huv]
+    have hcomm :
+        Function.update (Function.update (fun k => (z k : ℚ)) u
+          ((p₀ : ℚ) * (z u : ℚ))) v
+          ((p₁ : ℚ) * (z v : ℚ)) =
+        Function.update (Function.update (fun k => (z k : ℚ)) v
+          ((p₁ : ℚ) * (z v : ℚ))) u ((p₀ : ℚ) * (z u : ℚ)) := by
+      exact Function.update_comm huv _ _ _
+    have hEq : newValue = (p₁ : ℚ) * oldValue := by
+      dsimp [newValue, z₂]
+      rw [hcomm]
+      rw [rowForm_update_of_not_mem_support c T p
+        (Function.update (fun k => (z k : ℚ)) v ((p₁ : ℚ) * (z v : ℚ)))
+        u ((p₀ : ℚ) * (z u : ℚ)) hu]
+      exact rowForm_update_mul_singleton c T p (fun k => (z k : ℚ)) v
+        (p₁ : ℚ) hsingleV hcv
+    exact hweightOfMul p₁ hp₁ hV₁ hEq
+
 theorem pkgMask_chainWeight_scaleBranchP_eq {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
