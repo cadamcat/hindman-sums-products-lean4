@@ -61,7 +61,7 @@ def pivotMass {n m : ℕ} (A : OAI.SourceAdmissible.Parameters n) (C : MasterCha
 03:446–449). -/
 def chainWeight {n m : ℕ} (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m)
     (N : ℕ) (k : Fin m) : ℤ → ℝ :=
-  nuB (parameterTailProductLaw A N (C.block k).2.val)
+  nuB (FromArithmetic.parameterTailProductLaw A N (C.block k).2.val)
 
 /-- The correlation `𝒞` of equation `eq:correlation-initial` (04:32–41):
 `E_z[∏_{U≠∅} b_U(z_U) ∏_{J≠∅} g_J(L_J(z))]`, `z_U=∏_{k∈U} z_k`. -/
@@ -87,36 +87,36 @@ section Slots
 variable {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
 
 /-- Mass of a tuple of independent slots from gap `l`'s pool, each with law `λ_l`. -/
-def gapSlotMass (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
+def gapSlotMass (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
     (p : Fin q → ℕ) : ℝ :=
   independentPrimePoolMass (fun _ => (S.primeStage.pool N l).lower)
     (fun _ => (S.primeStage.pool N l).upper) p
 
 /-- Probability of an event under independent slots from gap `l`'s pool. -/
-def gapSlotProbability (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
+def gapSlotProbability (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
     (E : (Fin q → ℕ) → Prop) : ℝ :=
   independentPrimePoolProbability (fun _ => (S.primeStage.pool N l).lower)
     (fun _ => (S.primeStage.pool N l).upper) E
 
 /-- Expectation under independent slots from gap `l`'s pool. -/
-def gapSlotAverage (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
+def gapSlotAverage (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
     (F : (Fin q → ℕ) → ℝ) : ℝ :=
   ∑' p : Fin q → ℕ, gapSlotMass S l N p * F p
 
 /-- Expectation under the slot law conditioned on `good` and renormalized (zero if `good` is
 null). -/
-def goodSlotAverage (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
+def goodSlotAverage (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
     (good : (Fin q → ℕ) → Prop) (F : (Fin q → ℕ) → ℝ) : ℝ :=
   (gapSlotProbability S l N good)⁻¹ *
     ∑' p : Fin q → ℕ, gapSlotMass S l N p * (if good p then F p else 0)
 
 /-- Expectation of one prime `p` with law `λ_l`. -/
-def poolAverage (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) (F : ℕ → ℝ) : ℝ :=
+def poolAverage (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) (F : ℕ → ℝ) : ℝ :=
   ∑' p : ℕ, primePoolLaw (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper p * F p
 
 /-- Good prime tuples (04:375–380): all slots in the pool, no repeated slot, no zero value of a
 test polynomial, and no `π^{e_0} ∣ D(p)` for a prime `π ≤ w`. -/
-def GoodTuple (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
+def GoodTuple (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
     (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q) (p : Fin q → ℕ) :
     Prop :=
   (∀ i, (S.primeStage.pool N l).lower ≤ p i ∧ p i < (S.primeStage.pool N l).upper ∧
@@ -127,19 +127,19 @@ def GoodTuple (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) {q : ℕ}
       ¬ (((π ^ S.primeStage.e0 N : ℕ) : ℤ) ∣ evalIntegerPolynomial Dpoly (fun i => (p i : ℤ)))
 
 /-- The modulus `M(p)=M|D(p)|_{>w}` of equation `eq:correlation-modulus`. -/
-def directionModulus (S : MasterScales K Aset s Dm) (N : ℕ) {q : ℕ}
+def directionModulus (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) {q : ℕ}
     (Dpoly : IntegerPolynomial q) (p : Fin q → ℕ) : ℕ :=
   S.core.parameters.M N * roughPart (N + 1) (evalIntegerPolynomial Dpoly (fun i => (p i : ℤ)))
 
 /-- The shift length `L(p)=⌊R_l/(J_0M(p))⌋` of equation `eq:correlation-shift-length`. -/
-def shiftLength (S : MasterScales K Aset s Dm) (l : Fin K) (J0 N : ℕ) {q : ℕ}
+def shiftLength (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (J0 N : ℕ) {q : ℕ}
     (Dpoly : IntegerPolynomial q) (p : Fin q → ℕ) : ℕ :=
   S.core.parameters.H N l / (J0 * directionModulus S N Dpoly p)
 
 end Slots
 
 /-- Uniform average over two independent shifts `u_R^0,u_R^1 ∈ [0,L)` for each `R : ι`
-(zero if `L=0`). -/
+(zero if `L = 0` and `ι` is nonempty; with no directions it is the single value `F` takes). -/
 def shiftAverage (ι : Type*) [Fintype ι] [DecidableEq ι] (L : ℕ)
     (F : (ι → Fin 2 → ℕ) → ℝ) : ℝ :=
   ((L : ℝ) ^ (2 * Fintype.card ι))⁻¹ *
@@ -216,7 +216,7 @@ def templateMinors {m q r : ℕ} (Sh : RowShape m q r) : Finset (IntegerPolynomi
 /-- Expectation of `∏_R f_R(ℓ_R(z))` under independent pool slots and pivot variables; the
 right side of equation `eq:mask-removal-output`. -/
 def rowCorrelation {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (Sh : RowShape m q r) (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) : ℝ :=
   gapSlotAverage S C.gap N fun p =>
     ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
@@ -288,13 +288,13 @@ def ResponseUnit {q : ℕ} (N V : ℕ) (tests : Finset (IntegerPolynomial q)) (p
 a unit at `w<π≤V_l` off the tests. -/
 def IntegerDirectionFacts {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     {Sh : RowShape m q r} (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (B : ℕ) (p : Fin q → ℕ) : Prop :=
   let c := chainScale S.core.parameters C a N
   let W := primorial (N + 1)
   let Mp := directionModulus S N dirs.poly p
-  let V := masterScaleV S.core.parameters N C.gap
+  let V := FromArithmetic.masterScaleV S.core.parameters N C.gap
   let size := (S.primeStage.pool N C.gap).upper + V
   (∀ R k, R ≠ Sh.star → ∃ v : ℤ, (v : ℚ) = dirs.translation c Mp p R k ∧
     (W : ℤ) ∣ v ∧ v.natAbs ≤ size ^ B) ∧
@@ -318,7 +318,7 @@ variable {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s
 
 /-- The row correlation under the normalized good-tuple law (left side of equation
 `eq:additive-elimination-output`). -/
-def goodRowCorrelation (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+def goodRowCorrelation (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) : ℝ :=
   goodSlotAverage S C.gap N (GoodTuple S C.gap N tests dirs.poly) fun p =>
@@ -333,7 +333,7 @@ def targetVertex (c : Fin m → ℚ) (Sh : RowShape m q r) (p : Fin q → ℕ) (
 
 /-- The target cube `E_{p,z,u}∏_{ω∈{0,1}^d} h_p(ℓ_*(z)+M(p)∑_R u_R^{ω_R})` (right side of
 equation `eq:additive-elimination-output`), with `u_R^0,u_R^1` uniform on `[0,L(p))`. -/
-def additiveCube (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+def additiveCube (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q)) (J0 : ℕ) (h : (Fin q → ℕ) → ℤ → ℝ) : ℝ :=
   goodSlotAverage S C.gap N (GoodTuple S C.gap N tests dirs.poly) fun p =>
@@ -344,7 +344,7 @@ def additiveCube (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m
             (directionModulus S N dirs.poly p) (fun k => (z k : ℚ)) u ω)
 
 /-- `B(z,u)=∏_ω(1+ν_{a_*}(ℓ_*(z)+M(p)∑_R u_R^{ω_R}))` (04:533–537). -/
-def targetBound (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+def targetBound (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p : Fin q → ℕ)
     (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ) : ℝ :=
   ∏ ω : NonTarget Sh → Fin 2,
@@ -355,7 +355,7 @@ def targetBound (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m 
 /-- The retained weights `Ψ(z,u)` of equation `eq:correlation-retained-weights`: for each
 nontarget row `I` and each choice `η` of the shifts in the other directions, one factor
 `W_I(ℓ_I(z+∑_{R≠I}u_R^{η_R}v_R))`. -/
-def retainedWeights (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+def retainedWeights (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p : Fin q → ℕ)
     (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ) : ℝ :=
   ∏ I : NonTarget Sh, ∏ η : {R : NonTarget Sh // R ≠ I} → Fin 2,
@@ -366,7 +366,7 @@ def retainedWeights (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fi
             (directionModulus S N dirs.poly p) p R.1.1 k))
 
 /-- `H(z,u)=E_{u_0}Ψ(z+v_0u_0,u)`, `u_0` uniform on `[0,R_l)` (04:530–537). -/
-def averagedRetainedWeights (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+def averagedRetainedWeights (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p : Fin q → ℕ)
     (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ) : ℝ :=
   ((S.core.parameters.H N C.gap : ℝ))⁻¹ *
@@ -377,7 +377,7 @@ def averagedRetainedWeights (S : MasterScales K Aset s Dm) (C : MasterChain K m)
         u
 
 /-- Expectation over good primes, pivots and shifts `u_R^0,u_R^1` uniform on `[0,L(p))`. -/
-def eliminationAverage (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+def eliminationAverage (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
     {Sh : RowShape m q r} (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (J0 : ℕ) (F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ) : ℝ :=
   goodSlotAverage S C.gap N (GoodTuple S C.gap N tests dirs.poly) fun p =>
@@ -405,21 +405,21 @@ namespace CubeTemplate
 variable (T : CubeTemplate) {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
 
 /-- Good tuples of the type at gap `l`. -/
-def Good (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) (p : Fin T.q → ℕ) : Prop :=
+def Good (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ) (p : Fin T.q → ℕ) : Prop :=
   GoodTuple S l N T.tests T.D p
 
 /-- `M(p)=M|D(p)|_{>w}`. -/
-def modulus (S : MasterScales K Aset s Dm) (N : ℕ) (p : Fin T.q → ℕ) : ℕ :=
+def modulus (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (p : Fin T.q → ℕ) : ℕ :=
   directionModulus S N T.D p
 
 /-- `L(p)=⌊R_l/(J_0M(p))⌋`. -/
-def length (S : MasterScales K Aset s Dm) (l : Fin K) (J0 N : ℕ) (p : Fin T.q → ℕ) : ℕ :=
+def length (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (J0 N : ℕ) (p : Fin T.q → ℕ) : ℕ :=
   shiftLength S l J0 N T.D p
 
 /-- The cube test of equation `eq:correlation-test`:
 `E_{p,y,u}∏_{ω⊆[d]} h(y+M(p)∑_{j∈ω}(u_j^1-u_j^0))`, with `p` from the normalized good-tuple law
 at gap `l`, `y` with law `μ_i`, and `u_j^0,u_j^1` uniform on `[0,L(p))`. -/
-def cubeTest (S : MasterScales K Aset s Dm) (l i : Fin K) (J0 N : ℕ) (h : ℤ → ℝ) : ℝ :=
+def cubeTest (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (J0 N : ℕ) (h : ℤ → ℝ) : ℝ :=
   goodSlotAverage S l N (T.Good S l N) fun p =>
     ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
       shiftAverage (Fin T.d) (T.length S l J0 N p) fun u =>

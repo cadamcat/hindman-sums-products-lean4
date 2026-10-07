@@ -1,5 +1,8 @@
 import HindmanSumsProducts.Arithmetic.Defs
+import HindmanSumsProducts.Arithmetic.Outside.AP
 import PrimeNumberTheoremAnd.Wiener
+import PrimeNumberTheoremAnd.Erdos970.Wiener
+import OAI.NumberTheory.Jacobsthal.Sieve.PrimeFibreBrunBound
 
 open scoped BigOperators Topology
 open Filter
@@ -317,7 +320,21 @@ theorem harmonic_prime_residue_equidistribution (Q : ℕ) (hQ : 0 < Q) :
     Tendsto (fun Y : ℕ => finiteL1
       (primePoolResidueLaw Y (2 * Y) Q)
       (uniformUnitResidueLaw Q)) atTop (𝓝 0) := by
-  sorry
+  classical
+  have hsum : Tendsto (fun Y : ℕ =>
+      ∑ a : Fin Q,
+        |primePoolResidueLaw Y (2 * Y) Q a - uniformUnitResidueLaw Q a|)
+      atTop (𝓝 (∑ _a : Fin Q, (0 : ℝ))) := by
+    apply tendsto_finsetSum Finset.univ
+    intro a ha
+    have hconst : Tendsto (fun _ : ℕ => uniformUnitResidueLaw Q a)
+        atTop (𝓝 (uniformUnitResidueLaw Q a)) := tendsto_const_nhds
+    have hdiff : Tendsto
+        (fun Y : ℕ => primePoolResidueLaw Y (2 * Y) Q a - uniformUnitResidueLaw Q a)
+        atTop (𝓝 0) := by
+      simpa using (primePoolResidueLaw_tendsto Q hQ a).sub hconst
+    simpa using hdiff.abs
+  simpa [finiteL1] using hsum
 
 /-- Interval Brun–Titchmarsh bound for the harmonic prime law on `[Y,2Y)`.
 For a prime p with p²≤Y, every nonzero residue class has probability O(1/p).
@@ -327,7 +344,133 @@ theorem harmonic_prime_brun_titchmarsh :
       ∀ p, p.Prime → p ^ 2 ≤ Y → ∀ a : Fin p, 0 < a.val →
         (∑ q ∈ (Finset.Ico Y (2 * Y)).filter Nat.Prime,
           if q % p = a.val then primePoolLaw Y (2 * Y) q else 0) ≤ C / p := by
-  sorry
+  obtain ⟨Cmass, cmass, hCmass, hcmass, hmassEvent⟩ :=
+    dyadic_harmonic_prime_mass_and_atom_bound
+  obtain ⟨Cbt, B, hCbt, hB, hbt⟩ :=
+    OAI.Erdos970.ErdosPrimeInputs.BrunTitchmarshUpper.brun_titchmarsh_upper
+  have hsqrtEvent : ∀ᶠ Y : ℕ in atTop, B ≤ Real.sqrt (Y : ℝ) := by
+    have htend : Tendsto (fun Y : ℕ => Real.sqrt (Y : ℝ)) atTop atTop :=
+      Real.tendsto_sqrt_atTop.comp tendsto_natCast_atTop_atTop
+    exact htend.eventually_ge_atTop B
+  refine ⟨4 * Cbt * Cmass, by positivity, ?_⟩
+  filter_upwards [hmassEvent, hsqrtEvent, eventually_ge_atTop (2 : ℕ)]
+    with Y hmass hBsqrt hY
+  intro p hp hpSq a ha
+  have hpNat : 2 ≤ p := hp.two_le
+  have hpPos : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+  have hYPos : 0 < (Y : ℝ) := by exact_mod_cast (by omega : 0 < Y)
+  have hYLog : 0 < Real.log (Y : ℝ) :=
+    Real.log_pos (by exact_mod_cast (show 1 < Y by omega))
+  have hsqrtPos : 0 < Real.sqrt (Y : ℝ) := Real.sqrt_pos.2 hYPos
+  have hpSqR : (p : ℝ) ^ 2 ≤ (Y : ℝ) := by exact_mod_cast hpSq
+  have hpSqrt : (p : ℝ) ≤ Real.sqrt (Y : ℝ) := Real.le_sqrt_of_sq_le hpSqR
+  have hYp : Real.sqrt (Y : ℝ) ≤ (Y : ℝ) / p := by
+    have hmul := mul_le_mul_of_nonneg_left hpSqrt (Real.sqrt_nonneg (Y : ℝ))
+    have hsquare : Real.sqrt (Y : ℝ) * Real.sqrt (Y : ℝ) = Y := by
+      nlinarith [Real.sq_sqrt (le_of_lt hYPos)]
+    apply (le_div_iff₀ hpPos).2
+    calc
+      Real.sqrt (Y : ℝ) * p ≤
+          Real.sqrt (Y : ℝ) * Real.sqrt (Y : ℝ) := hmul
+      _ = Y := hsquare
+  have hBHp : B ≤ (Y : ℝ) / p := hBsqrt.trans hYp
+  have hLogSqrt : Real.log (Real.sqrt (Y : ℝ)) ≤ Real.log ((Y : ℝ) / p) :=
+    Real.log_le_log hsqrtPos hYp
+  have hLogSqrtEq : Real.log (Real.sqrt (Y : ℝ)) = Real.log (Y : ℝ) / 2 := by
+    rw [Real.log_sqrt (le_of_lt hYPos)]
+  have hLogHalf : Real.log (Y : ℝ) / 2 ≤ Real.log ((Y : ℝ) / p) := by
+    simpa [hLogSqrtEq] using hLogSqrt
+  have hLogRatio : Real.log (Y : ℝ) ≤ 2 * Real.log ((Y : ℝ) / p) := by
+    linarith
+  have hArgPos : 1 < (Y : ℝ) / p := lt_of_lt_of_le hB hBHp
+  have hLogArg : 0 < Real.log ((Y : ℝ) / p) := Real.log_pos hArgPos
+  have hPhiPos : 0 < (p.totient : ℝ) := by
+    rw [Nat.totient_prime hp]
+    exact_mod_cast (by omega : 0 < p - 1)
+  have hPhiBound : (p : ℝ) ≤ 2 * (p.totient : ℝ) := by
+    rw [Nat.totient_prime hp]
+    exact_mod_cast (by omega : p ≤ 2 * (p - 1))
+  have hNumBound : Real.log (Y : ℝ) * (p : ℝ) ≤
+      4 * (p.totient : ℝ) * Real.log ((Y : ℝ) / p) := by
+    calc
+      _ ≤ (2 * Real.log ((Y : ℝ) / p)) * (2 * (p.totient : ℝ)) :=
+        mul_le_mul hLogRatio hPhiBound (by positivity) (by positivity)
+      _ = _ := by ring
+  have hscaledBound : (Cbt * Cmass * Real.log (Y : ℝ)) /
+        ((p.totient : ℝ) * Real.log ((Y : ℝ) / p)) ≤
+      4 * Cbt * Cmass / (p : ℝ) := by
+    apply (div_le_div_iff₀ (mul_pos hPhiPos hLogArg) hpPos).2
+    calc
+      (Cbt * Cmass * Real.log (Y : ℝ)) * (p : ℝ) =
+          (Cbt * Cmass) * (Real.log (Y : ℝ) * (p : ℝ)) := by ring
+      _ ≤ (Cbt * Cmass) *
+          (4 * (p.totient : ℝ) * Real.log ((Y : ℝ) / p)) :=
+        mul_le_mul_of_nonneg_left hNumBound (by positivity)
+      _ = (4 * Cbt * Cmass) *
+          ((p.totient : ℝ) * Real.log ((Y : ℝ) / p)) := by ring
+  let S := (Finset.Ico Y (2 * Y)).filter Nat.Prime
+  let T := S.filter (fun q => q % p = a.val)
+  let U := OAI.Erdos970.ErdosPrimeInputs.BrunTitchmarshUpper.intervalPrimes
+    ((Y - 1 : ℕ) : ℝ) (Y : ℝ) p (a.val : ℤ)
+  have hTsub : T ⊆ U := by
+    intro q hq
+    have hqS := (Finset.mem_filter.mp hq).1
+    have hqa := (Finset.mem_filter.mp hq).2
+    have hqI := Finset.mem_Ico.mp (Finset.mem_filter.mp hqS).1
+    have hqP := (Finset.mem_filter.mp hqS).2
+    apply (OAI.Erdos970.ErdosPrimeInputs.BrunTitchmarshUpper.mem_intervalPrimes
+      _ _ _ _ q).2
+    refine ⟨hqP, ?_, ?_, ?_⟩
+    · have h : Y - 1 < q := by omega
+      exact_mod_cast h
+    · have h : q ≤ (Y - 1) + Y := by omega
+      exact_mod_cast h
+    · change Int.ModEq (p : ℤ) (q : ℤ) (a.val : ℤ)
+      apply Int.natCast_modEq_iff.mpr
+      change q % p = a.val % p
+      rw [Nat.mod_eq_of_lt a.isLt]
+      exact hqa
+  have hbtCard : (U.card : ℝ) ≤
+      Cbt * (Y : ℝ) /
+        ((p.totient : ℝ) * Real.log ((Y : ℝ) / p)) := by
+    simpa [U] using hbt ((Y - 1 : ℕ) : ℝ) (Y : ℝ) p (a.val : ℤ)
+      hp.pos hBHp
+  have hTcard : (T.card : ℝ) ≤
+      Cbt * (Y : ℝ) /
+        ((p.totient : ℝ) * Real.log ((Y : ℝ) / p)) := by
+    calc
+      (T.card : ℝ) ≤ (U.card : ℝ) := by exact_mod_cast Finset.card_le_card hTsub
+      _ ≤ _ := hbtCard
+  have hsumEq :
+      (∑ q ∈ S, if q % p = a.val then primePoolLaw Y (2 * Y) q else 0) =
+        ∑ q ∈ T, primePoolLaw Y (2 * Y) q := by
+    simp [S, T, Finset.sum_filter]
+  have hsumBound :
+      (∑ q ∈ T, primePoolLaw Y (2 * Y) q) ≤
+        (T.card : ℝ) * (Cmass * Real.log (Y : ℝ) / Y) := by
+    calc
+      _ ≤ ∑ _q ∈ T, Cmass * Real.log (Y : ℝ) / Y :=
+        Finset.sum_le_sum fun q hq => by
+          have hqI := Finset.mem_Ico.mp (Finset.mem_filter.mp
+            (Finset.mem_filter.mp hq).1).1
+          have hqP := (Finset.mem_filter.mp (Finset.mem_filter.mp hq).1).2
+          exact hmass.2.2 q hqI.1 hqI.2 hqP
+      _ = _ := by simp
+  have hscaledCard :
+      (T.card : ℝ) * (Cmass * Real.log (Y : ℝ) / Y) ≤
+        (Cbt * (Y : ℝ) /
+          ((p.totient : ℝ) * Real.log ((Y : ℝ) / p))) *
+            (Cmass * Real.log (Y : ℝ) / Y) :=
+    mul_le_mul_of_nonneg_right hTcard (by positivity)
+  calc
+    (∑ q ∈ S, if q % p = a.val then primePoolLaw Y (2 * Y) q else 0) =
+        ∑ q ∈ T, primePoolLaw Y (2 * Y) q := hsumEq
+    _ ≤ (T.card : ℝ) * (Cmass * Real.log (Y : ℝ) / Y) := hsumBound
+    _ ≤ _ := hscaledCard
+    _ = (Cbt * Cmass * Real.log (Y : ℝ)) /
+        ((p.totient : ℝ) * Real.log ((Y : ℝ) / p)) := by
+      field_simp [hYPos.ne']
+    _ ≤ 4 * Cbt * Cmass / (p : ℝ) := hscaledBound
 
 /-- Divergence of the reciprocal-prime series, used to make the union of complete
 dyadic intervals in each pool have arbitrary prescribed harmonic mass
