@@ -192,7 +192,10 @@ theorem row_directions_integer {m q r : ℕ} (Sh : RowShape m q r) (dirs : RowDi
     (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
     (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
     ∃ B : ℕ, dirs.IntegerConclusions tests B := by
-  sorry
+  obtain ⟨B, hcore⟩ := row_directions_integer_core Sh dirs hdirs tests htests hdt
+  refine ⟨B, ?_⟩
+  intro K s Aset Dm S ι hlisted C a ha
+  exact hcore S ι hlisted C a ha
 
 /-- Lemma `lem:row-directions` (04:322–418). -/
 theorem row_directions {m q r : ℕ} (Sh : RowShape m q r) :
