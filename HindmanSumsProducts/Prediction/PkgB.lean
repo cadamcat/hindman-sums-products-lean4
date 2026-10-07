@@ -4398,6 +4398,78 @@ theorem pkgB_momentBaseRegular_eventually {K sl : ℕ} {As : Finset ℚ}
       simpa only [momentPrimeDiagonal_apply] using hlen
     omega
 
+private abbrev PkgBEmbeddingComplement {q m : ℕ} (ι : Fin q ↪ Fin m) :=
+  {j : Fin m // j ∉ Finset.univ.image ι}
+
+private noncomputable def pkgB_embeddingIndexEquiv {q m : ℕ} (ι : Fin q ↪ Fin m) :
+    Fin q ⊕ PkgBEmbeddingComplement ι ≃ Fin m := by
+  classical
+  let R : Finset (Fin m) := Finset.univ.image ι
+  refine
+    { toFun := fun x => match x with
+        | .inl i => ι i
+        | .inr j => j.1
+      invFun := fun j => if hj : j ∈ R then
+        Sum.inl (Classical.choose (Finset.mem_image.mp hj))
+      else Sum.inr ⟨j, hj⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro x
+    cases x with
+    | inl i =>
+      have hmem : ι i ∈ R := Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩
+      simp only [dif_pos hmem]
+      congr 1
+      apply ι.injective
+      exact (Classical.choose_spec (Finset.mem_image.mp hmem)).2
+    | inr j =>
+      simp [R, j.2]
+  · intro j
+    by_cases hmem : j ∈ R
+    · simp only [dif_pos hmem]
+      exact (Classical.choose_spec (Finset.mem_image.mp hmem)).2
+    · simp [hmem]
+
+private noncomputable def pkgB_embeddingTupleEquiv {q m : ℕ} (ι : Fin q ↪ Fin m) :
+    (Fin m → ℕ) ≃ ((Fin q → ℕ) × (PkgBEmbeddingComplement ι → ℕ)) :=
+  ((pkgB_embeddingIndexEquiv ι).arrowCongr (Equiv.refl ℕ)).symm.trans
+    (Equiv.sumArrowEquivProdArrow (Fin q) (PkgBEmbeddingComplement ι) ℕ)
+
+private theorem pkgB_embeddingTupleEquiv_apply_left {q m : ℕ} (ι : Fin q ↪ Fin m)
+    (p : Fin m → ℕ) (i : Fin q) :
+    (pkgB_embeddingTupleEquiv ι p).1 i = p (ι i) := by
+  simp [pkgB_embeddingTupleEquiv, Equiv.trans_apply, pkgB_embeddingIndexEquiv]
+
+private theorem pkgB_embeddingTupleEquiv_apply_right {q m : ℕ} (ι : Fin q ↪ Fin m)
+    (p : Fin m → ℕ) (i : PkgBEmbeddingComplement ι) :
+    (pkgB_embeddingTupleEquiv ι p).2 i = p i.1 := by
+  simp [pkgB_embeddingTupleEquiv, Equiv.trans_apply, pkgB_embeddingIndexEquiv]
+
+private theorem pkgB_independentPrimePoolMass_split {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (lo hi : ℕ) (p : Fin m → ℕ) :
+    independentPrimePoolMass (fun _ : Fin m => lo) (fun _ => hi) p =
+      independentPrimePoolMass (fun _ : Fin q => lo)
+          (fun _ => hi) (pkgB_embeddingTupleEquiv ι p).1 *
+        (∏ j : PkgBEmbeddingComplement ι,
+          primePoolLaw lo hi ((pkgB_embeddingTupleEquiv ι p).2 j)) := by
+  classical
+  unfold independentPrimePoolMass
+  calc
+    (∏ j : Fin m, primePoolLaw lo hi (p j)) =
+        ∏ z : Fin q ⊕ PkgBEmbeddingComplement ι,
+          primePoolLaw lo hi (p (pkgB_embeddingIndexEquiv ι z)) := by
+      symm
+      exact Fintype.prod_equiv (pkgB_embeddingIndexEquiv ι)
+        (fun z => primePoolLaw lo hi (p (pkgB_embeddingIndexEquiv ι z)))
+        (fun j => primePoolLaw lo hi (p j)) (by intro z; rfl)
+    _ = (∏ i : Fin q, primePoolLaw lo hi
+          ((pkgB_embeddingTupleEquiv ι p).1 i)) *
+        ∏ j : PkgBEmbeddingComplement ι, primePoolLaw lo hi
+          ((pkgB_embeddingTupleEquiv ι p).2 j) := by
+      rw [Fintype.prod_sum_type]
+      simp [pkgB_embeddingTupleEquiv_apply_left,
+        pkgB_embeddingTupleEquiv_apply_right, pkgB_embeddingIndexEquiv]
+
 private theorem pkgB_primePoolLaw_tsum_eq_one {lo hi : ℕ}
     (hMass : 0 < primePoolMass lo hi) :
     ∑' p : ℕ, primePoolLaw lo hi p = 1 := by
@@ -4428,15 +4500,13 @@ private theorem pkgB_primePoolLaw_tsum_eq_one {lo hi : ℕ}
           primePoolMass lo hi by rfl]
       exact div_self (ne_of_gt hMass)
 
-/-- The independent prime tuple law has mass one whenever every pool has positive harmonic
-mass. The finite support and product-sum identity make this independent of the tuple dimension. -/
-theorem pkgB_independentPrimePoolMass_tsum_eq_one {m : ℕ}
-    (lo hi : Fin m → ℕ)
+private theorem pkgB_primeTupleMass_tsum_eq_one {ι : Type*} [Fintype ι]
+    (lo hi : ι → ℕ)
     (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
-    ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
+    ∑' p : ι → ℕ, (∏ i, primePoolLaw (lo i) (hi i) (p i)) = 1 := by
   classical
-  let S : Finset (Fin m → ℕ) := Fintype.piFinset fun i : Fin m => Finset.Ico (lo i) (hi i)
-  have hzero : ∀ p ∉ S, independentPrimePoolMass lo hi p = 0 := by
+  let S : Finset (ι → ℕ) := Fintype.piFinset fun i : ι => Finset.Ico (lo i) (hi i)
+  have hzero : ∀ p ∉ S, (∏ i, primePoolLaw (lo i) (hi i) (p i)) = 0 := by
     intro p hp
     have hnot : ¬ ∀ i, p i ∈ Finset.Ico (lo i) (hi i) := by
       simpa [S] using hp
@@ -4448,19 +4518,18 @@ theorem pkgB_independentPrimePoolMass_tsum_eq_one {m : ℕ}
       split_ifs with h
       · exact False.elim (hbounds ⟨h.1, h.2.1⟩)
       · rfl
-    unfold independentPrimePoolMass
     exact Finset.prod_eq_zero (Finset.mem_univ i) hfactor
   rw [tsum_eq_sum (s := S) hzero]
   have hfactor :
-      (∑ p ∈ S, independentPrimePoolMass lo hi p) =
-        ∏ i : Fin m, ∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n := by
-    simpa [S, independentPrimePoolMass] using
-      (Finset.prod_univ_sum (fun i : Fin m => Finset.Ico (lo i) (hi i))
+      (∑ p ∈ S, (∏ i, primePoolLaw (lo i) (hi i) (p i))) =
+      ∏ i : ι, ∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n := by
+    simpa [S] using
+      (Finset.prod_univ_sum (fun i : ι => Finset.Ico (lo i) (hi i))
         (fun i n => primePoolLaw (lo i) (hi i) n)).symm
   calc
-    (∑ p ∈ S, independentPrimePoolMass lo hi p) =
-        ∏ i : Fin m, ∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n := hfactor
-    _ = ∏ _i : Fin m, (1 : ℝ) := by
+    (∑ p ∈ S, (∏ i, primePoolLaw (lo i) (hi i) (p i))) =
+        ∏ i : ι, ∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n := hfactor
+    _ = ∏ _i : ι, (1 : ℝ) := by
       apply Finset.prod_congr rfl
       intro i hmem
       have hsum : (∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n) = 1 := by
@@ -4480,6 +4549,135 @@ theorem pkgB_independentPrimePoolMass_tsum_eq_one {m : ℕ}
           _ = 1 := pkgB_primePoolLaw_tsum_eq_one (hMass i)
       exact hsum
     _ = 1 := by simp
+
+/-- The independent prime tuple law has mass one whenever every pool has positive harmonic
+mass. The finite support and product-sum identity make this independent of the tuple dimension. -/
+theorem pkgB_independentPrimePoolMass_tsum_eq_one {m : ℕ}
+    (lo hi : Fin m → ℕ)
+    (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
+    ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
+  simpa [independentPrimePoolMass] using pkgB_primeTupleMass_tsum_eq_one lo hi hMass
+
+private theorem pkgB_primeTupleMass_zero_of_not_mem_pi {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (lo hi : ι → ℕ) (p : ι → ℕ)
+    (hp : p ∉ Fintype.piFinset (fun i : ι => Finset.Ico (lo i) (hi i))) :
+    ∏ i, primePoolLaw (lo i) (hi i) (p i) = 0 := by
+  classical
+  have hnot : ¬ ∀ i, p i ∈ Finset.Ico (lo i) (hi i) := by
+    simpa only [Fintype.mem_piFinset] using hp
+  obtain ⟨i, hnoti⟩ := not_forall.mp hnot
+  have hbounds : ¬ (lo i ≤ p i ∧ p i < hi i) := by
+    simpa only [Finset.mem_Ico] using hnoti
+  have hzero : primePoolLaw (lo i) (hi i) (p i) = 0 := by
+    simp only [primePoolLaw]
+    split_ifs with h
+    · exact False.elim (hbounds ⟨h.1, h.2.1⟩)
+    · rfl
+  exact Finset.prod_eq_zero (Finset.mem_univ i) hzero
+
+private theorem pkgB_primePoolAverage_embedding {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (lo hi : ℕ) (hMass : 0 < primePoolMass lo hi)
+    (F : (Fin q → ℕ) → ℝ) :
+    ∑' p : Fin m → ℕ,
+        independentPrimePoolMass (fun _ => lo) (fun _ => hi) p *
+          F (fun i => p (ι i)) =
+      ∑' p : Fin q → ℕ,
+        independentPrimePoolMass (fun _ => lo) (fun _ => hi) p * F p := by
+  classical
+  let C := PkgBEmbeddingComplement ι
+  let e := pkgB_embeddingTupleEquiv ι
+  let Sm : Finset (Fin m → ℕ) := Fintype.piFinset fun _ : Fin m => Finset.Ico lo hi
+  let Sq : Finset (Fin q → ℕ) := Fintype.piFinset fun _ : Fin q => Finset.Ico lo hi
+  let Sc : Finset (C → ℕ) := Fintype.piFinset fun _ : C => Finset.Ico lo hi
+  let St : Finset ((Fin q → ℕ) × (C → ℕ)) := Sq ×ˢ Sc
+  have hmem (p : Fin m → ℕ) : p ∈ Sm ↔ e p ∈ St := by
+    simp only [Sm, Sq, Sc, St, Finset.mem_product, Fintype.mem_piFinset]
+    constructor
+    · intro hp
+      constructor
+      · intro i
+        simpa only [e, pkgB_embeddingTupleEquiv_apply_left] using hp (ι i)
+      · intro j
+        simpa only [e, pkgB_embeddingTupleEquiv_apply_right] using hp j.1
+    · rintro ⟨hpq, hpc⟩ j
+      obtain ⟨z, rfl⟩ := (pkgB_embeddingIndexEquiv ι).surjective j
+      cases z with
+      | inl i =>
+          simpa [e, pkgB_embeddingTupleEquiv_apply_left,
+            pkgB_embeddingIndexEquiv] using hpq i
+      | inr c =>
+          simpa [e, pkgB_embeddingTupleEquiv_apply_right,
+            pkgB_embeddingIndexEquiv] using hpc c
+  have hcompZero (c : C → ℕ) (hc : c ∉ Sc) :
+      (∏ j : C, primePoolLaw lo hi (c j)) = 0 := by
+    apply pkgB_primeTupleMass_zero_of_not_mem_pi
+    simpa [Sc] using hc
+  have hcompSum :
+      ∑ c ∈ Sc, ∏ j : C, primePoolLaw lo hi (c j) = 1 := by
+    calc
+      _ = ∑' c : C → ℕ, ∏ j : C, primePoolLaw lo hi (c j) :=
+        (tsum_eq_sum (s := Sc) hcompZero).symm
+      _ = 1 := pkgB_primeTupleMass_tsum_eq_one
+        (fun _ : C => lo) (fun _ => hi) (fun _ => hMass)
+  have hglobalZero (p : Fin m → ℕ) (hp : p ∉ Sm) :
+      independentPrimePoolMass (fun _ => lo) (fun _ => hi) p *
+        F (fun i => p (ι i)) = 0 := by
+    have hpMass : independentPrimePoolMass (fun _ => lo) (fun _ => hi) p = 0 := by
+      simpa [independentPrimePoolMass] using
+        (pkgB_primeTupleMass_zero_of_not_mem_pi
+          (fun _ : Fin m => lo) (fun _ => hi) p (by simpa [Sm] using hp))
+    simp [hpMass]
+  have hqZero (p : Fin q → ℕ) (hp : p ∉ Sq) :
+      independentPrimePoolMass (fun _ => lo) (fun _ => hi) p * F p = 0 := by
+    have hpMass : independentPrimePoolMass (fun _ => lo) (fun _ => hi) p = 0 := by
+      simpa [independentPrimePoolMass] using
+        (pkgB_primeTupleMass_zero_of_not_mem_pi
+          (fun _ : Fin q => lo) (fun _ => hi) p (by simpa [Sq] using hp))
+    simp [hpMass]
+  have hsum :
+      (∑ p ∈ Sm, independentPrimePoolMass (fun _ => lo) (fun _ => hi) p *
+        F (fun i => p (ι i))) =
+      ∑ rc ∈ St,
+        (independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) rc.1 *
+          (∏ j : C, primePoolLaw lo hi (rc.2 j))) * F rc.1 := by
+    apply Finset.sum_equiv e hmem
+    intro p hp
+    rw [pkgB_independentPrimePoolMass_split]
+    have hrestrict : (fun i : Fin q => p (ι i)) = (e p).1 := by
+      funext i
+      exact (pkgB_embeddingTupleEquiv_apply_left ι p i).symm
+    rw [hrestrict]
+  calc
+    _ = ∑ p ∈ Sm, independentPrimePoolMass (fun _ => lo) (fun _ => hi) p *
+          F (fun i => p (ι i)) :=
+      tsum_eq_sum (s := Sm) hglobalZero
+    _ = ∑ rc ∈ St,
+          (independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) rc.1 *
+            (∏ j : C, primePoolLaw lo hi (rc.2 j))) * F rc.1 := hsum
+    _ = ∑ p ∈ Sq, independentPrimePoolMass (fun _ => lo) (fun _ => hi) p * F p := by
+      rw [Finset.sum_product]
+      apply Finset.sum_congr rfl
+      intro p hp
+      calc
+        (∑ c ∈ Sc,
+            (independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) p *
+              (∏ j : C, primePoolLaw lo hi (c j))) * F p) =
+            (independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) p * F p) *
+              (∑ c ∈ Sc, ∏ j : C, primePoolLaw lo hi (c j)) := by
+          calc
+            _ = ∑ c ∈ Sc,
+                (independentPrimePoolMass (fun _ : Fin q => lo) (fun _ => hi) p * F p) *
+                  (∏ j : C, primePoolLaw lo hi (c j)) := by
+              apply Finset.sum_congr rfl
+              intro c hc
+              ring
+            _ = _ := by rw [← Finset.mul_sum]
+        _ = independentPrimePoolMass (fun _ => lo) (fun _ => hi) p * F p := by
+          rw [hcompSum]
+          ring
+    _ = ∑' p : Fin q → ℕ,
+          independentPrimePoolMass (fun _ => lo) (fun _ => hi) p * F p :=
+      (tsum_eq_sum (s := Sq) hqZero).symm
 
 end Prediction
 
