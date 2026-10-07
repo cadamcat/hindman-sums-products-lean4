@@ -602,7 +602,7 @@ theorem pkgB2_response_sameReplica_ne_zero {b : ℕ} (T : Fin b → CubeTemplate
   simp only [pkgB2_response]
   exact mul_ne_zero hM (hsep ω.1 hω)
 
-private def pkgB2_directionSpec {b : ℕ} (T : Fin b → CubeTemplate)
+def pkgB2_directionSpec {b : ℕ} (T : Fin b → CubeTemplate)
     (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) : Prop :=
   ∀ r, direction r 0 ≠ 0 ∧
     direction r 0 + ∑ j ∈ r.2.1, direction r j.succ = 0 ∧
@@ -5701,7 +5701,7 @@ private theorem pkgB2_pairwiseRowTests {K sl b : ℕ} {As : Finset ℚ}
   rw [hu0, hv0, huj, hvj]
   exact hcopy
 
-private noncomputable def pkgB2_weightedLinearFormsData {K sl b : ℕ} {As : Finset ℚ}
+noncomputable def pkgB2_weightedLinearFormsData {K sl b : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (B : Block K) (gap : Fin b → Fin K) (T : Fin b → CubeTemplate)
     (J0 : Fin b → ℕ) (hgap : ∀ k, ValidGap B (gap k))
@@ -5793,6 +5793,177 @@ private noncomputable def pkgB2_weightedLinearFormsData {K sl b : ℕ} {As : Fin
   · exact pkgB2_epsilonBase_superPolynomial MS B T J0 gap hgap hJ0 hT
       (gap k0) (hgap k0) E
   · exact pkgB2_epsilonCRT_superPolynomial MS B gap hgap
+
+/-- Expand the retained `(1+v)` factors and root `(v-1)` factors into divisor monomials.
+The sign is factored as `(-1)^|minus| * (-1)^|M|`, which avoids subtraction on cardinalities. -/
+theorem pkgB2_signedProductExpansion {α : Type*} [DecidableEq α]
+    (plus minus : Finset α) (hdisj : Disjoint plus minus) (v : α → ℝ) :
+    (∏ a ∈ plus, (1 + v a)) * (∏ a ∈ minus, (v a - 1)) =
+      ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card * ∏ a ∈ P ∪ M, v a := by
+  classical
+  let pPow := plus.powerset
+  let mPow := minus.powerset
+  have hplus : ∏ a ∈ plus, (1 + v a) =
+      ∑ P ∈ pPow, ∏ a ∈ P, v a := by
+    simpa [pPow] using (Finset.prod_one_add (f := v) (s := plus))
+  have hminus : ∏ a ∈ minus, (v a - 1) =
+      (-1 : ℝ) ^ minus.card *
+        ∑ M ∈ mPow, (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a := by
+    have hsub : ∏ a ∈ minus, (1 - v a) =
+        ∑ M ∈ mPow, ∏ a ∈ M, (-v a) := by
+      simpa [mPow, sub_eq_add_neg] using
+        (Finset.prod_one_add (f := fun a => -v a) (s := minus))
+    have hprodNeg (M : Finset α) (hM : M ∈ mPow) :
+        ∏ a ∈ M, (-v a) = (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a := by
+      calc
+        ∏ a ∈ M, (-v a) = ∏ a ∈ M, ((-1 : ℝ) * v a) := by
+          apply Finset.prod_congr rfl
+          intro a ha
+          ring
+        _ = (∏ _a ∈ M, (-1 : ℝ)) * ∏ a ∈ M, v a := Finset.prod_mul_distrib
+        _ = (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a := by simp
+    have hsub' : ∏ a ∈ minus, (1 - v a) =
+        ∑ M ∈ mPow, (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a := by
+      rw [hsub]
+      apply Finset.sum_congr rfl
+      intro M hM
+      exact hprodNeg M hM
+    have hneg : ∏ a ∈ minus, (v a - 1) =
+        (-1 : ℝ) ^ minus.card * ∏ a ∈ minus, (1 - v a) := by
+      rw [show (∏ a ∈ minus, (v a - 1)) =
+        ∏ a ∈ minus, ((-1 : ℝ) * (1 - v a)) by
+          apply Finset.prod_congr rfl
+          intro a ha
+          ring]
+      rw [Finset.prod_mul_distrib]
+      simp
+    rw [hneg, hsub']
+  rw [hplus, hminus]
+  simp only [pPow, mPow]
+  calc
+    (∑ P ∈ plus.powerset, ∏ a ∈ P, v a) *
+        ((-1 : ℝ) ^ minus.card *
+          ∑ M ∈ minus.powerset, (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a) =
+      ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card *
+          (∏ a ∈ P, v a) * (∏ a ∈ M, v a) := by
+      rw [Finset.sum_mul]
+      apply Finset.sum_congr rfl
+      intro P hP
+      calc
+        (∏ a ∈ P, v a) *
+            ((-1 : ℝ) ^ minus.card *
+              ∑ M ∈ minus.powerset, (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a) =
+          ((-1 : ℝ) ^ minus.card * ∏ a ∈ P, v a) *
+            ∑ M ∈ minus.powerset, (-1 : ℝ) ^ M.card * ∏ a ∈ M, v a := by ring
+        _ = ∑ M ∈ minus.powerset,
+            ((-1 : ℝ) ^ minus.card * ∏ a ∈ P, v a) *
+              ((-1 : ℝ) ^ M.card * ∏ a ∈ M, v a) := by rw [Finset.mul_sum]
+        _ = ∑ M ∈ minus.powerset,
+            (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card *
+              (∏ a ∈ P, v a) * (∏ a ∈ M, v a) := by
+          apply Finset.sum_congr rfl
+          intro M hM
+          ring
+    _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card * ∏ a ∈ P ∪ M, v a := by
+      apply Finset.sum_congr rfl
+      intro P hP
+      apply Finset.sum_congr rfl
+      intro M hM
+      have hPM : Disjoint P M :=
+        hdisj.mono (Finset.mem_powerset.mp hP) (Finset.mem_powerset.mp hM)
+      rw [Finset.prod_union hPM]
+      ring
+
+private theorem pkgB2_alternatingPowersetSum_zero {α : Type*} [DecidableEq α]
+    (s : Finset α) (hs : s.Nonempty) :
+    ∑ M ∈ s.powerset, (-1 : ℝ) ^ M.card = 0 := by
+  have hz : ∑ M ∈ s.powerset, (-1 : ℤ) ^ M.card = 0 :=
+    Finset.sum_powerset_neg_one_pow_card_of_nonempty hs
+  exact_mod_cast hz
+
+/-- Once every divisor monomial has the same main term, the final signed expansion cancels it;
+the remaining finite sum is bounded by the number of subset pairs times a uniform error. -/
+theorem pkgB2_signedMomentError_bound {α : Type*} [DecidableEq α]
+    (plus minus : Finset α) (P : ℝ) (moment : Finset α → ℝ) (ε : ℝ)
+    (hε : 0 ≤ ε) (hmain : ∀ U, |moment U - P| ≤ ε) (hminus : minus.Nonempty) :
+    |∑ A ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card * moment (A ∪ M)| ≤
+      (2 : ℝ) ^ (plus.card + minus.card) * ε := by
+  classical
+  let Pset := plus.powerset
+  let Mset := minus.powerset
+  let c : Finset α → ℝ := fun M => (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card
+  have hcAbs (M : Finset α) : |c M| = 1 := by simp [c]
+  have hcSum : ∑ M ∈ Mset, c M = 0 := by
+    calc
+      ∑ M ∈ Mset, c M =
+          (-1 : ℝ) ^ minus.card * ∑ M ∈ Mset, (-1 : ℝ) ^ M.card := by
+            simp only [c]
+            rw [← Finset.mul_sum]
+      _ = 0 := by
+        simp [Mset, pkgB2_alternatingPowersetSum_zero minus hminus]
+  have hconstant :
+      ∑ A ∈ Pset, ∑ M ∈ Mset, c M * P = 0 := by
+    have hinner (A : Finset α) : ∑ M ∈ Mset, c M * P = 0 := by
+      calc
+        ∑ M ∈ Mset, c M * P = (∑ M ∈ Mset, c M) * P := by rw [Finset.sum_mul]
+        _ = 0 := by rw [hcSum]; simp
+    calc
+      ∑ A ∈ Pset, ∑ M ∈ Mset, c M * P = ∑ A ∈ Pset, 0 := by
+        apply Finset.sum_congr rfl
+        intro A hA
+        exact hinner A
+      _ = 0 := by simp
+  have hsplit :
+      (∑ A ∈ Pset, ∑ M ∈ Mset, c M * moment (A ∪ M)) =
+        (∑ A ∈ Pset, ∑ M ∈ Mset, c M * P) +
+          ∑ A ∈ Pset, ∑ M ∈ Mset, c M * (moment (A ∪ M) - P) := by
+    simp_rw [show ∀ A M, c M * moment (A ∪ M) =
+      c M * P + c M * (moment (A ∪ M) - P) from by intro A M; ring,
+      Finset.sum_add_distrib]
+  have hboundM (A : Finset α) :
+      |∑ M ∈ Mset, c M * (moment (A ∪ M) - P)| ≤
+        (Mset.card : ℝ) * ε := by
+    calc
+      |∑ M ∈ Mset, c M * (moment (A ∪ M) - P)| ≤
+          ∑ M ∈ Mset, |c M * (moment (A ∪ M) - P)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _M ∈ Mset, ε := by
+        apply Finset.sum_le_sum
+        intro M hM
+        rw [abs_mul, hcAbs, one_mul]
+        exact hmain (A ∪ M)
+      _ = (Mset.card : ℝ) * ε := by simp [Finset.sum_const, nsmul_eq_mul]
+  have hboundA :
+      |∑ A ∈ Pset, ∑ M ∈ Mset, c M * (moment (A ∪ M) - P)| ≤
+        (Pset.card : ℝ) * (Mset.card : ℝ) * ε := by
+    calc
+      _ ≤ ∑ A ∈ Pset,
+          |∑ M ∈ Mset, c M * (moment (A ∪ M) - P)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _A ∈ Pset, (Mset.card : ℝ) * ε := by
+        apply Finset.sum_le_sum
+        intro A hA
+        exact hboundM A
+      _ = (Pset.card : ℝ) * (Mset.card : ℝ) * ε := by
+        calc
+          ∑ _A ∈ Pset, (Mset.card : ℝ) * ε =
+              (Pset.card : ℝ) * ((Mset.card : ℝ) * ε) := by
+                simp [Finset.sum_const, nsmul_eq_mul]
+          _ = (Pset.card : ℝ) * (Mset.card : ℝ) * ε := by ring
+  have hcardP : Pset.card = 2 ^ plus.card := by simp [Pset]
+  have hcardM : Mset.card = 2 ^ minus.card := by simp [Mset]
+  calc
+    |∑ A ∈ Pset, ∑ M ∈ Mset, c M * moment (A ∪ M)| =
+        |∑ A ∈ Pset, ∑ M ∈ Mset, c M * (moment (A ∪ M) - P)| := by
+          rw [hsplit, hconstant]
+          simp
+    _ ≤ (Pset.card : ℝ) * (Mset.card : ℝ) * ε := hboundA
+    _ = (2 : ℝ) ^ (plus.card + minus.card) * ε := by
+      rw [hcardP, hcardM]
+      push_cast
+      rw [pow_add]
 
 
 end Prediction
