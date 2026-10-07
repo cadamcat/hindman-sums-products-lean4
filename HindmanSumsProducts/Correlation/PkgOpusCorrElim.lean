@@ -1160,5 +1160,310 @@ theorem opus_corr_initial_pivot_step (S : FromArithmetic.MasterScales K Aset s D
 
 end Transfers
 
+
+/-! ## The prefactor bound and the proof of the Cauchy–Schwarz part -/
+
+section CauchyPart
+
+variable {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+theorem opus_corr_elimLin_apply (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (F : (Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
+    sol_var_eliminationLinear S C N dirs tests J0 F =
+      eliminationAverage S C N dirs tests J0 (fun p z u => F (p, z, u)) := rfl
+
+/-- `Ω_R ≤ Ψ ≤ BΨ` pointwise. -/
+theorem opus_corr_boxOmega_le_targetBound_retained (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (E : Finset (NonTarget Sh)) (R : NonTarget Sh)
+    (p : Fin q → ℕ) (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ) :
+    opus_corr_boxOmega (opus_corr_cW S C a N dirs p z) E R u ≤
+      targetBound S C a N dirs p z u * retainedWeights S C a N dirs p z u := by
+  classical
+  have hW1 := opus_corr_cW_ge_one S C a N dirs p z
+  have hΨ : retainedWeights S C a N dirs p z u =
+      ∏ I : NonTarget Sh, ∏ η : {R // R ≠ I} → Fin 2,
+        opus_corr_cW S C a N dirs p z I (opus_corr_evI u η) := rfl
+  have hB : 1 ≤ targetBound S C a N dirs p z u := by
+    unfold targetBound
+    apply Finset.one_le_prod₀
+    intro ω _
+    have := opus_corr_atQ_chainWeight_nonneg S C N (Sh.row Sh.star).anchor
+      (targetVertex (chainScale S.core.parameters C a N) Sh p
+        (directionModulus S N dirs.poly p) z u ω)
+    linarith
+  have hΨ1 : 1 ≤ retainedWeights S C a N dirs p z u := by
+    rw [hΨ]
+    exact Finset.one_le_prod₀ (fun I _ => Finset.one_le_prod₀ (fun η _ => hW1 I _))
+  calc
+    opus_corr_boxOmega (opus_corr_cW S C a N dirs p z) E R u ≤
+        ∏ η : {R' // R' ≠ R} → Fin 2, opus_corr_cW S C a N dirs p z R (opus_corr_evI u η) := by
+      unfold opus_corr_boxOmega
+      exact Finset.prod_le_prod_of_subset_of_one_le₀ (Finset.subset_univ _)
+        (fun η _ => le_trans zero_le_one (hW1 R _)) (fun η _ _ => hW1 R _)
+    _ = ∏ I ∈ ({R} : Finset (NonTarget Sh)), ∏ η : {R' // R' ≠ I} → Fin 2,
+          opus_corr_cW S C a N dirs p z I (opus_corr_evI u η) := by
+      rw [Finset.prod_singleton]
+    _ ≤ ∏ I : NonTarget Sh, ∏ η : {R' // R' ≠ I} → Fin 2,
+          opus_corr_cW S C a N dirs p z I (opus_corr_evI u η) :=
+      Finset.prod_le_prod_of_subset_of_one_le₀ (Finset.subset_univ _)
+        (fun I _ => le_trans zero_le_one (Finset.one_le_prod₀ (fun η _ => hW1 I _)))
+        (fun I _ _ => Finset.one_le_prod₀ (fun η _ => hW1 I _))
+    _ = retainedWeights S C a N dirs p z u := hΨ.symm
+    _ ≤ targetBound S C a N dirs p z u * retainedWeights S C a N dirs p z u := by
+      nlinarith
+
+/-- On integer pivots, `B` is the target cube of `h=1+ν_{a_*}`. -/
+theorem opus_corr_targetBound_eq_cube (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (p : Fin q → ℕ) (z : Fin m → ℤ)
+    (hden : (rowForm (chainScale S.core.parameters C a N) (Sh.row Sh.star) p
+      (fun k => (z k : ℚ))).den = 1) (u : NonTarget Sh → Fin 2 → ℕ) :
+    targetBound S C a N dirs p (fun k => (z k : ℚ)) u =
+      ∏ ω : NonTarget Sh → Fin 2, atQ
+        (fun y => 1 + chainWeight S.core.parameters C N (Sh.row Sh.star).anchor y)
+        (targetVertex (chainScale S.core.parameters C a N) Sh p
+          (directionModulus S N dirs.poly p) (fun k => (z k : ℚ)) u ω) := by
+  unfold targetBound
+  apply Finset.prod_congr rfl
+  intro ω _
+  set x := targetVertex (chainScale S.core.parameters C a N) Sh p
+    (directionModulus S N dirs.poly p) (fun k => (z k : ℚ)) u ω
+  have hx : x.den = 1 := by
+    have : x = (((rowForm (chainScale S.core.parameters C a N) (Sh.row Sh.star) p
+        (fun k => (z k : ℚ))).num + (directionModulus S N dirs.poly p : ℤ) *
+          ∑ R, (u R (ω R) : ℤ) : ℤ) : ℚ) := by
+      simp only [x, targetVertex]
+      push_cast
+      rw [(Rat.den_eq_one_iff _).mp hden]
+    rw [this]
+    exact Rat.den_intCast _
+  simp [atQ, hx]
+
+/-- Every prefactor `E Ω_R` is eventually at most `2^{2^d+t}+2` (04:476–509). -/
+theorem opus_corr_elim_prefactor {m q r : ℕ} (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests)
+    (hmoment : ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ J0 : ℕ, 0 < J0 →
+      Tendsto (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
+          targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u) atTop
+        (𝓝 ((2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
+          Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1))))) :
+    ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+    ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+    ∀ J0 : ℕ, 0 < J0 → ∀ᶠ N in atTop, ∀ (E : Finset (NonTarget Sh)) (R : NonTarget Sh),
+      sol_var_eliminationLinear S C N dirs tests J0
+          (fun x => opus_corr_boxOmega (opus_corr_cW S C a N dirs x.1 x.2.1) E R x.2.2) ≤
+        (2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
+          Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) + 2 := by
+  obtain ⟨B, hsetup⟩ := opus_corr_elim_setup Sh dirs hdirs tests htests hdt
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0
+  let d := Fintype.card (NonTarget Sh)
+  let e := 2 ^ d + d * 2 ^ (d - 1)
+  let b₁ : ℝ := (2 : ℝ) ^ e
+  have hM := hmoment S ι hlisted C a ha J0 hJ0
+  have hMlt : ∀ᶠ N in atTop, eliminationAverage S C N dirs tests J0 (fun p z u =>
+      targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u) <
+        (2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
+          Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) + 1 :=
+    hM.eventually_lt_const (by linarith)
+  have hsmall : ∀ᶠ N in atTop,
+      (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) ^
+        (2 ^ Fintype.card (NonTarget Sh) +
+          Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) *
+        (m : ℝ) * sol_root_error S C N (Fintype.card (NonTarget Sh)) B < 1 :=
+    (sol_root_sampling_cost S C (Fintype.card (NonTarget Sh)) B
+      (2 ^ Fintype.card (NonTarget Sh) +
+        Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1))).eventually
+      (Iio_mem_nhds one_pos)
+  filter_upwards [hsetup S ι hlisted C a ha J0 hJ0, hMlt, hsmall,
+    rowForm_den_one_eventually (q := q) S C a ha] with N hN hMN hsmallN hden
+  obtain ⟨hprob, hfacts, hlen⟩ := hN
+  intro E R
+  let h : ℤ → ℝ := fun y => 1 + chainWeight S.core.parameters C N (Sh.row Sh.star).anchor y
+  have hh : ∀ y, |h y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row Sh.star).anchor y := by
+    intro y
+    rw [abs_of_nonneg]
+    have := chainWeight_nonneg S C N (Sh.row Sh.star).anchor y
+    simp only [h]; linarith
+  -- `E Ω ≤ E[BΨ]`
+  have h1 : sol_var_eliminationLinear S C N dirs tests J0
+      (fun x => opus_corr_boxOmega (opus_corr_cW S C a N dirs x.1 x.2.1) E R x.2.2) ≤
+      eliminationAverage S C N dirs tests J0 (fun p z u =>
+        targetBound S C a N dirs p z u * retainedWeights S C a N dirs p z u) := by
+    have hpos : ∀ f, (∀ x, 0 ≤ f x) → 0 ≤ sol_var_eliminationLinear S C N dirs tests J0 f :=
+      fun f hf => sol_var_eliminationLinear_nonneg S C N dirs tests J0 f hf
+    exact sol_var_linear_mono _ hpos (g := fun x =>
+      targetBound S C a N dirs x.1 x.2.1 x.2.2 * retainedWeights S C a N dirs x.1 x.2.1 x.2.2)
+      (fun x => opus_corr_boxOmega_le_targetBound_retained S C a N dirs E R x.1 x.2.1 x.2.2)
+  -- `E[BΨ] = E[G_hΨ]` and `E[BH] = E[G_hH]`
+  have h2 : eliminationAverage S C N dirs tests J0 (fun p z u =>
+        targetBound S C a N dirs p z u * retainedWeights S C a N dirs p z u) =
+      eliminationAverage S C N dirs tests J0 (fun p z u =>
+        (∏ ω : NonTarget Sh → Fin 2, atQ h
+          (targetVertex (chainScale S.core.parameters C a N) Sh p
+            (directionModulus S N dirs.poly p) z u ω)) *
+          retainedWeights S C a N dirs p z u) := by
+    apply opus_corr_elimAvg_congr_good
+    intro p _ z
+    congr 1
+    funext u
+    rw [opus_corr_targetBound_eq_cube S C a N dirs p z (hden _ p z) u]
+  have h3 : eliminationAverage S C N dirs tests J0 (fun p z u =>
+        targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u) =
+      eliminationAverage S C N dirs tests J0 (fun p z u =>
+        (∏ ω : NonTarget Sh → Fin 2, atQ h
+          (targetVertex (chainScale S.core.parameters C a N) Sh p
+            (directionModulus S N dirs.poly p) z u ω)) *
+          averagedRetainedWeights S C a N dirs p z u) := by
+    apply opus_corr_elimAvg_congr_good
+    intro p _ z
+    congr 1
+    funext u
+    rw [opus_corr_targetBound_eq_cube S C a N dirs p z (hden _ p z) u]
+  -- the root translation
+  have h4 := sol_root_elimination_error_average S C N dirs tests J0 hprob hlen
+    (fun p z u => (∏ ω : NonTarget Sh → Fin 2, atQ h
+          (targetVertex (chainScale S.core.parameters C a N) Sh p
+            (directionModulus S N dirs.poly p) z u ω)) *
+          averagedRetainedWeights S C a N dirs p z u)
+    (fun p z u => (∏ ω : NonTarget Sh → Fin 2, atQ h
+          (targetVertex (chainScale S.core.parameters C a N) Sh p
+            (directionModulus S N dirs.poly p) z u ω)) *
+          retainedWeights S C a N dirs p z u) _
+    (fun p hp u => sol_root_pivot_root_step S C a N B dirs tests p (hfacts p hp) u h hh)
+  have h4' := (abs_le.mp h4).1
+  rw [← h2, ← h3] at h4'
+  linarith
+
+/-- The full Cauchy–Schwarz part `opus_corr_elim_cauchy`, given the first auxiliary moment. -/
+theorem opus_corr_elim_cauchy_proof {m q r : ℕ} (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests)
+    (hmoment : ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ J0 : ℕ, 0 < J0 →
+      Tendsto (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
+          targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u) atTop
+        (𝓝 ((2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
+          Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1))))) :
+    ∃ C₁ : ℝ, 0 < C₁ ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ J0 : ℕ, 0 < J0 → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+        ∀ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
+          (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+          |goodRowCorrelation S C a N dirs tests f| ^ (2 ^ Fintype.card (NonTarget Sh)) ≤
+            C₁ * |eliminationAverage S C N dirs tests J0 fun p z u =>
+              (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star p)
+                (targetVertex (chainScale S.core.parameters C a N) Sh p
+                  (directionModulus S N dirs.poly p) z u ω)) *
+                retainedWeights S C a N dirs p z u| + ε := by
+  classical
+  obtain ⟨B, hsetup⟩ := opus_corr_elim_setup Sh dirs hdirs tests htests hdt
+  let d := Fintype.card (NonTarget Sh)
+  let n := 2 ^ d
+  let Ccs : ℝ := (2 : ℝ) ^ (2 ^ d + d * 2 ^ (d - 1)) + 2
+  have hCcs : 0 < Ccs := by positivity
+  refine ⟨(2 : ℝ) ^ (n - 1) * Ccs ^ (n - 1), by positivity, ?_⟩
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0 ε hε
+  let η : ℝ := min 1 (ε / (2 : ℝ) ^ (n - 1))
+  have hη : 0 < η := lt_min one_pos (by positivity)
+  have hsmall : ∀ᶠ N in atTop,
+      (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) ^ r *
+        (m : ℝ) * sol_root_error S C N d B < η :=
+    (sol_root_sampling_cost S C d B r).eventually (Iio_mem_nhds hη)
+  filter_upwards [hsetup S ι hlisted C a ha J0 hJ0,
+    opus_corr_elim_prefactor Sh dirs hdirs tests htests hdt hmoment S ι hlisted C a ha J0 hJ0,
+    hsmall]
+    with N hN hpreN hsmallN
+  obtain ⟨hprob, hfacts, hlen⟩ := hN
+  intro f hf
+  set Elin := sol_var_eliminationLinear S C N dirs tests J0
+  let T := opus_corr_cT S C a N dirs f
+  let A := opus_corr_cA S C a N dirs f
+  let Wt := opus_corr_cW S C a N dirs
+  -- the iteration
+  have hiter := opus_corr_elim_iterate S C N dirs tests J0 T A Wt
+    (opus_corr_cA_abs_le S C a N dirs f hf) (opus_corr_cW_nonneg S C a N dirs) Ccs hCcs
+    (fun E R _ => hpreN E R)
+  -- the last state
+  have huniv : Elin (opus_corr_elimPhi T A Wt Finset.univ) =
+      eliminationAverage S C N dirs tests J0 fun p z u =>
+        (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star p)
+          (targetVertex (chainScale S.core.parameters C a N) Sh p
+            (directionModulus S N dirs.poly p) z u ω)) *
+          retainedWeights S C a N dirs p z u := by
+    rw [opus_corr_elimLin_apply]
+    congr 1
+    funext p z u
+    exact opus_corr_elimPhi_univ S C a N dirs f (p, z, u)
+  -- the initial translation
+  have hinit : |Elin (opus_corr_elimPhi T A Wt ∅) - goodRowCorrelation S C a N dirs tests f| ≤ η := by
+    rw [opus_corr_elimLin_apply,
+      c_elim2_goodRowCorrelation_eq_eliminationAverage S C a N dirs tests J0 f hlen]
+    have hclamp : eliminationAverage S C N dirs tests J0
+        (fun p z u => opus_corr_elimPhi T A Wt ∅ (p, z, u)) =
+        eliminationAverage S C N dirs tests J0 (fun p z u => opus_corr_elimPhi T A Wt ∅
+          (p, z, opus_corr_clamp (shiftLength S C.gap J0 N dirs.poly p) u)) := by
+      apply opus_corr_elimAvg_congr
+      intro p z
+      apply opus_corr_shiftAverage_congr_box
+      intro u hu
+      rw [opus_corr_clamp_of_mem_box hu]
+    rw [hclamp]
+    have herr := sol_root_elimination_error_average S C N dirs tests J0 hprob hlen
+      (fun p z u => opus_corr_elimPhi T A Wt ∅
+          (p, z, opus_corr_clamp (shiftLength S C.gap J0 N dirs.poly p) u))
+      (fun p z _ => ∏ J : Fin r, atQ (f J p)
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row J) p z)) _
+      (fun p hp u => opus_corr_initial_pivot_step S C a N B J0 dirs tests f hf p (hfacts p hp) u)
+    exact le_trans herr hsmallN.le
+  -- combine
+  set X := |goodRowCorrelation S C a N dirs tests f|
+  set Y := |Elin (opus_corr_elimPhi T A Wt ∅)|
+  set Z := |eliminationAverage S C N dirs tests J0 fun p z u =>
+        (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star p)
+          (targetVertex (chainScale S.core.parameters C a N) Sh p
+            (directionModulus S N dirs.poly p) z u ω)) *
+          retainedWeights S C a N dirs p z u|
+  have hXY : X ≤ Y + η := by
+    have := abs_sub_abs_le_abs_sub (goodRowCorrelation S C a N dirs tests f)
+      (Elin (opus_corr_elimPhi T A Wt ∅))
+    rw [abs_sub_comm] at hinit
+    linarith
+  have hYZ : Y ^ n ≤ Ccs ^ (n - 1) * Z := by
+    have := hiter
+    rw [huniv] at this
+    exact this
+  have hpow : X ^ n ≤ (Y + η) ^ n := pow_le_pow_left₀ (abs_nonneg _) hXY n
+  have hadd := add_pow_le (abs_nonneg (Elin (opus_corr_elimPhi T A Wt ∅))) hη.le n
+  have hη1 : η ≤ 1 := min_le_left _ _
+  have hηε : η ≤ ε / (2 : ℝ) ^ (n - 1) := min_le_right _ _
+  have hn : 1 ≤ n := Nat.one_le_two_pow
+  have hηn : η ^ n ≤ η := pow_le_of_le_one hη.le hη1 (by omega)
+  have h2pos : (0 : ℝ) < (2 : ℝ) ^ (n - 1) := by positivity
+  have hηterm : (2 : ℝ) ^ (n - 1) * η ^ n ≤ ε := by
+    calc
+      (2 : ℝ) ^ (n - 1) * η ^ n ≤ (2 : ℝ) ^ (n - 1) * η := by gcongr
+      _ ≤ (2 : ℝ) ^ (n - 1) * (ε / (2 : ℝ) ^ (n - 1)) := by gcongr
+      _ = ε := by field_simp
+  calc
+    X ^ n ≤ (Y + η) ^ n := hpow
+    _ ≤ (2 : ℝ) ^ (n - 1) * (Y ^ n + η ^ n) := hadd
+    _ = (2 : ℝ) ^ (n - 1) * Y ^ n + (2 : ℝ) ^ (n - 1) * η ^ n := by ring
+    _ ≤ (2 : ℝ) ^ (n - 1) * (Ccs ^ (n - 1) * Z) + ε := by gcongr
+    _ = (2 : ℝ) ^ (n - 1) * Ccs ^ (n - 1) * Z + ε := by ring
+
+end CauchyPart
+
 end
 end HindmanSumsProducts
