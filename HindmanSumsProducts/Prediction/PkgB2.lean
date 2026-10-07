@@ -1122,6 +1122,25 @@ private theorem pkgB2_independentPrimePoolProbability_finite {m : ℕ}
           simp only [independentPrimePoolMass]
           rw [← hval]
 
+private def pkgB2_primeTupleSupport {m : ℕ} (lo hi : Fin m → ℕ) :
+    Finset (Fin m → ℕ) := Fintype.piFinset (fun i => Finset.Ico (lo i) (hi i))
+
+private theorem pkgB2_independentPrimePoolMass_zero_of_not_mem {m : ℕ}
+    (lo hi : Fin m → ℕ) (p : Fin m → ℕ)
+    (hp : p ∉ pkgB2_primeTupleSupport lo hi) :
+    independentPrimePoolMass lo hi p = 0 := by
+  classical
+  have hnot : ¬ ∀ i : Fin m, p i ∈ Finset.Ico (lo i) (hi i) := by
+    intro hall
+    exact hp (Fintype.mem_piFinset.mpr hall)
+  obtain ⟨i, hi⟩ := not_forall.mp hnot
+  unfold independentPrimePoolMass
+  apply Finset.prod_eq_zero (Finset.mem_univ i)
+  unfold primePoolLaw
+  split_ifs with h
+  · exact False.elim (hi (Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩))
+  · rfl
+
 private noncomputable def pkgB2_blockTupleEquiv {b sl M : ℕ} :
     (Fin (b * sl) → Fin M) ≃ (Fin b → Fin sl → Fin M) where
   toFun p k j := p (pkgB2_replicaEmbedding k j)
@@ -6790,6 +6809,117 @@ private theorem pkgB2_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
   apply (tendsto_iff_norm_sub_tendsto_zero).2
   simpa [Real.norm_eq_abs, average, prob, D, good] using hratio
 
+private noncomputable def pkgB2_stateMonomialAverage {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hT : ∀ k, Allowed Dm (T k)) (E : Finset (pkgB2_Nonroot T))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (N : ℕ) (U : Finset (Fin (Fintype.card (pkgB2_Occurrence T E)))) : ℝ := by
+  classical
+  let Good := pkgB2_goodPrimeEvent MS gap T hT N
+  let P := independentPrimePoolProbability
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) Good
+  exact P⁻¹ * ∑' p : Fin (b * sl) → ℕ,
+    independentPrimePoolMass
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p *
+      (if Good p then ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+        pkgB2_baseMass MS B T J0 gap hT N p x *
+          ∏ u ∈ U, nu MS.core.parameters N B
+            (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x)
+        else 0)
+
+private theorem pkgB2_stateMonomialAverage_eq_wlf {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T))
+    (U : Finset (Fin (Fintype.card (pkgB2_Occurrence T E)))) (N : ℕ) :
+    pkgB2_stateMonomialAverage MS B gap T J0 hT E direction N U =
+      weightedLinearFormsAverage
+          (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+            direction hdir k0 E U) N (pkgB2_goodPrimeEvent MS gap T hT N) /
+        independentPrimePoolProbability
+          (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+          (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+          (pkgB2_goodPrimeEvent MS gap T hT N) := by
+  classical
+  let D := pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+    direction hdir k0 E U
+  let rootO : pkgB2_Occurrence T E := ⟨Sum.inl (), fun _ => 0⟩
+  letI : Nonempty (Fin (Fintype.card (pkgB2_Occurrence T E))) :=
+    ⟨(pkgB2_occurrenceEnum T E).symm rootO⟩
+  let Good := pkgB2_goodPrimeEvent MS gap T hT N
+  let P := independentPrimePoolProbability
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) Good
+  have hfactor (p : Fin (b * sl) → ℕ)
+      (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :
+      ∏ u : Fin (Fintype.card (pkgB2_Occurrence T E)),
+          nuB (divisorTemplateLaw MS.core.parameters N (pkgB2_divisorFamily B U u))
+            (linearRowValue (pkgB2_rowCoefficientArray MS T hT J0 gap direction E)
+              N p u x).num =
+        ∏ u ∈ U, nu MS.core.parameters N B
+          (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x) := by
+    calc
+      _ = ∏ u : Fin (Fintype.card (pkgB2_Occurrence T E)),
+            (if u ∈ U then
+                nu MS.core.parameters N B
+                  (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x)
+              else 1) := by
+              apply Finset.prod_congr rfl
+              intro u hu
+              rw [pkgB2_divisorFamily_nuB]
+              rfl
+      _ = ∏ u ∈ U, nu MS.core.parameters N B
+            (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x) := by
+              rw [Finset.prod_ite_mem]
+              simp
+  let μp : (Fin (b * sl) → ℕ) → ℝ := fun p =>
+    independentPrimePoolMass
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p
+  have houter :
+      (∑' p : Fin (b * sl) → ℕ, μp p *
+        (if Good p then ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+          pkgB2_baseMass MS B T J0 gap hT N p x *
+            ∏ u ∈ U, nu MS.core.parameters N B
+              (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x)
+        else 0)) = weightedLinearFormsAverage D N Good := by
+    unfold weightedLinearFormsAverage
+    apply tsum_congr
+    intro p
+    by_cases hp : Good p
+    · simp only [if_pos hp, mul_one]
+      apply congrArg (fun z : ℝ => μp p * z)
+      apply tsum_congr
+      intro x
+      change pkgB2_baseMass MS B T J0 gap hT N p x *
+            ∏ u ∈ U, nu MS.core.parameters N B
+              (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x) =
+          pkgB2_baseMass MS B T J0 gap hT N p x *
+            ∏ u, nuB (divisorTemplateLaw MS.core.parameters N
+              (pkgB2_divisorFamily B U u))
+              (linearRowValue (pkgB2_rowCoefficientArray MS T hT J0 gap direction E)
+                N p u x).num
+      rw [← hfactor p x]
+    · simp only [if_neg hp, mul_zero, zero_mul]
+  calc
+    pkgB2_stateMonomialAverage MS B gap T J0 hT E direction N U =
+        P⁻¹ * weightedLinearFormsAverage D N Good := by
+          unfold pkgB2_stateMonomialAverage
+          dsimp [Good, P]
+          rw [houter]
+    _ = weightedLinearFormsAverage D N Good / P := by
+      rw [div_eq_mul_inv]
+      ring
+
 /-- Expand the retained `(1+v)` factors and root `(v-1)` factors into divisor monomials.
 The sign is factored as `(-1)^|minus| * (-1)^|M|`, which avoids subtraction on cardinalities. -/
 theorem pkgB2_signedProductExpansion {α : Type*} [DecidableEq α]
@@ -6948,6 +7078,121 @@ private theorem pkgB2_terminalStateIntegrand_signedExpansion {K sl b : ℕ}
     rw [hsplit, hplus, hminus]
   rw [hstate]
   simpa [plus, minus, v] using pkgB2_signedProductExpansion plus minus hdisj v
+
+private theorem pkgB2_terminalStateInnerExpansion {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (N : ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (hNonroot : Nonempty (pkgB2_Nonroot T))
+    (p : Fin (b * sl) → ℕ) :
+    (∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+      pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x) =
+      ∑ P ∈ (pkgB2_nonrootOccurrenceSet (T := T) Finset.univ).powerset,
+        ∑ M ∈ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).powerset,
+          (-1 : ℝ) ^ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).card *
+            (-1 : ℝ) ^ M.card *
+              ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+                pkgB2_baseMass MS B T J0 gap hT N p x *
+                  ∏ o ∈ P ∪ M,
+                    nu MS.core.parameters N B
+                      (pkgB2_stateRowValue MS T hT J0 gap direction Finset.univ N p o x) := by
+  classical
+  let Xwin := Fintype.piFinset
+    (fun _ : Fin (Fintype.card (pkgB2_Coord T)) =>
+      pkgB2_baseWindow MS B T J0 gap hT N p)
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
+  let coefficient (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)))) :=
+      (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card
+  let monomial (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ))))
+      (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :=
+    ∏ o ∈ P ∪ M,
+      nu MS.core.parameters N B
+        (pkgB2_stateRowValue MS T hT J0 gap direction Finset.univ N p o x)
+  have hstateZero (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) (hx : x ∉ Xwin) :
+      pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x = 0 := by
+    rw [pkgB2_baseMass_zero_outside MS B T J0 gap hT N p x (by simpa [Xwin] using hx)]
+    simp
+  have hmonomialZero (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ))))
+      (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) (hx : x ∉ Xwin) :
+      pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x = 0 := by
+    rw [pkgB2_baseMass_zero_outside MS B T J0 gap hT N p x (by simpa [Xwin] using hx)]
+    simp
+  have hmonomialSum (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)))) :
+      (∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+        pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x) =
+        ∑ x ∈ Xwin, pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x :=
+    tsum_eq_sum (s := Xwin) (hmonomialZero P M)
+  have hfinite :
+      (∑ x ∈ Xwin, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x) =
+      ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        coefficient P M *
+          ∑ x ∈ Xwin, pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x := by
+    calc
+      _ = ∑ x ∈ Xwin, pkgB2_baseMass MS B T J0 gap hT N p x *
+          ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M * monomial P M x := by
+              apply Finset.sum_congr rfl
+              intro x hx
+              have hterminal := pkgB2_terminalStateIntegrand_signedExpansion
+                (MS := MS) (B := B) (gap := gap) (T := T) (hT := hT) (J0 := J0)
+                (direction := direction) (N := N) (I := I) (p := p) (x := x)
+                (hNonroot := hNonroot)
+              exact congrArg (fun z : ℝ =>
+                pkgB2_baseMass MS B T J0 gap hT N p x * z)
+                (by simpa [plus, minus, coefficient, monomial] using hterminal)
+      _ = ∑ x ∈ Xwin, ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            pkgB2_baseMass MS B T J0 gap hT N p x *
+              (coefficient P M * monomial P M x) := by
+                apply Finset.sum_congr rfl
+                intro x hx
+                rw [Finset.mul_sum]
+                apply Finset.sum_congr rfl
+                intro P hP
+                rw [Finset.mul_sum]
+      _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M *
+              ∑ x ∈ Xwin, pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x := by
+                rw [Finset.sum_comm]
+                apply Finset.sum_congr rfl
+                intro P hP
+                rw [Finset.sum_comm]
+                apply Finset.sum_congr rfl
+                intro M hM
+                calc
+                  ∑ x ∈ Xwin, pkgB2_baseMass MS B T J0 gap hT N p x *
+                      (coefficient P M * monomial P M x) =
+                    coefficient P M * ∑ x ∈ Xwin,
+                      pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x := by
+                        calc
+                          _ = ∑ x ∈ Xwin,
+                              (pkgB2_baseMass MS B T J0 gap hT N p x *
+                                monomial P M x) * coefficient P M := by
+                                  apply Finset.sum_congr rfl
+                                  intro x hx
+                                  ring
+                          _ = (∑ x ∈ Xwin,
+                              pkgB2_baseMass MS B T J0 gap hT N p x *
+                                monomial P M x) * coefficient P M := by
+                                  rw [Finset.sum_mul]
+                          _ = _ := by ring
+                  _ = _ := by rfl
+  rw [tsum_eq_sum (s := Xwin) hstateZero]
+  calc
+    _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M * ∑ x ∈ Xwin,
+            pkgB2_baseMass MS B T J0 gap hT N p x * monomial P M x := hfinite
+    _ = _ := by
+      apply Finset.sum_congr rfl
+      intro P hP
+      apply Finset.sum_congr rfl
+      intro M hM
+      rw [← hmonomialSum P M]
 
 
 private theorem pkgB2_alternatingPowersetSum_zero {α : Type*} [DecidableEq α]
