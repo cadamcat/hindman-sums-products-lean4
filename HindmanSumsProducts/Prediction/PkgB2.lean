@@ -400,6 +400,28 @@ private theorem pkgB2_finite_weighted_cauchy {α : Type*} [Fintype α]
         ring
       rw [hsumW, hsumWH]
 
+private abbrev pkgB2_PiExcept {α : Type*} [Fintype α] [DecidableEq α] (a : α) :=
+  {i : α // i ∈ (Finset.univ : Finset α).erase a}
+
+private noncomputable def pkgB2_piSplitAt {α : Type*} [Fintype α] [DecidableEq α]
+    (a : α) : (α → ℤ) ≃ ((pkgB2_PiExcept a → ℤ) × ℤ) where
+  toFun x := (fun i => x i.1, x a)
+  invFun z i := if h : i = a then z.2 else
+    z.1 ⟨i, Finset.mem_erase.mpr ⟨h, Finset.mem_univ i⟩⟩
+  left_inv := by
+    intro x
+    funext i
+    by_cases h : i = a
+    · simp [h]
+    · simp [h]
+  right_inv := by
+    intro z
+    apply Prod.ext
+    · funext i
+      have hne : i.1 ≠ a := (Finset.mem_erase.mp i.2).1
+      simp [hne]
+    · simp
+
 theorem pkgB2_weightedShiftStateStep {α β : Type u} [Fintype α]
     [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
     (μ : β → ℝ) (L : β → ℕ) (hL : ∀ b, 0 < L b)
