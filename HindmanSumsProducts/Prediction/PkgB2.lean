@@ -6209,6 +6209,96 @@ noncomputable def pkgB2_weightedLinearFormsData {K sl b : ℕ} {As : Finset ℚ}
       (gap k0) (hgap k0) E
   · exact pkgB2_epsilonCRT_superPolynomial MS B gap hgap
 
+private theorem pkgB2_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k) (hsl : 0 < sl)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T))
+    (U : Finset (Fin (Fintype.card (pkgB2_Occurrence T E)))) :
+    Tendsto
+      (fun N : ℕ =>
+        weightedLinearFormsAverage
+            (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+              direction hdir k0 E U) N
+            (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+              (pkgB2_repPrimeProject hT p k)) /
+          weightedLinearFormsEventProbability
+            (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+              direction hdir k0 E U) N
+            (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+              (pkgB2_repPrimeProject hT p k)))
+      atTop (𝓝 1) := by
+  classical
+  let D := pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+    direction hdir k0 E U
+  let good (N : ℕ) (p : Fin (b * sl) → ℕ) : Prop :=
+    ∀ k, (T k).Good (corrScales MS) (gap k) N (pkgB2_repPrimeProject hT p k)
+  let prob (N : ℕ) : ℝ := weightedLinearFormsEventProbability D N (good N)
+  let average (N : ℕ) : ℝ := weightedLinearFormsAverage D N (good N)
+  let c : ℝ := (1 / 2 : ℝ) ^ b
+  have hc : 0 < c := by dsimp [c]; positivity
+  have hgoodDomain : ∀ᶠ N : ℕ in atTop, ∀ p : Fin (b * sl) → ℕ,
+      good N p → D.goodDomain N p := by
+    have hreg := pkgB2_baseRegular_of_allGood_eventually MS B gap T J0 hgap hT hJ0
+    have hN0 : ∀ᶠ N : ℕ in atTop,
+        pkgB2_directionConstantBound T direction + 1 ≤ N :=
+      eventually_ge_atTop _
+    filter_upwards [hreg, hN0] with N hregN hN0 p hp
+    change pkgB2_directionConstantBound T direction + 1 ≤ N ∧
+      pkgB2_baseRegular MS B T J0 gap hT N p
+    exact ⟨hN0, hregN p hp⟩
+  obtain ⟨C, hC, hlinear⟩ := prop_linear_forms D
+  have herr : Tendsto
+      (fun N : ℕ => C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^
+        Fintype.card (pkgB2_Occurrence T E) * (D.epsilonBase N + D.epsilonCRT N)))
+      atTop (𝓝 0) := by
+    have hCconst : Tendsto (fun _ : ℕ => C) atTop (𝓝 C) := tendsto_const_nhds
+    simpa using hCconst.mul (weighted_linear_forms_error_tends_zero D)
+  have hlinearEventually : ∀ᶠ N : ℕ in atTop,
+      |average N - prob N| ≤
+        C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^
+          Fintype.card (pkgB2_Occurrence T E) * (D.epsilonBase N + D.epsilonCRT N)) := by
+    filter_upwards [hgoodDomain] with N hN
+    exact hlinear N (good N) (fun p hp => hN p hp)
+  have habs : Tendsto (fun N => |average N - prob N|) atTop (𝓝 0) :=
+    squeeze_zero' (Filter.Eventually.of_forall fun N => abs_nonneg _)
+      hlinearEventually herr
+  have hrepLower : ∀ᶠ N : ℕ in atTop, c ≤
+      independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) (good N) :=
+    pkgB2_repGoodProbability_lower_eventually MS gap T hT hsl
+  have hprobEq (N : ℕ) : prob N =
+      independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) (good N) := by
+    simp [prob, good, weightedLinearFormsEventProbability, D,
+      pkgB2_weightedLinearFormsData, pkgB2_repScales, pkgB2_repScalesOfFacts]
+  have hprobLower : ∀ᶠ N : ℕ in atTop, c ≤ prob N := by
+    filter_upwards [hrepLower] with N hN
+    rw [hprobEq]
+    exact hN
+  have hratioBound (N : ℕ) (hP : c ≤ prob N) :
+      |average N / prob N - 1| ≤ |average N - prob N| / c := by
+    have hPpos : 0 < prob N := lt_of_lt_of_le hc hP
+    have heq : average N / prob N - 1 = (average N - prob N) / prob N := by
+      field_simp [ne_of_gt hPpos]
+    rw [heq, abs_div, abs_of_pos hPpos]
+    exact div_le_div_of_nonneg_left (abs_nonneg _) hc hP
+  have hratioError : Tendsto (fun N => |average N - prob N| / c) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using habs.mul_const c⁻¹
+  have hratio : Tendsto (fun N => |average N / prob N - 1|) atTop (𝓝 0) :=
+    squeeze_zero' (Filter.Eventually.of_forall fun N => abs_nonneg _)
+      (Filter.Eventually.mono hprobLower (fun N hP => hratioBound N hP)) hratioError
+  apply (tendsto_iff_norm_sub_tendsto_zero).2
+  simpa [Real.norm_eq_abs, average, prob, D, good] using hratio
+
 /-- Expand the retained `(1+v)` factors and root `(v-1)` factors into divisor monomials.
 The sign is factored as `(-1)^|minus| * (-1)^|M|`, which avoids subtraction on cardinalities. -/
 theorem pkgB2_signedProductExpansion {α : Type*} [DecidableEq α]
