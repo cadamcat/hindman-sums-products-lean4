@@ -55,6 +55,106 @@ theorem height_map_embedding {n k : ℕ} (f : Fin n ↪ Fin k) (h : Fin k → �
   simp [OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height,
     Finset.prod_map]
 
+private theorem nat_le_two_pow (k : ℕ) : k ≤ 2 ^ k := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+      rw [pow_succ]
+      calc
+        k + 1 ≤ 2 ^ k + 1 := Nat.add_le_add_right ih 1
+        _ ≤ 2 ^ k * 2 := by
+          have hp : 1 ≤ (2 : ℕ) ^ k := Nat.one_le_two_pow (n := k)
+          nlinarith [hp]
+
+/-- Repair the finite initial cutoff exceptions of an admissible parameter sequence. -/
+theorem parameters_allRawCutoffs_eventually_eq {n : ℕ} (A : Parameters n) :
+    ∃ Aplus : Parameters n, (∀ N i, 4 * primorial (N + 1) ≤ Aplus.X N i) ∧
+      ∀ᶠ N in atTop, Aplus.X N = A.X N := by
+  classical
+  let Xplus : ℕ → Fin n → ℕ := fun N i =>
+    if h : ∀ j, 4 * primorial (N + 1) ≤ A.X N j then A.X N i
+    else 2 ^ (4 * primorial (N + 1))
+  have hcutEvent : ∀ᶠ N in atTop,
+      ∀ i ∈ (Finset.univ : Finset (Fin n)),
+        4 * primorial (N + 1) ≤ A.X N i := by
+    apply (eventually_all_finset (Finset.univ : Finset (Fin n))).2
+    intro i hi
+    exact A.eventual_X i
+  have hXeq : ∀ᶠ N in atTop, Xplus N = A.X N := by
+    filter_upwards [hcutEvent] with N hN
+    have hcut : ∀ i, 4 * primorial (N + 1) ≤ A.X N i := fun i =>
+      hN i (Finset.mem_univ i)
+    funext i
+    simp [Xplus, hcut]
+  have hcutPlus (N : ℕ) (i : Fin n) : 4 * primorial (N + 1) ≤ Xplus N i := by
+    dsimp [Xplus]
+    split_ifs with h
+    · exact h i
+    · exact nat_le_two_pow _
+  let Aplus : Parameters n := {
+    M := A.M
+    ht := A.ht
+    H := A.H
+    X := Xplus
+    Mpos := A.Mpos
+    htpos := A.htpos
+    Hpos := A.Hpos
+    Xpow := by
+      intro N i
+      by_cases h : ∀ j, 4 * primorial (N + 1) ≤ A.X N j
+      · dsimp [Xplus]
+        rw [if_pos h]
+        exact A.Xpow N i
+      · exact ⟨4 * primorial (N + 1), by simp [Xplus, h]⟩
+    Msmooth := A.Msmooth
+    htsmooth := A.htsmooth
+    Mdiv := A.Mdiv
+    htdiv := A.htdiv
+    singleton_bound := A.singleton_bound
+    block_bound := A.block_bound
+    ratio := A.ratio
+    Hdiv := A.Hdiv
+    Hdom := by
+      intro i
+      intro C hC
+      have hprev : ∀ᶠ N in atTop,
+          OAI.SourceAdmissible.previous (Xplus N) i =
+            OAI.SourceAdmissible.previous (A.X N) i := by
+        filter_upwards [hXeq] with N hN
+        rw [hN]
+      have hscale : ∀ᶠ N in atTop,
+          OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+              (fun N => OAI.SourceAdmissible.previous (Xplus N) i) N =
+            OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+              (fun N => OAI.SourceAdmissible.previous (A.X N) i) N := by
+        filter_upwards [hprev] with N hN
+        simp [OAI.AdmissibleMicrocellBoundary.earlierScale, hN]
+      have hratio : ∀ᶠ N in atTop,
+          (A.H N i : ℝ) /
+              (OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+                (fun N => OAI.SourceAdmissible.previous (A.X N) i) N) ^ C =
+            (A.H N i : ℝ) /
+              (OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+                (fun N => OAI.SourceAdmissible.previous (Xplus N) i) N) ^ C := by
+        filter_upwards [hscale] with N hN
+        rw [← hN]
+      apply (A.Hdom i C hC).congr'
+      exact hratio
+    Xdom := by
+      intro i
+      intro C hC
+      have hratio : ∀ᶠ N in atTop,
+          Real.log (A.X N i : ℝ) / (A.H N i : ℝ) ^ C =
+            Real.log (Xplus N i : ℝ) / (A.H N i : ℝ) ^ C := by
+        filter_upwards [hXeq] with N hN
+        rw [← hN]
+      apply (A.Xdom i C hC).congr'
+      exact hratio }
+  refine ⟨Aplus, ?_, ?_⟩
+  · intro N i
+    exact hcutPlus N i
+  · exact hXeq
+
 /-- The raw harmonic weights are nonnegative, including when the interval is empty. -/
 theorem harmonicNatLaw_nonneg (X W n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
   have hnorm : 0 ≤ harmonicNormalizer X W := by
@@ -255,6 +355,62 @@ theorem integral_pivotMarginals_eq_sum {n m : ℕ}
         (∏ d, harmonicNatLaw (A.X N (B d).1) (primorial (N + 1)) (z d)) * f z := by
   rw [pivotMarginals_eq_outsideLaw]
   exact integral_outsideLaw_eq_sum _ _ (primorial_pos _) (fun d => hX (B d).1) f
+
+/-- The signed vector of block products sampled from the ambient coordinates. -/
+def blockProductTuple {n m : ℕ} (B : Fin m → FrameworkBlock n)
+    (t : Fin n → ℕ) : Fin m → ℤ := fun d => Int.ofNat (∏ j ∈ (B d).set, t j)
+
+/-- The joint block-product mass is the singleton mass of the pushforward by block products. -/
+theorem parameterJointBlockProductMass_eq_map_real {n m : ℕ}
+    (A : Parameters n) (N : ℕ) (B : Fin m → FrameworkBlock n)
+    (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) (z : Fin m → ℤ) :
+    parameterJointBlockProductMass A N B hX z =
+      (Measure.map (blockProductTuple B) (A.law N hX)).real {z} := by
+  classical
+  have hmeas : Measurable (blockProductTuple B) := measurable_of_countable _
+  have hpre : {t : Fin n → ℕ | blockProductTuple B t = z} =
+      {t | ∀ d, 0 ≤ z d ∧ (∏ j ∈ (B d).set, t j) = (z d).toNat} := by
+    ext t
+    constructor
+    · intro h d
+      have hEq : blockProductTuple B t d = z d := congrFun h d
+      change Int.ofNat (∏ j ∈ (B d).set, t j) = z d at hEq
+      refine ⟨?_, ?_⟩
+      · rw [← hEq]
+        exact Int.natCast_nonneg _
+      · have htoNat := congrArg Int.toNat hEq
+        change (∏ j ∈ (B d).set, t j) = (z d).toNat at htoNat
+        exact htoNat
+    · intro h
+      apply funext
+      intro d
+      rcases h d with ⟨hd, hprod⟩
+      dsimp [blockProductTuple]
+      calc
+        Int.ofNat (∏ j ∈ (B d).set, t j) = Int.ofNat ((z d).toNat) :=
+          congrArg Int.ofNat hprod
+        _ = z d := Int.natCast_toNat_eq_self.mpr hd
+  have hpre' : blockProductTuple B ⁻¹' ({z} : Set (Fin m → ℤ)) =
+      {t : Fin n → ℕ | ∀ d, 0 ≤ z d ∧ (∏ j ∈ (B d).set, t j) = (z d).toNat} := by
+    ext t
+    simpa only [Set.mem_preimage, Set.mem_singleton_iff, Set.mem_setOf_eq] using
+      (Set.ext_iff.mp hpre t)
+  unfold parameterJointBlockProductMass
+  simp only [measureReal_def, Measure.map_apply hmeas (measurableSet_singleton z), hpre']
+
+/-- Push an integrable countable-valued observable through its law and sum its singleton masses. -/
+theorem integral_eq_tsum_map_real_singleton {α β : Type*} [MeasurableSpace α]
+    [MeasurableSpace β] [Countable β] [MeasurableSingletonClass β]
+    (μ : Measure α) (f : α → β) (hf : Measurable f) (g : β → ℝ)
+    (hg : Integrable g (Measure.map f μ)) :
+    ∫ x, g (f x) ∂μ = ∑' y, (Measure.map f μ).real {y} * g y := by
+  have hstrong : StronglyMeasurable g := (measurable_of_countable _).stronglyMeasurable
+  calc
+    ∫ x, g (f x) ∂μ = ∫ y, g y ∂Measure.map f μ :=
+      (integral_map_of_stronglyMeasurable hf hstrong).symm
+    _ = ∑' y, (Measure.map f μ).real {y} * g y := by
+      rw [MeasureTheory.integral_countable hg]
+      simp only [smul_eq_mul]
 
 /-- Projection of a finite product law onto an injective list of coordinates is the product law
 on that list. -/
@@ -1294,6 +1450,7 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.dominates_of_le_denominator
 #print axioms HindmanSumsProducts.Prediction.added_map_strictMono
 #print axioms HindmanSumsProducts.Prediction.height_map_embedding
+#print axioms HindmanSumsProducts.Prediction.parameters_allRawCutoffs_eventually_eq
 #print axioms HindmanSumsProducts.Prediction.harmonicNatLaw_nonneg
 #print axioms HindmanSumsProducts.Prediction.parameterTailProductLaw_nonneg
 #print axioms HindmanSumsProducts.Prediction.nuB_nonneg_of_nonneg
@@ -1315,6 +1472,8 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.integral_parameterLaw_eq_sum
 #print axioms HindmanSumsProducts.Prediction.pivotMarginals_eq_outsideLaw
 #print axioms HindmanSumsProducts.Prediction.integral_pivotMarginals_eq_sum
+#print axioms HindmanSumsProducts.Prediction.parameterJointBlockProductMass_eq_map_real
+#print axioms HindmanSumsProducts.Prediction.integral_eq_tsum_map_real_singleton
 #print axioms HindmanSumsProducts.Prediction.parameterLaw_map_injective
 #print axioms HindmanSumsProducts.Prediction.divisorWeightUnder_eq_nu
 #print axioms HindmanSumsProducts.Prediction.divisorWeightUnder_principal
