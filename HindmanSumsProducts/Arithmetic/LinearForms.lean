@@ -77,6 +77,63 @@ private def rationalRowClearedCoefficient {d : ℕ} (rows : Fin d → ℚ)
     (j : Fin d) : ℤ :=
   (rows j).num * (rationalRowDenominatorExcept rows j : ℤ)
 
+private theorem rationalRowDenominator_factor {d : ℕ} (rows : Fin d → ℚ) (j : Fin d) :
+    rationalRowDenominator rows =
+      (rows j).den * rationalRowDenominatorExcept rows j := by
+  classical
+  dsimp [rationalRowDenominator, rationalRowDenominatorExcept]
+  exact (Finset.mul_prod_erase Finset.univ (fun k => (rows k).den)
+    (Finset.mem_univ j)).symm
+
+private theorem rationalRow_coefficient_clearDenominator {d : ℕ}
+    (rows : Fin d → ℚ) (j : Fin d) :
+    (rationalRowDenominator rows : ℚ) * rows j =
+      (rationalRowClearedCoefficient rows j : ℚ) := by
+  have hnum : ((rows j).den : ℚ) * rows j = (rows j).num := by
+    calc
+      ((rows j).den : ℚ) * rows j =
+          (rows j).den * ((rows j).num / (rows j).den) := by
+            rw [(rows j).num_div_den]
+      _ = (rows j).num := by
+        have hden : (0 : ℚ) < (rows j).den := by exact_mod_cast Rat.den_pos (rows j)
+        field_simp [ne_of_gt hden]
+  unfold rationalRowClearedCoefficient
+  rw [rationalRowDenominator_factor]
+  push_cast
+  calc
+    (rows j).den * (rationalRowDenominatorExcept rows j : ℚ) * rows j =
+        (rationalRowDenominatorExcept rows j : ℚ) *
+          ((rows j).den : ℚ) * rows j := by ring
+    _ = (rationalRowDenominatorExcept rows j : ℚ) * (rows j).num := by
+      calc
+        _ = (rationalRowDenominatorExcept rows j : ℚ) *
+            (((rows j).den : ℚ) * rows j) := by ring
+        _ = (rationalRowDenominatorExcept rows j : ℚ) * (rows j).num :=
+          congrArg (fun z : ℚ => (rationalRowDenominatorExcept rows j : ℚ) * z) hnum
+    _ = (((rows j).num : ℤ) *
+          (rationalRowDenominatorExcept rows j : ℤ) : ℚ) := by
+      norm_cast
+      ring
+
+private theorem rationalRow_commonDenominator_value {d : ℕ}
+    (rows : Fin d → ℚ) (x : Fin d → ℤ) :
+    (rationalRowDenominator rows : ℚ) *
+        (∑ j, rows j * (x j : ℚ)) =
+      ∑ j, (rationalRowClearedCoefficient rows j : ℚ) * (x j : ℚ) := by
+  calc
+    (rationalRowDenominator rows : ℚ) *
+        (∑ j, rows j * (x j : ℚ)) =
+      ∑ j, (rationalRowDenominator rows : ℚ) *
+        (rows j * (x j : ℚ)) := by rw [Finset.mul_sum]
+    _ = ∑ j, ((rationalRowDenominator rows : ℚ) * rows j) * (x j : ℚ) := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      ring
+    _ = ∑ j, (rationalRowClearedCoefficient rows j : ℚ) * (x j : ℚ) := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      rw [rationalRow_coefficient_clearDenominator]
+
 private theorem zmod_int_mul (M : ℕ) (a b : ℤ) :
     (a : ZMod M) * (b : ZMod M) = ((a * b : ℤ) : ZMod M) := by
   exact (Int.cast_mul (α := ZMod M) a b).symm
