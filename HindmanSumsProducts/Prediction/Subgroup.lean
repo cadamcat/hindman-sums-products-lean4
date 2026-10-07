@@ -2247,7 +2247,7 @@ theorem subgroup_inverse :
   have hbadU : ∀ᶠ N in (U : Filter ℕ), badPairSeq N ≤ η :=
     Filter.Eventually.filter_mono hU hbadCof
   have hpoolLower : Tendsto (fun N => (S.primeStage.pool N l).lower) atTop atTop :=
-    poolLower_tendsto MS l
+    pkgg2_poolLower_tendsto MS l
   have hpoolTop : ∀ᶠ N in atTop, 2 ≤ (S.primeStage.pool N l).lower :=
     hpoolLower.eventually_ge_atTop 2
   have hpoolCof : ∀ᶠ N in Filter.cofinite, 2 ≤ (S.primeStage.pool N l).lower :=

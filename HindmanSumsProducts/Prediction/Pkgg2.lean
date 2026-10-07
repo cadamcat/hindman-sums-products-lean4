@@ -17,7 +17,7 @@ private theorem expect_top_addSubgroup {G : Type*} [AddCommGroup G] [Fintype G]
   exact Fintype.expect_equiv AddSubgroup.topEquiv.toEquiv f g (fun x => by simpa using h x)
 
 /-- The subgroup box moment on repeated top directions is OpenAI's Gowers moment. -/
-theorem boxMoment_replicate_top_helper (t : ℕ) {G : Type*} [AddCommGroup G] [Fintype G]
+theorem pkgg2_boxMoment_replicate_top_helper (t : ℕ) {G : Type*} [AddCommGroup G] [Fintype G]
     (f : G → ℂ) :
     SubgroupBox.boxMoment (List.replicate t (⊤ : AddSubgroup G)) f = OAI.Erdos3.gowersMoment t f := by
   induction t generalizing f with
@@ -46,7 +46,7 @@ theorem boxMoment_replicate_top_helper (t : ℕ) {G : Type*} [AddCommGroup G] [F
         _ = OAI.Erdos3.gowersMoment (t + 1) f := rfl
 
 /-- The probability of two independently sampled tuples under the same good-event conditioning. -/
-theorem nested_goodSlotAverage_bad_eq {K sl : ℕ} {As : Finset ℚ}
+theorem pkgg2_nested_goodSlotAverage_bad_eq {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (S : FromArithmetic.MasterScales K As sl Dm)
     (l : Fin K) (N : ℕ) {q : ℕ} (good : (Fin q → ℕ) → Prop)
     (E : (Fin q → ℕ) → (Fin q → ℕ) → Prop) :
@@ -165,7 +165,7 @@ private lemma pairOuter_summable {q q' : ℕ}
   rw [poolMass_zero_of_not_support loF hiF x hx]
   simp
 
-theorem pairProbability_product {q q' : ℕ}
+theorem pkgg2_pairProbability_product {q q' : ℕ}
     (loF hiF : Fin q → ℕ) (loG hiG : Fin q' → ℕ)
     (EF : (Fin q → ℕ) → Prop) (EG : (Fin q' → ℕ) → Prop) :
     independentPrimePairProbability loF hiF loG hiG (fun x y => EF x ∧ EG y) =
@@ -200,7 +200,7 @@ theorem pairProbability_product {q q' : ℕ}
         independentPrimePoolProbability loG hiG EG := by
           simp [f, g, independentPrimePoolProbability]
 
-theorem pairProbability_add_disjoint {q q' : ℕ}
+theorem pkgg2_pairProbability_add_disjoint {q q' : ℕ}
     (loF hiF : Fin q → ℕ) (loG hiG : Fin q' → ℕ)
     (E F : (Fin q → ℕ) → (Fin q' → ℕ) → Prop)
     [DecidableRel E] [DecidableRel F]
@@ -275,7 +275,7 @@ theorem pairProbability_add_disjoint {q q' : ℕ}
               independentPrimePoolMass loG hiG y * if F x y then 1 else 0) :=
             hOuterE.tsum_add hOuterF
 
-theorem poolLower_tendsto {K sl : ℕ} {As : Finset ℚ}
+theorem pkgg2_poolLower_tendsto {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (l : Fin K) : Tendsto (fun N => (MS.primeStage.pool N l).lower) atTop atTop := by
   have hdom := MS.primeStage.pool_lower_dominates l
@@ -916,17 +916,17 @@ private theorem shiftAverage_eq_finset_expect {ι : Type*} [Fintype ι] [Decidab
   simp [Nat.cast_pow, div_eq_mul_inv]
   ring
 
-def harmonicLawIntSupport (X W : ℕ) : Finset ℤ :=
+def pkgg2_harmonicLawIntSupport (X W : ℕ) : Finset ℤ :=
   (Finset.Ico (X : ℤ) (X ^ 2 : ℤ)).filter fun z => Nat.Coprime z.toNat W
 
-def harmonicLawNatSupport (X W : ℕ) : Finset ℕ :=
+def pkgg2_harmonicLawNatSupport (X W : ℕ) : Finset ℕ :=
   (Finset.Ico X (X ^ 2)).filter fun n => Nat.Coprime n W
 
 private theorem harmonicLawIntSupport_eq_map (X W : ℕ) (hX : 0 < X) :
-    harmonicLawIntSupport X W = (harmonicLawNatSupport X W).map Nat.castEmbedding := by
+    pkgg2_harmonicLawIntSupport X W = (pkgg2_harmonicLawNatSupport X W).map Nat.castEmbedding := by
   classical
   ext z
-  simp only [harmonicLawIntSupport, harmonicLawNatSupport, Finset.mem_filter,
+  simp only [pkgg2_harmonicLawIntSupport, pkgg2_harmonicLawNatSupport, Finset.mem_filter,
     Finset.mem_Ico, Finset.mem_map, Function.Embedding.coeFn_mk]
   constructor
   · rintro ⟨⟨hlo, hhi⟩, hcop⟩
@@ -944,8 +944,8 @@ private theorem harmonicLawIntSupport_eq_map (X W : ℕ) (hX : 0 < X) :
     rcases hn with ⟨⟨hnlo, hnhigh⟩, hcop⟩
     exact ⟨⟨by exact_mod_cast hnlo, by exact_mod_cast hnhigh⟩, hcop⟩
 
-theorem harmonicLaw_zero_of_not_mem (X W : ℕ) (z : ℤ)
-    (hz : z ∉ harmonicLawIntSupport X W) : harmonicLaw X W z = 0 := by
+theorem pkgg2_harmonicLaw_zero_of_not_mem (X W : ℕ) (z : ℤ)
+    (hz : z ∉ pkgg2_harmonicLawIntSupport X W) : harmonicLaw X W z = 0 := by
   by_cases hz0 : 0 ≤ z
   · have hzNat : ((z.toNat : ℕ) : ℤ) = z := Int.toNat_of_nonneg hz0
     have hcond : ¬ (X ≤ z.toNat ∧ z.toNat < X ^ 2 ∧ Nat.Coprime z.toNat W) := by
@@ -964,20 +964,20 @@ theorem harmonicLaw_zero_of_not_mem (X W : ℕ) (z : ℤ)
     simp [harmonicLaw, hcond']
   · simp [harmonicLaw, hz0]
 
-theorem harmonicLaw_expect_finset (X W : ℕ) (f : ℤ → ℝ) :
+theorem pkgg2_harmonicLaw_expect_finset (X W : ℕ) (f : ℤ → ℝ) :
     (∑' z : ℤ, harmonicLaw X W z * f z) =
-      ∑ z ∈ harmonicLawIntSupport X W, harmonicLaw X W z * f z := by
+      ∑ z ∈ pkgg2_harmonicLawIntSupport X W, harmonicLaw X W z * f z := by
   classical
   apply tsum_eq_sum
   intro z hz
-  rw [harmonicLaw_zero_of_not_mem X W z hz]
+  rw [pkgg2_harmonicLaw_zero_of_not_mem X W z hz]
   simp
 
-theorem harmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
+theorem pkgg2_harmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
     (hH : 0 < harmonicNormalizer X W) :
     (∑' z : ℤ, harmonicLaw X W z) = 1 := by
   classical
-  let S := harmonicLawIntSupport X W
+  let S := pkgg2_harmonicLawIntSupport X W
   have hzero (z : ℤ) (hz : z ∉ S) : harmonicLaw X W z = 0 := by
     by_cases hz0 : 0 ≤ z
     · have hzNat : ((z.toNat : ℕ) : ℤ) = z := Int.toNat_of_nonneg hz0
@@ -997,14 +997,14 @@ theorem harmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
       simp [harmonicLaw, hcond']
     · simp [harmonicLaw, hz0]
   rw [tsum_eq_sum (s := S) hzero]
-  rw [show S = (harmonicLawNatSupport X W).map Nat.castEmbedding by
+  rw [show S = (pkgg2_harmonicLawNatSupport X W).map Nat.castEmbedding by
       exact harmonicLawIntSupport_eq_map X W hX]
   rw [Finset.sum_map]
   have hsum :
-      (∑ n ∈ harmonicLawNatSupport X W,
+      (∑ n ∈ pkgg2_harmonicLawNatSupport X W,
           harmonicLaw X W (n : ℤ)) = 1 := by
     calc
-      _ = (∑ n ∈ harmonicLawNatSupport X W,
+      _ = (∑ n ∈ pkgg2_harmonicLawNatSupport X W,
           1 / ((n : ℝ) * harmonicNormalizer X W)) := by
             apply Finset.sum_congr rfl
             intro n hn
@@ -1018,7 +1018,7 @@ theorem harmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
                   1 / ((n : ℝ) * harmonicNormalizer X W) := by
               simp [harmonicLaw, hbounds.1, hbounds.2, hnrange.2]
             exact hpoint
-      _ = (∑ n ∈ harmonicLawNatSupport X W, 1 / (n : ℝ)) /
+      _ = (∑ n ∈ pkgg2_harmonicLawNatSupport X W, 1 / (n : ℝ)) /
           harmonicNormalizer X W := by
             rw [Finset.sum_div]
             apply Finset.sum_congr rfl
@@ -1027,31 +1027,31 @@ theorem harmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
               have hnX : X ≤ n := (Finset.mem_Ico.mp (Finset.mem_filter.mp hn).1).1
               exact_mod_cast hX.trans_le hnX)]
       _ = 1 := by
-            rw [show (∑ n ∈ harmonicLawNatSupport X W, 1 / (n : ℝ)) =
+            rw [show (∑ n ∈ pkgg2_harmonicLawNatSupport X W, 1 / (n : ℝ)) =
                 harmonicNormalizer X W by
-                  simp [harmonicLawNatSupport, harmonicNormalizer, Finset.sum_filter,
+                  simp [pkgg2_harmonicLawNatSupport, harmonicNormalizer, Finset.sum_filter,
                     Finset.Ico, Nat.coprime_comm]]
             exact div_self (ne_of_gt hH)
   exact hsum
 
-theorem harmonicLaw_expect_indicator (X W : ℕ) (hX : 0 < X)
+theorem pkgg2_harmonicLaw_expect_indicator (X W : ℕ) (hX : 0 < X)
     (hH : 0 < harmonicNormalizer X W) (E : ℤ → Prop) :
     (∑' z : ℤ, harmonicLaw X W z * if E z then 1 else 0) =
-      (∑ n ∈ harmonicLawNatSupport X W,
+      (∑ n ∈ pkgg2_harmonicLawNatSupport X W,
         if E (n : ℤ) then 1 / (n : ℝ) else 0) / harmonicNormalizer X W := by
   classical
-  let S := harmonicLawIntSupport X W
+  let S := pkgg2_harmonicLawIntSupport X W
   have hzero (z : ℤ) (hz : z ∉ S) :
       harmonicLaw X W z * (if E z then 1 else 0) = 0 := by
-    rw [harmonicLaw_zero_of_not_mem]
+    rw [pkgg2_harmonicLaw_zero_of_not_mem]
     · simp
     · simpa [S] using hz
   rw [tsum_eq_sum (s := S) hzero]
-  rw [show S = (harmonicLawNatSupport X W).map Nat.castEmbedding by
+  rw [show S = (pkgg2_harmonicLawNatSupport X W).map Nat.castEmbedding by
       exact harmonicLawIntSupport_eq_map X W hX]
   rw [Finset.sum_map]
   calc
-    _ = ∑ n ∈ harmonicLawNatSupport X W,
+    _ = ∑ n ∈ pkgg2_harmonicLawNatSupport X W,
         (1 / ((n : ℝ) * harmonicNormalizer X W)) *
           (if E (n : ℤ) then 1 else 0) := by
             apply Finset.sum_congr rfl
@@ -1064,7 +1064,7 @@ theorem harmonicLaw_expect_indicator (X W : ℕ) (hX : 0 < X)
               simp [harmonicLaw, hbounds.1, hbounds.2, hnrange.2]
             change harmonicLaw X W (n : ℤ) * (if E (n : ℤ) then 1 else 0) = _
             rw [hpoint]
-    _ = (∑ n ∈ harmonicLawNatSupport X W,
+    _ = (∑ n ∈ pkgg2_harmonicLawNatSupport X W,
           if E (n : ℤ) then 1 / (n : ℝ) else 0) / harmonicNormalizer X W := by
             rw [Finset.sum_div]
             apply Finset.sum_congr rfl
@@ -1076,7 +1076,7 @@ theorem harmonicLaw_expect_indicator (X W : ℕ) (hX : 0 < X)
                 exact_mod_cast hX.trans_le hnX)]
             · simp [he]
 
-theorem boundaryStrip_imp_rawBoundary {H width R n : ℕ}
+theorem pkgg2_boundaryStrip_imp_rawBoundary {H width R n : ℕ}
     (hH : 0 < H) (hR : width < R) (hn : R ≤ n) :
     InBoundaryStrip H width (n : ℤ) → (n - R) / H < (n + R) / H := by
   intro hs
@@ -1107,7 +1107,7 @@ theorem boundaryStrip_imp_rawBoundary {H width R n : ℕ}
     have hlow : (n - R) / H ≤ n / H := Nat.div_le_div_right (Nat.sub_le _ _)
     exact lt_of_le_of_lt hlow hupp
 
-theorem harmonicBoundary_mass_le_raw {X W H width R : ℕ}
+theorem pkgg2_harmonicBoundary_mass_le_raw {X W H width R : ℕ}
     (hX : 0 < X) (hW : 0 < W) (hcut : 4 * W ≤ X) (hH : 0 < H)
     (hR : width < R) (hRle : R ≤ X) :
     (∑' z : ℤ, harmonicLaw X W z * boundaryIndicator H width z) ≤
@@ -1116,7 +1116,7 @@ theorem harmonicBoundary_mass_le_raw {X W H width R : ℕ}
   classical
   change (∑' z : ℤ, harmonicLaw X W z *
     (if InBoundaryStrip H width z then 1 else 0)) ≤ _
-  rw [harmonicLaw_expect_indicator X W hX
+  rw [pkgg2_harmonicLaw_expect_indicator X W hX
     (by
       have hpos := OAI.RawHarmonicProbability.mass_pos X W hW hcut
       simpa [harmonicNormalizer, OAI.DyadicHarmonicBoundary.mass,
@@ -1127,19 +1127,19 @@ theorem harmonicBoundary_mass_le_raw {X W H width R : ℕ}
     simpa [harmonicNormalizer, OAI.DyadicHarmonicBoundary.mass,
       Finset.sum_filter, one_div, Nat.coprime_comm] using hpos
   have hsum :
-      (∑ n ∈ harmonicLawNatSupport X W,
+      (∑ n ∈ pkgg2_harmonicLawNatSupport X W,
         if InBoundaryStrip H width (n : ℤ) then 1 / (n : ℝ) else 0) ≤
       OAI.DyadicHarmonicBoundary.badMass X (X ^ 2) W 1 H R := by
     unfold OAI.DyadicHarmonicBoundary.badMass
     let raw : ℕ → ℝ := fun n =>
       if W.Coprime n ∧ (n - R) / H ≠ (n + R) / H then 1 / (n : ℝ) else 0
-    have hpoint : ∀ n ∈ harmonicLawNatSupport X W,
+    have hpoint : ∀ n ∈ pkgg2_harmonicLawNatSupport X W,
         (if InBoundaryStrip H width (n : ℤ) then 1 / (n : ℝ) else 0) ≤ raw n := by
       intro n hn
       have hnX : X ≤ n := (Finset.mem_Ico.mp (Finset.mem_filter.mp hn).1).1
       have hcop := (Finset.mem_filter.mp hn).2
       by_cases hs : InBoundaryStrip H width (n : ℤ)
-      · have hraw := boundaryStrip_imp_rawBoundary hH hR (le_trans hRle hnX) hs
+      · have hraw := pkgg2_boundaryStrip_imp_rawBoundary hH hR (le_trans hRle hnX) hs
         have hne : (n - R) / H ≠ (n + R) / H := ne_of_lt hraw
         have hcop' : W.Coprime n := Nat.coprime_comm.mp hcop
         simp only [hs]
@@ -1151,14 +1151,14 @@ theorem harmonicBoundary_mass_le_raw {X W H width R : ℕ}
       · simp [raw, hs]
         split_ifs <;> positivity
     have hfirst :
-        (∑ n ∈ harmonicLawNatSupport X W,
+        (∑ n ∈ pkgg2_harmonicLawNatSupport X W,
           if InBoundaryStrip H width (n : ℤ) then 1 / (n : ℝ) else 0) ≤
-          ∑ n ∈ harmonicLawNatSupport X W, raw n := by
+          ∑ n ∈ pkgg2_harmonicLawNatSupport X W, raw n := by
       apply Finset.sum_le_sum
       intro n hn
       exact hpoint n hn
     have hsecond :
-        (∑ n ∈ harmonicLawNatSupport X W, raw n) ≤
+        (∑ n ∈ pkgg2_harmonicLawNatSupport X W, raw n) ≤
           ∑ n ∈ Finset.Ico X (X ^ 2), raw n := by
       apply Finset.sum_le_sum_of_subset_of_nonneg
       · intro n hn
@@ -1324,7 +1324,7 @@ private theorem weighted_uniform_expect {Cl G : Type*} [Fintype Cl] [Fintype G] 
           simp [productProbWeights, uniformProbWeights, mul_assoc, mul_left_comm, mul_comm]
 
 /-- Endpoint differences from short intervals control the subgroup cube norm. -/
-theorem periodizedShiftCube_le_boxNorm {q a J0 L d : ℕ} [NeZero q]
+theorem pkgg2_periodizedShiftCube_le_boxNorm {q a J0 L d : ℕ} [NeZero q]
     (ha : 0 < a) (hadiv : a ∣ q) (hL : 0 < L) (hLn : L ≤ q / a)
     (hn : q / a ≤ 2 * J0 * L) {Cl : Type} [Fintype Cl]
     (α : SubgroupBox.ProbWeights Cl) (f : Cl → ZMod q → ℝ)
@@ -1542,7 +1542,7 @@ theorem periodizedShiftCube_le_boxNorm {q a J0 L d : ℕ} [NeZero q]
 
 /-- Reciprocal weights on an interval of relative width `H/X` are close in total variation
 to uniform weights. -/
-theorem reciprocalWeights_uniformTV {ι : Type*} [Fintype ι] [Nonempty ι]
+theorem pkgg2_reciprocalWeights_uniformTV {ι : Type*} [Fintype ι] [Nonempty ι]
     (base width : ℝ) (hbase : 0 < base) (hwidth : 0 ≤ width)
     (y : ι → ℝ) (hy : ∀ i, base ≤ y i ∧ y i ≤ base + width) :
     ∑ i, |(y i)⁻¹ / (∑ j, (y j)⁻¹) - (Fintype.card ι : ℝ)⁻¹| ≤ width / base := by
@@ -1606,14 +1606,14 @@ theorem reciprocalWeights_uniformTV {ι : Type*} [Fintype ι] [Nonempty ι]
       field_simp [ne_of_gt hbase, ne_of_gt hbw]
       ring
 
-theorem reciprocalWeights_uniform_expect_diff {ι : Type*} [Fintype ι] [Nonempty ι]
+theorem pkgg2_reciprocalWeights_uniform_expect_diff {ι : Type*} [Fintype ι] [Nonempty ι]
     (base width : ℝ) (hbase : 0 < base) (hwidth : 0 ≤ width)
     (y g : ι → ℝ) (hy : ∀ i, base ≤ y i ∧ y i ≤ base + width)
     (hg : ∀ i, |g i| ≤ 1) :
     |(∑ i, (y i)⁻¹ * g i) / (∑ i, (y i)⁻¹) -
       (Fintype.card ι : ℝ)⁻¹ * ∑ i, g i| ≤ width / base := by
   classical
-  have hTV := reciprocalWeights_uniformTV base width hbase hwidth y hy
+  have hTV := pkgg2_reciprocalWeights_uniformTV base width hbase hwidth y hy
   let S : ℝ := ∑ i, (y i)⁻¹
   have hSpos : 0 < S := by
     dsimp [S]
@@ -1648,7 +1648,7 @@ theorem reciprocalWeights_uniform_expect_diff {ι : Type*} [Fintype ι] [Nonempt
     _ ≤ width / base := hTV
 
 /-- A finite shift average preserves a uniform bound on its integrand. -/
-theorem shiftAverage_abs_le {ι : Type*} [Fintype ι] [DecidableEq ι]
+theorem pkgg2_shiftAverage_abs_le {ι : Type*} [Fintype ι] [DecidableEq ι]
     (L : ℕ) (F : (ι → Fin 2 → ℕ) → ℝ) (C : ℝ) (hC : 0 ≤ C)
     (hF : ∀ u, |F u| ≤ C) : |shiftAverage ι L F| ≤ C := by
   classical
@@ -1683,7 +1683,7 @@ theorem shiftAverage_zero_of_nonempty {ι : Type*} [Fintype ι] [DecidableEq ι]
   simp
 
 /-- A bounded integrand stays bounded under the good-slot conditional law. -/
-theorem goodSlotAverage_abs_le {K sl : ℕ} {As : Finset ℚ}
+theorem pkgg2_goodSlotAverage_abs_le {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (S : FromArithmetic.MasterScales K As sl Dm)
     (l : Fin K) (N : ℕ) {q : ℕ} (good : (Fin q → ℕ) → Prop) (F : (Fin q → ℕ) → ℝ)
     (C : ℝ) (hC : 0 ≤ C) (hF : ∀ p, good p → |F p| ≤ C) :
@@ -1779,7 +1779,7 @@ theorem goodSlotAverage_abs_le {K sl : ℕ} {As : Finset ℚ}
         mul_le_mul_of_nonneg_left habsNum (inv_nonneg.mpr hgpPos.le)
       _ = C := by field_simp [ne_of_gt hgpPos]
 
-theorem goodSlotAverage_sub {K sl : ℕ} {As : Finset ℚ}
+theorem pkgg2_goodSlotAverage_sub {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (S : FromArithmetic.MasterScales K As sl Dm)
     (l : Fin K) (N : ℕ) {q : ℕ} (good : (Fin q → ℕ) → Prop)
     (F G : (Fin q → ℕ) → ℝ) :
