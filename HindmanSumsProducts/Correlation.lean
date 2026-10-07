@@ -485,6 +485,38 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
       (fun pseq => hRootSamplerAlong pseq δ hδ)
   have hScaleEventually := c_test2_chainCoefficientData_eventually S C a ha
   have hPoolEventually := c_test2_poolLower_ge_twiceMasterV_eventually S C.gap
+  have hRowPrimitive : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs testList N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        ∀ u, ∃ k,
+          FromArithmetic.rationalResidue r' hr
+            (c_test2_rowWeightedCoeff S C a ι Sh N p u k) ≠ 0 := by
+    intro N p hgood r' hr hlarge hrV u
+    exact c_test2_rowWeighted_primitive S C a (Sh := Sh) dirs ι testList N p hgood
+      r' hr hlarge hrV u
+  have hRowPairwise : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs testList N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        (∀ Q ∈ Dm, ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+        ∀ u v, u ≠ v → ∃ k l,
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u k) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v l) ≠
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u l) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v k) := by
+    intro N p hgood r' hr hlarge hrV hnoD u v huv
+    exact c_test2_rowWeighted_pairwise S C a (Sh := Sh) dirs ι testList
+      hlistedAll htestsSub N p hgood r' hr hlarge hrV hnoD u v huv
+  let weightedRowData : Finset (Fin completion.r') →
+      FromArithmetic.WeightedLinearFormsData (q := completion.r') (d := m) (b := K) S :=
+    fun included =>
+      @c_test2_weightedRowData K s m q completion.r' Aset Dm S C a Sh dirs ι testList
+        included hlistedAll hRowPrimitive hRowPairwise
   have hGoodProbabilityEventually :=
     c_test2_goodSlotProbability_pos_eventually S C.gap testList dirs.poly hrowFacts.1
   let A := S.core.parameters
