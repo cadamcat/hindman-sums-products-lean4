@@ -1,423 +1,733 @@
-import HindmanSumsProducts.Correlation.Defs
+import HindmanSumsProducts.Arithmetic.Defs
 
 /-!
-The arithmetic results cited by §4 are declared here while the arithmetic
-lane develops §3. These declarations are copied interfaces, not proofs of
-new arithmetic facts; the coordinator will unify them with that lane.
+# The §3 results used by §4 (copies)
+
+§4 may import only the frozen `HindmanSumsProducts.Arithmetic.Defs`; the other §3 files are still
+being proved or repaired. This file copies the §3 declarations that §4 states or proves against,
+in the namespace `HindmanSumsProducts.FromArithmetic`, so it elaborates next to
+`HindmanSumsProducts.Arithmetic` without a name clash.
+
+Every copy names its source `HindmanSumsProducts.<name>` (`Arithmetic/<File>.lean`) and says
+whether it is the same statement as on `main` at `1e75bc3` (repaired §3, merge of
+`lane/repair-master`). "Same" means the same text up to the namespace, so replacing the copy
+by an import is mechanical. The only copies that differ are `WeightedLinearFormsData`,
+`weightedLinearFormsAverage` and `prop_linear_forms`: §4 needs rows whose coefficients depend on
+`N` and on the prime slots (see `WeightedLinearFormsData`).
 -/
 
-namespace HindmanSumsProducts
+open scoped BigOperators Topology
+open Filter
 
-attribute [local instance] Classical.propDecidable
-
+namespace HindmanSumsProducts.FromArithmetic
 noncomputable section
 
-open MeasureTheory
-open Filter
-open scoped Topology
-open scoped BigOperators ENNReal
+/-! ## `Arithmetic/Sampling.lean`
 
-/-- Ordinary convergence to zero, used to state every paper `o(1)` claim. -/
-def tendsToZero (f : ℕ → ℝ) : Prop := Tendsto f atTop (𝓝 0)
+Copies of `harmonicResidueError`, `SamplingPointwiseBounds`, `sampling_pointwise_claim`,
+`uniform_interval_sampling_bounds` (with its proof and private helper),
+`uniformIntegerIntervalLaw`, `uniform_interval_translation_bound` (with its proof),
+`finite_product_l1_telescoping`, `harmonicResidueUniformError`,
+`harmonicTranslationUniformError`, `harmonicDilationUniformError`, `sampling_asymptotics` and
+`lem_sampling` (with its proof). All are the same statements as on `main`; the counterexample
+`sampling_pointwise_bounds_zero_false` is not copied. -/
 
-/-- OpenAI's domination predicate, with the §2 name used in this lane. -/
-abbrev dominatesPowers := OAI.MicrocellScale.Dominates
-
-/-- The harmonic normalizer `Z_X` in Lemma `lem:sampling`. -/
-def harmonicNormalizer (X W : ℕ) : ℝ :=
-  ∑ n ∈ Finset.Ico X (X ^ 2), if W.Coprime n then (n : ℝ)⁻¹ else 0
-
-/-- OpenAI's harmonic `W`-unit probability law, which is the paper's `μ_X`. -/
-def harmonicLaw (X W : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X) : Measure ℕ :=
-  (OAI.RawHarmonicProbability.law X W hW hX : Measure ℕ)
-
-/-- The explicit error `E_X(k)` in equation `eq:harmonic-residue-error`. -/
+/-- Error term `E_X(k)` in the harmonic residue estimate (§3, `lem:sampling`). -/
 def harmonicResidueError (X W k : ℕ) : ℝ :=
-  (W : ℝ) * (k + 1) / ((X : ℝ) *
-    (Real.log X - (W : ℝ) / X))
+  (W : ℝ) * (k + 1 : ℕ) / ((X : ℝ) * (Real.log X - (W : ℝ) / X))
 
-/-- Total variation error of the reciprocal prime law modulo `Q` from the
-uniform law on the unit residue classes. -/
-noncomputable def primePoolResidueTV (P : Finset ℕ) (Q : ℕ) : ℝ := by
-  classical
-  exact ∑ a ∈ Finset.range Q,
-    |primeAverage P (fun p => if p % Q = a then 1 else 0) -
-      (if Nat.Coprime a Q then 1 / (Nat.totient Q : ℝ) else 0)|
-
-/-- Probability under the independent reciprocal prime law that a fixed
-nonzero integer polynomial vanishes. -/
-noncomputable def polynomialZeroProbability {q : ℕ} (pool : Finset ℕ)
-    (P : MvPolynomial (Fin q) ℤ) : ℝ := by
-  classical
-  exact primeTupleAverage pool fun u =>
-    if P.eval (fun i => (u i : ℤ)) = 0 then 1 else 0
-
-/-- Probability under independent pool slots of a repeated prime entry. -/
-noncomputable def repeatedPrimeProbability {q : ℕ} (pool : Finset ℕ) : ℝ := by
-  classical
-  exact primeTupleAverage pool fun u =>
-    if ∃ i j : Fin q, i ≠ j ∧ u i = u j then 1 else 0
-
-/-- Countable `L¹` distance between finite measures; all laws here have finite
-support. -/
-noncomputable def measureL1 {α : Type} [MeasurableSpace α] [MeasurableSingletonClass α]
-    [Countable α] (μ ν : Measure α) : ℝ :=
-  ∑' x, |μ.real {x} - ν.real {x}|
-
-/-- Translation of the natural harmonic law, viewed as a measure on `ℤ`. -/
-def translatedHarmonicLaw (X W : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X)
-    (h : ℤ) : Measure ℤ :=
-  Measure.map (fun y : ℕ => (y : ℤ) + h) (harmonicLaw X W hW hX)
-
-/-- The law of `kY`, and the unnormalized weighted divisibility law `η_k`. -/
-def dilatedHarmonicLaw (X W k : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X) : Measure ℕ :=
-  Measure.map (fun y : ℕ => k * y) (harmonicLaw X W hW hX)
-
-def weightedDivisibilityLaw (X W k : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X) : Measure ℕ :=
-  (harmonicLaw X W hW hX).withDensity fun y =>
-    if k ∣ y then (k : ℝ≥0∞) else 0
-
-/-- The weighted progression law `k 1_{y≡h (mod k)} μ_X` used for the cube root. -/
-def harmonicProgressionLaw (X W k h : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X) :
-    Measure ℕ :=
-  (harmonicLaw X W hW hX).withDensity fun y =>
-    if y % k = h % k then (k : ℝ≥0∞) else 0
-
-/-- Law of `kY+h` for `Y∼μ_X`. -/
-def harmonicAffineLaw (X W k h : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X) :
-    Measure ℕ :=
-  Measure.map (fun y : ℕ => k * y + h) (harmonicLaw X W hW hX)
-
-/-- Right-hand side of the explicit total-variation estimate in
-equation `eq:correlation-root-tv-bound`. -/
-def harmonicRootTVScale (X W k H : ℕ) : ℝ :=
-  Real.log (2 * k) / Real.log X + (H : ℝ) / X +
-    (W : ℝ) * k ^ 2 /
-      (((Nat.totient W : ℝ) / W) * X * Real.log X)
-
-/-- Dilation and translation estimate for the root law, used in
-`eq:correlation-root-progression`. -/
-theorem harmonic_root_progression_bound
-    (X W k h H : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X)
-    (hlog : (W : ℝ) / X < Real.log X)
-    (hk : 0 < k) (hkX : k ≤ X) (hcop : Nat.Coprime k W)
-    (hdiv : W ∣ h) (hh : h ≤ H) (hHX : 2 * H < X) :
-    ∃ C : ℝ, 0 < C ∧
-      measureL1 (harmonicAffineLaw X W k h hW hX)
-        (harmonicProgressionLaw X W k h hW hX) ≤
-        C * harmonicRootTVScale X W k H := by
-  sorry
-
-/-- All finite and asymptotic conclusions of §3 Lemma `lem:sampling`, including
-the exact endpoint errors and their fixed-power consequences. -/
-structure SamplingConclusion (X W : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X) where
-  logarithmic_cutoff : (W : ℝ) / X < Real.log X
-  /-- Endpoints are natural cutoffs, matching every use in §§3–4. -/
-  periodic_harmonic : ∀ (A B k a : ℕ), 0 < A → A < B → 0 < k →
-    Nat.Coprime k W → a < k →
-      |(∑ n ∈ Finset.Ico A B,
-          if W.Coprime n ∧ n % k = a then (n : ℝ)⁻¹ else 0) -
-        (Nat.totient W : ℝ) / k *
-          Real.log ((B : ℝ) / A)| ≤ (Nat.totient W : ℝ) / A
-  normalizer : |harmonicNormalizer X W -
-      (Nat.totient W : ℝ) / W * Real.log X| ≤ (Nat.totient W : ℝ) / X
-  residue_pointwise : ∀ (k a : ℕ), 0 < k → Nat.Coprime k W → a < k →
-    |k * (harmonicLaw X W hW hX).real {y | y % k = a} - 1| ≤
-      harmonicResidueError X W k
-  residue_total_variation : ∀ k, 0 < k → Nat.Coprime k W →
-    (∑ a ∈ Finset.range k,
-      |k * (harmonicLaw X W hW hX).real {y | y % k = a} - 1|) / (2 * k) ≤
+/-- The pointwise clauses of the harmonic sampling lemma. -/
+structure SamplingPointwiseBounds (X W : ℕ) : Prop where
+  periodic_harmonic : ∀ (k a : ℕ) (A B : ℝ), Nat.Coprime k W → a < k → 0 < A → A < B →
+    |(∑' n : ℕ, if A ≤ n ∧ (n : ℝ) < B ∧ Nat.Coprime n W ∧ n % k = a
+        then 1 / (n : ℝ) else 0) -
+      ((Nat.totient W : ℝ) / W / k * Real.log (B / A))| ≤ (Nat.totient W : ℝ) / A
+  normalizer : ∀ hX : 2 ≤ X, Real.log X > (W : ℝ) / X →
+    |harmonicNormalizer X W - (Nat.totient W : ℝ) / W * Real.log X| ≤ (Nat.totient W : ℝ) / X
+  residue_pointwise : ∀ hX : 2 ≤ X, Real.log X > (W : ℝ) / X → ∀ k a : ℕ,
+    Nat.Coprime k W → 0 < k → (ha : a < k) →
+      |(k : ℝ) * harmonicResidueLaw (harmonicLaw X W) k ⟨a, ha⟩ - 1| ≤
         harmonicResidueError X W k
-  translation : ∀ h : ℤ, (W : ℤ) ∣ h →
-    measureL1 (translatedHarmonicLaw X W hW hX h)
-      (Measure.map (fun y : ℕ => (y : ℤ)) (harmonicLaw X W hW hX)) ≤
-        min 2 (2 * |h| / ((X : ℝ) *
-          (Real.log X - (W : ℝ) / X)))
-  dilation : ∀ k, 0 < k → k ≤ X → Nat.Coprime k W →
-    measureL1 (dilatedHarmonicLaw X W k hW hX)
-      (weightedDivisibilityLaw X W k hW hX) ≤
+  residue_total_mass : ∀ hX : 2 ≤ X, Real.log X > (W : ℝ) / X → ∀ k : ℕ,
+    Nat.Coprime k W → 0 < k →
+      finiteL1 (harmonicResidueLaw (harmonicLaw X W) k) (uniformResidueLaw k) ≤
+        harmonicResidueError X W k
+  translation : ∀ hX : 2 ≤ X, Real.log X > (W : ℝ) / X → ∀ h : ℤ,
+    (∃ m : ℤ, h = (W : ℤ) * m) →
+      arithmeticL1 (translatedLaw (harmonicLaw X W) h) (harmonicLaw X W) ≤
+        min 2 (2 * |(h : ℝ)| / ((X : ℝ) * (Real.log X - (W : ℝ) / X)))
+  dilation : ∀ hX : 2 ≤ X, Real.log X > (W : ℝ) / X → ∀ k : ℕ,
+    1 ≤ k → k ≤ X → Nat.Coprime k W →
+      arithmeticL1 (dilatedLaw (harmonicLaw X W) k) (dilationReference (harmonicLaw X W) k) ≤
         (2 * Real.log k + (W : ℝ) * k / X * (1 + 1 / X)) /
-          (Real.log X - (W : ℝ) / X)
-  dilation_mass : ∀ k, 0 < k → Nat.Coprime k W →
-    |(weightedDivisibilityLaw X W k hW hX).real Set.univ - 1| ≤
-      harmonicResidueError X W k
+          (Real.log X - (W : ℝ) / X) ∧
+      |(∑' z : ℤ, dilationReference (harmonicLaw X W) k z) - 1| ≤
+        harmonicResidueError X W k
 
-/-- Lemma `lem:sampling`, §3, lines 34–84. Its fields state the paper's
-periodic harmonic estimate, residue law, translation and dilation laws. -/
-theorem sampling_changes (X W : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X)
-    (hlog : (W : ℝ) / X < Real.log X) : SamplingConclusion X W hW hX := by
+/-- Pointwise harmonic estimates underlying Lemma `lem:sampling`. -/
+-- Copy of `HindmanSumsProducts.sampling_pointwise_claim` (`Arithmetic/Sampling.lean`);
+-- same statement as on `main`.
+theorem sampling_pointwise_claim (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
+    (hlog : Real.log X > (W : ℝ) / X) : SamplingPointwiseBounds X W := by
   sorry
 
-/-- Fixed-power uniform consequence from the final paragraph of
-Lemma `lem:sampling`. -/
-theorem sampling_fixed_power_errors
-    (X W K H V : ℕ → ℕ)
-    (hResidueTranslation : dominatesPowers (fun n => X n)
+private theorem interval_residue_card_error (a T k r : ℕ) (hk : 0 < k)
+    (hr : r < k) :
+    |(({n ∈ Finset.Ico a (a + T) | n % k = r}.card : ℝ) - (T : ℝ) / k)| ≤ 1 := by
+  let A : ℚ := ((a : ℚ) - r) / k
+  let B : ℚ := ((a + T : ℕ) - r) / k
+  have hrel : B = A + (T : ℚ) / k := by
+    dsimp [A, B]
+    push_cast
+    field_simp
+    ring
+  have hset : {n ∈ Finset.Ico a (a + T) | n % k = r} =
+      {n ∈ Finset.Ico a (a + T) | n ≡ r [MOD k]} := by
+    ext n
+    simp [Nat.ModEq, Nat.mod_eq_of_lt hr]
+  have hceil : ⌈A⌉ ≤ ⌈B⌉ := Int.ceil_mono (by
+    rw [hrel]
+    exact le_add_of_nonneg_right (div_nonneg (by positivity) (by positivity)))
+  have hcardZ :
+      (({n ∈ Finset.Ico a (a + T) | n % k = r}.card : ℕ) : ℤ) = ⌈B⌉ - ⌈A⌉ := by
+    rw [hset]
+    have hc := Nat.Ico_filter_modEq_card a (a + T) hk r
+    rw [show (↑(a + T : ℕ) - ↑r : ℚ) / ↑k = B by rfl,
+      show (↑(a : ℕ) - ↑r : ℚ) / ↑k = A by rfl] at hc
+    rw [max_eq_left (sub_nonneg.mpr hceil)] at hc
+    exact hc
+  have hcardR :
+      (({n ∈ Finset.Ico a (a + T) | n % k = r}.card : ℕ) : ℝ) =
+        (⌈B⌉ : ℤ) - ⌈A⌉ := by exact_mod_cast hcardZ
+  have hAlo : (A : ℝ) ≤ (⌈A⌉ : ℝ) := by exact_mod_cast (Int.le_ceil A)
+  have hAhi : (⌈A⌉ : ℝ) < (A : ℝ) + 1 := by exact_mod_cast (Int.ceil_lt_add_one A)
+  have hBlo : (B : ℝ) ≤ (⌈B⌉ : ℝ) := by exact_mod_cast (Int.le_ceil B)
+  have hBhi : (⌈B⌉ : ℝ) < (B : ℝ) + 1 := by exact_mod_cast (Int.ceil_lt_add_one B)
+  have hrelR : (B : ℝ) = (A : ℝ) + (T : ℝ) / k := by
+    calc
+      (B : ℝ) = ((A + (T : ℚ) / k : ℚ) : ℝ) := congrArg (fun x : ℚ => (x : ℝ)) hrel
+      _ = (A : ℝ) + (T : ℝ) / k := by simp only [Rat.cast_add, Rat.cast_div, Rat.cast_natCast]
+  rw [hcardR, abs_le]
+  constructor <;> nlinarith [hrelR]
+
+/-- Uniform sampling on an integer interval: residue total-mass error and translation error
+from §3 lines 132–143. -/
+-- Copy of `HindmanSumsProducts.uniform_interval_sampling_bounds` (`Arithmetic/Sampling.lean`);
+-- same statement as on `main`.
+theorem uniform_interval_sampling_bounds (a T k : ℕ) (hT : 0 < T) (hk : 0 < k) :
+    finiteL1
+        (fun r : Fin k =>
+          ∑ n ∈ (Finset.Ico a (a + T)), if n % k = r.val then 1 / (T : ℝ) else 0)
+        (uniformResidueLaw k) ≤ 2 * k / T := by
+  classical
+  have hmass (r : Fin k) :
+      (∑ n ∈ Finset.Ico a (a + T), if n % k = r.val then 1 / (T : ℝ) else 0) =
+        (({n ∈ Finset.Ico a (a + T) | n % k = r.val}.card : ℝ) / T) := by
+    rw [← Finset.sum_filter]
+    simp [Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
+  have hdev (r : Fin k) :
+      |(∑ n ∈ Finset.Ico a (a + T), if n % k = r.val then 1 / (T : ℝ) else 0) -
+        1 / (k : ℝ)| ≤ 1 / (T : ℝ) := by
+    rw [hmass r]
+    have hr := interval_residue_card_error a T k r.val hk r.isLt
+    have hTr : (0 : ℝ) < T := by exact_mod_cast hT
+    have hkr : (0 : ℝ) < (k : ℝ) := by exact_mod_cast hk
+    have h' : |(↑({n ∈ Finset.Ico a (a + T) | n % k = r.val}.card : ℝ) - (T : ℝ) / k) / T| ≤
+        1 / T := by
+      rw [abs_div, abs_of_pos hTr]
+      exact div_le_div_of_nonneg_right hr hTr.le
+    have heq : ((↑({n ∈ Finset.Ico a (a + T) | n % k = r.val}.card : ℝ) / T) - 1 / k) =
+        (↑({n ∈ Finset.Ico a (a + T) | n % k = r.val}.card : ℝ) - (T : ℝ) / k) / T := by
+      field_simp [ne_of_gt hTr, ne_of_gt hkr]
+    rw [heq]
+    exact h'
+  unfold finiteL1 uniformResidueLaw
+  change (∑ r : Fin k, |(∑ n ∈ Finset.Ico a (a + T),
+    if n % k = r.val then 1 / (T : ℝ) else 0) - 1 / (k : ℝ)|) ≤ 2 * (k : ℝ) / T
+  calc
+    (∑ r : Fin k, |(∑ n ∈ Finset.Ico a (a + T), if n % k = r.val then 1 / (T : ℝ) else 0) - 1 / (k : ℝ)|)
+        ≤ ∑ r : Fin k, 1 / (T : ℝ) := Finset.sum_le_sum fun r _ => hdev r
+    _ = (k : ℝ) / T := by simp [div_eq_mul_inv, Finset.sum_const, nsmul_eq_mul]
+    _ ≤ 2 * (k : ℝ) / T := by
+      have hkR : (0 : ℝ) ≤ (k : ℝ) := by positivity
+      have hTR : (0 : ℝ) < (T : ℝ) := by exact_mod_cast hT
+      have hn : 0 ≤ (k : ℝ) / T := div_nonneg hkR hTR.le
+      rw [show 2 * (k : ℝ) / T = 2 * ((k : ℝ) / T) by ring]
+      nlinarith
+
+/-- Translating a uniform integer interval by u changes its probability law in total-mass
+norm by at most `2 min(1,|u|/T)` (§3 lines 137–140). -/
+def uniformIntegerIntervalLaw (a : ℤ) (T : ℕ) (z : ℤ) : ℝ :=
+  if a ≤ z ∧ z < a + T then 1 / (T : ℝ) else 0
+
+-- Copy of `HindmanSumsProducts.uniform_interval_translation_bound` (`Arithmetic/Sampling.lean`);
+-- same statement as on `main`.
+theorem uniform_interval_translation_bound (a u : ℤ) (T : ℕ) (hT : 0 < T) :
+    arithmeticL1 (translatedLaw (uniformIntegerIntervalLaw a T) u)
+      (uniformIntegerIntervalLaw a T) ≤
+      2 * min 1 (|u| / (T : ℝ)) := by
+  classical
+  let I : Finset ℤ := Finset.Ico a (a + T)
+  let J : Finset ℤ := Finset.Ico (a + u) (a + u + T)
+  let D : Finset ℤ := (J \ I) ∪ (I \ J)
+  have hTpos : (0 : ℝ) < T := by exact_mod_cast hT
+  have hIcard : I.card = T := by
+    have h : (I.card : ℤ) = (T : ℤ) := by
+      dsimp [I]
+      rw [Int.card_Ico_of_le a (a + (T : ℤ)) (by omega)
+      ]
+      simp
+    exact_mod_cast h
+  have hJcard : J.card = T := by
+    have h : (J.card : ℤ) = (T : ℤ) := by
+      dsimp [J]
+      rw [Int.card_Ico_of_le (a + u) (a + u + (T : ℤ)) (by omega)]
+      simp
+    exact_mod_cast h
+  have hshift (z : ℤ) :
+      uniformIntegerIntervalLaw a T (z - u) = if z ∈ J then 1 / (T : ℝ) else 0 := by
+    simp only [uniformIntegerIntervalLaw, J, Finset.mem_Ico]
+    by_cases hz : a ≤ z - u ∧ z - u < a + (T : ℤ)
+    · have hz' : a + u ≤ z ∧ z < a + u + (T : ℤ) := by omega
+      simp [hz, hz']
+    · have hz' : ¬ (a + u ≤ z ∧ z < a + u + (T : ℤ)) := by omega
+      simp [hz, hz']
+  have horig (z : ℤ) :
+      uniformIntegerIntervalLaw a T z = if z ∈ I then 1 / (T : ℝ) else 0 := by
+    simp only [uniformIntegerIntervalLaw, I, Finset.mem_Ico]
+  have hterm (z : ℤ) :
+      |(if z ∈ J then 1 / (T : ℝ) else 0) - (if z ∈ I then 1 / (T : ℝ) else 0)| =
+        if z ∈ D then 1 / (T : ℝ) else 0 := by
+    by_cases hj : z ∈ J <;> by_cases hi : z ∈ I <;>
+      simp [D, hj, hi, abs_of_pos hTpos]
+  have hL1 : arithmeticL1 (translatedLaw (uniformIntegerIntervalLaw a T) u)
+      (uniformIntegerIntervalLaw a T) = (D.card : ℝ) / T := by
+    unfold arithmeticL1 translatedLaw
+    simp_rw [hshift, horig, hterm]
+    rw [tsum_eq_sum (s := D) (fun z hz => by simp [hz])]
+    calc
+      (∑ z ∈ D, if z ∈ D then 1 / (T : ℝ) else 0) =
+          (D.card : ℝ) * (1 / (T : ℝ)) := by
+            simp [Finset.sum_const, nsmul_eq_mul]
+      _ = (D.card : ℝ) / T := by ring
+  have hDlarge : D.card ≤ 2 * T := by
+    calc
+      D.card ≤ (J \ I).card + (I \ J).card := Finset.card_union_le _ _
+      _ ≤ J.card + I.card := Nat.add_le_add
+        (Finset.card_mono (Finset.sdiff_subset)) (Finset.card_mono (Finset.sdiff_subset))
+      _ = 2 * T := by rw [hJcard, hIcard]; omega
+  have hDsmall (hm : u.natAbs < T) : D.card = 2 * u.natAbs := by
+    have hdis : Disjoint (J \ I) (I \ J) := by
+      rw [Finset.disjoint_left]
+      intro z hz1 hz2
+      simp only [Finset.mem_sdiff] at hz1 hz2
+      exact hz1.2 hz2.1
+    have hUnion := Finset.card_union_of_disjoint hdis
+    by_cases hu : 0 ≤ u
+    · have huNat : (u.natAbs : ℤ) = u := Int.natAbs_of_nonneg hu
+      have hInter : I ∩ J = Finset.Ico (a + u) (a + (T : ℤ)) := by
+        dsimp [I, J]
+        rw [Finset.Ico_inter_Ico]
+        congr 1
+        · simp [max_eq_right (by omega : a ≤ a + u)]
+        · simp [min_eq_left (by omega : a + (T : ℤ) ≤ a + u + (T : ℤ))]
+      have hInterCard : (I ∩ J).card = T - u.natAbs := by
+        have hmZ : (u.natAbs : ℤ) < (T : ℤ) := by exact_mod_cast hm
+        have hle : a + u ≤ a + (T : ℤ) := by rw [← huNat]; omega
+        have hraw : ((I ∩ J).card : ℤ) = (T : ℤ) - u := by
+          rw [hInter, Int.card_Ico_of_le (a + u) (a + (T : ℤ)) hle]
+          omega
+        have hsub : ((T - u.natAbs : ℕ) : ℤ) = (T : ℤ) - u := by
+          rw [Nat.cast_sub (Nat.le_of_lt hm)]
+          simp [huNat]
+        exact_mod_cast hraw.trans hsub.symm
+      have h1 : (I \ J).card + (I ∩ J).card = T := by
+        simpa [hIcard] using Finset.card_sdiff_add_card_inter I J
+      have h2 : (J \ I).card + (I ∩ J).card = T := by
+        simpa [hJcard, Finset.inter_comm] using Finset.card_sdiff_add_card_inter J I
+      rw [hUnion]
+      omega
+    · have hu' : u ≤ 0 := le_of_not_ge hu
+      have huNat : (u.natAbs : ℤ) = -u := by
+        simpa only [Int.natAbs_neg] using
+          (Int.natAbs_of_nonneg (neg_nonneg_of_nonpos hu'))
+      have hInter : I ∩ J = Finset.Ico a (a + u + (T : ℤ)) := by
+        dsimp [I, J]
+        rw [Finset.Ico_inter_Ico]
+        congr 1
+        · simp [max_eq_left (by omega : a + u ≤ a)]
+        · simp [min_eq_right (by omega : a + u + (T : ℤ) ≤ a + (T : ℤ))]
+      have hInterCard : (I ∩ J).card = T - u.natAbs := by
+        have hle : a ≤ a + u + (T : ℤ) := by
+          have hm' : (u.natAbs : ℤ) < (T : ℤ) := by exact_mod_cast hm
+          rw [huNat] at hm'
+          omega
+        have hraw : ((I ∩ J).card : ℤ) = (T : ℤ) - u.natAbs := by
+          rw [hInter, Int.card_Ico_of_le a (a + u + (T : ℤ)) hle]
+          rw [huNat]
+          omega
+        have hsub : ((T - u.natAbs : ℕ) : ℤ) = (T : ℤ) - u.natAbs := by
+          rw [Nat.cast_sub (Nat.le_of_lt hm)]
+        exact_mod_cast hraw.trans hsub.symm
+      have h1 : (I \ J).card + (I ∩ J).card = T := by
+        simpa [hIcard] using Finset.card_sdiff_add_card_inter I J
+      have h2 : (J \ I).card + (I ∩ J).card = T := by
+        simpa [hJcard, Finset.inter_comm] using Finset.card_sdiff_add_card_inter J I
+      rw [hUnion]
+      omega
+  have huAbs : ((|u| : ℤ) : ℝ) = (u.natAbs : ℝ) := by
+    exact congrArg (fun z : ℤ => (z : ℝ)) (Int.natCast_natAbs u).symm
+  by_cases hm : u.natAbs < T
+  · have hratio : (u.natAbs : ℝ) / T < 1 := (div_lt_one hTpos).2 (by exact_mod_cast hm)
+    rw [hL1, hDsmall hm, huAbs, min_eq_right hratio.le]
+    exact le_of_eq (by push_cast; ring)
+  · have hratio : 1 ≤ (u.natAbs : ℝ) / T :=
+      (one_le_div hTpos).2 (by exact_mod_cast (Nat.le_of_not_gt hm))
+    rw [hL1, huAbs, min_eq_left hratio]
+    have hDreal : (D.card : ℝ) ≤ 2 * (T : ℝ) := by exact_mod_cast hDlarge
+    exact (div_le_iff₀ hTpos).2 (by simpa using hDreal)
+
+/-- Telescoping bound for the total-mass distance of product laws, used for fixed disjoint
+block families in §3 lines 139–143. -/
+-- Copy of `HindmanSumsProducts.finite_product_l1_telescoping` (`Arithmetic/Sampling.lean`);
+-- same statement as on `main`.
+theorem finite_product_l1_telescoping {ι α : Type*} [Fintype ι] [Fintype α]
+    [Fintype (ι → α)] [DecidableEq ι]
+    (μ ν : ι → α → ℝ) :
+    finiteL1 (fun x : ι → α => ∏ i, μ i (x i)) (fun x => ∏ i, ν i (x i)) ≤
+      ∑ i, finiteL1 (μ i) (ν i) *
+        ∏ j ∈ Finset.univ.erase i, max (∑ a, |μ j a|) (∑ a, |ν j a|) := by
+  sorry
+
+/-- Worst-case residue error for `k≤K` in the asymptotic part of `lem:sampling`. -/
+def harmonicResidueUniformError (X W K : ℕ) : ℝ := harmonicResidueError X W K
+
+/-- Worst-case translation error for `|h|≤H` in the asymptotic part of `lem:sampling`. -/
+def harmonicTranslationUniformError (X W H : ℕ) : ℝ :=
+  min 2 (2 * (H : ℝ) / ((X : ℝ) * (Real.log X - (W : ℝ) / X)))
+
+/-- Worst-case dilation error for `k≤K` in the asymptotic part of `lem:sampling`. -/
+def harmonicDilationUniformError (X W K : ℕ) : ℝ :=
+  (2 * Real.log K + (W : ℝ) * K / X * (1 + 1 / X)) /
+    (Real.log X - (W : ℝ) / X)
+
+/-- Super-polynomial residue, translation, and dilation conclusions of `lem:sampling`.
+The first two use power domination by `X`; dilation uses power domination by `log X`. -/
+-- Copy of `HindmanSumsProducts.sampling_asymptotics` (`Arithmetic/Sampling.lean`);
+-- same statement as on `main`.
+theorem sampling_asymptotics
+    (W K H V X : ℕ → ℕ)
+    (hK : ∀ n, 1 ≤ K n) (hH : ∀ n, 1 ≤ H n) (hV : ∀ n, 1 ≤ V n)
+    (hW : ∀ n, W n = primorial (n + 1))
+    (hX : ∀ᶠ n in atTop, 2 ≤ X n)
+    (hden : ∀ᶠ n in atTop, Real.log (X n) > (W n : ℝ) / X n)
+    (hDomX : OAI.MicrocellScale.Dominates (fun n => (X n : ℝ))
       (fun n => 2 + W n + K n + H n + V n))
-    (hDilation : dominatesPowers (fun n => Real.log (X n : ℝ))
-      (fun n => 2 + W n + K n + V n))
-    (C : ℝ) (hC : 0 < C) :
-    tendsToZero (fun n => (V n : ℝ) ^ C *
-      (harmonicResidueError (X n) (W n) (K n) +
-       (H n : ℝ) / ((X n : ℝ) *
-         (Real.log (X n) - (W n : ℝ) / X n)) +
-       (2 * Real.log (K n) + (W n : ℝ) * K n / X n *
-         (1 + 1 / X n)) /
-           (Real.log (X n) - (W n : ℝ) / X n))) := by
+    (hDomLogX : OAI.MicrocellScale.Dominates (fun n => Real.log (X n : ℝ))
+      (fun n => 2 + W n + K n + V n)) :
+    SuperPolynomialSmall
+        (fun n => harmonicResidueUniformError (X n) (W n) (K n)) (fun n => (V n : ℝ)) ∧
+    SuperPolynomialSmall
+        (fun n => harmonicTranslationUniformError (X n) (W n) (H n)) (fun n => (V n : ℝ)) ∧
+    SuperPolynomialSmall
+        (fun n => harmonicDilationUniformError (X n) (W n) (K n)) (fun n => (V n : ℝ)) ∧
+    (∀ A : ℝ, 0 < A →
+      Tendsto (fun n => (V n : ℝ) ^ A *
+        (harmonicResidueUniformError (X n) (W n) (K n) +
+          harmonicTranslationUniformError (X n) (W n) (H n) +
+          harmonicDilationUniformError (X n) (W n) (K n))) atTop (𝓝 0)) := by
   sorry
 
-/-- Prime slots uniform on the unit residues modulo `W^e`. -/
-def unitResidueTuples (q w e : ℕ) : Finset (Fin q → ZMod (primorial w ^ e)) := by
-  classical
-  have hQ : 0 < primorial w ^ e := Nat.pow_pos (primorial_pos w)
-  letI : NeZero (primorial w ^ e) := ⟨Nat.ne_of_gt hQ⟩
-  exact Finset.univ.filter fun u => ∀ i, IsUnit (u i)
+/-- Lemma `lem:sampling`: exact periodic harmonic, residue, translation, and dilation
+bounds together with the super-polynomial asymptotic conclusions and their stated growth
+conditions (§3 lines 34–129). -/
+-- Copy of `HindmanSumsProducts.lem_sampling` (`Arithmetic/Sampling.lean`);
+-- same statement as on `main`.
+theorem lem_sampling (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
+    (hlog : Real.log X > (W : ℝ) / X) :
+    SamplingPointwiseBounds X W ∧
+    (∀ (Wseq K H V Xseq : ℕ → ℕ),
+      (∀ n, 1 ≤ K n) → (∀ n, 1 ≤ H n) → (∀ n, 1 ≤ V n) →
+      (∀ n, Wseq n = primorial (n + 1)) →
+      (∀ᶠ n in atTop, 2 ≤ Xseq n) →
+      (∀ᶠ n in atTop, Real.log (Xseq n) > (Wseq n : ℝ) / Xseq n) →
+      OAI.MicrocellScale.Dominates (fun n => (Xseq n : ℝ))
+        (fun n => 2 + Wseq n + K n + H n + V n) →
+      OAI.MicrocellScale.Dominates (fun n => Real.log (Xseq n : ℝ))
+        (fun n => 2 + Wseq n + K n + V n) →
+      SuperPolynomialSmall
+        (fun n => harmonicResidueUniformError (Xseq n) (Wseq n) (K n))
+        (fun n => (V n : ℝ)) ∧
+      SuperPolynomialSmall
+        (fun n => harmonicTranslationUniformError (Xseq n) (Wseq n) (H n))
+        (fun n => (V n : ℝ)) ∧
+      SuperPolynomialSmall
+        (fun n => harmonicDilationUniformError (Xseq n) (Wseq n) (K n))
+        (fun n => (V n : ℝ)) ∧
+      (∀ A : ℝ, 0 < A →
+        Tendsto (fun n => (V n : ℝ) ^ A *
+          (harmonicResidueUniformError (Xseq n) (Wseq n) (K n) +
+            harmonicTranslationUniformError (Xseq n) (Wseq n) (H n) +
+            harmonicDilationUniformError (Xseq n) (Wseq n) (K n))) atTop (𝓝 0))) := by
+  refine ⟨sampling_pointwise_claim X W hW hX hlog, ?_⟩
+  intro Wseq K H V Xseq hK hH hV hW hXseq hden hDomX hDomLogX
+  exact sampling_asymptotics Wseq K H V Xseq hK hH hV hW hXseq hden hDomX hDomLogX
 
-/-- Probability of the small-prime exceptional event from Lemma
-`lem:master-scales`, computed on independent uniform unit slots modulo `W^e`.
-Because `p^e ∣ W^e` for every prime `p ≤ w`, divisibility of the canonical
-residue is the required congruence. -/
-def smallPrimeExceptionProbability {q : ℕ} (w e : ℕ)
-    (P : MvPolynomial (Fin q) ℤ) : ℝ := by
-  classical
-  let Q := primorial w ^ e
-  have hQ : 0 < Q := Nat.pow_pos (primorial_pos w)
-  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
-  let U := unitResidueTuples q w e
-  let bad := U.filter fun u =>
-    ∃ p ∈ Finset.range (w + 1), p.Prime ∧
-      p ^ e ∣ (MvPolynomial.eval₂ (Int.castRingHom (ZMod Q)) u P).val
-  exact if U.card = 0 then 0 else (bad.card : ℝ) / U.card
+/-! ## `Arithmetic/ProductLaw.lean` -/
 
-/-- Master-scale choices and the facts carried between §§3 and 4. The paper's
-`w` is the sequence index, `W=primorial w`, and all scales in this interface
-are indexed by `w`. The named fields record the four enumerated clauses of
-Lemma `lem:master-scales`; polynomial and prime-tuple estimates are explicit
-inputs to the downstream correlation statements. -/
-def masterBlockScaleRat {N : ℕ} (h : Fin N → ℕ) (B : PaperBlock N) : ℚ :=
-  OAI.ConstructedWordPlan.AlignmentScales.blockProduct
-    (fun j => (h j : ℚ)) (OAI.SourceBlocks.Block.set B)
+/-- Copy of `HindmanSumsProducts.parameterTailProductLaw` (`Arithmetic/ProductLaw.lean`), same
+definition. It is the law of the tail product `t_T`, so `nuB (parameterTailProductLaw A N T)` is
+the paper's divisor weight `ν_B` for a block `B = T ∪ {i}`. -/
+def parameterTailProductLaw {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
+    (N : ℕ) (T : Finset (Fin n)) (σ : ℕ) : ℝ :=
+  ∑' t : Fin n → ℕ,
+    (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+      ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)
 
-/-- The CRT modulus `Q_l=W^{e₀}∏_{w<p≤V_l}p` from the master-scale lemma. -/
-def masterPrimeModulus (w e V : ℕ) : ℕ :=
-  primorial w ^ e * ∏ p ∈ (Finset.range (V + 1)).filter
-    (fun p => p.Prime ∧ w < p), p
+/-! ## `Arithmetic/MasterScales.lean`
 
-structure MasterScalePackage (N b : ℕ) (A : Finset ℚ) (q : ℕ)
-    (D : Finset (MvPolynomial (Fin q) ℤ)) where
-  h : ℕ → Fin N → ℕ
-  M : ℕ → ℕ
-  X : ℕ → Fin N → ℕ
-  R : ℕ → Fin N → ℕ
-  Pminus : ℕ → Fin N → ℕ
-  Pplus : ℕ → Fin N → ℕ
-  V : ℕ → Fin N → ℕ
-  pool : ℕ → Fin N → Finset ℕ
-  smallPrimeExponent : ℕ → ℕ
-  h_exact : ∀ w j, h w j = primorial w ^ (w * 2 ^ (N - (j.val + 1)))
-  h_smooth : ∀ w j, OAI.RoughScales.Smooth w (h w j : ℤ)
-  M_is_W_power : ∀ w, ∃ e, M w = primorial w ^ e
-  M_smooth : ∀ w, OAI.RoughScales.Smooth w (M w : ℤ)
-  Ww_divides_M : ∀ w, primorial w ^ w ∣ M w
-  h_below_M : ∀ w j, h w j ≤ M w
-  block_size_bound : ∀ B : PaperBlock N, (OAI.SourceBlocks.Block.set B).card ≤ b
-  block_scale_bound : ∀ w (B : PaperBlock N),
-    masterBlockScaleRat (h w) B ≤ (M w : ℚ)
-  adding_pair_ratio : ∀ w (B E : PaperBlock N),
-    OAI.SourceBlocks.Added B.1 B.2.val (OAI.SourceBlocks.Block.set E) →
-    ∃ d : ℕ, masterBlockScaleRat (h w) E = masterBlockScaleRat (h w) B *
-      (primorial w ^ w : ℚ) * d
-  rational_scale_integrality : ∀ᶠ w in atTop, ∀ (B : PaperBlock N) a,
-    a ∈ A → ∃ c : ℕ, masterBlockScaleRat (h w) B * a = c
-  rational_scale_ratio : ∀ᶠ w in atTop, ∀ (B E : PaperBlock N) a a',
-    OAI.SourceBlocks.Added B.1 B.2.val (OAI.SourceBlocks.Block.set E) →
-    a ∈ A → a' ∈ A →
-    ∃ d : ℕ, masterBlockScaleRat (h w) E * a =
-      masterBlockScaleRat (h w) B * a' * (primorial w ^ w : ℚ) * d
-  smooth_scale_divides_M : ∀ᶠ w in atTop, ∀ (B : PaperBlock N) a,
-    a ∈ A → ∃ c : ℕ,
-      masterBlockScaleRat (h w) B * a = c ∧
-      primorial w ^ (smallPrimeExponent w + 1) * c ∣ M w
-  M_divides_R : ∀ w l, M w ∣ R w l
-  previous_R_divides : ∀ w l, ∀ j, j < l → R w j ∣ R w l
-  R_dominates_prime_scale : ∀ l, dominatesPowers
-    (fun w => (R w l : ℝ)) (fun w => (Pplus w l + V w l : ℝ))
-  log_X_dominates_R : ∀ l, dominatesPowers
-    (fun w => Real.log (X w l : ℝ)) (fun w => (R w l : ℝ))
-  X_is_power_two : ∀ w l, ∃ e, X w l = 2 ^ e
-  pool_primes : ∀ w l p, p ∈ pool w l → p.Prime
-  V_formula : ∀ w l, V w l = 2 + M w +
-    ∏ j ∈ Finset.univ.filter (fun j : Fin N => j < l), X w j ^ 2
-  pool_above_V : ∀ w l p, p ∈ pool w l → V w l < p
-  pool_in_dyadic_range : ∀ w l p, p ∈ pool w l → Pminus w l ≤ p ∧ p < Pplus w l
-  pool_mass_lower : ∀ w l, w * V w l ^ w ≤ primeHarmonicMass (pool w l)
-  Pminus_lower : ∀ w l, w * V w l ^ w ≤ Pminus w l
-  Pminus_dominates : ∀ l, dominatesPowers
-    (fun w => (Pminus w l : ℝ)) (fun w => (V w l : ℝ))
-  pool_mass_dominates : ∀ l, dominatesPowers
-    (fun w => primeHarmonicMass (pool w l)) (fun w => (V w l : ℝ))
-  pool_complete_dyadic_union : ∀ w l, ∃ a b,
-    Pminus w l = 2 ^ a ∧ Pplus w l = 2 ^ b ∧
-      pool w l = (Finset.Ico (2 ^ a) (2 ^ b)).filter Nat.Prime
-  pool_residue_uniform : ∀ l (C₀ : ℝ), 0 < C₀ → tendsToZero fun w =>
-    (V w l : ℝ) ^ C₀ * primePoolResidueTV (pool w l)
-      (masterPrimeModulus w (smallPrimeExponent w) (V w l))
-  polynomial_zero_superpolynomial : ∀ l P, P ∈ D → P ≠ 0 →
-    ∀ C₀ : ℝ, 0 < C₀ → tendsToZero fun w =>
-      (V w l : ℝ) ^ C₀ * polynomialZeroProbability (pool w l) P
-  repeated_slots_superpolynomial : ∀ l (C₀ : ℝ), 0 < C₀ → tendsToZero fun w =>
-    (V w l : ℝ) ^ C₀ * repeatedPrimeProbability (q := q) (pool w l)
-  polynomial_values_divide_R : ∀ w l (P : MvPolynomial (Fin q) ℤ)
-    (u : Fin q → ℕ), P ∈ D → (∀ i, u i ∈ pool w l) →
-      P.eval (fun i => (u i : ℤ)) ≠ 0 →
-        M w * (Int.natAbs (P.eval fun i => (u i : ℤ))) ∣ R w l
-  small_prime_exception_probability : ∀ P, P ∈ D → P ≠ 0 → ∀ᶠ w in atTop,
-      smallPrimeExceptionProbability w (smallPrimeExponent w) P ≤ 1 / w
-  residue_error : ∀ l, ∀ᶠ w in atTop,
-    primeHarmonicMass (pool w l) > 0
+Copies of `masterScaleV`, `masterCRTModulus`, `uniformSmallPrimeException`,
+`primeSmallDivisibilityEvent`, `polynomialZeroOrRepeated`, `MasterScaleCore`,
+`MasterScalePrimeStage`, `MasterScaleGapStage`, `MasterScales` and `lem_master_scales`, as
+repaired on `main` (`1e75bc3`): `chain_coefficients` and `coefficient_divides_modulus` hold for
+all sufficiently large `N`. All are the same statements as on `main`. No §4 statement needs the
+old non-eventual forms: every §4 conclusion is asserted for all sufficiently large `N`. -/
 
-/-- Lemma `lem:master-scales`, §3, lines 197–274. -/
-theorem master_scales (N b q : ℕ) (A : Finset ℚ)
-    (D : Finset (MvPolynomial (Fin q) ℤ))
-    (hA : ∀ a ∈ A, 0 < a) (hD : ∀ P ∈ D, P ≠ 0) :
-    Nonempty (MasterScalePackage N b A q D) := by
+/-- `V_l=2+M+∏_{j<l}X_j²` from §3. -/
+def masterScaleV {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
+    (N : ℕ) (l : Fin n) : ℕ :=
+  2 + A.M N + ∏ j ∈ (Finset.univ.filter (fun j : Fin n => j < l)), (A.X N j) ^ 2
+
+/-- `Q_l=W^{e₀}∏_{w<p≤V_l}p`, with the paper's `w=N+1`. The product runs over
+`w<p≤V+1`, one more than the paper's `p≤V_l`; this only adds a prime below every pool
+prime and matches `CRTPrimeRange` in `LinearForms.lean`. -/
+def masterCRTModulus (w e V : ℕ) : ℕ :=
+  (primorial w) ^ e *
+    ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p
+
+/-- Small-prime divisibility event for a finite polynomial template on uniform unit slots. -/
+def uniformSmallPrimeException {m : ℕ} (D : Finset (IntegerPolynomial m))
+    (w e : ℕ) (u : Fin m → Fin ((primorial w) ^ e)) : Prop :=
+  ∃ p, p.Prime ∧ p ≤ w ∧ ∃ P ∈ D,
+    ((p ^ e : ℕ) : ℤ) ∣ evalIntegerPolynomial P (fun i => ((u i).val : ℤ))
+
+/-- The same small-prime event for actual prime slots in a pool. -/
+def primeSmallDivisibilityEvent {m : ℕ} (D : Finset (IntegerPolynomial m))
+    (w e : ℕ) (p : Fin m → ℕ) : Prop :=
+  ∃ q, q.Prime ∧ q ≤ w ∧ ∃ P ∈ D,
+    ((q ^ e : ℕ) : ℤ) ∣ evalIntegerPolynomial P (fun i => (p i : ℤ))
+
+/-- A polynomial vanishes, or two prime slots repeat. -/
+def polynomialZeroOrRepeated {m : ℕ} (D : Finset (IntegerPolynomial m))
+    (p : Fin m → ℕ) : Prop :=
+  (∃ P ∈ D, evalIntegerPolynomial P (fun i => (p i : ℤ)) = 0) ∨
+    (∃ i j, i ≠ j ∧ p i = p j)
+
+/-- Algebraic and admissibility part of the master scales. It is one component of the result
+`MasterScales`; it is not chosen before the prime pools, since `parameters.H` and
+`parameters.X` are the gap lengths and cutoffs chosen after each pool (§3 lines 283–302).
+The chain coefficients are integers only for all sufficiently large `w` (§3 lines 210–211,
+262–266; §2 lines 80–88). -/
+structure MasterScaleCore (n : ℕ) (Aset : Finset ℚ) where
+  parameters : OAI.SourceAdmissible.Parameters n
+  height_formula : ∀ N (j : Fin n),
+    parameters.ht N j =
+      (primorial (N + 1) : ℤ) ^ ((N + 1) * 2 ^ (n - j.val - 1))
+  modulus_power : ∀ N, ∃ e : ℕ,
+    parameters.M N = (primorial (N + 1)) ^ e
+  adding_pair_ratio : ∀ N (B : OAI.SourceBlocks.Block n)
+      (S : Finset (Fin n)),
+    OAI.SourceBlocks.Added B.1 B.2.val S →
+      ∃ d : ℤ,
+        OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+            (parameters.ht N) S =
+          OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+            (parameters.ht N) B.set *
+              ((primorial (N + 1) : ℤ) ^ (N + 1) * d)
+  chain_coefficients : ∀ᶠ N in atTop, ∀ r (C : MasterChain n r) (a : Fin r → ℚ),
+    (∀ d, a d ∈ Aset) →
+    ∃ c : Fin r → ℤ,
+      (∀ d, (c d : ℚ) =
+        (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (parameters.ht N) (C.block d).set : ℚ) * a d) ∧
+      (∀ d, 0 < c d) ∧
+      (∀ u d, u < d →
+        ∃ k : ℕ, c u = (primorial (N + 1) : ℤ) * (k : ℤ) * c d)
+
+/-- Prime-pool component of the master scales: `e₀`, the pools, their CRT accuracy and their
+polynomial exceptional events (§3 lines 212–238, 247–251). -/
+structure MasterScalePrimeStage {n : ℕ} {Aset : Finset ℚ}
+    (C : MasterScaleCore n Aset) (m : ℕ) (D : Finset (IntegerPolynomial m)) where
+  e0 : ℕ → ℕ
+  pool : ℕ → Fin n → PrimePool
+  e0_pos : ∀ N, 1 ≤ e0 N
+  uniform_small_prime_exception : Tendsto
+    (fun N => uniformUnitTupleProbability
+      ((primorial (N + 1)) ^ e0 N) m
+      (uniformSmallPrimeException D (N + 1) (e0 N))) atTop (𝓝 0)
+  pool_lower_dominates : ∀ l,
+    OAI.MicrocellScale.Dominates
+      (fun N => ((pool N l).lower : ℝ))
+      (fun N => (masterScaleV C.parameters N l : ℝ))
+  pool_harmonic_mass_dominates : ∀ l,
+    OAI.MicrocellScale.Dominates
+      (fun N => primePoolMass (pool N l).lower (pool N l).upper)
+      (fun N => (masterScaleV C.parameters N l : ℝ))
+  pool_residue_error : ∀ l,
+    SuperPolynomialSmall
+      (fun N => finiteL1
+        (primePoolResidueLaw (pool N l).lower (pool N l).upper
+          (masterCRTModulus (N + 1) (e0 N) (masterScaleV C.parameters N l)))
+        (uniformUnitResidueLaw
+          (masterCRTModulus (N + 1) (e0 N) (masterScaleV C.parameters N l))))
+      (fun N => (masterScaleV C.parameters N l : ℝ))
+  actual_small_prime_exception : ∀ l, Tendsto
+    (fun N => independentPrimePoolProbability
+      (fun _ : Fin m => (pool N l).lower)
+      (fun _ : Fin m => (pool N l).upper)
+      (primeSmallDivisibilityEvent D (N + 1) (e0 N))) atTop (𝓝 0)
+  zero_and_repeat_probability : ∀ l,
+    SuperPolynomialSmall
+      (fun N => independentPrimePoolProbability
+        (fun _ : Fin m => (pool N l).lower)
+        (fun _ : Fin m => (pool N l).upper)
+        (polynomialZeroOrRepeated D))
+      (fun N => (masterScaleV C.parameters N l : ℝ))
+
+/-- Gap-length and cutoff component of the master scales (§3 lines 219, 239–246, 296–302).
+`W^{e₀+1}c_d ∣ M` holds only for all sufficiently large `w`: the fixed numerators of
+`𝒜` must be `w`-smooth with bounded valuations (§3 lines 262–266, 280–281). -/
+structure MasterScaleGapStage {n : ℕ} {Aset : Finset ℚ}
+    (C : MasterScaleCore n Aset) {m : ℕ} {D : Finset (IntegerPolynomial m)}
+    (P : MasterScalePrimeStage C m D) : Prop where
+  gap_dominates_pool_and_bound : ∀ l,
+    OAI.MicrocellScale.Dominates
+      (fun N => (C.parameters.H N l : ℝ))
+      (fun N => ((P.pool N l).upper + masterScaleV C.parameters N l : ℝ))
+  gap_modulus_divides : ∀ N l, C.parameters.M N ∣ C.parameters.H N l
+  earlier_gaps_divide : ∀ N (i j : Fin n), i < j →
+    C.parameters.H N i ∣ C.parameters.H N j
+  polynomial_values_divide_gap : ∀ N l (p : Fin m → ℕ) (Q : IntegerPolynomial m),
+    Q ∈ D →
+    (∀ i, (P.pool N l).lower ≤ p i ∧ p i < (P.pool N l).upper ∧ (p i).Prime) →
+    evalIntegerPolynomial Q (fun i => (p i : ℤ)) ≠ 0 →
+    C.parameters.M N * (evalIntegerPolynomial Q (fun i => (p i : ℤ))).natAbs ∣
+      C.parameters.H N l
+  raw_cutoff_log_dominates_gap : ∀ l,
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (C.parameters.X N l : ℝ))
+      (fun N => (C.parameters.H N l : ℝ))
+  coefficient_divides_modulus : ∀ᶠ N in atTop, ∀ r (chain : MasterChain n r)
+      (a : Fin r → ℚ), (∀ d, a d ∈ Aset) → ∀ c : Fin r → ℤ,
+    (∀ d, (c d : ℚ) =
+      (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+        (C.parameters.ht N) (chain.block d).set : ℚ) * a d) →
+    ∀ d, ((primorial (N + 1) ^ (P.e0 N + 1) : ℕ) : ℤ) * c d ∣
+      (C.parameters.M N : ℤ)
+  valid_raw_cutoffs : ∀ N l,
+    4 * primorial (N + 1) ≤ C.parameters.X N l
+
+/-- Complete sequential master-scale data: an OAI admissible family plus the stronger
+prime-pool and divisibility certificates required in §3. -/
+structure MasterScales (n : ℕ) (Aset : Finset ℚ) (m : ℕ)
+    (D : Finset (IntegerPolynomial m)) where
+  core : MasterScaleCore n Aset
+  primeStage : MasterScalePrimeStage core m D
+  gapStage : MasterScaleGapStage core primeStage
+
+/-- Copy of `HindmanSumsProducts.lem_master_scales` (`Arithmetic/MasterScales.lean`), Lemma
+`lem:master-scales` (§3 lines 197–316); same statement as on `main` (`1e75bc3`). -/
+theorem lem_master_scales (n : ℕ) (Aset : Finset ℚ)
+    (hA : ∀ a ∈ Aset, 0 < a) (m : ℕ)
+    (D : Finset (IntegerPolynomial m)) (hD : ∀ P ∈ D, P ≠ 0) :
+    Nonempty (MasterScales n Aset m D) := by
   sorry
 
-/-- Hypotheses for Proposition `prop:linear-forms`. The base residue law,
-row-minor tests, and CRT law are stated separately so restricted
-prime-only domains retain the absolute error of the paper. -/
-noncomputable def primeTupleCRTTV {s : ℕ} (P : Finset ℕ) (Q : ℕ) : ℝ := by
-  classical
-  let units := (Finset.range Q).filter (fun a => Nat.Coprime a Q)
-  let residues := Fintype.piFinset (fun _ : Fin s => units)
-  exact (1 / 2) * ∑ a ∈ residues,
-    |primeTupleAverage P (fun p =>
-      if ∀ i, p i % Q = a i then 1 else 0) -
-        1 / (Nat.totient Q : ℝ) ^ s|
+/-! ## `Arithmetic/LinearForms.lean`
 
-/-- Total-variation error of the joint residue law of a base vector modulo
-`K` from uniform measure on `(ℤ/Kℤ)^d`. -/
-noncomputable def linearBaseResidueTV {d : ℕ} (μ : Measure (Fin d → ℤ))
-    (K : ℕ) (_hK : 0 < K) : ℝ := by
-  classical
-  let residues := Fintype.piFinset (fun _ : Fin d => Finset.range K)
-  exact (1 / 2) * ∑ a ∈ residues,
-    |μ.real {x | ∀ i, x i % (K : ℤ) = (a i : ℤ)} - 1 / (K : ℝ) ^ d|
+Copies of `rationalResidue`, `DivisorTemplate`, `divisorTemplateLaw`, `CRTPrimeRange`,
+`CRTResidues`, `integerCRTResidues`, `primeTupleCRTLaw`, `uniformPrimeTupleCRTLaw`,
+`integerResidue`, `baseResidueLaw` and `uniformBaseResidueLaw` (same definitions as on `main`),
+then the data, average and statement of Proposition `prop:linear-forms`, which differ from `main`
+(see `WeightedLinearFormsData`). -/
 
-/-- One input for the one-gap specialization of Proposition
-`prop:linear-forms`. The finite prime slots use the independent reciprocal
-law `λ(p)=1/(pS)`; every divisor occurrence is the product of at most `b`
-independent harmonic `W`-unit variables. -/
-structure LinearFormsTemplate (q d s b : ℕ) where
-  coefficient : Fin q → (Fin s → ℕ) → Fin d → ℤ
-  polynomialTests : Finset (MvPolynomial (Fin s) ℤ)
-  factorCount : Fin q → ℕ
-  factorCount_le : ∀ u, factorCount u ≤ b
+section LinearForms
+attribute [local instance] Classical.propDecidable
 
-/-- One scale and sampling instance for fixed linear and divisor templates. -/
-structure WeightedLinearFormsInput {q d s b : ℕ}
-    (T : LinearFormsTemplate q d s b) where
-  V : ℕ
-  M : ℕ
-  w : ℕ
-  smallPrimeExponent : ℕ
-  epsilonBase : ℝ
-  epsilonCRT : ℝ
-  primePool : Finset ℕ
-  primePoolPrime : ∀ p ∈ primePool, p.Prime
-  primePoolAboveV : ∀ p ∈ primePool, V < p
-  primePoolMass_pos : 0 < primeHarmonicMass primePool
-  baseLaw : (Fin s → ℕ) → Measure (Fin d → ℤ)
-  good : (Fin s → ℕ) → Prop
-  rawCutoff : ∀ u, Fin (T.factorCount u) → ℕ
-  rawCutoff_large : ∀ u j, 4 * primorial w ≤ rawCutoff u j
-  rawFactorLaw : ∀ u, Measure (Fin (T.factorCount u) → ℕ)
-  rawFactorLaw_product : ∀ u, rawFactorLaw u = Measure.pi (fun j =>
-    harmonicLaw (rawCutoff u j) (primorial w) (primorial_pos w)
-      (rawCutoff_large u j))
+/-- Reduction of a rational coefficient modulo a prime where its denominator is a unit. -/
+noncomputable def rationalResidue (p : ℕ) (hp : p.Prime) (r : ℚ) : ZMod p := by
+  letI : Fact p.Prime := ⟨hp⟩
+  exact (r.num : ZMod p) / (r.den : ZMod p)
 
-/-- Law of the divisor `σ_u`, a product of independent raw factors. -/
-noncomputable def WeightedLinearFormsInput.divisorLaw {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T)
-    (u : Fin q) : Measure ℕ :=
-  Measure.map (fun x => ∏ j, x j) (I.rawFactorLaw u)
+/-- A product of at most b independent raw harmonic W-unit variables, identified by their
+master cutoffs. -/
+structure DivisorTemplate (n b : ℕ) where
+  arity : ℕ
+  arity_le : arity ≤ b
+  cutoff : Fin arity → Fin n
 
-/-- Divisor weight `ν_u(y)=E σ_u 1_{σ_u|y}` for one occurrence. -/
-noncomputable def WeightedLinearFormsInput.weight {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T)
-    (u : Fin q) (y : ℤ) : ℝ :=
-  ∫ σ, (σ : ℝ) * (if (σ : ℤ) ∣ y then 1 else 0) ∂ I.divisorLaw u
+/-- Divisor law for one fresh occurrence of a weight, at the parameter cutoffs. -/
+def divisorTemplateLaw {n b : ℕ} (A : OAI.SourceAdmissible.Parameters n)
+    (N : ℕ) (D : DivisorTemplate n b) (σ : ℕ) : ℝ :=
+  harmonicProductLaw (primorial (N + 1))
+    (fun i => A.X N (D.cutoff i)) σ
 
-/-- Linear form `ℓ_u(x;p)` with its integer coefficient vector. -/
-def WeightedLinearFormsInput.row {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (_I : WeightedLinearFormsInput T) (u : Fin q)
-    (p : Fin s → ℕ) (x : Fin d → ℤ) : ℤ :=
-  ∑ j, T.coefficient u p j * x j
+/-- CRT residue vectors for all primes `w<p≤V`, with residues in their prime fields. -/
+abbrev CRTPrimeRange (w V : ℕ) :=
+  {p : ℕ // p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime}
 
-/-- A tuple of divisor values that can occur under the independent divisor
-laws; every expanded weight occurrence receives its own draw. -/
-def WeightedLinearFormsInput.PossibleDivisors {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T)
-    (σ : Fin q → ℕ) : Prop :=
-  ∀ u, 0 < (I.divisorLaw u).real {σ u}
+/-- Residues modulo each prime in the CRT range. -/
+abbrev CRTResidues (w V : ℕ) := ∀ p : CRTPrimeRange w V, Fin p.val
 
-/-- Exact base-residue hypothesis (1) of Proposition `prop:linear-forms`. -/
-def WeightedLinearFormsInput.BaseResidueUniformity {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T) : Prop :=
-  ∀ p, I.good p → ∀ σ, I.PossibleDivisors σ →
-    ∀ _hK : 0 < ∏ u, σ u,
-      linearBaseResidueTV (I.baseLaw p) (∏ u, σ u) _hK ≤ I.epsilonBase
+/-- CRT residue tuple of one integer. -/
+noncomputable def integerCRTResidues (w V x : ℕ) : CRTResidues w V := by
+  intro p
+  have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  exact ⟨x % p.val, Nat.mod_lt _ hp.pos⟩
 
-/-- Exact row hypotheses (2) of Proposition `prop:linear-forms`: every row
-is primitive, and all pairs are independent whenever the fixed polynomial
-tests avoid `π`. -/
-def WeightedLinearFormsInput.RowHypotheses {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T) : Prop :=
-  ∀ p, I.good p → ∀ π, π.Prime → I.w < π → π ≤ I.V →
-    (∀ u, ∃ j, ¬ ((π : ℤ) ∣ T.coefficient u p j)) ∧
-    ∀ u v, u ≠ v →
-      (∀ Q ∈ T.polynomialTests,
-        ¬ ((π : ℤ) ∣ Q.eval fun i => (p i : ℤ))) →
-      ∃ j k, ¬ ((π : ℤ) ∣
-        T.coefficient u p j * T.coefficient v p k -
-          T.coefficient u p k * T.coefficient v p j)
+/-- Actual joint CRT law of independent prime slots from their assigned pools. -/
+def primeTupleCRTLaw {m : ℕ} (lo hi : Fin m → ℕ) (w V : ℕ)
+    (r : Fin m → CRTResidues w V) : ℝ :=
+  ∑' p : Fin m → ℕ,
+    independentPrimePoolMass lo hi p *
+      if (fun i => integerCRTResidues w V (p i)) = r then 1 else 0
 
-/-- Exact CRT-law hypothesis of Proposition `prop:linear-forms`. -/
-def WeightedLinearFormsInput.PrimeSlotsCRTUniformity {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T) : Prop :=
-  primeTupleCRTTV (s := s) I.primePool
-    (masterPrimeModulus I.w I.smallPrimeExponent I.V) ≤ I.epsilonCRT
+/-- Independent uniform unit law on all slot-prime CRT coordinates. -/
+def uniformPrimeTupleCRTLaw {m : ℕ} (w V : ℕ)
+    (r : Fin m → CRTResidues w V) : ℝ :=
+  ∏ i, ∏ p : CRTPrimeRange w V,
+    if Nat.Coprime (r i p).val p.val then 1 / ((p.val - 1 : ℕ) : ℝ) else 0
 
-/-- Expectation in Proposition `prop:linear-forms`, restricted to a
-prime-only event. -/
-noncomputable def weightedLinearFormsAverage {q d s b : ℕ}
-    {T : LinearFormsTemplate q d s b} (I : WeightedLinearFormsInput T)
-    (E : (Fin s → ℕ) → Prop) : ℝ := by
-  classical
-  exact primeTupleAverage I.primePool (fun p =>
-    if I.good p ∧ E p then
-      ∫ x, ∏ u, I.weight u (I.row u p x) ∂ I.baseLaw p else 0)
+/-- Integer residue in `Fin K`, using Euclidean remainder for signed base variables. -/
+def integerResidue (K : ℕ) (hK : 0 < K) (z : ℤ) : Fin K := by
+  have hKz : (0 : ℤ) < (K : ℤ) := by exact_mod_cast hK
+  have hz0 : 0 ≤ z % (K : ℤ) := Int.emod_nonneg z (Int.ne_of_gt hKz)
+  have hzlt : z % (K : ℤ) < (K : ℤ) := Int.emod_lt_of_pos z hKz
+  refine ⟨(z % (K : ℤ)).toNat, ?_⟩
+  have hcast : (((z % (K : ℤ)).toNat : ℕ) : ℤ) = z % (K : ℤ) :=
+    Int.toNat_of_nonneg hz0
+  exact Nat.cast_lt.mp (by rw [hcast]; exact hzlt)
 
-/-- Proposition `prop:linear-forms`, §3, lines 463–519. The constant is
-chosen from the fixed row, divisor, and polynomial templates before the
-prime pools and sampling laws are supplied. -/
-theorem weighted_linear_forms {q d s b : ℕ}
-    (T : LinearFormsTemplate q d s b) :
-    ∃ C : ℝ, 0 ≤ C ∧ ∀ (I : WeightedLinearFormsInput T)
-      (hw : 2 ≤ I.w)
-      (hV : I.V ≥ 1) (hM : I.V ≥ I.M)
-      (hdraw : ∀ u, ∀ᵐ σ ∂ I.divisorLaw u, σ ≤ I.V)
-      (hbase : I.BaseResidueUniformity)
-      (hrows : I.RowHypotheses)
-      (hcrt : I.PrimeSlotsCRTUniformity)
-      (E : (Fin s → ℕ) → Prop)
-      (hE : ∀ p, E p → I.good p),
-      |weightedLinearFormsAverage I E -
-        primeTupleAverage I.primePool (fun p => if E p then 1 else 0)| ≤
-        C * (1 / I.w + (I.V : ℝ) ^ q *
-          (I.epsilonBase + I.epsilonCRT)) := by
+/-- Conditional residue mass of the base variables modulo a divisor product. -/
+def baseResidueLaw {d : ℕ} (K : ℕ) (hK : 0 < K)
+    (baseMass : (Fin d → ℤ) → ℝ) (r : Fin d → Fin K) : ℝ :=
+  ∑' x : Fin d → ℤ,
+    baseMass x * if (fun i => integerResidue K hK (x i)) = r then 1 else 0
+
+/-- Uniform law on all residue vectors modulo K. -/
+def uniformBaseResidueLaw (K d : ℕ) (_r : Fin d → Fin K) : ℝ :=
+  1 / (K : ℝ) ^ d
+
+/-- Value of the row `ℓ_u(x;p)=∑_j a_{u,j}(N,p) x_j` with rational coefficients. -/
+def linearRowValue {q d s : ℕ} (rowCoeff : ℕ → (Fin s → ℕ) → Fin q → Fin d → ℚ)
+    (N : ℕ) (p : Fin s → ℕ) (u : Fin q) (x : Fin d → ℤ) : ℚ :=
+  ∑ j, rowCoeff N p u j * (x j : ℚ)
+
+/-- Data and hypotheses of Proposition `prop:linear-forms` (§3 lines 463–519).
+
+Copy of `HindmanSumsProducts.WeightedLinearFormsData` (`Arithmetic/LinearForms.lean`) that
+**differs from `main`**: the field `row : Fin q → RationalLinearRow d m` (fixed polynomial
+coefficients in the prime slots) is replaced by `rowCoeff`, coefficients depending on `N` and on
+the prime tuple, as in the paper's `ℓ_u(x;p)`. §4 needs this: its rows have the coefficients
+`(c_k/c_{a(R)})A_{R,k}(p)`, where the scale ratios `c_k/c_{a(R)}` change with `N`, and the
+responses `ℓ_I(v_R)` contain `M(p)=M|D(p)|_{>w}`, which is not a polynomial in `p`
+(04:337–354, 483–507; 03:681–689). The field names `row_integer_on_support`,
+`row_denominators_are_units`, `row_primitive` and `pairwise_row_tests` keep their meaning with
+`rowCoeff` in place of `row`; all other fields are as on `main`. -/
+structure WeightedLinearFormsData {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)}
+    (S : MasterScales n Aset m tests) where
+  gap : Fin m → Fin n
+  rowCoeff : ℕ → (Fin m → ℕ) → Fin q → Fin d → ℚ
+  divisor : Fin q → DivisorTemplate n b
+  V : ℕ → ℕ
+  epsilonBase : ℕ → ℝ
+  epsilonCRT : ℕ → ℝ
+  baseMass : ℕ → (Fin m → ℕ) → (Fin d → ℤ) → ℝ
+  goodDomain : ℕ → (Fin m → ℕ) → Prop
+  V_lower : ∀ N, S.core.parameters.M N ≤ V N
+  V_tendsto : Tendsto (fun N => V N) atTop atTop
+  slot_gap_bound : ∀ N i, V N ≤ masterScaleV S.core.parameters N (gap i)
+  base_nonnegative : ∀ N p x, 0 ≤ baseMass N p x
+  base_normalized : ∀ N p, ∑' x : Fin d → ℤ, baseMass N p x = 1
+  divisor_positive : ∀ N u σ, divisorTemplateLaw S.core.parameters N (divisor u) σ ≠ 0 → 1 ≤ σ
+  divisor_bounded : ∀ N u σ,
+    divisorTemplateLaw S.core.parameters N (divisor u) σ ≠ 0 → σ ≤ V N
+  base_residue_uniform : ∀ N p (σ : Fin q → ℕ),
+    goodDomain N p →
+    (∀ u, divisorTemplateLaw S.core.parameters N (divisor u) (σ u) ≠ 0) →
+    (hσ : ∀ u, 0 < σ u) →
+    finiteL1
+      (baseResidueLaw (∏ u, σ u) (by exact Finset.prod_pos fun u _ => hσ u)
+        (baseMass N p))
+      (uniformBaseResidueLaw (∏ u, σ u) d) ≤ epsilonBase N
+  row_integer_on_support : ∀ N p x, goodDomain N p → baseMass N p x ≠ 0 →
+    ∀ u, (linearRowValue rowCoeff N p u x).den = 1
+  row_denominators_are_units : ∀ N p, goodDomain N p → ∀ r (_hr : r.Prime),
+    N + 1 < r → r ≤ V N → ∀ u j, Nat.Coprime (rowCoeff N p u j).den r
+  row_primitive : ∀ N p, goodDomain N p → ∀ r (hr : r.Prime),
+    N + 1 < r → r ≤ V N → ∀ u, ∃ j, rationalResidue r hr (rowCoeff N p u j) ≠ 0
+  pairwise_row_tests : ∀ N p, goodDomain N p → ∀ r (hr : r.Prime),
+    N + 1 < r → r ≤ V N →
+      (∀ Q ∈ tests, ¬ ((r : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+      ∀ u v, u ≠ v → ∃ i j,
+        rationalResidue r hr (rowCoeff N p u i) * rationalResidue r hr (rowCoeff N p v j) ≠
+          rationalResidue r hr (rowCoeff N p u j) * rationalResidue r hr (rowCoeff N p v i)
+  crt_error_bound : ∀ N,
+    finiteL1
+      (primeTupleCRTLaw
+        (fun i => (S.primeStage.pool N (gap i)).lower)
+        (fun i => (S.primeStage.pool N (gap i)).upper) (N + 1) (V N))
+      (uniformPrimeTupleCRTLaw (N + 1) (V N)) ≤ epsilonCRT N
+  epsilonBase_superpolynomial : SuperPolynomialSmall epsilonBase (fun N => (V N : ℝ))
+  epsilonCRT_superpolynomial : SuperPolynomialSmall epsilonCRT (fun N => (V N : ℝ))
+
+/-- Copy of `HindmanSumsProducts.weightedLinearFormsAverage`, differing from `main` only through
+`linearRowValue D.rowCoeff` in place of `rationalRowIntegerValue (D.row u)`: the `ν`-weighted
+row average over a prime-only event. -/
+def weightedLinearFormsAverage {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (E : (Fin m → ℕ) → Prop) : ℝ :=
+  ∑' p : Fin m → ℕ,
+    independentPrimePoolMass
+      (fun i => (S.primeStage.pool N (D.gap i)).lower)
+      (fun i => (S.primeStage.pool N (D.gap i)).upper) p *
+      (if E p then 1 else 0) *
+      (∑' x : Fin d → ℤ,
+        D.baseMass N p x *
+          ∏ u, nuB
+            (divisorTemplateLaw S.core.parameters N (D.divisor u))
+            (linearRowValue D.rowCoeff N p u x).num)
+
+/-- Copy of `HindmanSumsProducts.weightedLinearFormsEventProbability`, same definition. -/
+def weightedLinearFormsEventProbability {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (E : (Fin m → ℕ) → Prop) : ℝ :=
+  independentPrimePoolProbability
+    (fun i => (S.primeStage.pool N (D.gap i)).lower)
+    (fun i => (S.primeStage.pool N (D.gap i)).upper) E
+
+/-- Proposition `prop:linear-forms` (§3 lines 463–519): the weighted product of divisor weights
+has mean `P(E)` up to the absolute error `O(1/w + V^q(ε_base+ε_CRT))`, uniformly over prime-only
+events `E ⊆ G`. Copy of `HindmanSumsProducts.prop_linear_forms`; the conclusion is the same text
+as on `main`, but it is about the generalized data above, so it **differs from `main`** in
+strength: rows may depend on `N` and on the prime tuple, as in the paper. -/
+theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) :
+    ∃ C : ℝ, 0 < C ∧ ∀ N (E : (Fin m → ℕ) → Prop),
+      (∀ p, E p → D.goodDomain N p) →
+      |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
+        C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ q *
+          (D.epsilonBase N + D.epsilonCRT N)) := by
   sorry
+
+end LinearForms
 
 end
-
-end HindmanSumsProducts
+end HindmanSumsProducts.FromArithmetic

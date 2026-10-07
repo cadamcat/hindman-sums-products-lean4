@@ -1,560 +1,292 @@
-import HindmanSumsProducts.Correlation.FromArithmetic
+import HindmanSumsProducts.Correlation.Defs
 import HindmanSumsProducts.Correlation.Outside
 
 /-!
-# Removing multiplicative masks and detecting a shifted error
+# Removing multiplicative masks and detecting a shifted error (§4)
 
-Skeleton of §4. The asymptotic parameter is `N` and the paper's `w` is
-`N + 1`. All `o(1)` assertions below are expressed as explicit convergence or
-eventual inequalities. -/
+Statements of `04_correlation.tex`. The setting and vocabulary are in `Correlation/Defs.lean`;
+the §3 results used here are copied in `Correlation/FromArithmetic.lean`.
+
+Order of choices (04:53–57, 135–155, 607–611). Everything determined by `m` and `J_*` (row
+templates, polynomial directions, polynomial tests, `d`, `C_m`, `θ`) is chosen first. Then come
+the master scales, whose polynomial list must contain the tests (`TestsListed`); then the chain,
+its gap and its multipliers; then the fixed `J_0`; then `ε` and the threshold in `N`; the
+functions come last. "Uniform over the functions" is the order `∀ ε, ∀ᶠ N, ∀ b g`.
+-/
+
+open scoped BigOperators Topology
+open Filter
 
 namespace HindmanSumsProducts
-
+noncomputable section
 attribute [local instance] Classical.propDecidable
+open FromArithmetic
 
-open MeasureTheory
-open Filter
-open scoped Topology BigOperators
+/-! ## Prime insertion (Lemma `lem:prime-insertion`, 04:61–111) -/
 
-/-- `f ≤ g + o(1)` along the asymptotic index. -/
-def asymptoticLe (f g : ℕ → ℝ) : Prop :=
-  ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, f N ≤ g N + ε
-
-/-- Number of nonempty product masks in a chain of length `m`. -/
-def maskCount (m : ℕ) : ℕ := 2 ^ m - 1
-
-/-- The row bound `K_m=q_mask 2^{q_mask}` from Lemma `lem:mask-removal`. -/
-def maskRowBound (m : ℕ) : ℕ := maskCount m * 2 ^ maskCount m
-
-/-- Uniform prefactor for the iterated additive Cauchy–Schwarz steps. -/
-def additiveEliminationConstant (m : ℕ) : ℝ :=
-  (2 : ℝ) ^ (4 * maskRowBound m * 2 ^ maskRowBound m)
-
-/-- The harmonic law of one pivot coordinate, as the marginal of
-`Parameters.law`. -/
-noncomputable def pivotAverage {n m : ℕ} (C : MasterChain n m) (N : ℕ)
-    (i : Fin n) (F : ℕ → ℝ) : ℝ :=
-  ∫ x, F (x i) ∂ C.parameters.law N (C.law_cutoff N)
-
-/-- Expectation of a function of all independent raw harmonic variables. -/
-noncomputable def rawAverage {n m : ℕ} (C : MasterChain n m) (N : ℕ)
-    (F : (Fin n → ℕ) → ℝ) : ℝ :=
-  ∫ x, F x ∂ C.parameters.law N (C.law_cutoff N)
-
-/-- Correlation formed from a family of prime-dependent formal row templates.
-The integer coefficient field is the evaluation of
-`(c_k/c_{a(R)}) A_{R,k}`; `coefficient_formula` records that identity. -/
-structure CorrelationRows {n m q r : ℕ} (C : MasterChain n m) where
-  templates : Fin r → RowTemplate m q
-  star : Fin r
-  coefficient : ℕ → (Fin q → ℕ) → Fin r → Fin m → ℤ
-  coefficient_formula : ∀ N p R k,
-    (coefficient N p R k : ℚ) =
-      ((C.integerScale N k / C.integerScale N (templates R).anchor : ℕ) : ℚ) *
-        ((templates R).exponent k).elim 0 (fun e => monomialValue e p)
-  functions : ℕ → Fin r → (Fin q → ℕ) → ℤ → ℝ
-
-/-- Integer form attached to a row after substituting its prime slots. -/
-def CorrelationRows.form {n m q r : ℕ} {C : MasterChain n m}
-    (S : CorrelationRows (q := q) (r := r) C) (N : ℕ) (p : Fin q → ℕ) (R : Fin r)
-    (z : Fin m → ℕ) : ℤ :=
-  ∑ k, S.coefficient N p R k * (z k : ℤ)
-
-/-- Linear response of a row to an integer translation vector. -/
-def CorrelationRows.response {n m q r : ℕ} {C : MasterChain n m}
-    (S : CorrelationRows (q := q) (r := r) C) (N : ℕ) (p : Fin q → ℕ) (R : Fin r)
-    (v : Fin m → ℤ) : ℤ :=
-  ∑ k, S.coefficient N p R k * v k
-
-/-- Pairwise rational-function nonparallelity of a row family. -/
-def CorrelationRows.PairwiseNonparallel {n m q r : ℕ} {C : MasterChain n m}
-    (S : CorrelationRows (q := q) (r := r) C) : Prop :=
-  ∀ R I, R ≠ I → ¬ ParallelRows (S.templates R) (S.templates I)
-
-/-- Exact retention of the distinguished target function. -/
-def CorrelationRows.TargetIs {n m q r : ℕ} {C : MasterChain n m}
-    (S : CorrelationRows (q := q) (r := r) C) (Jstar : Finset (Fin m))
-    (g : ℕ → Finset (Fin m) → ℤ → ℝ) : Prop :=
-  ∀ N p y, S.functions N S.star p y = g N Jstar y
-
-/-- Divisor-weight majorants for every row function. -/
-def CorrelationRows.HasWeightBounds {n m q r : ℕ} {C : MasterChain n m}
-    (S : CorrelationRows (q := q) (r := r) C) : Prop :=
-  ∀ N R p y, |S.functions N R p y| ≤
-    1 + divisorWeight C.parameters N (C.law_cutoff N)
-      (C.blocks (S.templates R).anchor) y
-
-/-- Product expectation over the independent prime slots and pivot samples. -/
-noncomputable def rowCorrelation {n m q r : ℕ} (C : MasterChain n m)
-    (S : CorrelationRows (q := q) (r := r) C) (P : ℕ → Finset ℕ) (N : ℕ) : ℝ :=
-  primeTupleAverage (P N) fun p =>
-    ∫ x, ∏ R, S.functions N R p
-      (S.form N p R (fun d => x (C.blocks d).1))
-      ∂ C.parameters.law N (C.law_cutoff N)
-
-/-- Row correlation after restricting prime tuples to the normalized good
-law produced by Lemma `lem:row-directions`. -/
-noncomputable def goodRowCorrelation {n m q r : ℕ} (C : MasterChain n m)
-    (S : CorrelationRows (q := q) (r := r) C) (P : ℕ → Finset ℕ)
-    (good : ℕ → (Fin q → ℕ) → Prop) (N : ℕ) : ℝ :=
-  goodPrimeTupleAverage (P N) (good N) fun p =>
-    ∫ x, ∏ R, S.functions N R p
-      (S.form N p R (fun d => x (C.blocks d).1))
-      ∂ C.parameters.law N (C.law_cutoff N)
-
-/-- Error of replacing a pivot sample by a fresh independent prime dilation.
-The error bound is uniform over the auxiliary parameter `a` and all bounded
-function families. -/
-theorem prime_insertion_average
-    {n m : ℕ} (C : MasterChain n m) (i : Fin n) (hi : C.gap < i)
-    (P : ℕ → Finset ℕ) (V : ℕ → ℕ)
-    (hV : Tendsto (fun N => V N) atTop atTop)
-    (hP : ∀ N p, p ∈ P N → p.Prime ∧ V N < p)
-    (hMass : ∀ A : ℝ, 0 < A → Tendsto
-      (fun N => primeHarmonicMass (P N) / (V N : ℝ) ^ A) atTop atTop)
-    (A : ℝ) (hA : 0 < A) :
-    ∃ err : ℕ → ℝ, tendsToZero err ∧
-      ∀ (α : Type) (F : ℕ → α → ℕ → ℝ),
-        (∀ N a y, |F N a y| ≤ (V N : ℝ) ^ A) →
-        ∀ a, ∀ᶠ N in atTop,
-          |pivotAverage C N i (F N a) -
-            primeAverage (P N) (fun p =>
-              pivotAverage C N i (fun y => F N a (p * y)))| ≤ err N := by
+/-- Equation `eq:prime-average-insertion`: for a pivot `i` after the gap `l`, `Y ∼ μ_i` and
+`p ∼ λ_l`, `E F(Y)=E F(pY)+o(1)` uniformly over `|F| ≤ V_l^A`. Parameters are covered by the
+uniformity in `F`. -/
+theorem prime_insertion_average {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l i : Fin K)
+    (hli : l < i) (A : ℝ) :
+    ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ F : ℤ → ℝ,
+      (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y * F y) -
+        poolAverage S l N fun p =>
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
+            F ((p : ℤ) * y)| ≤ ε := by
   sorry
 
-/-- Fixed-dilation substitution and its superpolynomial total-mass error,
-equation `eq:prime-fixed-dilation`. Division is used only under the displayed
-divisibility indicator. -/
-theorem prime_insertion_fixed_dilation
-    {n m : ℕ} (C : MasterChain n m) (i : Fin n) (hi : C.gap < i)
-    (Pplus V k : ℕ → ℕ) (hV : Tendsto (fun N => V N) atTop atTop)
-    (A : ℝ) (hA : 0 < A) (B C₀ : ℕ)
-    (hkBound : ∀ N, k N ≤ C₀ * (Pplus N + V N) ^ B)
-    (hkCoprime : ∀ᶠ N in atTop, Nat.Coprime (k N) (primorial (N + 1))) :
-    (∀ C₀ : ℝ, 0 < C₀ → tendsToZero fun N =>
-      (V N : ℝ) ^ C₀ * |pivotAverage C N i (fun y =>
-        if k N ∣ y then (k N : ℝ) else 0) - 1|) ∧
-    ∃ err : ℕ → ℝ, tendsToZero err ∧
-      ∀ (α : Type) (F : ℕ → α → ℕ → ℝ),
-        (∀ N a y, |F N a y| ≤ (V N : ℝ) ^ A) →
-        ∀ a, ∀ᶠ N in atTop,
-          |pivotAverage C N i (fun y => F N a (k N * y)) -
-            pivotAverage C N i (fun y =>
-              if k N ∣ y then (k N : ℝ) * F N a y else 0)| ≤ err N := by
+/-- Equation `eq:prime-fixed-dilation`: for `k` coprime to `W` and at most `(P_l^++V_l)^B`,
+uniformly in `k`, the total mass `‖Law(kY)-k1_{k∣Y}μ_i‖₁` is smaller than every fixed negative
+power of `P_l^++V_l`, and hence `E F(kY)=E k1_{k∣Y}F(Y)+o(1)` uniformly over `|F| ≤ V_l^A`. -/
+theorem prime_insertion_fixed_dilation {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l i : Fin K)
+    (hli : l < i) (B : ℕ) :
+    (∀ C : ℝ, 0 < C → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
+      Nat.Coprime k (primorial (N + 1)) →
+      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
+      (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+        arithmeticL1
+          (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
+          (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
+        ≤ ε) ∧
+    ∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
+      Nat.Coprime k (primorial (N + 1)) →
+      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
+      ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+        |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
+            F ((k : ℤ) * y)) -
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
+            ((if (k : ℤ) ∣ y then (k : ℝ) else 0) * F y)| ≤ ε := by
   sorry
 
-/-- Lemma `lem:prime-insertion`, §4, lines 61–119. -/
-theorem prime_insertion
-    {n m : ℕ} (C : MasterChain n m) (i : Fin n) (hi : C.gap < i)
-    (P : ℕ → Finset ℕ) (Pplus V : ℕ → ℕ)
-    (hV : Tendsto (fun N => V N) atTop atTop)
-    (hP : ∀ N p, p ∈ P N → p.Prime ∧ V N < p)
-    (hMass : ∀ A : ℝ, 0 < A → Tendsto
-      (fun N => primeHarmonicMass (P N) / (V N : ℝ) ^ A) atTop atTop) :
-    (∀ A : ℝ, 0 < A →
-      ∃ err : ℕ → ℝ, tendsToZero err ∧
-        ∀ (α : Type) (F : ℕ → α → ℕ → ℝ),
-          (∀ N a y, |F N a y| ≤ (V N : ℝ) ^ A) →
-          ∀ a, ∀ᶠ N in atTop,
-            |pivotAverage C N i (F N a) -
-              primeAverage (P N) (fun p =>
-                pivotAverage C N i (fun y => F N a (p * y)))| ≤ err N) ∧
-    (∀ (k : ℕ → ℕ) (A : ℝ), 0 < A → ∀ B C₀ : ℕ,
-      (∀ N, k N ≤ C₀ * (Pplus N + V N) ^ B) →
-        (∀ᶠ N in atTop, Nat.Coprime (k N) (primorial (N + 1))) →
-        (∀ C₁ : ℝ, 0 < C₁ → tendsToZero fun N =>
-          (V N : ℝ) ^ C₁ * |pivotAverage C N i (fun y =>
-            if k N ∣ y then (k N : ℝ) else 0) - 1|) ∧
-        ∃ err : ℕ → ℝ, tendsToZero err ∧
-          ∀ (α : Type) (F : ℕ → α → ℕ → ℝ),
-            (∀ N a y, |F N a y| ≤ (V N : ℝ) ^ A) →
-            ∀ a, ∀ᶠ N in atTop,
-              |pivotAverage C N i (fun y => F N a (k N * y)) -
-                pivotAverage C N i (fun y =>
-                  if k N ∣ y then (k N : ℝ) * F N a y else 0)| ≤ err N) := by
-  refine ⟨?_, ?_⟩
-  · intro A hA
-    exact prime_insertion_average C i hi P V hV hP hMass A hA
-  · intro k A hA B C₀ hkBound hkCoprime
-    exact prime_insertion_fixed_dilation C i hi Pplus V k hV A hA B C₀
-      hkBound hkCoprime
+/-- Lemma `lem:prime-insertion` (04:61–111), both assertions. -/
+theorem prime_insertion {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l i : Fin K)
+    (hli : l < i) :
+    (∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ F : ℤ → ℝ,
+      (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y * F y) -
+        poolAverage S l N fun p =>
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
+            F ((p : ℤ) * y)| ≤ ε) ∧
+    ∀ B : ℕ,
+      (∀ C : ℝ, 0 < C → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
+        Nat.Coprime k (primorial (N + 1)) →
+        k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
+        (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+          arithmeticL1
+            (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
+            (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
+          ≤ ε) ∧
+      ∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
+        Nat.Coprime k (primorial (N + 1)) →
+        k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
+        ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+          |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
+              F ((k : ℤ) * y)) -
+            ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
+              ((if (k : ℤ) ∣ y then (k : ℝ) else 0) * F y)| ≤ ε :=
+  ⟨fun A => prime_insertion_average S l i hli A,
+    fun B => prime_insertion_fixed_dilation S l i hli B⟩
 
-/-- At one mask-removal step, weighted Cauchy–Schwarz leaves one copy of
-each invariant row weight. -/
-theorem mask_removal_weighted_cauchy_schwarz
-    {α : Type} [MeasurableSpace α] (μ : Measure α) (Ω H₀ H₁ : α → ℝ)
+/-! ## Weighted Cauchy–Schwarz (equations `eq:mask-weighted-cs`, `eq:additive-weighted-cs`) -/
+
+/-- `|E H₀H₁|² ≤ (E Ω)(E ΩH₁²)` for a nonnegative weight `μ`, `Ω ≥ 0` and `|H₀| ≤ Ω`. This is the
+exact inequality behind both `eq:mask-weighted-cs` (`H₀=b_UΩ`, `H₁=E_pη_pH_p`) and
+`eq:additive-weighted-cs` (`H₀=H_out`, `H₁=E_{u_R}H_in`); expanding `H₁²` with two independent
+copies gives the displayed right sides. -/
+theorem weighted_cauchy_schwarz {α : Type*} (μ Ω H₀ H₁ : α → ℝ) (hμ : ∀ x, 0 ≤ μ x)
     (hΩ : ∀ x, 0 ≤ Ω x) (h0 : ∀ x, |H₀ x| ≤ Ω x)
-    (hΩint : Integrable Ω μ)
-    (hH1int : Integrable (fun x => Ω x * H₁ x ^ 2) μ) :
-    |∫ x, H₀ x * H₁ x ∂ μ| ^ 2 ≤
-      (∫ x, Ω x ∂ μ) * (∫ x, Ω x * H₁ x ^ 2 ∂ μ) := by
+    (hΩs : Summable fun x => μ x * Ω x)
+    (h1s : Summable fun x => μ x * (Ω x * H₁ x ^ 2)) :
+    |∑' x, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+      (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2) := by
   sorry
 
-/-- Row templates and their prime-dependent integer forms arising after the
-mask substitutions. The row templates are chosen before scales and functions;
-the form coefficients are the integer realizations in equation
-`eq:correlation-row-template`. -/
-structure MaskRemovalRows (m q r : ℕ) where
-  templates : Fin r → RowTemplate m q
-  star : Fin r
-  pairwise_nonparallel : ∀ R I, R ≠ I →
-    ¬ ParallelRows (templates R) (templates I)
+/-! ## Weighted removal of multiplicative masks (Lemma `lem:mask-removal`, 04:128–307) -/
 
-/-- Index type for rows other than the distinguished target. -/
-abbrev NonTargetIndex (r : ℕ) (star : Fin r) := {R : Fin r // R ≠ star}
-
-/-- Lemma `lem:mask-removal`, §4, lines 135–307. The row count, prime-slot
-count, and prefactor are chosen before the chain, scales, and functions. -/
-theorem weighted_mask_removal (m : ℕ) (Jstar : Finset (Fin m))
-    (hJ : Jstar.Nonempty) (hJcard : 2 ≤ Jstar.card) :
-    ∃ C_m : ℝ, 0 < C_m ∧ ∃ q r : ℕ, r ≤ maskRowBound m ∧
-      q ≤ 2 * maskCount m ∧ ∃ Shape : MaskRemovalRows m q r,
-        ∀ {n : ℕ} (C : MasterChain n m) (P : ℕ → Finset ℕ)
-          (V : ℕ → ℕ),
-          (∀ N p, p ∈ P N → p.Prime ∧ V N < p) →
-          (∀ A : ℝ, 0 < A → Tendsto
-            (fun N => primeHarmonicMass (P N) / (V N : ℝ) ^ A) atTop atTop) →
-          (∀ (b : ℕ → Finset (Fin m) → ℕ → ℝ)
-            (g : ℕ → Finset (Fin m) → ℤ → ℝ),
-            (∀ N, CorrelationFunctionsValid C N Jstar
-            (b N) (g N)) →
-            ∃ Rows : CorrelationRows (q := q) (r := r) C,
-              Rows.templates = Shape.templates ∧ Rows.star = Shape.star ∧
-              CorrelationRows.PairwiseNonparallel Rows ∧
-              CorrelationRows.TargetIs Rows Jstar g ∧
-              CorrelationRows.HasWeightBounds Rows ∧
-              asymptoticLe
-                (fun N => |correlation C N (b N) (g N)| ^ (2 ^ (2 ^ m - 1)))
-                (fun N => C_m * |rowCorrelation C Rows P N|)) := by
+/-- Lemma `lem:mask-removal`, equation `eq:mask-removal-output`:
+`|𝒞|^{2^{q_mask}} ≤ C_m|E_{p,z}∏_R f_R(ℓ_R(z))|+o(1)`. The row family (at most `K_m` pairwise
+nonparallel templates, the distinguished row having support `J_*`), the number of prime slots,
+the polynomial tests used for deletion and pair independence, and `C_m` depend only on `m` and
+`J_*`. The functions `f_R` may depend on the primes; `|f_R| ≤ W_R=1+ν_{a(R)}` and `f_*=g_*`.
+The primes are independent with law `λ_l` (before deletion of exceptional tuples). -/
+theorem weighted_mask_removal (m : ℕ) (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jstar.card) :
+    ∃ (q r : ℕ) (Sh : RowShape m q r) (tests : Finset (IntegerPolynomial q)) (Cm : ℝ),
+      r ≤ maskRowBound m ∧ q ≤ 2 * maskCount m ∧ (Sh.row Sh.star).support = Jstar ∧
+      (∀ P ∈ tests, P ≠ 0) ∧ 0 < Cm ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ b g : Finset (Fin m) → ℤ → ℝ,
+        FunctionsValid S.core.parameters C N b g →
+        ∃ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
+          (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) ∧
+          (∀ p, f Sh.star p = g Jstar) ∧
+          |maskedCorrelation S.core.parameters C a N b g| ^ (2 ^ maskCount m) ≤
+            Cm * |rowCorrelation S C a N Sh f| + ε := by
   sorry
 
-/-- Algebraic kernel directions from Lemma `lem:row-directions`: each
-nontarget row has a polynomial vector in its kernel that moves every other
-row, and a second vector kills only the target response. -/
-structure PolynomialDirections {m q r : ℕ}
-    (templates : Fin r → RowTemplate m q) (star : Fin r) where
-  direction : Fin r → PolynomialVector m q
-  targetDirection : PolynomialVector m q
-  kernel : ∀ R, R ≠ star → rowResponse (templates R) (direction R) = 0
-  separates : ∀ R I, R ≠ star → I ≠ R →
-    rowResponse (templates I) (direction R) ≠ 0
-  target_kernel : rowResponse (templates star) targetDirection = 0
-  target_separates : ∀ I, I ≠ star →
-    rowResponse (templates I) targetDirection ≠ 0
-  responseNumerator : Fin r → MvPolynomial (Fin q) ℤ
-  responseDenominator : Fin r → MvPolynomial (Fin q) ℤ
-  response_denominator_nonzero : ∀ R, R ≠ star → responseDenominator R ≠ 0
-  response_fraction : ∀ R, R ≠ star →
-    rowResponse (templates star) (direction R) =
-      algebraMap _ _ (rationalPolynomial (responseNumerator R)) /
-        algebraMap _ _ (rationalPolynomial (responseDenominator R))
+/-! ## Polynomial directions and integer translations (Lemma `lem:row-directions`,
+04:316–418) -/
 
-/-- Integer translations with modulus `M(p)=M|D(p)|_{>w}`. All translations
-are in `Wℤ^m`, have responses `M` at the target and zero at their assigned
-row, and have size bounded by a fixed power of `P_l^+ + V_l`. The final field
-encodes the finite polynomial exception list for unit responses. -/
-def roughPart (w : ℕ) (z : ℤ) : ℕ :=
-  ∏ p ∈ (Int.natAbs z).factorization.support.filter (fun p => w < p),
-    p ^ (Int.natAbs z).factorization p
-
-/-- Evaluate an integer polynomial at the natural prime slots in `ℚ`. -/
-def integerPolynomialEval {q : ℕ} (P : MvPolynomial (Fin q) ℤ)
-    (p : Fin q → ℕ) : ℚ :=
-  MvPolynomial.eval₂ (Int.castRingHom ℚ) (fun i => (p i : ℚ)) P
-
-/-- Integer translations constructed from the polynomial directions. -/
-structure IntegerDirectionData {n m q r : ℕ} {C : MasterChain n m}
-    (Rows : CorrelationRows (q := q) (r := r) C)
-    (polynomialDirections : PolynomialDirections Rows.templates Rows.star) where
-  baseModulus : ℕ → ℕ
-  Pplus : ℕ → ℕ
-  V : ℕ → ℕ
-  polynomial : MvPolynomial (Fin q) ℤ
-  polynomial_nonzero : polynomial ≠ 0
-  polynomial_is_product_of_target_responses : polynomial =
-    ∏ R : NonTargetIndex r Rows.star,
-      polynomialDirections.responseNumerator R.val
-  exceptionalPolynomials : Finset (MvPolynomial (Fin q) ℤ)
-  modulus : ℕ → (Fin q → ℕ) → ℕ
-  good : ℕ → (Fin q → ℕ) → Prop
-  vector : ℕ → (Fin q → ℕ) → Fin r → Fin m → ℤ
-  polynomial_eval_nonzero : ∀ N p, good N p →
-    polynomial.eval (fun i => (p i : ℤ)) ≠ 0
-  response_denominator_eval_nonzero : ∀ N p R, good N p → R ≠ Rows.star →
-    integerPolynomialEval (polynomialDirections.responseDenominator R) p ≠ 0
-  modulus_formula : ∀ N p, good N p → modulus N p =
-    baseModulus N * roughPart (N + 1) (polynomial.eval fun i => (p i : ℤ))
-  vector_formula : ∀ N p R k, good N p →
-    (vector N p R k : ℚ) =
-      if hR : R = Rows.star then
-        (baseModulus N : ℚ) *
-          (C.integerScale N (Rows.templates Rows.star).anchor : ℚ) /
-            C.integerScale N k *
-          integerPolynomialEval (polynomialDirections.targetDirection k) p
-      else
-        (modulus N p : ℚ) *
-          (C.integerScale N (Rows.templates Rows.star).anchor : ℚ) /
-            C.integerScale N k *
-          integerPolynomialEval (polynomialDirections.direction R k) p *
-          integerPolynomialEval (polynomialDirections.responseDenominator R) p /
-            integerPolynomialEval (polynomialDirections.responseNumerator R) p
-  target_response : ∀ N p, good N p →
-    Rows.response N p Rows.star (vector N p Rows.star) = 0
-  row_kernel_response : ∀ N p R, good N p → R ≠ Rows.star →
-    Rows.response N p R (vector N p R) = 0
-  target_moved_response : ∀ N p R, good N p → R ≠ Rows.star →
-    Rows.response N p Rows.star (vector N p R) = (modulus N p : ℤ)
-  other_responses_nonzero : ∀ N p R I, good N p → R ≠ Rows.star →
-    I ≠ R → Rows.response N p I (vector N p R) ≠ 0
-  W_divides_coordinates : ∀ N p R k, good N p →
-    (primorial (N + 1) : ℤ) ∣ vector N p R k
-  size_bound : ∃ A : ℕ, ∀ᶠ N in atTop, ∀ p R k, good N p →
-    Int.natAbs (vector N p R k) ≤ (Pplus N + V N) ^ A
-  response_unit_off_exceptional_polynomials : ∀ N p R I π,
-    good N p → R ≠ Rows.star → I ≠ R → π.Prime → N + 1 < π →
-    π ≤ V N →
-    (∀ Q ∈ exceptionalPolynomials,
-      ¬ ((π : ℤ) ∣ Q.eval fun j => (p j : ℤ))) →
-      ¬ ((π : ℤ) ∣ Rows.response N p I (vector N p R))
-  target_direction_unit_off_exceptional_polynomials : ∀ N p I π,
-    good N p → I ≠ Rows.star → π.Prime → N + 1 < π → π ≤ V N →
-    (∀ Q ∈ exceptionalPolynomials,
-      ¬ ((π : ℤ) ∣ Q.eval fun j => (p j : ℤ))) →
-      ¬ ((π : ℤ) ∣ Rows.response N p I (vector N p Rows.star))
-
-/-- Polynomial-vector construction (the first part of `lem:row-directions`). -/
-theorem row_directions_polynomial
-    {m q r : ℕ} (Rows : MaskRemovalRows m q r)
-    (hm : 2 ≤ m) (hr : 2 ≤ r) :
-    Nonempty (PolynomialDirections Rows.templates Rows.star) := by
+/-- First part of Lemma `lem:row-directions` (04:357–373): for a pairwise nonparallel family
+there are integer polynomial vectors `w_R` (`R ≠ *`) and `w_0` with `A_Rw_R=0`,
+`A_Iw_R ≠ 0` (`I ≠ R`), `A_*w_0=0`, `A_Iw_0 ≠ 0` (`I ≠ *`), chosen from the templates alone. -/
+theorem row_directions_polynomial {m q r : ℕ} (Sh : RowShape m q r) :
+    ∃ dirs : RowDirections Sh, dirs.Valid := by
   sorry
 
-/-- Integer clearing of smooth denominators and rough factors, with
-scale-separation size and unit-residue bounds (the second part of
-`lem:row-directions`). -/
-theorem row_directions_integer
-    {n m q r : ℕ} {C : MasterChain n m}
-    (Rows : CorrelationRows (q := q) (r := r) C)
-    (D : PolynomialDirections Rows.templates Rows.star) :
-    Nonempty (IntegerDirectionData Rows D) := by
+/-- The conclusions of the second part of Lemma `lem:row-directions` for fixed directions and
+tests, with size exponent `B`: for all master scales whose list contains the tests, every chain
+and multipliers from `Aset`, (i) the non-good tuples have probability `o(1)` (04:378–380),
+(ii) `M(p) ∣ R_l` on good tuples (04:610–611, 702–704), (iii) eventually every good tuple
+satisfies `IntegerDirectionFacts`. -/
+def RowDirections.IntegerConclusions {m q r : ℕ} {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (B : ℕ) : Prop :=
+  ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+  ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+    Tendsto (fun N => gapSlotProbability S C.gap N fun p =>
+      ¬ GoodTuple S C.gap N tests dirs.poly p) atTop (𝓝 0) ∧
+    (∀ N p, GoodTuple S C.gap N tests dirs.poly p →
+      directionModulus S N dirs.poly p ∣ S.core.parameters.H N C.gap) ∧
+    ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      IntegerDirectionFacts S C a N dirs tests B p
+
+/-- Second part of Lemma `lem:row-directions` (04:337–354, 375–418): integrality, size and
+responses of `v_R`, `v_0` on the good tuples, for any test list containing `D`, the nonzero
+responses and the nonzero template minors. The exponent `B` depends only on the templates and
+directions. -/
+theorem row_directions_integer {m q r : ℕ} (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∃ B : ℕ, dirs.IntegerConclusions tests B := by
   sorry
 
-/-- Lemma `lem:row-directions`, §4, lines 322–418. -/
-theorem row_directions
-    {n m q r : ℕ} (C : MasterChain n m)
-    (Rows : CorrelationRows (q := q) (r := r) C)
-    (hm : 2 ≤ m) (hr : 2 ≤ r) :
-    ∃ D : PolynomialDirections Rows.templates Rows.star,
-      Nonempty (IntegerDirectionData Rows D) := by
+/-- Lemma `lem:row-directions` (04:322–418). -/
+theorem row_directions {m q r : ℕ} (Sh : RowShape m q r) :
+    ∃ dirs : RowDirections Sh, dirs.Valid ∧
+      ∀ tests : Finset (IntegerPolynomial q), (∀ P ∈ tests, P ≠ 0) → dirs.tests ⊆ tests →
+        ∃ B : ℕ, dirs.IntegerConclusions tests B := by
+  obtain ⟨dirs, hdirs⟩ := row_directions_polynomial Sh
+  exact ⟨dirs, hdirs, fun tests htests hdt =>
+    row_directions_integer Sh dirs hdirs tests htests hdt⟩
+
+/-! ## Weighted additive elimination (Lemma `lem:additive-elimination`, 04:420–573) -/
+
+/-- Equation `eq:auxiliary-weight-moments` (04:530–571): with `d=|ℛ|-1` and `t=d2^{d-1}`,
+`E B=2^{2^d}+o(1)`, `E BH=2^{2^d+t}+o(1)`, `E BH²=2^{2^d+2t}+o(1)`, the expectations being over
+the normalized good-tuple law, the pivots and the shifts on `[0,L(p))`. -/
+theorem additive_elimination_auxiliary_moments {m q r : ℕ} (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+    ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+    ∀ J0 : ℕ, 0 < J0 →
+      Tendsto (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
+          targetBound S C a N dirs p z u) atTop
+        (𝓝 ((2 : ℝ) ^ 2 ^ Fintype.card (NonTarget Sh))) ∧
+      Tendsto (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
+          targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u) atTop
+        (𝓝 ((2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
+          Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)))) ∧
+      Tendsto (fun N => eliminationAverage S C N dirs tests J0 fun p z u =>
+          targetBound S C a N dirs p z u * averagedRetainedWeights S C a N dirs p z u ^ 2)
+        atTop
+        (𝓝 ((2 : ℝ) ^ (2 ^ Fintype.card (NonTarget Sh) +
+          2 * (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1))))) := by
   sorry
 
-/-- Two copies of the shift for each nontarget row. -/
-abbrev ShiftArray (r : ℕ) (star : Fin r) :=
-  NonTargetIndex r star → Fin 2 → ℕ
-
-/-- Uniform average over two independent shifts in `[0,L)` for each
-nontarget row. -/
-noncomputable def intervalShiftAverage {r : ℕ} (star : Fin r) (L : ℕ)
-    (F : ShiftArray r star → ℝ) : ℝ := by
-  classical
-  let ι := NonTargetIndex r star × Fin 2
-  exact ((L : ℝ) ^ (2 * Fintype.card (NonTargetIndex r star)))⁻¹ *
-    ∑ s ∈ Fintype.piFinset (fun _ : ι => Finset.range L),
-      F (fun R b => s (R, b))
-
-/-- The target cube after additive elimination, before the final change of
-root law; the vertices are `ℓ_*(z)+M∑_R u_R^{ω_R}`. -/
-noncomputable def additiveCubeAverage {n m q r : ℕ} (C : MasterChain n m)
-    (Rows : CorrelationRows (q := q) (r := r) C) (P : ℕ → Finset ℕ) (N : ℕ)
-    (good : ℕ → (Fin q → ℕ) → Prop)
-    (M L : ℕ → (Fin q → ℕ) → ℕ) : ℝ := by
-  classical
-  exact goodPrimeTupleAverage (P N) (good N) fun p => intervalShiftAverage Rows.star (L N p)
-    (fun u => ∫ x,
-      ∏ ω : NonTargetIndex r Rows.star → Fin 2,
-        Rows.functions N Rows.star p
-          (Rows.form N p Rows.star (fun d => x (C.blocks d).1) +
-            (M N p : ℤ) * ∑ R : NonTargetIndex r Rows.star,
-              (u R (ω R) : ℤ))
-      ∂ C.parameters.law N (C.law_cutoff N))
-
-/-- Weighted Cauchy–Schwarz elimination of one nontarget row, retaining its
-divisor weights once. -/
-theorem additive_elimination_weighted_cauchy_schwarz
-    {α : Type} [MeasurableSpace α] (μ : Measure α) (Ω Hout Hin : α → ℝ)
-    (hΩ : ∀ x, 0 ≤ Ω x) (hH : ∀ x, |Hout x| ≤ Ω x)
-    (hΩint : Integrable Ω μ)
-    (hHin : Integrable (fun x => Ω x * Hin x ^ 2) μ) :
-    |∫ x, Hout x * Hin x ∂ μ| ^ 2 ≤
-      (∫ x, Ω x ∂ μ) * (∫ x, Ω x * Hin x ^ 2 ∂ μ) := by
+/-- Lemma `lem:additive-elimination`, equation `eq:additive-elimination-output`: under the
+normalized good-tuple law, `|E∏_I f_I(ℓ_I(z))|^{2^d} ≤ C_m|E∏_{ω∈{0,1}^d}
+f_*(ℓ_*(z)+M(p)∑_{R≠*}u_R^{ω_R})|+o(1)`, uniformly over `|f_I| ≤ W_I`. The constant depends only
+on the templates (it is chosen before `J_0`); the error is for fixed `J_0`. -/
+theorem weighted_additive_elimination {m q r : ℕ} (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∃ Cm : ℝ, 0 < Cm ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ J0 : ℕ, 0 < J0 → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+        ∀ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
+          (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+          |goodRowCorrelation S C a N dirs tests f| ^ (2 ^ Fintype.card (NonTarget Sh)) ≤
+            Cm * |additiveCube S C a N dirs tests J0 (f Sh.star)| + ε := by
   sorry
 
-/-- The retained-weight moment identities in equation
-`eq:auxiliary-weight-moments`. -/
-structure AuxiliaryMomentSystem (d t : ℕ) where
-  sampleType : Type
-  [measurableSpace : MeasurableSpace sampleType]
-  law : ℕ → Measure sampleType
-  targetBound : ℕ → sampleType → ℝ
-  retainedWeightAverage : ℕ → sampleType → ℝ
-  expandedFormsDistinct : Prop
-  freshDivisorDraws : Prop
+/-! ## The cube root (04:614–683) -/
 
-noncomputable def auxiliaryMomentB {d t : ℕ} (S : AuxiliaryMomentSystem d t)
-    (N : ℕ) : ℝ := ∫ x, S.targetBound N x ∂ S.law N
-
-noncomputable def auxiliaryMomentBH {d t : ℕ} (S : AuxiliaryMomentSystem d t)
-    (N : ℕ) : ℝ := ∫ x, S.targetBound N x * S.retainedWeightAverage N x ∂ S.law N
-
-noncomputable def auxiliaryMomentBH2 {d t : ℕ} (S : AuxiliaryMomentSystem d t)
-    (N : ℕ) : ℝ := ∫ x, S.targetBound N x * (S.retainedWeightAverage N x) ^ 2 ∂ S.law N
-
-theorem additive_elimination_auxiliary_moments
-    {d t : ℕ} (S : AuxiliaryMomentSystem d t)
-    (hDistinct : S.expandedFormsDistinct) (hFresh : S.freshDivisorDraws) :
-    tendsToZero (fun N => |auxiliaryMomentB S N - 2 ^ (2 ^ d)|) ∧
-    tendsToZero (fun N => |auxiliaryMomentBH S N - 2 ^ (2 ^ d + t)|) ∧
-    tendsToZero (fun N => |auxiliaryMomentBH2 S N - 2 ^ (2 ^ d + 2 * t)|) := by
+/-- Equation `eq:correlation-root-tv-bound`, with an absolute implied constant: for
+`h ∈ [0,H]∩Wℤ`, `1 ≤ k ≤ X` coprime to `W` and `2H < X`,
+`‖Law(kY+h)-k1_{y≡h (mod k)}μ_X‖₁ ≤ C₀(log(2k)/log X+H/X+Wk²/(ϑ_W X log X))`. -/
+theorem correlation_cube_root_tv_bound :
+    ∃ C₀ : ℝ, 0 < C₀ ∧ ∀ (X W k H : ℕ) (h : ℤ), 0 < W → 4 * W ≤ X → 0 < k → k ≤ X →
+      Nat.Coprime k W → 0 ≤ h → h ≤ H → (W : ℤ) ∣ h → 2 * H < X →
+      arithmeticL1 (translatedLaw (dilatedLaw (harmonicLaw X W) k) h)
+          (progressionReference (harmonicLaw X W) k h) ≤
+        C₀ * (Real.log (2 * k) / Real.log X + (H : ℝ) / X +
+          (W : ℝ) * (k : ℝ) ^ 2 / ((Nat.totient W : ℝ) / W * X * Real.log X)) := by
   sorry
 
-/-- Weighted additive elimination, Lemma `lem:additive-elimination`,
-§4, lines 420–573. -/
-theorem weighted_additive_elimination
-    {n m q r : ℕ} (C : MasterChain n m)
-    (Rows : CorrelationRows (q := q) (r := r) C)
-    (P : ℕ → Finset ℕ) (V : ℕ → ℕ)
-    (good : ℕ → (Fin q → ℕ) → Prop)
-    (Rgap : ℕ → ℕ) (M L : ℕ → (Fin q → ℕ) → ℕ)
-    (Directions : PolynomialDirections Rows.templates Rows.star)
-    (Dirs : IntegerDirectionData Rows Directions)
-    (hGood : ∀ N p, good N p ↔ Dirs.good N p)
-    (hM : ∀ N p, M N p = Dirs.modulus N p)
-    (hGoodMass : tendsToZero fun N =>
-      primeTupleAverage (P N) (fun p => if good N p then 0 else 1))
-    (Jstar : Finset (Fin m)) (b : ℕ → Finset (Fin m) → ℕ → ℝ)
-    (g : ℕ → Finset (Fin m) → ℤ → ℝ)
-    (hValid : ∀ N, CorrelationFunctionsValid C N Jstar (b N) (g N))
-    (hRows : CorrelationRows.PairwiseNonparallel Rows ∧
-      CorrelationRows.HasWeightBounds Rows ∧ CorrelationRows.TargetIs Rows Jstar g)
-    (J0 : ℕ) (hJ0 : 0 < J0)
-    (hL : ∀ N p, L N p = Rgap N / (J0 * M N p))
-    (hrBound : r ≤ maskRowBound m)
-    (hd : 1 ≤ Fintype.card (NonTargetIndex r Rows.star)) :
-    asymptoticLe
-      (fun N => |goodRowCorrelation C Rows P good N| ^
-        (2 ^ Fintype.card (NonTargetIndex r Rows.star)))
-      (fun N => additiveEliminationConstant m *
-        |additiveCubeAverage C Rows P N good M L|) := by
+/-- The law of the cube root (04:614–683): for `z_a ∼ μ_{X_a}`, `z_j ∼ μ_{X_j}` independent,
+`k` coprime to `W`, `b ∈ Wℤ` coprime to `k`, `bX_j² ≤ H` and `h ∈ [0,H]∩Wℤ`, the law of
+`kz_a+bz_j+h` is within `o(V^{-C})` of `μ_{X_a}` for every fixed `C`, tested against `|F| ≤ V^A`,
+uniformly in `h` and `F`, once `log X_a` dominates the powers of `2+W+k+H+V` and `log X_j` those
+of `2+W+k+V`. In the chain, `a=a_*`, `k=A_{*,a_*}(p)`, `b=(c_j/c_{a_*})A_{*,j}(p)` for some
+`j ∈ J_*`, `j<a_*`, and `h` collects the other coordinates and the shifts. -/
+theorem correlation_cube_root_sampling (Xa Xj k b H V : ℕ → ℕ)
+    (hk : ∀ N, 0 < k N) (hkW : ∀ N, Nat.Coprime (k N) (primorial (N + 1)))
+    (hbk : ∀ N, Nat.Coprime (b N) (k N)) (hWb : ∀ N, primorial (N + 1) ∣ b N)
+    (hbH : ∀ N, b N * Xj N ^ 2 ≤ H N) (hV : ∀ N, 1 ≤ V N)
+    (hXa : OAI.MicrocellScale.Dominates (fun N => Real.log (Xa N))
+      (fun N => ((2 + primorial (N + 1) + k N + H N + V N : ℕ) : ℝ)))
+    (hXj : OAI.MicrocellScale.Dominates (fun N => Real.log (Xj N))
+      (fun N => ((2 + primorial (N + 1) + k N + V N : ℕ) : ℝ)))
+    (A C : ℝ) (hC : 0 < C) :
+    ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ h : ℤ, 0 ≤ h → h ≤ H N →
+      (primorial (N + 1) : ℤ) ∣ h → ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (V N : ℝ) ^ A) →
+        (V N : ℝ) ^ C *
+          |(∑' za : ℤ, ∑' zj : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) za *
+              harmonicLaw (Xj N) (primorial (N + 1)) zj *
+                F ((k N : ℤ) * za + (b N : ℤ) * zj + h)) -
+            ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y * F y| ≤ ε := by
   sorry
 
-/-- The one-variable cube expectation in equation `eq:correlation-test`.
-Its base point is sampled at the target pivot and the shifts are
-`u_R^1-u_R^0`. -/
-noncomputable def oneVariableCubeTest {n m q r : ℕ} (C : MasterChain n m)
-    (Rows : CorrelationRows (q := q) (r := r) C) (P : ℕ → Finset ℕ)
-    (good : ℕ → (Fin q → ℕ) → Prop)
-    (M L : ℕ → (Fin q → ℕ) → ℕ)
-    (Jstar : Finset (Fin m)) (hJ : Jstar.Nonempty)
-    (g : ℕ → Finset (Fin m) → ℤ → ℝ) (N : ℕ) : ℝ := by
-  classical
-  exact goodPrimeTupleAverage (P N) (good N) fun p =>
-    intervalShiftAverage Rows.star (L N p) (fun u =>
-      ∫ x, ∏ ω : NonTargetIndex r Rows.star → Fin 2,
-        g N Jstar ((x (C.blocks (anchor Jstar hJ)).1 : ℤ) +
-          (M N p : ℤ) * ∑ R : NonTargetIndex r Rows.star,
-            if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0)
-      ∂ C.parameters.law N (C.law_cutoff N))
+/-! ## The uniform correlation test (Proposition `prop:correlation-test`, 04:576–707) -/
 
-/-- The root-law calculation: after averaging the independent earlier
-coordinate, the cube root has law `μ_{i_{a_*}}` with superpolynomial total
-mass error. -/
-theorem correlation_cube_root_sampling
-    {n m : ℕ} (C : MasterChain n m) (a j : Fin m) (hja : j < a)
-    (k b H V : ℕ → ℕ) (hK : ∀ᶠ N in atTop, 0 < k N)
-    (hB : ∀ᶠ N in atTop, 0 < b N)
-    (hKX : ∀ᶠ N in atTop, k N ≤ C.parameters.X N (C.blocks a).1)
-    (hKCoprime : ∀ᶠ N in atTop, Nat.Coprime (k N) (primorial (N + 1)))
-    (hBCoprime : ∀ᶠ N in atTop, Nat.Coprime (b N) (k N))
-    (hTargetGrowth : dominatesPowers
-      (fun N => Real.log (C.parameters.X N (C.blocks a).1 : ℝ))
-      (fun N => (2 + primorial (N + 1) + k N + H N + V N : ℕ)) )
-    (hEarlierGrowth : dominatesPowers
-      (fun N => Real.log (C.parameters.X N (C.blocks j).1 : ℝ))
-      (fun N => (2 + primorial (N + 1) + k N + H N + V N : ℕ)) )
-    (A : ℝ) (hA : 0 < A) :
-    ∃ err : ℕ → ℝ,
-      (∀ C₀ : ℝ, 0 < C₀ → tendsToZero fun N => (V N : ℝ) ^ C₀ * err N) ∧
-      ∀ (α : Type) (h : ℕ → α → ℕ),
-        (∀ N ξ, h N ξ ≤ H N) →
-        (∀ N ξ, primorial (N + 1) ∣ h N ξ) →
-        ∀ (F : ℕ → α → ℕ → ℝ),
-        (∀ N ξ y, |F N ξ y| ≤ (V N : ℝ) ^ A) →
-        ∀ ξ, ∀ᶠ N in atTop,
-          |rawAverage C N (fun x => F N ξ
-                (k N * x (C.blocks a).1 + b N * x (C.blocks j).1 + h N ξ)) -
-            pivotAverage C N (C.blocks a).1 (F N ξ)| ≤ err N := by
+/-- Proposition `prop:correlation-test`, equation `eq:correlation-test`:
+`|𝒞| ≤ o(1)+C_m|E_{p,y,u}∏_{ω⊆[d]}g_*(y+M(p)∑_{R∈ω}(u_R^1-u_R^0))|^θ`, `θ=2^{-(q_mask+d)}`,
+uniformly over all masks and functions with the bounds of `FunctionsValid` and over each fixed
+finite set of `J_0`. The cube type `T` (prime slots, `D`, tests, `1 ≤ d ≤ K_m-1`), `C_m` and the
+size exponent `B` depend only on `m` and `J_*`, before the master scales, whose polynomial list
+must contain `T.tests` (renamed by an embedding of the slots). For every chain the output also
+gives `M(p) ∣ R_l` on good tuples, the probability `o(1)` of non-good tuples, and
+`M(p) ≤ (P_l^++V_l)^B`, which §5 uses. -/
+theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.Nonempty)
+    (hJcard : 2 ≤ Jstar.card) :
+    ∃ T : CubeTemplate, 1 ≤ T.d ∧ T.d ≤ maskRowBound m - 1 ∧ ∃ Cm : ℝ, 0 < Cm ∧ ∃ B : ℕ,
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : MasterScales K Aset s Dm) (ι : Fin T.q ↪ Fin s), TestsListed Dm ι T.tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+        (∀ N p, T.Good S C.gap N p → T.modulus S N p ∣ S.core.parameters.H N C.gap) ∧
+        Tendsto (fun N => gapSlotProbability S C.gap N fun p => ¬ T.Good S C.gap N p)
+          atTop (𝓝 0) ∧
+        (∀ᶠ N in atTop, ∀ p, T.Good S C.gap N p →
+          T.modulus S N p ≤
+            ((S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap) ^ B) ∧
+        ∀ J0s : Finset ℕ, (∀ J0 ∈ J0s, 0 < J0) → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+          ∀ J0 ∈ J0s, ∀ b g : Finset (Fin m) → ℤ → ℝ,
+            FunctionsValid S.core.parameters C N b g →
+            |maskedCorrelation S.core.parameters C a N b g| ≤
+              ε + Cm * |T.cubeTest S C.gap (C.block (Jstar.max' hJ)).1 J0 N (g Jstar)| ^
+                ((2 : ℝ) ^ (maskCount m + T.d))⁻¹ := by
   sorry
 
-/-- The cube-root translation and progression comparison, including the
-total-variation bound in equation `eq:correlation-root-tv-bound`. -/
-theorem correlation_cube_root_tv_bound
-    (X W k H : ℕ) (hW : 0 < W) (hX : 4 * W ≤ X)
-    (hlog : (W : ℝ) / X < Real.log X)
-    (hk : 0 < k) (hkX : k ≤ X) (hcop : Nat.Coprime k W)
-    (hdiv : W ∣ H) (hHX : 2 * H < X) :
-    ∃ C₀ : ℝ, 0 < C₀ ∧
-      measureL1 (harmonicAffineLaw X W k H hW hX)
-        (harmonicProgressionLaw X W k H hW hX) ≤
-          C₀ * harmonicRootTVScale X W k H := by
-  exact harmonic_root_progression_bound X W k H H hW hX hlog hk hkX hcop hdiv
-    le_rfl hHX
-
-/-- Proposition `prop:correlation-test`, §4, lines 576–707. -/
-theorem uniform_correlation_test
-    (m : ℕ) (hm : 2 ≤ m) (Jstar : Finset (Fin m))
-    (hJ : Jstar.Nonempty) (hJcard : 2 ≤ Jstar.card) :
-    ∃ d : ℕ, 1 ≤ d ∧ d ≤ maskRowBound m - 1 ∧
-    ∃ C_m : ℝ, 0 < C_m ∧
-    ∃ q r : ℕ, q ≤ 2 * (2 ^ m - 1) ∧
-      2 ≤ r ∧ r ≤ maskRowBound m ∧
-      ∃ Shape : MaskRemovalRows m q r,
-        ∃ hcard : Fintype.card (NonTargetIndex r Shape.star) = d,
-        ∀ {n : ℕ} (C : MasterChain n m)
-          (P : ℕ → Finset ℕ) (Pplus V Rgap : ℕ → ℕ)
-          (good : ℕ → (Fin q → ℕ) → Prop)
-          (M L : ℕ → (Fin q → ℕ) → ℕ)
-          (hV : Tendsto (fun N => V N) atTop atTop)
-          (hP : ∀ N (p : Fin q → ℕ), (∀ i, p i ∈ P N) →
-            ∀ i, (p i).Prime ∧ V N < p i)
-          (hMass : ∀ A : ℝ, 0 < A → Tendsto
-            (fun N => primeHarmonicMass (P N) / (V N : ℝ) ^ A) atTop atTop)
-          (hGoodSubset : ∀ N (p : Fin q → ℕ),
-            (∀ i, p i ∈ P N) → good N p)
-          (hGoodMass : tendsToZero fun N =>
-            primeTupleAverage (P N) (fun p => if good N p then 0 else 1))
-          (hGapDiv : ∀ N (p : Fin q → ℕ), good N p → M N p ∣ Rgap N)
-          (J0 : ℕ) (hJ0 : 0 < J0)
-          (hL : ∀ N (p : Fin q → ℕ), L N p = Rgap N / (J0 * M N p))
-          (hLong : ∀ A : ℝ, 0 < A → ∀ᶠ N in atTop,
-            ∀ (p : Fin q → ℕ),
-            (∀ i, p i ∈ P N) → (V N : ℝ) ^ A < L N p)
-          (b : ℕ → Finset (Fin m) → ℕ → ℝ)
-          (g : ℕ → Finset (Fin m) → ℤ → ℝ)
-          (hValid : ∀ N, CorrelationFunctionsValid C N Jstar (b N) (g N)),
-          ∃ Rows : CorrelationRows (q := q) (r := r) C,
-            Rows.templates = Shape.templates ∧ Rows.star = Shape.star ∧
-            CorrelationRows.PairwiseNonparallel Rows ∧
-            CorrelationRows.TargetIs Rows Jstar g ∧
-            CorrelationRows.HasWeightBounds Rows ∧
-            ∃ Directions : PolynomialDirections Rows.templates Rows.star,
-              ∃ Dirs : IntegerDirectionData Rows Directions,
-                (∀ N p, good N p ↔ Dirs.good N p) ∧
-                (∀ N p, M N p = Dirs.modulus N p) ∧
-                asymptoticLe
-                  (fun N => |correlation C N (b N) (g N)|)
-                  (fun N => C_m * |oneVariableCubeTest C Rows P good M L
-                    Jstar hJ g N| ^
-                      ((2 : ℝ) ^ (-(2 ^ m - 1 + d : ℤ)))) := by
-  sorry
-
+end
 end HindmanSumsProducts
