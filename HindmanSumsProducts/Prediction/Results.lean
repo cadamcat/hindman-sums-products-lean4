@@ -333,7 +333,7 @@ theorem opus_dpo_replica_identity (MS : MasterScales K As sl Dm) (B : Block K) {
       Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
         ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y) =
       opus_dpo_untranslatedAverage MS B gap T J0 hT direction N I := by
-  sorry
+  exact opus_dpo_replica_identity_proof MS B gap T J0 hgap hT hJ0 direction
 
 /-- Part: translation insertion (05:118–135).  Inserting the averaged translations along the
 fixed directions changes the untranslated average by `o(1)`, uniformly over the inputs: the
