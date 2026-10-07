@@ -2159,6 +2159,26 @@ theorem chainScale_ratio_num_coprime_eventually {K s m : ℕ} {Aset : Finset ℚ
     (Nat.Prime.coprime_iff_not_dvd hr).2 hnot
   simpa [t, x, y, d] using hcop.symm
 
+theorem intCast_ne_zero_of_natAbs_coprime {r : ℕ} (hr : r.Prime) (z : ℤ)
+    (hz : Nat.Coprime z.natAbs r) : (z : ZMod r) ≠ 0 := by
+  intro hzero
+  have hdiv : (r : ℤ) ∣ z := (ZMod.intCast_zmod_eq_zero_iff_dvd z r).mp hzero
+  have hdivNat : r ∣ z.natAbs := Int.natCast_dvd.mp hdiv
+  exact (Nat.Prime.coprime_iff_not_dvd hr).mp hz.symm hdivNat
+
+theorem rowShapeScaleNumerator_unit_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r) :
+    ∀ᶠ N in atTop, ∀ R k, k ∈ (Sh.row R).support → ∀ v, v.Prime →
+      N + 1 < v →
+      ((chainScale S.core.parameters C a N k /
+        chainScale S.core.parameters C a N (Sh.row R).anchor).num : ZMod v) ≠ 0 := by
+  filter_upwards [chainScale_ratio_num_coprime_eventually S C a ha] with N hunit
+  intro R k hk v hv hNv
+  apply intCast_ne_zero_of_natAbs_coprime hv
+  exact hunit (Sh.row R).support (Sh.row R).support_nonempty k hk v hv hNv
+
 theorem pool_lower_gt_masterScaleV_eventually {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
     ∀ᶠ N in atTop, masterScaleV S.core.parameters N l <
