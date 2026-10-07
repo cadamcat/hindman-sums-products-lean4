@@ -6685,6 +6685,21 @@ noncomputable def pkgB2_stateAverage {K sl b : ℕ} {As : Finset ℚ}
         D.baseMass N p x * pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p x
         else 0)
 
+private def pkgB2_occurrenceIsNonroot {b : ℕ} {T : Fin b → CubeTemplate}
+    (E : Finset (pkgB2_Nonroot T))
+    (o : Fin (Fintype.card (pkgB2_Occurrence T E))) : Prop :=
+  match (pkgB2_occurrenceEnum T E o).1 with
+  | .inl _ => False
+  | .inr _ => True
+
+private noncomputable def pkgB2_nonrootOccurrenceSet {b : ℕ} {T : Fin b → CubeTemplate}
+    (E : Finset (pkgB2_Nonroot T)) : Finset (Fin (Fintype.card (pkgB2_Occurrence T E))) :=
+  Finset.univ.filter (pkgB2_occurrenceIsNonroot E)
+
+private noncomputable def pkgB2_rootOccurrenceSet {b : ℕ} {T : Fin b → CubeTemplate}
+    (E : Finset (pkgB2_Nonroot T)) : Finset (Fin (Fintype.card (pkgB2_Occurrence T E))) :=
+  Finset.univ.filter (fun o => ¬ pkgB2_occurrenceIsNonroot E o)
+
 private theorem pkgB2_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
     {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
@@ -6857,6 +6872,83 @@ theorem pkgB2_signedProductExpansion {α : Type*} [DecidableEq α]
         hdisj.mono (Finset.mem_powerset.mp hP) (Finset.mem_powerset.mp hM)
       rw [Finset.prod_union hPM]
       ring
+
+private theorem pkgB2_terminalStateIntegrand_signedExpansion {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (N : ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (p : Fin (b * sl) → ℕ) (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ)
+    (hNonroot : Nonempty (pkgB2_Nonroot T)) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x =
+      ∑ P ∈ (pkgB2_nonrootOccurrenceSet (T := T) Finset.univ).powerset,
+        ∑ M ∈ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).powerset,
+          (-1 : ℝ) ^ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).card *
+            (-1 : ℝ) ^ M.card *
+              ∏ o ∈ P ∪ M,
+                nu MS.core.parameters N B
+                  (pkgB2_stateRowValue MS T hT J0 gap direction Finset.univ N p o x) := by
+  classical
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
+  let v : Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)) → ℝ := fun o =>
+    nu MS.core.parameters N B
+      (pkgB2_stateRowValue MS T hT J0 gap direction Finset.univ N p o x)
+  have hE : (Finset.univ : Finset (pkgB2_Nonroot T)) ≠ ∅ := by
+    have hU : (Finset.univ : Finset (pkgB2_Nonroot T)).Nonempty := by
+      rcases hNonroot with ⟨r⟩
+      exact ⟨r, Finset.mem_univ r⟩
+    exact hU.ne_empty
+  have hdisj : Disjoint plus minus := by
+    rw [Finset.disjoint_left]
+    intro o ho hm
+    exact (Finset.mem_filter.mp hm).2 (Finset.mem_filter.mp ho).2
+  have hplus :
+      ∏ o ∈ plus, pkgB2_stateFactor MS B gap T hT J0 direction Finset.univ N I p x o =
+        ∏ o ∈ plus, (1 + v o) := by
+    apply Finset.prod_congr rfl
+    intro o ho
+    have hnr := (Finset.mem_filter.mp ho).2
+    cases hrow : (pkgB2_occurrenceEnum T Finset.univ o).1 with
+    | inl a =>
+        simp [pkgB2_occurrenceIsNonroot, hrow] at hnr
+    | inr r =>
+        simp [pkgB2_occurrenceIsNonroot, hrow] at hnr
+        have hrow' : ((Fintype.equivFin (pkgB2_Occurrence T Finset.univ)).symm o).1 =
+            Sum.inr r := by simpa [pkgB2_occurrenceEnum] using hrow
+        simp [pkgB2_stateFactor, hrow, hrow', v, Finset.mem_univ]
+  have hminus :
+      ∏ o ∈ minus, pkgB2_stateFactor MS B gap T hT J0 direction Finset.univ N I p x o =
+        ∏ o ∈ minus, (v o - 1) := by
+    apply Finset.prod_congr rfl
+    intro o ho
+    have hroot := (Finset.mem_filter.mp ho).2
+    cases hrow : (pkgB2_occurrenceEnum T Finset.univ o).1 with
+    | inl a =>
+        simp [pkgB2_occurrenceIsNonroot, hrow] at hroot
+        have hrow' : ((Fintype.equivFin (pkgB2_Occurrence T Finset.univ)).symm o).1 =
+            Sum.inl a := by simpa [pkgB2_occurrenceEnum] using hrow
+        simp [pkgB2_stateFactor, hrow, hrow', v, Finset.mem_univ]
+    | inr r =>
+        simp [pkgB2_occurrenceIsNonroot, hrow] at hroot
+  have hsplit :
+      ∏ o : Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)),
+        pkgB2_stateFactor MS B gap T hT J0 direction Finset.univ N I p x o =
+      (∏ o ∈ plus, pkgB2_stateFactor MS B gap T hT J0 direction Finset.univ N I p x o) *
+        ∏ o ∈ minus, pkgB2_stateFactor MS B gap T hT J0 direction Finset.univ N I p x o := by
+    exact (Finset.prod_filter_mul_prod_filter_not Finset.univ
+      (pkgB2_occurrenceIsNonroot (T := T) Finset.univ)
+      (fun o => pkgB2_stateFactor MS B gap T hT J0 direction Finset.univ N I p x o)).symm
+  have hstate :
+      pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x =
+        (∏ o ∈ plus, (1 + v o)) * ∏ o ∈ minus, (v o - 1) := by
+    unfold pkgB2_stateIntegrand
+    simp only [if_neg (by simpa [hE] : Finset.univ ≠ (∅ : Finset (pkgB2_Nonroot T))), one_mul]
+    rw [hsplit, hplus, hminus]
+  rw [hstate]
+  simpa [plus, minus, v] using pkgB2_signedProductExpansion plus minus hdisj v
+
 
 private theorem pkgB2_alternatingPowersetSum_zero {α : Type*} [DecidableEq α]
     (s : Finset α) (hs : s.Nonempty) :
