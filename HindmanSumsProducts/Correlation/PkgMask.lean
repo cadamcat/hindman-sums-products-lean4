@@ -3726,6 +3726,43 @@ theorem logPivot_dominates_masterScaleV {n : ℕ}
   rw [hfinalEq]
   exact hmul
 
+theorem samplingInput_le_masterScaleV_pow {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) (r N : ℕ) :
+    2 + primorial (N + 1) + (masterScaleV A N l) ^ r + 1 +
+        masterScaleV A N l ≤ (masterScaleV A N l) ^ (r + 8) := by
+  have hV : 2 ≤ masterScaleV A N l := by
+    unfold masterScaleV
+    omega
+  have hW : primorial (N + 1) ≤ masterScaleV A N l := by
+    calc
+      primorial (N + 1) ≤ A.M N := A.Wle N
+      _ ≤ masterScaleV A N l := by unfold masterScaleV; omega
+  have hP : 1 ≤ (masterScaleV A N l) ^ (r + 5) := by
+    exact Nat.one_le_pow _ _ (by omega : 0 < masterScaleV A N l)
+  have hVleP : masterScaleV A N l ≤ (masterScaleV A N l) ^ (r + 5) := by
+    calc
+      masterScaleV A N l = (masterScaleV A N l) ^ 1 := by simp
+      _ ≤ (masterScaleV A N l) ^ (r + 5) :=
+        Nat.pow_le_pow_right (by omega : 0 < masterScaleV A N l) (by omega)
+  have hRleP : (masterScaleV A N l) ^ r ≤ (masterScaleV A N l) ^ (r + 5) :=
+    Nat.pow_le_pow_right (by omega : 0 < masterScaleV A N l) (by omega)
+  have hTle :
+      2 + primorial (N + 1) + (masterScaleV A N l) ^ r + 1 +
+          masterScaleV A N l ≤ 6 * (masterScaleV A N l) ^ (r + 5) := by
+    omega
+  have h6 : 6 ≤ (masterScaleV A N l) ^ 3 := by
+    have hpow : 2 ^ 3 ≤ (masterScaleV A N l) ^ 3 := Nat.pow_le_pow_left hV 3
+    norm_num at hpow
+    omega
+  calc
+    2 + primorial (N + 1) + (masterScaleV A N l) ^ r + 1 +
+        masterScaleV A N l ≤ 6 * (masterScaleV A N l) ^ (r + 5) := hTle
+    _ ≤ (masterScaleV A N l) ^ 3 * (masterScaleV A N l) ^ (r + 5) :=
+      Nat.mul_le_mul_right _ h6
+    _ = (masterScaleV A N l) ^ (r + 8) := by
+      rw [← pow_add]
+      congr 1 <;> omega
+
 theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
