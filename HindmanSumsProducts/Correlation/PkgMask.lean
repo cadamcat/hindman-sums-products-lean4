@@ -6936,6 +6936,111 @@ theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
     st.correlation S C a N = rowCorrelation S C a N st.shape st.rowFunction := by
   simp [correlation, rowCorrelation, hmasks]
 
+theorem pkgMask_stateCorrelation_joint {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) :
+    st.correlation S C a N =
+      ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N x.1 x.2 *
+          ((∏ U ∈ st.masks, st.maskFunction U x.1 (∏ k ∈ U, x.2 k)) *
+            ∏ R, atQ (st.rowFunction R x.1)
+              (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) x.1
+                fun k => (x.2 k : ℚ))) := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let Z := pivotMassSupport S C N
+  let D := P ×ˢ Z
+  let F : (Fin q → ℕ) → (Fin m → ℤ) → ℝ := fun p z =>
+    (∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
+      ∏ R, atQ (st.rowFunction R p)
+        (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+          fun k => (z k : ℚ))
+  have hPzero (p : Fin q → ℕ) (hp : p ∉ P) : gapSlotMass S C.gap N p = 0 := by
+    unfold gapSlotMass
+    exact independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) p hp
+  have hZzero (z : Fin m → ℤ) (hz : z ∉ Z) : pivotMass S.core.parameters C N z = 0 :=
+    pivotMass_zero_of_not_mem_support S C N z hz
+  have houterZero (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S C.gap N p * (∑' z, pivotMass S.core.parameters C N z * F p z) = 0 := by
+    rw [hPzero p hp]
+    simp
+  have hDzero (x : (Fin q → ℕ) × (Fin m → ℤ)) (hx : x ∉ D) :
+      gapPivotMass S C N x.1 x.2 * F x.1 x.2 = 0 := by
+    rw [gapPivotMass_zero_of_not_mem_support S C N x hx]
+    simp
+  calc
+    st.correlation S C a N =
+        ∑ p ∈ P, gapSlotMass S C.gap N p *
+          ∑ z ∈ Z, pivotMass S.core.parameters C N z * F p z := by
+      unfold MaskRemovalState.correlation gapSlotAverage
+      rw [tsum_eq_sum (s := P) houterZero]
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [tsum_eq_sum (s := Z) (fun z hz => by simp [hZzero z hz])]
+    _ = ∑ x ∈ D, gapPivotMass S C N x.1 x.2 * F x.1 x.2 := by
+      calc
+        (∑ p ∈ P, gapSlotMass S C.gap N p *
+            ∑ z ∈ Z, pivotMass S.core.parameters C N z * F p z) =
+            ∑ p ∈ P, ∑ z ∈ Z,
+              gapSlotMass S C.gap N p * pivotMass S.core.parameters C N z * F p z := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro z hz
+          ring
+        _ = ∑ x ∈ D, gapPivotMass S C N x.1 x.2 * F x.1 x.2 := by
+          dsimp [D, gapPivotMass]
+          symm
+          exact Finset.sum_product' P Z
+            (fun p z => gapSlotMass S C.gap N p *
+              pivotMass S.core.parameters C N z * F p z)
+    _ = ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+          gapPivotMass S C N x.1 x.2 * F x.1 x.2 := by
+      symm
+      exact tsum_eq_sum (s := D) hDzero
+    _ = _ := by rfl
+
+theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (p : Fin q → ℕ) (z : Fin m → ℤ) :
+    |(∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
+      ∏ R, atQ (st.rowFunction R p)
+        (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+          fun k => (z k : ℚ))| ≤
+      (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+  rcases hvalid with ⟨_, hmask, hrows, _⟩
+  have hmaskProd :
+      |∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)| ≤ 1 := by
+    rw [Finset.abs_prod]
+    calc
+      (∏ U ∈ st.masks, |st.maskFunction U p (∏ k ∈ U, z k)|) ≤
+          ∏ U ∈ st.masks, (1 : ℝ) := by
+        apply Finset.prod_le_prod₀
+        · intro U hU
+          positivity
+        · intro U hU
+          exact hmask U hU p _
+      _ = 1 := by simp
+  have hrowProd := rowProduct_integrand_bound_eventually S C a st.shape N
+    st.rowFunction hrows p z
+  rw [abs_mul]
+  calc
+    |∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)| *
+        |∏ R, atQ (st.rowFunction R p)
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+            fun k => (z k : ℚ))| ≤
+        1 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+          exact mul_le_mul hmaskProd hrowProd (abs_nonneg _) (by norm_num)
+    _ = _ := by norm_num
+
 end MaskRemovalState
 
 noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
