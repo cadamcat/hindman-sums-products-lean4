@@ -4902,6 +4902,8 @@ def c_test2_rowWeightedGoodDomain {K s m q r : ℕ}
     (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
     (N : ℕ) (p : Fin s → ℕ) : Prop :=
   c_test2_ScaleData S C a N ∧
+    2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+      (S.primeStage.pool N C.gap).lower ∧
     (∀ i, (S.primeStage.pool N C.gap).lower ≤ p i ∧
       p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) ∧
     GoodTuple S C.gap N tests dirs.poly (fun i => p (ι i))
@@ -4914,6 +4916,78 @@ def c_test2_rowWeightedCoeff {K s m q r : ℕ}
   chainScale S.core.parameters C a N j /
       chainScale S.core.parameters C a N (Sh.row u).anchor *
     (Sh.row u).value (fun i => p (ι i)) j
+
+theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (ι : Fin q ↪ Fin s) (tests : Finset (IntegerPolynomial q))
+    (N : ℕ) (p : Fin s → ℕ)
+    (hgood : c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p)
+    (r' : ℕ) (hr : r'.Prime) (hlarge : N + 1 < r')
+    (hrV : r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap) (u : Fin r) :
+    ∃ j, FromArithmetic.rationalResidue r' hr
+      (c_test2_rowWeightedCoeff S C a ι Sh N p u j) ≠ 0 := by
+  classical
+  have hscale := hgood.1
+  have hpool := hgood.2.1
+  have htuple := hgood.2.2.2
+  let T := Sh.row u
+  let p' : Fin q → ℕ := fun i => p (ι i)
+  have hentry : ∃ e, T.entry T.anchor = some e := by
+    have hm := Finset.max'_mem T.support T.support_nonempty
+    have hs : T.anchor ∈ T.support := by simpa [RowTemplate.anchor] using hm
+    exact Option.isSome_iff_exists.mp (by simpa [RowTemplate.support] using hs)
+  have hslotAbove (i : Fin q) : r' < p' i := by
+    change r' < p (ι i)
+    have hlow := (htuple.1 i).1
+    have hlow' : (S.primeStage.pool N C.gap).lower ≤ p (ι i) := by
+      simpa [p'] using hlow
+    have hVone : 1 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
+      omega
+    have hsum : r' + 1 ≤
+        FromArithmetic.masterScaleV S.core.parameters N C.gap +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap :=
+      Nat.add_le_add hrV hVone
+    have htwice : r' + 1 ≤
+        2 * FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      nlinarith
+    have hupper : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+        p (ι i) := hpool.trans hlow'
+    exact Nat.lt_of_succ_le (htwice.trans hupper)
+  have hprimeCoprime (i : Fin q) : Nat.Coprime (p' i) r' := by
+    apply (hr.coprime_iff_not_dvd.mpr ?_).symm
+    intro hdiv
+    have heq : r' = p' i :=
+      (Nat.prime_dvd_prime_iff_eq hr (htuple.1 i).2.2).mp hdiv
+    exact (ne_of_gt (hslotAbove i)) heq.symm
+  have hmonCoprime :
+      Nat.Coprime (c_test2_rowValueNat T p' T.anchor) r' := by
+    obtain ⟨e, he⟩ := hentry
+    have hprod : Nat.Coprime (∏ i : Fin q, p' i ^ e i) r' := by
+      rw [Nat.coprime_fintype_prod_left_iff]
+      intro i
+      by_cases hei : e i = 0
+      · simp [hei]
+      · exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hei) (p' i) r').2
+          (hprimeCoprime i)
+    simpa [c_test2_rowValueNat, he] using hprod
+  obtain ⟨alpha, rho, hrep, _, hformula⟩ :=
+    c_test2_rowCoefficientNatFactors S C a N hscale T p'
+  have hAnchorAlpha : alpha T.anchor = c_test2_rowValueNat T p' T.anchor := by
+    simpa using hformula T.anchor
+  have hres :
+      FromArithmetic.rationalResidue r' hr
+        (c_test2_rowWeightedCoeff S C a ι Sh N p u T.anchor) =
+          (alpha T.anchor : ZMod r') := by
+    rw [c_test2_rowWeightedCoeff, hrep T.anchor, c_test2_rationalResidue_natCast]
+  refine ⟨T.anchor, ?_⟩
+  rw [hres, hAnchorAlpha]
+  intro hz
+  have hdiv : r' ∣ c_test2_rowValueNat T p' T.anchor :=
+    (ZMod.natCast_eq_zero_iff _ _).mp hz
+  exact (hr.coprime_iff_not_dvd.mp hmonCoprime.symm) hdiv
 
 noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
