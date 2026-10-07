@@ -382,6 +382,72 @@ private theorem c_test2_scaleRatioNat {K s m : ℕ}
   have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
   exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
 
+private theorem c_test2_masterSize_le_pivotGap_eventually {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (d : Fin m) (hgap : C.gap < (C.block d).1) :
+    ∀ᶠ N in atTop,
+      (S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+        S.core.parameters.H N (C.block d).1 := by
+  let A := S.core.parameters
+  have hlarge :=
+    (S.gapStage.gap_dominates_pool_and_bound C.gap 1 (by norm_num)).eventually_ge_atTop 1
+  filter_upwards [hlarge] with N hN
+  let size := (S.primeStage.pool N C.gap).upper +
+    FromArithmetic.masterScaleV A N C.gap
+  have hsizePos : 0 < (size : ℝ) := by
+    dsimp [size, FromArithmetic.masterScaleV]
+    positivity
+  have hratio : 1 ≤ (A.H N C.gap : ℝ) / (size : ℝ) := by
+    simpa [size, Real.rpow_one] using hN
+  have hsizeLeReal : (size : ℝ) ≤ A.H N C.gap := (one_le_div hsizePos).mp hratio
+  have hsizeLe : size ≤ A.H N C.gap := by exact_mod_cast hsizeLeReal
+  have hdiv : A.H N C.gap ∣ A.H N (C.block d).1 :=
+    S.gapStage.earlier_gaps_divide N C.gap (C.block d).1 hgap
+  exact hsizeLe.trans (Nat.le_of_dvd (A.Hpos N (C.block d).1) hdiv)
+
+private theorem c_test2_previous_le_gap_eventually {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (i : Fin n) :
+    ∀ᶠ N in atTop,
+      OAI.SourceAdmissible.previous (A.X N) i ≤ A.H N i := by
+  let E : ℕ → ℝ := fun N =>
+    OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+      (fun N => OAI.SourceAdmissible.previous (A.X N) i) N
+  have hlarge := (A.Hdom i 1 (by norm_num)).eventually_ge_atTop 1
+  filter_upwards [hlarge] with N hN
+  have hEpos : 0 < E N := by
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale]
+    positivity
+  have hratio : 1 ≤ (A.H N i : ℝ) / E N := by
+    simpa [E, Real.rpow_one] using hN
+  have hle := (one_le_div hEpos).mp hratio
+  have hprev : (OAI.SourceAdmissible.previous (A.X N) i : ℝ) ≤ A.H N i := by
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale] at hle
+    linarith
+  exact_mod_cast hprev
+
+private theorem c_test2_pivot_cutoff_le_previous {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m)
+    (u d : Fin m) (hud : u < d) (N : ℕ) :
+    A.X N (C.block u).1 ≤ OAI.SourceAdmissible.previous (A.X N) (C.block d).1 := by
+  let E := Finset.univ.filter fun i : Fin n => i < (C.block d).1
+  have hindex : (C.block u).1 ∈ E :=
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _, C.pivots_ordered u d hud⟩
+  have hsubset : { (C.block u).1 } ⊆ E := by
+    intro i hi
+    simpa using (Finset.mem_singleton.mp hi).symm ▸ hindex
+  have hprod :
+      (∏ i ∈ ({(C.block u).1} : Finset (Fin n)), A.X N i) ≤
+        ∏ i ∈ E, A.X N i := by
+    apply Finset.prod_le_prod_of_subset_of_one_le hsubset
+    intro i hi hin
+    exact Nat.one_le_iff_ne_zero.mpr (A.Xpos N i).ne'
+  have hone :
+      (∏ i ∈ ({(C.block u).1} : Finset (Fin n)), A.X N i) = A.X N (C.block u).1 := by
+    simp
+  simpa [OAI.SourceAdmissible.previous, E, hone] using hprod
+
 theorem c_test2_targetCoeffData {K s m q : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ)
