@@ -3359,6 +3359,814 @@ theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
       exact pivotMass_zero_of_not_mem_support S C N z hz
     _ = 1 := hfinite
 
+theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
+    {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
+    (hmodulus : 0 < modulus) (r : Fin m → Fin modulus) :
+    FromArithmetic.baseResidueLaw modulus hmodulus (pivotMass S.core.parameters C N) r =
+      ∏ i, harmonicResidueLaw
+        (harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+        modulus (r i) := by
+  classical
+  let D := pivotMassSupport S C N
+  let coord (i : Fin m) (z : ℤ) : ℝ :=
+    harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)) z *
+      (if FromArithmetic.integerResidue modulus hmodulus z = r i then 1 else 0)
+  have hterm (z : Fin m → ℤ) :
+      pivotMass S.core.parameters C N z *
+        (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+          then 1 else 0) = ∏ i, coord i (z i) := by
+    have hvec :
+        (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r ↔
+          ∀ i, FromArithmetic.integerResidue modulus hmodulus (z i) = r i := by
+      constructor
+      · intro h i
+        exact congrFun h i
+      · intro h
+        exact funext h
+    have hind :
+        (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+          then (1 : ℝ) else 0) =
+          ∏ i, (if FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+            then (1 : ℝ) else 0) := by
+      simp only [hvec]
+      by_cases hall : ∀ i,
+          FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+      · simp [hall]
+      · have hnot : ¬ ∀ i,
+            FromArithmetic.integerResidue modulus hmodulus (z i) = r i := hall
+        obtain ⟨i, hi⟩ := not_forall.mp hnot
+        have hzero :
+            (∏ i, (if FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+              then (1 : ℝ) else 0)) = 0 :=
+          Finset.prod_eq_zero (s := Finset.univ)
+            (f := fun i => if FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+              then (1 : ℝ) else 0) (Finset.mem_univ i) (by simp [hi])
+        rw [if_neg hnot, hzero]
+    change (∏ i,
+        harmonicLaw (S.core.parameters.X N (C.block i).1)
+          (primorial (N + 1)) (z i)) * _ = _
+    rw [hind, ← Finset.prod_mul_distrib]
+
+  have hzero (z : Fin m → ℤ) (hz : z ∉ D) :
+      pivotMass S.core.parameters C N z *
+        (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+          then 1 else 0) = 0 := by
+    have hmass : pivotMass S.core.parameters C N z = 0 :=
+      pivotMass_zero_of_not_mem_support S C N z (by simpa [D] using hz)
+    simp [hmass]
+
+  have hfinite :
+      FromArithmetic.baseResidueLaw modulus hmodulus
+          (pivotMass S.core.parameters C N) r =
+        ∑ z ∈ D, ∏ i, coord i (z i) := by
+    unfold FromArithmetic.baseResidueLaw
+    calc
+      (∑' z : Fin m → ℤ,
+        pivotMass S.core.parameters C N z *
+          (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+            then 1 else 0)) =
+          ∑ z ∈ D,
+            pivotMass S.core.parameters C N z *
+              (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+                then 1 else 0) := tsum_eq_sum (s := D) hzero
+      _ = ∑ z ∈ D, ∏ i, coord i (z i) := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        exact hterm z
+
+  have hfactor :
+      (∑ z ∈ D, ∏ i, coord i (z i)) =
+        ∏ i, ∑ z ∈ harmonicLawSupport
+            (S.core.parameters.X N (C.block i).1) (primorial (N + 1)), coord i z := by
+    dsimp [D, pivotMassSupport]
+    symm
+    exact Finset.prod_univ_sum
+      (t := fun i => harmonicLawSupport
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+      (f := fun i z => coord i z)
+
+  have hcoordinate (i : Fin m) :
+      (∑ z ∈ harmonicLawSupport
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)), coord i z) =
+      harmonicResidueLaw
+        (harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+        modulus (r i) := by
+    let X := S.core.parameters.X N (C.block i).1
+    let W := primorial (N + 1)
+    let supp := harmonicLawSupport X W
+    have hnonneg (z : ℤ) (hz : z ∈ supp) : 0 ≤ z := by
+      rcases Finset.mem_image.mp hz with ⟨n, hn, rfl⟩
+      exact Int.natCast_nonneg n
+    have hres (z : ℤ) (hz : z ∈ supp) :
+        FromArithmetic.integerResidue modulus hmodulus z = r i ↔
+          0 ≤ z ∧ z.toNat % modulus = (r i).val := by
+      constructor
+      · intro heq
+        have hval := congrArg Fin.val heq
+        rw [integerResidue_eq_natMod_of_nonneg hmodulus (hnonneg z hz)] at hval
+        exact ⟨hnonneg z hz, hval⟩
+      · rintro ⟨hz0, hrem⟩
+        apply Fin.ext
+        rw [integerResidue_eq_natMod_of_nonneg hmodulus hz0]
+        exact hrem
+    have htermEq (z : ℤ) (hz : z ∈ supp) :
+        coord i z =
+          (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then
+            harmonicLaw X W z else 0) := by
+      by_cases hc : 0 ≤ z ∧ z.toNat % modulus = (r i).val
+      · have hr := (hres z hz).2 hc
+        simp [coord, X, W, hc, hr]
+      · have hr : ¬ FromArithmetic.integerResidue modulus hmodulus z = r i := by
+          intro hr
+          exact hc ((hres z hz).1 hr)
+        simp [coord, X, W, hc, hr]
+    have hzero (z : ℤ) (hz : z ∉ supp) :
+        (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then harmonicLaw X W z else 0) = 0 := by
+      by_cases hc : 0 ≤ z ∧ z.toNat % modulus = (r i).val
+      · simp [hc, harmonicLaw_zero_of_not_mem_support X W z hz]
+      · simp [hc]
+    unfold harmonicResidueLaw
+    calc
+      (∑ z ∈ supp, coord i z) =
+          ∑ z ∈ supp,
+            (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then
+              harmonicLaw X W z else 0) := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        exact htermEq z hz
+      _ = ∑' z : ℤ,
+          (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then
+            harmonicLaw X W z else 0) := (tsum_eq_sum (s := supp) hzero).symm
+
+  calc
+    FromArithmetic.baseResidueLaw modulus hmodulus
+        (pivotMass S.core.parameters C N) r =
+        ∑ z ∈ D, ∏ i, coord i (z i) := hfinite
+    _ = ∏ i, ∑ z ∈ harmonicLawSupport
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)), coord i z := hfactor
+    _ = ∏ i, harmonicResidueLaw
+        (harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+        modulus (r i) := by
+      apply Finset.prod_congr rfl
+      intro i hi
+      exact hcoordinate i
+
+theorem harmonicResidueLaw_nonneg (X W modulus : ℕ)
+    (hNorm : 0 < harmonicNormalizer X W) (a : Fin modulus) :
+    0 ≤ harmonicResidueLaw (harmonicLaw X W) modulus a := by
+  unfold harmonicResidueLaw
+  apply tsum_nonneg
+  intro z
+  split_ifs
+  · exact harmonicLaw_nonneg_of_normalizer_pos X W hNorm z
+  · positivity
+
+theorem harmonicResidueLaw_sum_one (X W modulus : ℕ) (hmodulus : 0 < modulus)
+    (hX : 0 < X) (hNorm : 0 < harmonicNormalizer X W) :
+    ∑ a : Fin modulus, harmonicResidueLaw (harmonicLaw X W) modulus a = 1 := by
+  classical
+  let supp := harmonicLawSupport X W
+  have hzero (a : Fin modulus) (z : ℤ) (hz : z ∉ supp) :
+      (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) = 0 := by
+    by_cases hc : 0 ≤ z ∧ z.toNat % modulus = a.val
+    · simp [hc, harmonicLaw_zero_of_not_mem_support X W z hz]
+    · simp [hc]
+  have hfinite (a : Fin modulus) :
+      harmonicResidueLaw (harmonicLaw X W) modulus a =
+        ∑ z ∈ supp,
+          (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) := by
+    unfold harmonicResidueLaw
+    exact tsum_eq_sum (s := supp) (hzero a)
+  have hfiber (z : ℤ) (hz : z ∈ supp) :
+      ∑ a : Fin modulus,
+        (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) =
+          harmonicLaw X W z := by
+    have hznonneg : 0 ≤ z := by
+      rcases Finset.mem_image.mp hz with ⟨n, hn, rfl⟩
+      exact Int.natCast_nonneg n
+    let a₀ : Fin modulus := ⟨z.toNat % modulus, Nat.mod_lt _ hmodulus⟩
+    have hcond (a : Fin modulus) :
+        (0 ≤ z ∧ z.toNat % modulus = a.val) ↔ a = a₀ := by
+      constructor
+      · intro h
+        apply Fin.ext
+        simpa [a₀] using h.2.symm
+      · intro h
+        subst a
+        exact ⟨hznonneg, rfl⟩
+    calc
+      (∑ a : Fin modulus,
+        if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) =
+        ∑ a : Fin modulus, if a = a₀ then harmonicLaw X W z else 0 := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          simp [hcond]
+      _ = harmonicLaw X W z := by simp
+  calc
+    (∑ a : Fin modulus, harmonicResidueLaw (harmonicLaw X W) modulus a) =
+        ∑ a : Fin modulus, ∑ z ∈ supp,
+          (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) := by
+      apply Finset.sum_congr rfl
+      intro a ha
+      exact hfinite a
+    _ = ∑ z ∈ supp, ∑ a : Fin modulus,
+          (if 0 ≤ z ∧ z.toNat % modulus = a.val then harmonicLaw X W z else 0) := by
+      rw [Finset.sum_comm]
+    _ = ∑ z ∈ supp, harmonicLaw X W z := by
+      apply Finset.sum_congr rfl
+      intro z hz
+      exact hfiber z hz
+    _ = ∑' z : ℤ, harmonicLaw X W z := by
+      symm
+      apply tsum_eq_sum (s := supp)
+      intro z hz
+      exact harmonicLaw_zero_of_not_mem_support X W z hz
+    _ = 1 := harmonicLaw_tsum_one_of_normalizer_pos X W hX hNorm
+
+theorem sourceParameter_M_tendsto_atTop {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) : Tendsto A.M atTop atTop := by
+  have hpow : ∀ N : ℕ, N + 1 ≤ 2 ^ (N + 1) := by
+    intro N
+    induction N with
+    | zero => norm_num
+    | succ N ih =>
+      calc
+        N + 1 + 1 ≤ 2 * (N + 1) := by omega
+        _ = (N + 1) * 2 := by omega
+        _ ≤ 2 ^ (N + 1) * 2 := Nat.mul_le_mul_right 2 ih
+        _ = 2 ^ (N + 1 + 1) := by
+          simp [pow_succ, Nat.add_assoc, Nat.mul_assoc]
+  have hMbound : ∀ᶠ N in atTop, N ≤ A.M N := by
+    filter_upwards [eventually_atTop.2 ⟨1, fun N hN => hN⟩] with N hN
+    have hprime : Nat.Prime 2 := by norm_num
+    have hdivW : 2 ∣ primorial (N + 1) :=
+      hprime.dvd_primorial_iff.mpr (by omega)
+    have hW : 2 ≤ primorial (N + 1) :=
+      Nat.le_of_dvd (primorial_pos (N + 1)) hdivW
+    have hpowW : 2 ^ (N + 1) ≤ primorial (N + 1) ^ (N + 1) :=
+      Nat.pow_le_pow_left hW (N + 1)
+    have hpowM : primorial (N + 1) ^ (N + 1) ≤ A.M N :=
+      Nat.le_of_dvd (A.Mpos N) (A.Mdiv N)
+    exact (Nat.le_succ N).trans ((hpow N).trans (hpowW.trans hpowM))
+  exact tendsto_atTop_mono' atTop hMbound tendsto_id
+
+theorem masterScaleV_tendsto_atTop {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) :
+    Tendsto (fun N => masterScaleV A N l) atTop atTop := by
+  apply tendsto_atTop_mono' atTop _ (sourceParameter_M_tendsto_atTop A)
+  filter_upwards with N
+  unfold masterScaleV
+  omega
+
+theorem masterScaleV_le_earlierScale_sq {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) (N : ℕ) :
+    (masterScaleV A N l : ℝ) ≤
+      (OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+        (fun N => OAI.SourceAdmissible.previous (A.X N) i) N) ^ 2 := by
+  classical
+  let I : Finset (Fin n) := Finset.univ.filter (fun j => j < l)
+  let J : Finset (Fin n) := Finset.univ.filter (fun j => j < i)
+  have hsub : I ⊆ J := by
+    intro j hj
+    have hj' := Finset.mem_filter.mp hj
+    apply Finset.mem_filter.mpr
+    exact ⟨Finset.mem_univ _, lt_trans hj'.2 hli⟩
+  have hprod :
+      (∏ j ∈ I, A.X N j ^ 2) ≤
+        (OAI.SourceAdmissible.previous (A.X N) i) ^ 2 := by
+    calc
+      (∏ j ∈ I, A.X N j ^ 2) ≤ ∏ j ∈ J, A.X N j ^ 2 :=
+        Finset.prod_le_prod_of_subset_of_one_le hsub (by
+          intro j hj hjnot
+          exact Nat.one_le_pow 2 (A.X N j) (A.Xpos N j))
+      _ = (OAI.SourceAdmissible.previous (A.X N) i) ^ 2 := by
+        simp [J, OAI.SourceAdmissible.previous, Finset.prod_pow]
+  have hprodR :
+      ((∏ j ∈ I, A.X N j ^ 2 : ℕ) : ℝ) ≤
+        ((OAI.SourceAdmissible.previous (A.X N) i : ℕ) : ℝ) ^ 2 := by
+    exact_mod_cast hprod
+  have hmain :
+      (2 : ℝ) + (A.M N : ℝ) +
+          ((∏ j ∈ I, A.X N j ^ 2 : ℕ) : ℝ) ≤
+        (2 + (A.M N : ℝ) +
+          ((OAI.SourceAdmissible.previous (A.X N) i : ℕ) : ℝ)) ^ 2 := by
+    nlinarith [hprodR, Nat.cast_nonneg (α := ℝ) (A.M N),
+      Nat.cast_nonneg (α := ℝ) (OAI.SourceAdmissible.previous (A.X N) i)]
+  simpa [masterScaleV, I, OAI.AdmissibleMicrocellBoundary.earlierScale] using hmain
+
+theorem logPivot_dominates_masterScaleV {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) :
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (A.X N i : ℝ))
+      (fun N => (masterScaleV A N l : ℝ)) := by
+  intro B hB
+  let E : ℕ → ℝ := fun N =>
+    OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+      (fun N => OAI.SourceAdmissible.previous (A.X N) i) N
+  have hEtop : Tendsto E atTop atTop := by
+    have hM : Tendsto (fun N => (A.M N : ℝ)) atTop atTop :=
+      tendsto_natCast_atTop_atTop.comp (sourceParameter_M_tendsto_atTop A)
+    apply tendsto_atTop_mono' atTop ?_ hM
+    filter_upwards with N
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale]
+    nlinarith [Nat.cast_nonneg (α := ℝ) (OAI.SourceAdmissible.previous (A.X N) i)]
+  have hEpos (N : ℕ) : 0 < E N := by
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale]
+    positivity
+  have hlogH : Tendsto
+      (fun N => Real.log (A.X N i : ℝ) / (A.H N i : ℝ)) atTop atTop := by
+    simpa only [Real.rpow_one] using A.Xdom i 1 (by norm_num)
+  have hHE : Tendsto
+      (fun N => (A.H N i : ℝ) / E N ^ (2 * B + 1)) atTop atTop := by
+    simpa [E] using A.Hdom i (2 * B + 1) (by positivity)
+  have hHEscaled : Tendsto
+      (fun N => (A.H N i : ℝ) / E N ^ (2 * B)) atTop atTop := by
+    have hmul := hHE.atTop_mul_atTop₀ hEtop
+    have hEq : (fun N => (A.H N i : ℝ) / E N ^ (2 * B)) =
+        fun N => ((A.H N i : ℝ) / E N ^ (2 * B + 1)) * E N := by
+      funext N
+      have hpow : E N ^ (2 * B + 1) = E N ^ (2 * B) * E N := by
+        rw [Real.rpow_add (hEpos N)]
+        simp
+      rw [hpow]
+      field_simp [ne_of_gt (hEpos N)]
+    rw [hEq]
+    exact hmul
+  have hHV : Tendsto
+      (fun N => (A.H N i : ℝ) / (masterScaleV A N l : ℝ) ^ B) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ hHEscaled
+    filter_upwards with N
+    have hVle := masterScaleV_le_earlierScale_sq A l i hli N
+    have hVpow : (masterScaleV A N l : ℝ) ^ B ≤ E N ^ (2 * B) := by
+      calc
+        (masterScaleV A N l : ℝ) ^ B ≤ (E N ^ 2) ^ B :=
+          Real.rpow_le_rpow (by positivity) hVle hB.le
+        _ = E N ^ (2 * B) := by
+          calc
+            (E N ^ (2 : ℕ) : ℝ) ^ B = (E N ^ (2 : ℝ)) ^ B := by
+              exact congrArg (fun x : ℝ => x ^ B)
+                (Real.rpow_natCast (E N) 2).symm
+            _ = E N ^ (2 * B) :=
+              (Real.rpow_mul (le_of_lt (hEpos N)) (2 : ℝ) B).symm
+    exact div_le_div_of_nonneg_left (by positivity)
+      (Real.rpow_pos_of_pos (by
+        have hV : 0 < masterScaleV A N l := by
+          unfold masterScaleV
+          omega
+        exact_mod_cast hV) B) hVpow
+  have hmul := hlogH.atTop_mul_atTop₀ hHV
+  have hfinalEq :
+      (fun N => Real.log (A.X N i : ℝ) / (masterScaleV A N l : ℝ) ^ B) =
+        fun N => (Real.log (A.X N i : ℝ) / (A.H N i : ℝ)) *
+          ((A.H N i : ℝ) / (masterScaleV A N l : ℝ) ^ B) := by
+    funext N
+    have hHpos : 0 < (A.H N i : ℝ) := by exact_mod_cast A.Hpos N i
+    field_simp [ne_of_gt hHpos]
+  rw [hfinalEq]
+  exact hmul
+
+theorem samplingInput_le_masterScaleV_pow {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) (r N : ℕ) :
+    2 + primorial (N + 1) + (masterScaleV A N l) ^ r + 1 +
+        masterScaleV A N l ≤ (masterScaleV A N l) ^ (r + 8) := by
+  have hV : 2 ≤ masterScaleV A N l := by
+    unfold masterScaleV
+    omega
+  have hW : primorial (N + 1) ≤ masterScaleV A N l := by
+    calc
+      primorial (N + 1) ≤ A.M N := A.Wle N
+      _ ≤ masterScaleV A N l := by unfold masterScaleV; omega
+  have hP : 1 ≤ (masterScaleV A N l) ^ (r + 5) := by
+    exact Nat.one_le_pow _ _ (by omega : 0 < masterScaleV A N l)
+  have hVleP : masterScaleV A N l ≤ (masterScaleV A N l) ^ (r + 5) := by
+    calc
+      masterScaleV A N l = (masterScaleV A N l) ^ 1 := by simp
+      _ ≤ (masterScaleV A N l) ^ (r + 5) :=
+        Nat.pow_le_pow_right (by omega : 0 < masterScaleV A N l) (by omega)
+  have hRleP : (masterScaleV A N l) ^ r ≤ (masterScaleV A N l) ^ (r + 5) :=
+    Nat.pow_le_pow_right (by omega : 0 < masterScaleV A N l) (by omega)
+  have hTle :
+      2 + primorial (N + 1) + (masterScaleV A N l) ^ r + 1 +
+          masterScaleV A N l ≤ 6 * (masterScaleV A N l) ^ (r + 5) := by
+    omega
+  have h6 : 6 ≤ (masterScaleV A N l) ^ 3 := by
+    have hpow : 2 ^ 3 ≤ (masterScaleV A N l) ^ 3 := Nat.pow_le_pow_left hV 3
+    norm_num at hpow
+    omega
+  calc
+    2 + primorial (N + 1) + (masterScaleV A N l) ^ r + 1 +
+        masterScaleV A N l ≤ 6 * (masterScaleV A N l) ^ (r + 5) := hTle
+    _ ≤ (masterScaleV A N l) ^ 3 * (masterScaleV A N l) ^ (r + 5) :=
+      Nat.mul_le_mul_right _ h6
+    _ = (masterScaleV A N l) ^ (r + 8) := by
+      rw [← pow_add]
+      congr 1 <;> omega
+
+theorem logPivot_dominates_samplingInput {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) (r : ℕ) :
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (A.X N i : ℝ))
+      (fun N => (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ)) := by
+  intro B hB
+  have hlarge := logPivot_dominates_masterScaleV A l i hli
+    (((r + 8 : ℕ) : ℝ) * B) (by positivity)
+  have hVpos (N : ℕ) : 0 < (masterScaleV A N l : ℝ) := by
+    have hV : 2 ≤ masterScaleV A N l := by unfold masterScaleV; omega
+    exact_mod_cast (show 0 < masterScaleV A N l by omega)
+  have hTpos (N : ℕ) :
+      0 < (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ) := by positivity
+  have hTbound (N : ℕ) :
+      (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ) ≤
+        (masterScaleV A N l : ℝ) ^ (r + 8 : ℕ) := by
+    exact_mod_cast samplingInput_le_masterScaleV_pow A l r N
+  have hTpow (N : ℕ) :
+      (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ) ^ B ≤
+        (masterScaleV A N l : ℝ) ^ (((r + 8 : ℕ) : ℝ) * B) := by
+    calc
+      _ ≤ ((masterScaleV A N l : ℝ) ^ (r + 8 : ℕ)) ^ B :=
+        Real.rpow_le_rpow (by positivity) (hTbound N) hB.le
+      _ = (masterScaleV A N l : ℝ) ^ (((r + 8 : ℕ) : ℝ) * B) := by
+        calc
+          ((masterScaleV A N l : ℝ) ^ (r + 8 : ℕ)) ^ B =
+              ((masterScaleV A N l : ℝ) ^ ((r + 8 : ℕ) : ℝ)) ^ B :=
+            congrArg (fun x : ℝ => x ^ B)
+              (Real.rpow_natCast (masterScaleV A N l : ℝ) (r + 8)).symm
+          _ = _ := (Real.rpow_mul (le_of_lt (hVpos N)) _ _).symm
+  apply tendsto_atTop_mono' atTop ?_ hlarge
+  filter_upwards with N
+  have hXpos : 0 < (A.X N i : ℝ) := by exact_mod_cast A.Xpos N i
+  have hlogNonneg : 0 ≤ Real.log (A.X N i : ℝ) :=
+    Real.log_nonneg (by exact_mod_cast (Nat.one_le_of_lt (A.Xpos N i)))
+  exact div_le_div_of_nonneg_left hlogNonneg
+    (Real.rpow_pos_of_pos (hTpos N) B) (hTpow N)
+
+theorem pivot_sampling_log_condition_eventually {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (i : Fin m) :
+    ∀ᶠ N in atTop,
+      Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+        (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1 := by
+  have hratio : Tendsto
+      (fun N => Real.log (S.core.parameters.X N (C.block i).1 : ℝ) /
+        (S.core.parameters.H N (C.block i).1 : ℝ)) atTop atTop := by
+    simpa only [Real.rpow_one] using
+      S.core.parameters.Xdom (C.block i).1 1 (by norm_num)
+  filter_upwards [hratio.eventually_gt_atTop 1] with N hratioN
+  have hHpos : 0 < (S.core.parameters.H N (C.block i).1 : ℝ) := by
+    exact_mod_cast S.core.parameters.Hpos N (C.block i).1
+  have hHle : (S.core.parameters.H N (C.block i).1 : ℝ) <
+      Real.log (S.core.parameters.X N (C.block i).1 : ℝ) :=
+    by simpa using (lt_div_iff₀ hHpos).mp hratioN
+  have hHone : 1 ≤ (S.core.parameters.H N (C.block i).1 : ℝ) := by
+    exact_mod_cast (Nat.one_le_of_lt
+      (S.core.parameters.Hpos N (C.block i).1))
+  have hXpos : 0 < (S.core.parameters.X N (C.block i).1 : ℝ) := by
+    exact_mod_cast S.core.parameters.Xpos N (C.block i).1
+  have hcut := S.gapStage.valid_raw_cutoffs N (C.block i).1
+  have hfrac : (primorial (N + 1) : ℝ) /
+      S.core.parameters.X N (C.block i).1 ≤ 1 / 4 := by
+    apply (div_le_iff₀ hXpos).2
+    have hcutR : 4 * (primorial (N + 1) : ℝ) ≤
+        (S.core.parameters.X N (C.block i).1 : ℝ) := by exact_mod_cast hcut
+    nlinarith
+  linarith
+
+theorem rawPivot_dominates_samplingInput {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) (r : ℕ) :
+    OAI.MicrocellScale.Dominates
+      (fun N => (A.X N i : ℝ))
+      (fun N => (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ)) := by
+  intro B hB
+  have hlog := logPivot_dominates_samplingInput A l i hli r B hB
+  apply tendsto_atTop_mono' atTop ?_ hlog
+  filter_upwards with N
+  have hXpos : 0 ≤ (A.X N i : ℝ) := by positivity
+  exact div_le_div_of_nonneg_right
+    (Real.log_le_self hXpos) (by positivity)
+
+noncomputable def pivotBaseResidueErrorSum {K s m r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) : ℝ :=
+  ∑ i : Fin m,
+    harmonicResidueUniformError (S.core.parameters.X N (C.block i).1)
+      (primorial (N + 1)) (masterScaleV S.core.parameters N C.gap ^ r)
+
+theorem pivotBaseResidueErrorSum_superPolynomialSmall
+    {K s m r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) :
+    SuperPolynomialSmall (pivotBaseResidueErrorSum (r := r) S C)
+      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+  intro B hB
+  let Vseq : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  have hsample (i : Fin m) :
+      SuperPolynomialSmall
+        (fun N => harmonicResidueUniformError
+          (S.core.parameters.X N (C.block i).1) (primorial (N + 1)) (Vseq N ^ r))
+        (fun N => (Vseq N : ℝ)) := by
+    let Wseq : ℕ → ℕ := fun N => primorial (N + 1)
+    let Kseq : ℕ → ℕ := fun N => Vseq N ^ r
+    let Hseq : ℕ → ℕ := fun _ => 1
+    let Xseq : ℕ → ℕ := fun N => S.core.parameters.X N (C.block i).1
+    have hK : ∀ N, 1 ≤ Kseq N := by
+      intro N
+      dsimp [Kseq, Vseq]
+      have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+        unfold masterScaleV
+        omega
+      exact Nat.one_le_pow r _ (by omega : 0 < masterScaleV S.core.parameters N C.gap)
+    have hH : ∀ N, 1 ≤ Hseq N := by intro N; simp [Hseq]
+    have hV : ∀ N, 1 ≤ Vseq N := by
+      intro N
+      dsimp [Vseq]
+      have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+        unfold masterScaleV
+        omega
+      omega
+    have hW : ∀ N, Wseq N = primorial (N + 1) := by intro N; rfl
+    have hX : ∀ᶠ N in atTop, 2 ≤ Xseq N := by
+      filter_upwards [Filter.Eventually.of_forall
+        (fun N => S.gapStage.valid_raw_cutoffs N (C.block i).1)] with N hcut
+      dsimp [Xseq]
+      have hW : 0 < primorial (N + 1) := primorial_pos (N + 1)
+      omega
+    have hden : ∀ᶠ N in atTop,
+        Real.log (Xseq N : ℝ) > (Wseq N : ℝ) / Xseq N := by
+      simpa [Wseq, Xseq] using
+        pivot_sampling_log_condition_eventually S C i
+    have hDomX : OAI.MicrocellScale.Dominates
+        (fun N => (Xseq N : ℝ))
+        (fun N => 2 + (Wseq N : ℝ) + (Kseq N : ℝ) +
+          (Hseq N : ℝ) + (Vseq N : ℝ)) := by
+      simpa [Wseq, Kseq, Hseq, Vseq] using
+        rawPivot_dominates_samplingInput S.core.parameters C.gap (C.block i).1
+          (C.pivots_after_gap i) r
+    have hDomLogX : OAI.MicrocellScale.Dominates
+        (fun N => Real.log (Xseq N : ℝ))
+        (fun N => 2 + (Wseq N : ℝ) + (Kseq N : ℝ) + (Vseq N : ℝ)) := by
+      intro D hD
+      have hfull := logPivot_dominates_samplingInput S.core.parameters C.gap
+        (C.block i).1 (C.pivots_after_gap i) r D hD
+      apply tendsto_atTop_mono' atTop ?_ hfull
+      filter_upwards with N
+      have hlogNonneg : 0 ≤ Real.log (Xseq N : ℝ) := by
+        have hXpos : 0 < Xseq N := S.core.parameters.Xpos N (C.block i).1
+        exact Real.log_nonneg (by exact_mod_cast (Nat.one_le_of_lt hXpos))
+      have hsmall :
+          (2 + (Wseq N : ℝ) + (Kseq N : ℝ) + (Vseq N : ℝ)) ≤
+            (2 + (Wseq N : ℝ) + (Kseq N : ℝ) + 1 + (Vseq N : ℝ)) := by
+        dsimp [Wseq, Kseq, Vseq]
+        linarith
+      exact div_le_div_of_nonneg_left hlogNonneg
+        (Real.rpow_pos_of_pos (by positivity) D)
+        (Real.rpow_le_rpow (by positivity)
+          (by simpa [Wseq, Kseq, Vseq] using hsmall) hD.le)
+    have hasym := FromArithmetic.sampling_asymptotics
+      Wseq Kseq Hseq Vseq Xseq hK hH hV hW hX hden hDomX hDomLogX
+    exact hasym.1
+  have hterm (i : Fin m) : Tendsto
+      (fun N => harmonicResidueUniformError
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
+        (masterScaleV S.core.parameters N C.gap ^ r) *
+          (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop (nhds 0) := by
+    simpa [Vseq] using hsample i B hB
+  have hsum (s : Finset (Fin m)) : Tendsto
+      (fun N => ∑ i ∈ s,
+        harmonicResidueUniformError
+          (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
+          (masterScaleV S.core.parameters N C.gap ^ r) *
+            (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop
+      (nhds (∑ i ∈ s, (0 : ℝ))) := by
+    induction s using Finset.induction_on with
+    | empty => simp
+    | @insert i s hi ih =>
+      simpa [Finset.sum_insert, hi] using (hterm i).add ih
+  have hsumUniv : Tendsto
+      (fun N => ∑ i : Fin m,
+        harmonicResidueUniformError
+          (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
+          (masterScaleV S.core.parameters N C.gap ^ r) *
+            (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop (nhds 0) := by
+    simpa using hsum Finset.univ
+  have hsumError : Tendsto
+      (fun N => pivotBaseResidueErrorSum (r := r) S C N *
+        (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop (nhds 0) := by
+    convert hsumUniv using 1
+    funext N
+    simp [pivotBaseResidueErrorSum, Finset.sum_mul]
+  simpa [Vseq] using hsumError
+
+noncomputable def maskRowDivisorTemplate {K m q r : ℕ}
+    (C : MasterChain K m) (Sh : RowShape m q r) (R : Fin r) :
+    DivisorTemplate K K := by
+  classical
+  let T : Finset (Fin K) := (C.block (Sh.row R).anchor).2.val
+  have hT : T.card ≤ K := by
+    calc
+      T.card ≤ Fintype.card (Fin K) := Finset.card_le_univ T
+      _ = K := by simp
+  exact divisorTemplateOfFinset T hT
+
+noncomputable def maskEmptyDivisorTemplate {K : ℕ} : DivisorTemplate K K :=
+  divisorTemplateOfFinset (∅ : Finset (Fin K)) (by simp)
+
+theorem independentPrimePoolSupport_mem_iff {q : ℕ} (lo hi : Fin q → ℕ)
+    (p : Fin q → ℕ) :
+    p ∈ independentPrimePoolSupport lo hi ↔
+      ∀ i, p i ∈ primePoolSupport (lo i) (hi i) := by
+  unfold independentPrimePoolSupport
+  exact Fintype.mem_piFinset
+
+def MaskRowAnchorReady {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (N : ℕ) : Prop :=
+  ∀ p, p ∈ independentPrimePoolSupport
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) →
+    ∀ v (hv : v.Prime), N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+    ∀ R, FromArithmetic.rationalResidue v hv
+      (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+        N p R (Sh.row R).anchor) ≠ 0
+
+def MaskRowPairwiseReady {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (N : ℕ) : Prop :=
+  ∀ p, p ∈ independentPrimePoolSupport
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) →
+    ∀ v (hv : v.Prime), N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+    (∀ Q ∈ Dm, ¬ ((v : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+    ∀ R I, R ≠ I →
+      ∃ j k,
+        FromArithmetic.rationalResidue v hv
+            (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p R j) *
+          FromArithmetic.rationalResidue v hv
+            (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p I k) ≠
+        FromArithmetic.rationalResidue v hv
+            (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p R k) *
+          FromArithmetic.rationalResidue v hv
+          (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p I j)
+
+def MaskRowDataGoodDomain {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (N : ℕ) (p : Fin s → ℕ) : Prop :=
+  (∀ i : Fin m, Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+      (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) ∧
+  (∀ (R : Fin r) (p' : Fin s → ℕ) (x : Fin m → ℤ),
+      (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+      (fun j => p' (ι j)) (fun j => (x j : ℚ))).den = 1) ∧
+  (∀ (R : Fin r) (j : Fin m), (rowShapeLinearCoefficients Sh ι
+      (chainScale S.core.parameters C a N) N p R j).den = 1) ∧
+  MaskRowAnchorReady S C a Sh ι N ∧ MaskRowPairwiseReady S C a Sh ι N ∧
+  p ∈ independentPrimePoolSupport
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) ∧
+  ∀ j, masterScaleV S.core.parameters N C.gap < p j
+
+theorem maskRowDivisorTemplate_law_eq_tail {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (R : Fin r) (N σ : ℕ) :
+    divisorTemplateLaw S.core.parameters N (maskRowDivisorTemplate C Sh R) σ =
+      parameterTailProductLaw S.core.parameters N (C.block (Sh.row R).anchor).2.val σ := by
+  classical
+  let T : Finset (Fin K) := (C.block (Sh.row R).anchor).2.val
+  have hT : T.card ≤ K := by
+    calc
+      T.card ≤ Fintype.card (Fin K) := Finset.card_le_univ T
+      _ = K := by simp
+  have hX : ∀ j, 0 < S.core.parameters.X N j := S.core.parameters.Xpos N
+  have hNorm : ∀ j, 0 < harmonicNormalizer (S.core.parameters.X N j)
+      (primorial (N + 1)) := by
+    intro j
+    exact harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N j)
+  have hbridge := parameterTailProductLaw_eq_divisorTemplateLaw_ofFinset
+    S.core.parameters N T hT hX hNorm σ
+  simpa [maskRowDivisorTemplate, T, divisorTemplateLaw] using hbridge.symm
+
+theorem maskEmptyDivisorTemplate_law {K : ℕ}
+    (A : OAI.SourceAdmissible.Parameters K) (N σ : ℕ) :
+    divisorTemplateLaw A N (maskEmptyDivisorTemplate (K := K)) σ =
+      if σ = 1 then 1 else 0 := by
+  classical
+  have hformula (X : Fin 0 → ℕ) :
+      harmonicProductLaw (primorial (N + 1)) X σ = if σ = 1 then 1 else 0 := by
+    unfold harmonicProductLaw
+    let t₀ : Fin 0 → ℕ := fun i => Fin.elim0 i
+    rw [tsum_eq_single t₀]
+    · simp [t₀, eq_comm]
+    · intro t ht
+      have hEq : t = t₀ := Subsingleton.elim _ _
+      exact (ht hEq).elim
+  change harmonicProductLaw (primorial (N + 1))
+      (fun i : Fin 0 => A.X N ((maskEmptyDivisorTemplate (K := K)).cutoff i)) σ = _
+  exact hformula _
+
+theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
+    {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
+    (hmodulus : 0 < modulus) (hcop : Nat.Coprime modulus (primorial (N + 1)))
+    (hX : ∀ i, 2 ≤ S.core.parameters.X N (C.block i).1)
+    (hlog : ∀ i, Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+      (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) :
+    finiteL1 (FromArithmetic.baseResidueLaw modulus hmodulus
+      (pivotMass S.core.parameters C N)) (uniformBaseResidueLaw modulus m) ≤
+      ∑ i : Fin m,
+        harmonicResidueError (S.core.parameters.X N (C.block i).1)
+          (primorial (N + 1)) modulus := by
+  classical
+  let W := primorial (N + 1)
+  let μ : Fin m → Fin modulus → ℝ := fun i a =>
+    harmonicResidueLaw
+      (harmonicLaw (S.core.parameters.X N (C.block i).1) W) modulus a
+  let ν : Fin m → Fin modulus → ℝ := fun _ a => uniformResidueLaw modulus a
+  have hbase (r : Fin m → Fin modulus) :
+      FromArithmetic.baseResidueLaw modulus hmodulus
+        (pivotMass S.core.parameters C N) r = ∏ i, μ i (r i) := by
+    rw [pivotBaseResidueLaw_eq_prod_harmonicResidueLaw]
+  have huniform (r : Fin m → Fin modulus) :
+      uniformBaseResidueLaw modulus m r = ∏ i, ν i (r i) := by
+    simp [uniformBaseResidueLaw, uniformResidueLaw, ν, Finset.prod_const]
+  have hnorm (i : Fin m) :
+      0 < harmonicNormalizer (S.core.parameters.X N (C.block i).1) W :=
+    harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block i).1)
+  have hmassAbs (i : Fin m) : ∑ a : Fin modulus, |μ i a| = 1 := by
+    have hnonneg (a : Fin modulus) : 0 ≤ μ i a := by
+      exact harmonicResidueLaw_nonneg _ _ _ (hnorm i) a
+    calc
+      (∑ a : Fin modulus, |μ i a|) = ∑ a : Fin modulus, μ i a := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [abs_of_nonneg (hnonneg a)]
+      _ = 1 := harmonicResidueLaw_sum_one _ _ _ hmodulus
+        (S.core.parameters.Xpos N (C.block i).1) (hnorm i)
+  have hnuAbs : ∑ a : Fin modulus, |uniformResidueLaw modulus a| = 1 := by
+    have hmodR : (0 : ℝ) < modulus := by exact_mod_cast hmodulus
+    calc
+      (∑ a : Fin modulus, |uniformResidueLaw modulus a|) =
+          ∑ a : Fin modulus, 1 / (modulus : ℝ) := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [uniformResidueLaw, abs_of_pos (one_div_pos.mpr hmodR)]
+      _ = 1 := by simp [Finset.sum_const, div_eq_mul_inv, hmodR.ne']
+  have herr (i : Fin m) :
+      finiteL1 (μ i) (ν i) ≤
+        harmonicResidueError (S.core.parameters.X N (C.block i).1) W modulus := by
+    have hsample := FromArithmetic.sampling_pointwise_claim
+      (S.core.parameters.X N (C.block i).1) W (primorial_pos (N + 1))
+      (hX i) (hlog i)
+    exact hsample.residue_total_mass (hX i) (hlog i) modulus hcop hmodulus
+  have htensor := FromArithmetic.finite_product_l1_telescoping μ ν
+  have hfactor (i : Fin m) :
+      ∏ j ∈ Finset.univ.erase i,
+        max (∑ a : Fin modulus, |μ j a|) (∑ a : Fin modulus, |ν j a|) = 1 := by
+    apply Finset.prod_eq_one
+    intro j hj
+    rw [hmassAbs j, hnuAbs]
+    simp
+  have hL1eq :
+      finiteL1 (FromArithmetic.baseResidueLaw modulus hmodulus
+        (pivotMass S.core.parameters C N)) (uniformBaseResidueLaw modulus m) =
+        finiteL1 (fun r : Fin m → Fin modulus => ∏ i, μ i (r i))
+          (fun r => ∏ i, ν i (r i)) := by
+    unfold finiteL1
+    apply Finset.sum_congr rfl
+    intro r hr
+    rw [hbase r, huniform r]
+  calc
+    finiteL1 (FromArithmetic.baseResidueLaw modulus hmodulus
+      (pivotMass S.core.parameters C N)) (uniformBaseResidueLaw modulus m) =
+        finiteL1 (fun r : Fin m → Fin modulus => ∏ i, μ i (r i))
+          (fun r => ∏ i, ν i (r i)) := hL1eq
+    _ ≤ ∑ i, finiteL1 (μ i) (ν i) := by
+      calc
+        _ ≤ ∑ i, finiteL1 (μ i) (ν i) *
+            ∏ j ∈ Finset.univ.erase i,
+              max (∑ a : Fin modulus, |μ j a|) (∑ a : Fin modulus, |ν j a|) := htensor
+        _ = ∑ i, finiteL1 (μ i) (ν i) := by
+          apply Finset.sum_congr rfl
+          intro i hi
+          rw [hfactor i]
+          ring
+    _ ≤ ∑ i : Fin m,
+        harmonicResidueError (S.core.parameters.X N (C.block i).1) W modulus :=
+      Finset.sum_le_sum fun i hi => herr i
+
 noncomputable def gapPivotMass {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
