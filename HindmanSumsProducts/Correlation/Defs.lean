@@ -139,7 +139,7 @@ def shiftLength (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (J0 N 
 end Slots
 
 /-- Uniform average over two independent shifts `u_R^0,u_R^1 ∈ [0,L)` for each `R : ι`
-(zero if `L=0`). -/
+(zero if `L = 0` and `ι` is nonempty; with no directions it is the single value `F` takes). -/
 def shiftAverage (ι : Type*) [Fintype ι] [DecidableEq ι] (L : ℕ)
     (F : (ι → Fin 2 → ℕ) → ℝ) : ℝ :=
   ((L : ℝ) ^ (2 * Fintype.card ι))⁻¹ *
