@@ -2181,8 +2181,8 @@ private theorem uniformUnitTupleProbability_finset_union_bound {Q m : ℕ} {β :
     unfold uniformUnitTupleMass
     split_ifs <;> positivity
   have hindicator (x : Fin m → Fin Q) :
-      (if ∃ t ∈ T, E t x then (1 : ℝ) else 0) ≤
-        ∑ t ∈ T, if E t x then (1 : ℝ) else 0 := by
+      @ite ℝ (∃ t ∈ T, E t x) (Classical.propDecidable _) (1 : ℝ) 0 ≤
+        ∑ t ∈ T, @ite ℝ (E t x) (Classical.propDecidable _) (1 : ℝ) 0 := by
     by_cases hx : ∃ t ∈ T, E t x
     · obtain ⟨t, ht, hEt⟩ := hx
       let S := T.filter fun a => E a x
