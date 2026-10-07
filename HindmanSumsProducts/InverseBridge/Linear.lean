@@ -1,5 +1,6 @@
 import OAI.Combinatorics.Progressions.Estimates.AxisCompression
 
+
 /-!
 Polynomial-orbit linearization nodes IB.a1--a5 and IB.a7--a8.
 
@@ -30,13 +31,26 @@ theorem polyDeriv_coefficients (Q : VectorPolynomial Unit ℚ L) (j : ℕ) :
     VectorPolynomial.coefficients (polyDeriv Q) (Finsupp.single () j) =
       ((j + 1 : ℚ)) •
         VectorPolynomial.coefficients Q (Finsupp.single () (j + 1)) := by
-  sorry
+  simpa [polyDeriv, Lie.Derivation.ofDerivation_apply] using
+    OAI.Erdos3.VectorPolynomial.coefficients_pderiv () Q (Finsupp.single () j)
 
 /-- The derivative preserves adapted polynomials, hence restricts to their Lie algebra. -/
 theorem exists_polyDeriv_restriction (F : NilpotentLieFiltration L s) :
     ∃ D : LieDerivation ℚ (Poly F) (Poly F),
       ∀ Q, (D Q : VectorPolynomial Unit ℚ L) = polyDeriv Q := by
-  sorry
+  classical
+  let D : LieDerivation ℚ (Poly F) (Poly F) :=
+    ⟨F.adaptedDirectionalDerivative (fun _ : Unit => 1), by
+      intro Q R
+      have h := F.adaptedDirectionalDerivative_lie (fun _ : Unit => 1) Q R
+      simpa [lie_skew, sub_eq_add_neg, add_comm, add_left_comm, add_assoc] using h⟩
+  refine ⟨D, ?_⟩
+  intro Q
+  change (F.adaptedDirectionalDerivative (fun _ : Unit => 1) Q : VectorPolynomial Unit ℚ L) =
+    polyDeriv Q
+  rw [F.adaptedDirectionalDerivative_coe]
+  simp [VectorPolynomial.directionalDerivative, polyDeriv,
+    Lie.Derivation.ofDerivation_apply]
 
 noncomputable def hD (F : NilpotentLieFiltration L s) :
     LieDerivation ℚ (Poly F) (Poly F) := Classical.choose (exists_polyDeriv_restriction F)
@@ -55,7 +69,21 @@ local instance lineLieAlgebra : LieAlgebra ℚ Line := LieAlgebra.ofAssociativeA
 theorem exists_shiftAction (F : NilpotentLieFiltration L s) :
     ∃ ψ : Line →ₗ⁅ℚ⁆ LieDerivation ℚ (Poly F) (Poly F),
       ∀ a, ψ a = a • hD F := by
-  sorry
+  let ψ : Line →ₗ⁅ℚ⁆ LieDerivation ℚ (Poly F) (Poly F) := {
+    toLinearMap := LinearMap.toSpanSingleton ℚ (LieDerivation ℚ (Poly F) (Poly F)) (hD F)
+    map_lie' := by
+      intro a b
+      have hab : ⁅a, b⁆ = 0 := by
+        change a * b - b * a = 0
+        ring
+      rw [hab]
+      simp [lie_smul, smul_lie, lie_self]
+  }
+  refine ⟨ψ, ?_⟩
+  intro a
+  change LinearMap.toSpanSingleton ℚ (LieDerivation ℚ (Poly F) (Poly F)) (hD F) a =
+    a • hD F
+  rfl
 
 noncomputable def shiftAction (F : NilpotentLieFiltration L s) :
     Line →ₗ⁅ℚ⁆ LieDerivation ℚ (Poly F) (Poly F) :=
