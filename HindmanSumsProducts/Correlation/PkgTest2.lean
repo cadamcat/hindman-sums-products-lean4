@@ -682,6 +682,53 @@ theorem c_test2_rowValue_eq_cast {m q : ℕ} (T : RowTemplate m q) (p : Fin q �
   cases he : T.entry k <;>
     simp [RowTemplate.value, c_test2_rowValueNat, he, map_prod, Nat.cast_pow]
 
+private lemma c_test2_rowTemplate_value_eq_eval_poly {m q : ℕ} (T : RowTemplate m q)
+    (k : Fin m) (p : Fin q → ℕ) :
+    (evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) : ℚ) = T.value p k := by
+  cases h : T.entry k with
+  | none => simp [RowTemplate.poly, RowTemplate.value, h, evalIntegerPolynomial]
+  | some e =>
+      simp only [RowTemplate.poly, RowTemplate.value, h]
+      change (MvPolynomial.eval (fun i => (p i : ℤ))
+        (MvPolynomial.monomial (Finsupp.equivFunOnFinite.symm e) 1) : ℚ) =
+          ∏ i, (p i : ℚ) ^ e i
+      have he : ∀ i, (Finsupp.equivFunOnFinite.symm e) i = e i := by
+        intro i
+        exact congrFun (Finsupp.coe_equivFunOnFinite_symm e) i
+      rw [MvPolynomial.eval_monomial]
+      simp [Finsupp.prod_fintype, he]
+
+theorem c_test2_rowTemplate_poly_eval_nat {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (k : Fin m) :
+    evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) =
+      (c_test2_rowValueNat T p k : ℤ) := by
+  have hq := c_test2_rowTemplate_value_eq_eval_poly T k p
+  rw [c_test2_rowValue_eq_cast T p k] at hq
+  exact_mod_cast hq
+
+theorem c_test2_rowTemplate_minor_eval {m q : ℕ} (T U : RowTemplate m q)
+    (p : Fin q → ℕ) (i j : Fin m) :
+    evalIntegerPolynomial (T.poly i * U.poly j - T.poly j * U.poly i)
+      (fun k => (p k : ℤ)) =
+      (c_test2_rowValueNat T p i * c_test2_rowValueNat U p j -
+        c_test2_rowValueNat T p j * c_test2_rowValueNat U p i : ℤ) := by
+  change MvPolynomial.eval (fun k => (p k : ℤ))
+      (T.poly i * U.poly j - T.poly j * U.poly i) = _
+  simp only [map_sub, map_mul]
+  have hTi : MvPolynomial.eval (fun k => (p k : ℤ)) (T.poly i) =
+      (c_test2_rowValueNat T p i : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat T p i
+  have hUj : MvPolynomial.eval (fun k => (p k : ℤ)) (U.poly j) =
+      (c_test2_rowValueNat U p j : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat U p j
+  have hTj : MvPolynomial.eval (fun k => (p k : ℤ)) (T.poly j) =
+      (c_test2_rowValueNat T p j : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat T p j
+  have hUi : MvPolynomial.eval (fun k => (p k : ℤ)) (U.poly i) =
+      (c_test2_rowValueNat U p i : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat U p i
+  rw [hTi, hUj, hTj, hUi]
+
 theorem c_test2_rowValueNat_le {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (size : ℕ) (hsize : 0 < size) (hp : ∀ i, p i ≤ size) (k : Fin m) :
     c_test2_rowValueNat T p k ≤ size ^ c_test2_rowExponent T := by
@@ -863,6 +910,43 @@ theorem c_test2_rationalResidue_natCast {r : ℕ} (hr : r.Prime) (n : ℕ) :
     FromArithmetic.rationalResidue r hr (n : ℚ) = (n : ZMod r) := by
   letI : Fact r.Prime := ⟨hr⟩
   simp [FromArithmetic.rationalResidue]
+
+theorem c_test2_scaleRatio_rationalResidue_ne_zero {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (c : Fin m → ℤ)
+    (hpos : ∀ d, 0 < c d)
+    (hratio : ∀ u d, u < d → ∃ t : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (t : ℤ) * c d)
+    (hmod : ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))
+    (i d : Fin m) (hid : i < d) (r : ℕ) (hr : r.Prime)
+    (hlarge : N + 1 < r) :
+    FromArithmetic.rationalResidue r hr ((c i : ℚ) / (c d : ℚ)) ≠ 0 := by
+  obtain ⟨rho, hrhoPos, hrhoQ, hWrho, hrhoM⟩ :=
+    c_test2_scaleRatioNat_public S N c hpos hratio hmod i d hid
+  have hWnot : ¬ r ∣ primorial (N + 1) := by
+    intro hdiv
+    exact (Nat.not_le_of_gt hlarge) (hr.dvd_primorial_iff.mp hdiv)
+  have hMnot : ¬ r ∣ S.core.parameters.M N := by
+    intro hdiv
+    obtain ⟨e, he⟩ := S.core.modulus_power N
+    have hdivPow : r ∣ primorial (N + 1) ^ e := by
+      rw [he] at hdiv
+      exact hdiv
+    exact hWnot (hr.dvd_of_dvd_pow hdivPow)
+  have hrhoNot : ¬ r ∣ rho := by
+    intro hdiv
+    apply hMnot
+    exact Nat.dvd_trans hdiv hrhoM
+  have hcastNZ : (rho : ZMod r) ≠ 0 := by
+    intro hz
+    exact hrhoNot ((ZMod.natCast_eq_zero_iff rho r).mp hz)
+  have hres : FromArithmetic.rationalResidue r hr ((rho : ℕ) : ℚ) = (rho : ZMod r) :=
+    c_test2_rationalResidue_natCast hr rho
+  rw [hrhoQ] at hres
+  rw [hres]
+  exact hcastNZ
 
 -- Adapted from HindmanSumsProducts/Correlation/PkgRows.lean.
 private lemma c_test2_rowPoly_ne_zero_of_some {m q : ℕ} (T : RowTemplate m q)
