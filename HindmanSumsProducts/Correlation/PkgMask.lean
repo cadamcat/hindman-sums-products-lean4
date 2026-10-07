@@ -1213,6 +1213,21 @@ theorem harmonicNatLaw_tsum_one_of_normalizer_pos (X W : ℕ)
       rw [hsum]
       exact div_self hNorm.ne'
 
+theorem harmonicNatLaw_sum_range_eq_one (X W : ℕ)
+    (hX : 0 < X) (hNorm : 0 < harmonicNormalizer X W) :
+    ∑ n ∈ Finset.range (X ^ 2), harmonicNatLaw X W n = 1 := by
+  classical
+  have hzero (n : ℕ) (hn : n ∉ Finset.range (X ^ 2)) :
+      harmonicNatLaw X W n = 0 := by
+    have hbound : X ^ 2 ≤ n := by
+      simpa only [Finset.mem_range, not_lt] using hn
+    simp [harmonicNatLaw, Nat.not_lt_of_ge hbound]
+  calc
+    ∑ n ∈ Finset.range (X ^ 2), harmonicNatLaw X W n =
+        ∑' n : ℕ, harmonicNatLaw X W n :=
+      (tsum_eq_sum (s := Finset.range (X ^ 2)) hzero).symm
+    _ = 1 := harmonicNatLaw_tsum_one_of_normalizer_pos X W hX hNorm
+
 theorem parameterTailProductLaw_eq_finite_sum {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) :
@@ -1303,6 +1318,167 @@ def piFinsetSplit {n : ℕ} [DecidableEq (Fin n)] (T : Finset (Fin n)) :
       have hi : (i : Fin n) ∉ T := by
         simpa [finsetComplement] using i.property
       simp [hi]
+
+theorem piFinsetSplit_left_apply {n : ℕ} [DecidableEq (Fin n)]
+    (T : Finset (Fin n)) (t : Fin n → ℕ) (i : T) :
+    (piFinsetSplit T t).1 i = t i.val := by
+  simp [piFinsetSplit, Equiv.piFinsetUnion, Equiv.piCongrLeft']
+
+theorem piFinsetSplit_right_apply {n : ℕ} [DecidableEq (Fin n)]
+    (T : Finset (Fin n)) (t : Fin n → ℕ) (i : finsetComplement T) :
+    (piFinsetSplit T t).2 i = t i.val := by
+  simp [piFinsetSplit, Equiv.piFinsetUnion, Equiv.piCongrLeft']
+
+theorem parameterTailProductLaw_eq_split_sum {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (T : Finset (Fin n)) (σ : ℕ) :
+    FromArithmetic.parameterTailProductLaw A N T σ =
+      ∑ z ∈
+        Fintype.piFinset (fun i : T => Finset.range ((A.X N i.val) ^ 2)) ×ˢ
+          Fintype.piFinset
+            (fun i : finsetComplement T => Finset.range ((A.X N i.val) ^ 2)),
+        (if (∏ i : T, z.1 i) = σ then 1 else 0) *
+          ((∏ i : T,
+              harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.1 i)) *
+            ∏ i : finsetComplement T,
+              harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.2 i)) := by
+  classical
+  let Tcomp := finsetComplement T
+  let Dfull := Fintype.piFinset fun j : Fin n => Finset.range ((A.X N j) ^ 2)
+  let Dtail := Fintype.piFinset fun i : T => Finset.range ((A.X N i.val) ^ 2)
+  let Dcomp := Fintype.piFinset fun i : Tcomp => Finset.range ((A.X N i.val) ^ 2)
+  let Dpair := Dtail ×ˢ Dcomp
+  let e := piFinsetSplit T
+  have hdisj : Disjoint T Tcomp := by
+    apply Finset.disjoint_left.mpr
+    intro i hiT hiC
+    exact (Finset.mem_filter.mp hiC).2 hiT
+  have hunion : T ∪ Tcomp = Finset.univ := by
+    ext i
+    constructor
+    · intro _
+      exact Finset.mem_univ i
+    · intro _
+      by_cases hi : i ∈ T
+      · exact Finset.mem_union.mpr (Or.inl hi)
+      · exact Finset.mem_union.mpr
+          (Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi⟩))
+  have hfullToPair (t : Fin n → ℕ) (ht : t ∈ Dfull) : e t ∈ Dpair := by
+    apply Finset.mem_product.mpr
+    constructor
+    · apply Fintype.mem_piFinset.mpr
+      intro i
+      have hbound := (Fintype.mem_piFinset.mp ht) i.val
+      rw [piFinsetSplit_left_apply T t i]
+      exact hbound
+    · apply Fintype.mem_piFinset.mpr
+      intro i
+      have hbound := (Fintype.mem_piFinset.mp ht) i.val
+      rw [piFinsetSplit_right_apply T t i]
+      exact hbound
+  have hpairToFull (z : (∀ i : T, ℕ) × (∀ i : Tcomp, ℕ))
+      (hz : z ∈ Dpair) : e.symm z ∈ Dfull := by
+    apply Fintype.mem_piFinset.mpr
+    intro j
+    by_cases hj : j ∈ T
+    · let i : T := ⟨j, hj⟩
+      have htail := (Fintype.mem_piFinset.mp (Finset.mem_product.mp hz).1) i
+      have hcoords := e.apply_symm_apply z
+      have hcoord : e.symm z j = z.1 i := by
+        calc
+          e.symm z j = (e (e.symm z)).1 i :=
+            (piFinsetSplit_left_apply T (e.symm z) i).symm
+          _ = z.1 i := congrFun (congrArg Prod.fst hcoords) i
+      rw [hcoord]
+      exact htail
+    · let i : Tcomp := ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj⟩⟩
+      have htail := (Fintype.mem_piFinset.mp (Finset.mem_product.mp hz).2) i
+      have hcoords := e.apply_symm_apply z
+      have hcoord : e.symm z j = z.2 i := by
+        calc
+          e.symm z j = (e (e.symm z)).2 i :=
+            (piFinsetSplit_right_apply T (e.symm z) i).symm
+          _ = z.2 i := congrFun (congrArg Prod.snd hcoords) i
+      rw [hcoord]
+      exact htail
+  let fullTerm (t : Fin n → ℕ) :=
+    (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+      ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)
+  let splitTerm (z : (∀ i : T, ℕ) × (∀ i : Tcomp, ℕ)) :=
+    (if (∏ i ∈ T.attach, z.1 i) = σ then 1 else 0) *
+      ((∏ i ∈ T.attach,
+          harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.1 i)) *
+        ∏ i ∈ Tcomp.attach,
+          harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (z.2 i))
+  have hterm (t : Fin n → ℕ) (ht : t ∈ Dfull) : fullTerm t = splitTerm (e t) := by
+    have htailProduct : (∏ j ∈ T, t j) = ∏ i ∈ T.attach, (e t).1 i := by
+      calc
+        (∏ j ∈ T, t j) = ∏ i ∈ T.attach, t i.val :=
+          (Finset.prod_attach T fun j => t j).symm
+        _ = ∏ i ∈ T.attach, (e t).1 i := by
+          apply Finset.prod_congr rfl
+          intro i hi
+          rw [← piFinsetSplit_left_apply T t i]
+    have hmass :
+        (∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) =
+          (∏ i ∈ T.attach, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) ((e t).1 i)) *
+            ∏ i ∈ Tcomp.attach,
+              harmonicNatLaw (A.X N i.val) (primorial (N + 1)) ((e t).2 i) := by
+      calc
+        (∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) =
+            ∏ j ∈ Finset.univ,
+              harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by simp
+        _ = ∏ j ∈ T ∪ Tcomp,
+              harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by rw [hunion]
+        _ = (∏ j ∈ T,
+              harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) *
+            ∏ j ∈ Tcomp,
+              harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) :=
+            Finset.prod_union hdisj
+        _ = (∏ i ∈ T.attach, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) ((e t).1 i)) *
+            ∏ i ∈ Tcomp.attach,
+              harmonicNatLaw (A.X N i.val) (primorial (N + 1)) ((e t).2 i) := by
+            have hmassT :
+                (∏ j ∈ T, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) =
+                  ∏ i ∈ T.attach,
+                    harmonicNatLaw (A.X N i.val) (primorial (N + 1)) ((e t).1 i) := by
+              calc
+                _ = ∏ i ∈ T.attach,
+                    harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (t i.val) :=
+                  (Finset.prod_attach T
+                    (fun j => harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j))).symm
+                _ = _ := by
+                  apply Finset.prod_congr rfl
+                  intro i hi
+                  rw [← piFinsetSplit_left_apply T t i]
+            have hmassC :
+                (∏ j ∈ Tcomp, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) =
+                  ∏ i ∈ Tcomp.attach,
+                    harmonicNatLaw (A.X N i.val) (primorial (N + 1)) ((e t).2 i) := by
+              calc
+                _ = ∏ i ∈ Tcomp.attach,
+                    harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (t i.val) :=
+                  (Finset.prod_attach Tcomp
+                    (fun j => harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j))).symm
+                _ = _ := by
+                  apply Finset.prod_congr rfl
+                  intro i hi
+                  rw [← piFinsetSplit_right_apply T t i]
+            rw [hmassT, hmassC]
+    dsimp [fullTerm, splitTerm]
+    rw [htailProduct, hmass]
+  have hsum : (∑ t ∈ Dfull, fullTerm t) = ∑ z ∈ Dpair, splitTerm z := by
+    apply Finset.sum_bij (fun t _ => e t)
+    · intro t ht
+      exact hfullToPair t ht
+    · intro t ht t' ht' hEq
+      exact e.injective hEq
+    · intro z hz
+      exact ⟨e.symm z, hpairToFull z hz, e.apply_symm_apply z⟩
+    · intro t ht
+      exact hterm t ht
+  rw [parameterTailProductLaw_eq_finite_sum A N T σ]
+  exact hsum
 
 theorem harmonicLaw_summable (X W : ℕ) : Summable (harmonicLaw X W) := by
   classical
