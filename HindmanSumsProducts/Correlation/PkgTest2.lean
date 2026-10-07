@@ -222,6 +222,75 @@ theorem c_test2_dominates_of_power_bound {f S T : ℕ → ℝ}
     exact mul_le_mul_of_nonneg_left hp' (hF n)
   exact Filter.tendsto_atTop_mono' atTop hle hDom'
 
+def c_test2_rowExponent {m q : ℕ} (T : RowTemplate m q) : ℕ :=
+  ∑ k : Fin m, ∑ i : Fin q, (T.entry k).elim 0 fun e => e i
+
+def c_test2_rowValueNat {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
+    (k : Fin m) : ℕ := (T.entry k).elim 0 fun e => ∏ i, p i ^ e i
+
+theorem c_test2_rowValue_eq_cast {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
+    (k : Fin m) : T.value p k = (c_test2_rowValueNat T p k : ℚ) := by
+  cases he : T.entry k <;>
+    simp [RowTemplate.value, c_test2_rowValueNat, he, map_prod, Nat.cast_pow]
+
+theorem c_test2_rowValueNat_le {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
+    (size : ℕ) (hsize : 0 < size) (hp : ∀ i, p i ≤ size) (k : Fin m) :
+    c_test2_rowValueNat T p k ≤ size ^ c_test2_rowExponent T := by
+  classical
+  by_cases hk : T.entry k = none
+  · simp [c_test2_rowValueNat, hk]
+  · obtain ⟨e, he⟩ : ∃ e, T.entry k = some e := by
+      cases h : T.entry k with
+      | none => exact (hk h).elim
+      | some e => exact ⟨e, rfl⟩
+    have hprod : (∏ i : Fin q, p i ^ e i) ≤ ∏ i : Fin q, size ^ e i := by
+      apply Finset.prod_le_prod
+      intro i hi
+      exact Nat.pow_le_pow_left (hp i) _
+    have hsum : (∑ i : Fin q, e i) ≤ c_test2_rowExponent T := by
+      calc
+        (∑ i : Fin q, e i) = ∑ i : Fin q, (T.entry k).elim 0 (fun e => e i) := by
+          simp [he]
+        _ ≤ ∑ j : Fin m, ∑ i : Fin q, (T.entry j).elim 0 (fun e => e i) :=
+          Finset.single_le_sum (f := fun j : Fin m =>
+            ∑ i : Fin q, (T.entry j).elim 0 (fun e => e i))
+            (fun _ _ => Nat.zero_le _) (Finset.mem_univ k)
+    calc
+      c_test2_rowValueNat T p k = ∏ i : Fin q, p i ^ e i := by
+        simp [c_test2_rowValueNat, he]
+      _ ≤ ∏ i : Fin q, size ^ e i := hprod
+      _ = size ^ (∑ i : Fin q, e i) := by rw [Finset.prod_pow_eq_pow_sum]
+      _ ≤ size ^ c_test2_rowExponent T :=
+        Nat.pow_le_pow_right hsize hsum
+
+theorem c_test2_monomials_coprime {q : ℕ} (e f : Fin q → ℕ) (p : Fin q → ℕ)
+    (hp : ∀ i, Nat.Prime (p i)) (hinj : Function.Injective p)
+    (hdisj : ∀ i, e i = 0 ∨ f i = 0) :
+    Nat.Coprime (∏ i, p i ^ e i) (∏ i, p i ^ f i) := by
+  classical
+  rw [Nat.coprime_fintype_prod_left_iff]
+  intro i
+  rw [Nat.coprime_fintype_prod_right_iff]
+  intro j
+  by_cases hij : i = j
+  · subst j
+    rcases hdisj i with he | hf
+    · simp [he]
+    · simp [hf]
+  · have hne : p i ≠ p j := fun heq => hij (hinj heq)
+    exact Nat.coprime_pow_primes (e i) (f j) (hp i) (hp j) hne
+
+theorem c_test2_rowValues_coprime {m q : ℕ} (T : RowTemplate m q)
+    (j k : Fin m) (p : Fin q → ℕ) (hj : ∃ e, T.entry j = some e)
+    (hk : ∃ f, T.entry k = some f) (hjk : j ≠ k)
+    (hp : ∀ i, Nat.Prime (p i)) (hinj : Function.Injective p) :
+    Nat.Coprime (c_test2_rowValueNat T p j) (c_test2_rowValueNat T p k) := by
+  obtain ⟨e, he⟩ := hj
+  obtain ⟨f, hf⟩ := hk
+  have hdisj : ∀ i, e i = 0 ∨ f i = 0 := T.slots_disjoint j k e f hjk he hf
+  simpa [c_test2_rowValueNat, he, hf] using
+    c_test2_monomials_coprime e f p hp hinj hdisj 
+
 private theorem c_test2_harmonicNatLaw_nonneg (X W n : ℕ) :
     0 ≤ harmonicNatLaw X W n := by
   have hZ : 0 ≤ harmonicNormalizer X W := by
@@ -245,6 +314,25 @@ private theorem c_test2_parameterTailProductLaw_nonneg {n : ℕ}
     intro j hj
     exact c_test2_harmonicNatLaw_nonneg _ _ _
   · simp [hprod]
+
+private theorem c_test2_chainCoefficientData_eventually {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∃ c : Fin m → ℤ,
+      (∀ d, (c d : ℚ) = chainScale S.core.parameters C a N d) ∧
+      (∀ d, 0 < c d) ∧
+      (∀ u d, u < d → ∃ k : ℕ,
+        c u = (primorial (N + 1) : ℤ) * (k : ℤ) * c d) ∧
+      ∀ d,
+        ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+          (S.core.parameters.M N : ℤ) := by
+  filter_upwards [S.core.chain_coefficients, S.gapStage.coefficient_divides_modulus]
+    with N hchain hdiv
+  obtain ⟨c, hc, hcpos, hratio⟩ := hchain m C a ha
+  refine ⟨c, ?_, hcpos, hratio, ?_⟩
+  · simpa [chainScale] using hc
+  · exact hdiv m C a ha c hc
 
 theorem c_test2_chainWeight_nonneg {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
