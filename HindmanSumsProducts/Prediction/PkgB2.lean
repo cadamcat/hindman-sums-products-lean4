@@ -327,6 +327,79 @@ noncomputable def pkgB2_csNextIntegrand {α β : Type*} [Fintype α]
   let (o, t₀) := pkgB2_shiftCoordAssignmentSplitEquiv E R (L b) v
   exact Ω b o * H b o t₀ * H b o t₁
 
+private theorem pkgB2_finite_weighted_cauchy {α : Type*} [Fintype α]
+    (μ Ω H₀ H₁ : α → ℝ)
+    (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+    (h₀ : ∀ x, |H₀ x| ≤ Ω x) :
+    |∑ x : α, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+      (∑ x, μ x * Ω x) * ∑ x, μ x * (Ω x * H₁ x ^ 2) := by
+  classical
+  let w : α → ℝ := fun x => μ x * Ω x
+  have hw (x : α) : 0 ≤ w x := mul_nonneg (hμ x) (hΩ x)
+  have hcsWeighted (f : α → ℝ) :
+      |∑ x : α, w x * f x| ^ 2 ≤ (∑ x, w x) * ∑ x, w x * f x ^ 2 := by
+    let u : α → ℝ := fun x => Real.sqrt (w x)
+    let v : α → ℝ := fun x => Real.sqrt (w x) * f x
+    have hsumuv : (∑ x : α, u x * v x) = ∑ x, w x * f x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [u, v]
+      calc
+        Real.sqrt (w x) * (Real.sqrt (w x) * f x) =
+            (Real.sqrt (w x) ^ 2) * f x := by ring
+        _ = w x * f x := by rw [Real.sq_sqrt (hw x)]
+    have hsumu : (∑ x : α, u x ^ 2) = ∑ x, w x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [u]
+      exact Real.sq_sqrt (hw x)
+    have hsumv : (∑ x : α, v x ^ 2) = ∑ x, w x * f x ^ 2 := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [v]
+      rw [mul_pow, Real.sq_sqrt (hw x)]
+    have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α) u v
+    rw [hsumuv, hsumu, hsumv] at hcs
+    simpa only [sq_abs] using hcs
+  have hdom : |∑ x : α, μ x * (H₀ x * H₁ x)| ≤
+      ∑ x : α, w x * |H₁ x| := by
+    calc
+      _ ≤ ∑ x : α, |μ x * (H₀ x * H₁ x)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ x : α, w x * |H₁ x| := by
+        apply Finset.sum_le_sum
+        intro x hx
+        rw [abs_mul, abs_mul, abs_of_nonneg (hμ x)]
+        calc
+          μ x * (|H₀ x| * |H₁ x|) = (μ x * |H₀ x|) * |H₁ x| := by ring
+          _ ≤ (μ x * Ω x) * |H₁ x| :=
+            mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (h₀ x) (hμ x))
+              (abs_nonneg _)
+          _ = w x * |H₁ x| := by rfl
+  have hsumNonneg : 0 ≤ ∑ x : α, w x * |H₁ x| :=
+    Finset.sum_nonneg fun x hx => mul_nonneg (hw x) (abs_nonneg _)
+  have hcs := hcsWeighted (fun x => |H₁ x|)
+  have hcs' : (∑ x : α, w x * |H₁ x|) ^ 2 ≤
+      (∑ x : α, w x) * ∑ x : α, w x * |H₁ x| ^ 2 := by
+    have habs : |(∑ x : α, w x * |H₁ x|)| = ∑ x : α, w x * |H₁ x| :=
+      abs_of_nonneg hsumNonneg
+    rw [habs] at hcs
+    exact hcs
+  calc
+    |∑ x : α, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+        (∑ x : α, w x * |H₁ x|) ^ 2 := by
+          have hleft : 0 ≤ |∑ x : α, μ x * (H₀ x * H₁ x)| := abs_nonneg _
+          nlinarith [hdom, hsumNonneg, hleft]
+    _ ≤ (∑ x : α, w x) * ∑ x : α, w x * |H₁ x| ^ 2 := hcs'
+    _ = (∑ x : α, μ x * Ω x) * ∑ x : α, μ x * (Ω x * H₁ x ^ 2) := by
+      have hsumW : (∑ x : α, w x) = ∑ x, μ x * Ω x := by simp [w]
+      have hsumWH : (∑ x : α, w x * |H₁ x| ^ 2) =
+          ∑ x, μ x * (Ω x * H₁ x ^ 2) := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        simp only [w, sq_abs]
+        ring
+      rw [hsumW, hsumWH]
+
 theorem pkgB2_weightedShiftStateStep {α β : Type u} [Fintype α]
     [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
     (μ : β → ℝ) (L : β → ℕ) (hL : ∀ b, 0 < L b)
