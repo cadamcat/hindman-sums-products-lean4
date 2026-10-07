@@ -1,4 +1,5 @@
 import HindmanSumsProducts.Arithmetic.MasterScales
+import HindmanSumsProducts.Arithmetic.RoughCoprimality.Restrict
 
 open scoped BigOperators Topology
 open Filter
@@ -580,7 +581,402 @@ theorem rough_coprimality_survives_high_probability_restrictions
         Nat.gcd (roughPart (N + 1) (evalIntegerPolynomial F (fun i => (x i : ℤ))))
           (roughPart (N + 1) (evalIntegerPolynomial G (fun i => (y i : ℤ)))) = 1))
       atTop (𝓝 1) := by
-  sorry
+  classical
+  let loF : ℕ → Fin kF → ℕ := fun N i => (poolF N i).lower
+  let hiF : ℕ → Fin kF → ℕ := fun N i => (poolF N i).upper
+  let loG : ℕ → Fin kG → ℕ := fun N i => (poolG N i).lower
+  let hiG : ℕ → Fin kG → ℕ := fun N i => (poolG N i).upper
+  let EGood : ℕ → (Fin kF → ℕ) → (Fin kG → ℕ) → Prop := fun N x y =>
+    EF N x ∧ EG N y ∧
+      Nat.gcd (roughPart (N + 1) (evalIntegerPolynomial F (fun i => (x i : ℤ))))
+        (roughPart (N + 1) (evalIntegerPolynomial G (fun i => (y i : ℤ)))) = 1
+  let ETotal : ℕ → (Fin kF → ℕ) → (Fin kG → ℕ) → Prop := fun N x y =>
+    EF N x ∧ EG N y
+  let EBadRestricted : ℕ → (Fin kF → ℕ) → (Fin kG → ℕ) → Prop := fun N x y =>
+    EF N x ∧ EG N y ∧
+      Nat.gcd (roughPart (N + 1) (evalIntegerPolynomial F (fun i => (x i : ℤ))))
+        (roughPart (N + 1) (evalIntegerPolynomial G (fun i => (y i : ℤ)))) ≠ 1
+  let EHard : ℕ → (Fin kF → ℕ) → (Fin kG → ℕ) → Prop := fun N x y =>
+    evalIntegerPolynomial F (fun i => (x i : ℤ)) ≠ 0 ∧
+      evalIntegerPolynomial G (fun i => (y i : ℤ)) ≠ 0 ∧
+        Nat.gcd (roughPart (N + 1) (evalIntegerPolynomial F (fun i => (x i : ℤ))))
+          (roughPart (N + 1) (evalIntegerPolynomial G (fun i => (y i : ℤ)))) > 1
+  let pF : ℕ → ℝ := fun N => independentPrimePoolProbability (loF N) (hiF N) (EF N)
+  let pG : ℕ → ℝ := fun N => independentPrimePoolProbability (loG N) (hiG N) (EG N)
+  let pProd : ℕ → ℝ := fun N => pF N * pG N
+  change Tendsto (fun N => independentPrimePairProbability
+    (loF N) (hiF N) (loG N) (hiG N) (EGood N)) atTop (𝓝 1)
+  have hpF : Tendsto pF atTop (𝓝 1) := by
+    simpa [pF, loF, hiF] using hEF
+  have hpG : Tendsto pG atTop (𝓝 1) := by
+    simpa [pG, loG, hiG] using hEG
+  have hpProd : Tendsto pProd atTop (𝓝 1) := by
+    simpa [pProd] using hpF.mul hpG
+  have hTotalEq (N : ℕ) :
+      independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (ETotal N) = pProd N := by
+    simpa [ETotal, pProd, pF, pG] using
+      (independentPrimePairProbability_product
+        (loF N) (hiF N) (loG N) (hiG N) (EF N) (EG N))
+  by_cases hdim : 0 < kF + kG
+  · let aF : ℕ → Fin kF → ℕ := fun N i => Classical.choose (poolF N i).lower_pow_two
+    let bF : ℕ → Fin kF → ℕ := fun N i => Classical.choose (poolF N i).upper_pow_two
+    let aG : ℕ → Fin kG → ℕ := fun N i => Classical.choose (poolG N i).lower_pow_two
+    let bG : ℕ → Fin kG → ℕ := fun N i => Classical.choose (poolG N i).upper_pow_two
+    have hloPowF (N : ℕ) (i : Fin kF) : loF N i = 2 ^ (aF N i) :=
+      Classical.choose_spec (poolF N i).lower_pow_two
+    have hhiPowF (N : ℕ) (i : Fin kF) : hiF N i = 2 ^ (bF N i) :=
+      Classical.choose_spec (poolF N i).upper_pow_two
+    have hloPowG (N : ℕ) (i : Fin kG) : loG N i = 2 ^ (aG N i) :=
+      Classical.choose_spec (poolG N i).lower_pow_two
+    have hhiPowG (N : ℕ) (i : Fin kG) : hiG N i = 2 ^ (bG N i) :=
+      Classical.choose_spec (poolG N i).upper_pow_two
+    have habF (N : ℕ) (i : Fin kF) : aF N i < bF N i := by
+      apply (Nat.pow_lt_pow_iff_right (by norm_num : 1 < 2)).1
+      rw [← hloPowF N i, ← hhiPowF N i]
+      exact (poolF N i).lower_lt_upper
+    have habG (N : ℕ) (i : Fin kG) : aG N i < bG N i := by
+      apply (Nat.pow_lt_pow_iff_right (by norm_num : 1 < 2)).1
+      rw [← hloPowG N i, ← hhiPowG N i]
+      exact (poolG N i).lower_lt_upper
+    have hlow2F : ∀ᶠ N in atTop, ∀ i, 2 ≤ loF N i := by
+      rw [Filter.eventually_all]
+      intro i
+      simpa [loF] using (hloF i).eventually_ge_atTop 2
+    have hlow2G : ∀ᶠ N in atTop, ∀ j, 2 ≤ loG N j := by
+      rw [Filter.eventually_all]
+      intro j
+      simpa [loG] using (hloG j).eventually_ge_atTop 2
+    have hdim' : Nonempty (Fin kF) ∨ Nonempty (Fin kG) := by
+      by_cases hkF : 0 < kF
+      · exact Or.inl ⟨⟨0, hkF⟩⟩
+      · have hkG : 0 < kG := by omega
+        exact Or.inr ⟨⟨0, hkG⟩⟩
+    have hEndpointMinEq (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) :
+        a_rough3_endpointMinimum YF YG = roughSmallestEndpoint YF YG := by
+      rfl
+    have hEndpointNE (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) :
+        (roughEndpointSet YF YG).Nonempty := by
+      rcases hdim' with hFdim | hGdim
+      · obtain ⟨i⟩ := hFdim
+        exact ⟨YF i, Finset.mem_union_left _
+          (Finset.mem_image.mpr ⟨i, Finset.mem_univ i, rfl⟩)⟩
+      · obtain ⟨j⟩ := hGdim
+        exact ⟨YG j, Finset.mem_union_right _
+          (Finset.mem_image.mpr ⟨j, Finset.mem_univ j, rfl⟩)⟩
+    let R : ℕ → ℕ := fun N => a_rough3_endpointMinimum (loF N) (loG N)
+    have hR : Tendsto R atTop atTop := by
+      simpa [R] using (a_rough3_endpointMinimum_tendsto loF loG hloF hloG hdim')
+    have hmassPoolF (N : ℕ) (hN : ∀ i, 2 ≤ loF N i) (i : Fin kF) :
+        0 < primePoolMass (loF N i) (hiF N i) := by
+      rw [a_rough3_primePoolMass_dyadic_sum (hloPowF N i) (hhiPowF N i)]
+      have ha1 : 1 ≤ aF N i := by
+        by_contra hnot
+        have ha0 : aF N i = 0 := by omega
+        have hlow := hN i
+        rw [hloPowF N i, ha0] at hlow
+        norm_num at hlow
+      have hYtwo : 2 ≤ 2 ^ (aF N i) := by
+        calc
+          2 = 2 ^ 1 := by norm_num
+          _ ≤ 2 ^ (aF N i) := pow_le_pow_right' (a := 2) (by norm_num) ha1
+      have hfirst : aF N i ∈ Finset.Ico (aF N i) (bF N i) :=
+        Finset.mem_Ico.mpr ⟨le_rfl, habF N i⟩
+      have hbin : 0 < primePoolMass (2 ^ (aF N i)) (2 ^ (aF N i + 1)) := by
+        have h := dyadicPrimePoolMass_pos (2 ^ (aF N i)) hYtwo
+        simpa [pow_succ, Nat.mul_comm] using h
+      exact lt_of_lt_of_le hbin
+        (Finset.single_le_sum (f := fun j => primePoolMass (2 ^ j) (2 ^ (j + 1)))
+          (fun j hj => primePoolMass_nonneg _ _) hfirst)
+    have hmassPoolG (N : ℕ) (hN : ∀ j, 2 ≤ loG N j) (j : Fin kG) :
+        0 < primePoolMass (loG N j) (hiG N j) := by
+      rw [a_rough3_primePoolMass_dyadic_sum (hloPowG N j) (hhiPowG N j)]
+      have ha1 : 1 ≤ aG N j := by
+        by_contra hnot
+        have ha0 : aG N j = 0 := by omega
+        have hlow := hN j
+        rw [hloPowG N j, ha0] at hlow
+        norm_num at hlow
+      have hYtwo : 2 ≤ 2 ^ (aG N j) := by
+        calc
+          2 = 2 ^ 1 := by norm_num
+          _ ≤ 2 ^ (aG N j) := pow_le_pow_right' (a := 2) (by norm_num) ha1
+      have hfirst : aG N j ∈ Finset.Ico (aG N j) (bG N j) :=
+        Finset.mem_Ico.mpr ⟨le_rfl, habG N j⟩
+      have hbin : 0 < primePoolMass (2 ^ (aG N j)) (2 ^ (aG N j + 1)) := by
+        have h := dyadicPrimePoolMass_pos (2 ^ (aG N j)) hYtwo
+        simpa [pow_succ, Nat.mul_comm] using h
+      exact lt_of_lt_of_le hbin
+        (Finset.single_le_sum (f := fun j => primePoolMass (2 ^ j) (2 ^ (j + 1)))
+          (fun j hj => primePoolMass_nonneg _ _) hfirst)
+    have hbinPoolF (N : ℕ) (hN : ∀ i, 2 ≤ loF N i) (i : Fin kF) (j : ℕ)
+        (hj : j ∈ Finset.Ico (aF N i) (bF N i)) :
+        0 < primePoolMass (2 ^ j) (2 ^ (j + 1)) := by
+      have ha1 : 1 ≤ aF N i := by
+        by_contra hnot
+        have ha0 : aF N i = 0 := by omega
+        have hlow := hN i
+        rw [hloPowF N i, ha0] at hlow
+        norm_num at hlow
+      have hj' := Finset.mem_Ico.mp hj
+      have hYtwo : 2 ≤ 2 ^ j := by
+        calc
+          2 = 2 ^ 1 := by norm_num
+          _ ≤ 2 ^ (aF N i) := pow_le_pow_right' (a := 2) (by norm_num) ha1
+          _ ≤ 2 ^ j := pow_le_pow_right' (a := 2) (by norm_num) hj'.1
+      have h := dyadicPrimePoolMass_pos (2 ^ j) hYtwo
+      simpa [pow_succ, Nat.mul_comm] using h
+    have hbinPoolG (N : ℕ) (hN : ∀ j, 2 ≤ loG N j) (j : Fin kG) (p : ℕ)
+        (hp : p ∈ Finset.Ico (aG N j) (bG N j)) :
+        0 < primePoolMass (2 ^ p) (2 ^ (p + 1)) := by
+      have ha1 : 1 ≤ aG N j := by
+        by_contra hnot
+        have ha0 : aG N j = 0 := by omega
+        have hlow := hN j
+        rw [hloPowG N j, ha0] at hlow
+        norm_num at hlow
+      have hp' := Finset.mem_Ico.mp hp
+      have hYtwo : 2 ≤ 2 ^ p := by
+        calc
+          2 = 2 ^ 1 := by norm_num
+          _ ≤ 2 ^ (aG N j) := pow_le_pow_right' (a := 2) (by norm_num) ha1
+          _ ≤ 2 ^ p := pow_le_pow_right' (a := 2) (by norm_num) hp'.1
+      have h := dyadicPrimePoolMass_pos (2 ^ p) hYtwo
+      simpa [pow_succ, Nat.mul_comm] using h
+    obtain ⟨N₀, C, hC, hrough⟩ := lem_rough_coprimality F G hF hG
+    let B : ℕ → ℝ := fun N => C *
+      (1 / ((N : ℝ) + 1) + Real.log (R N : ℝ) / Real.sqrt (R N : ℝ))
+    have hInv : Tendsto (fun N : ℕ => 1 / ((N : ℝ) + 1)) atTop (𝓝 0) :=
+      tendsto_one_div_add_atTop_nhds_zero_nat
+    have hlogRatio : Tendsto (fun x : ℝ => Real.log x / Real.sqrt x) atTop (𝓝 0) := by
+      have hlittle := isLittleO_log_rpow_atTop (r := (1 / 2 : ℝ)) (by norm_num)
+      simpa [Real.sqrt_eq_rpow] using hlittle.tendsto_div_nhds_zero
+    have hRreal : Tendsto (fun N : ℕ => (R N : ℝ)) atTop atTop :=
+      tendsto_natCast_atTop_atTop.comp hR
+    have hratio : Tendsto
+        (fun N : ℕ => Real.log (R N : ℝ) / Real.sqrt (R N : ℝ)) atTop (𝓝 0) :=
+      hlogRatio.comp hRreal
+    have hB : Tendsto B atTop (𝓝 0) := by
+      simpa [B] using (tendsto_const_nhds.mul (hInv.add hratio))
+    have hexp2 : Real.exp 2 ≤ 9 := by
+      rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
+      have he := Real.exp_one_lt_three
+      nlinarith [Real.exp_pos (1 : ℝ)]
+    have hhard : ∀ᶠ N in atTop,
+        independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EHard N) ≤ B N := by
+      filter_upwards [eventually_ge_atTop N₀, hR.eventually_ge_atTop N₀,
+        hR.eventually_ge_atTop 9, hlow2F, hlow2G] with N hN hRN₀ hRN9 hLF hLG
+      have hBnonneg : 0 ≤ B N := by
+        have hRone : 1 ≤ (R N : ℝ) := by exact_mod_cast (show 1 ≤ R N by omega)
+        dsimp [B]
+        apply mul_nonneg hC.le
+        apply add_nonneg
+        · positivity
+        · exact div_nonneg (Real.log_nonneg hRone) (Real.sqrt_nonneg _)
+      refine a_rough3_independentPrimePairProbability_dyadic_bound
+        (loF N) (hiF N) (aF N) (bF N) (loG N) (hiG N) (aG N) (bG N)
+        (hloPowF N) (hhiPowF N) (hloPowG N) (hhiPowG N)
+        (hmassPoolF N hLF) (hmassPoolG N hLG)
+        (hbinPoolF N hLF) (hbinPoolG N hLG) (EHard N) (B N) hBnonneg ?_
+      intro yF hyF yG hyG
+      have hyFall : ∀ i, yF i ∈ Finset.Ico (aF N i) (bF N i) := by
+        simpa [a_rough3_scaleSupport] using hyF
+      have hyGall : ∀ j, yG j ∈ Finset.Ico (aG N j) (bG N j) := by
+        simpa [a_rough3_scaleSupport] using hyG
+      have hcompF : ∀ i, loF N i ≤ a_rough3_dyadicLower yF i := by
+        intro i
+        have hji := Finset.mem_Ico.mp (hyFall i)
+        dsimp [a_rough3_dyadicLower]
+        rw [hloPowF N i]
+        exact pow_le_pow_right' (a := 2) (by norm_num) hji.1
+      have hcompG : ∀ j, loG N j ≤ a_rough3_dyadicLower yG j := by
+        intro j
+        have hjj := Finset.mem_Ico.mp (hyGall j)
+        dsimp [a_rough3_dyadicLower]
+        rw [hloPowG N j]
+        exact pow_le_pow_right' (a := 2) (by norm_num) hjj.1
+      have hRcomp' := a_rough3_endpointMinimum_mono
+        (loF N) (a_rough3_dyadicLower yF) (loG N) (a_rough3_dyadicLower yG)
+        hcompF hcompG
+        (by simpa [a_rough3_endpointSet, roughEndpointSet] using hEndpointNE (loF N) (loG N))
+        (by simpa [a_rough3_endpointSet, roughEndpointSet] using
+          hEndpointNE (a_rough3_dyadicLower yF) (a_rough3_dyadicLower yG))
+      have hRcomp : R N ≤ roughSmallestEndpoint
+          (a_rough3_dyadicLower yF) (a_rough3_dyadicLower yG) := by
+        simpa [R, hEndpointMinEq] using hRcomp'
+      have hN₀comp : N₀ ≤ roughSmallestEndpoint
+          (a_rough3_dyadicLower yF) (a_rough3_dyadicLower yG) :=
+        le_trans hRN₀ hRcomp
+      have hdyad := (hrough (a_rough3_dyadicLower yF) (a_rough3_dyadicLower yG)
+        (N + 1) (by omega) hN₀comp).2
+      have hratioMono :
+          Real.log (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+              (a_rough3_dyadicLower yG) : ℝ) /
+            Real.sqrt (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+              (a_rough3_dyadicLower yG) : ℝ) ≤
+          Real.log (R N : ℝ) / Real.sqrt (R N : ℝ) := by
+        have hbase : Real.exp 2 ≤ (R N : ℝ) := by
+          exact hexp2.trans (by exact_mod_cast hRN9)
+        have hcomp : Real.exp 2 ≤
+            (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+              (a_rough3_dyadicLower yG) : ℝ) := by
+          exact hbase.trans (by exact_mod_cast hRcomp)
+        exact Real.log_div_sqrt_antitoneOn hbase hcomp (by exact_mod_cast hRcomp)
+      have hrealBound :
+          C * (1 / ((N + 1 : ℕ) : ℝ) +
+            Real.log (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+              (a_rough3_dyadicLower yG) : ℝ) /
+              Real.sqrt (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+                (a_rough3_dyadicLower yG) : ℝ)) ≤ B N := by
+        have hsum :
+            1 / ((N + 1 : ℕ) : ℝ) +
+                Real.log (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+                  (a_rough3_dyadicLower yG) : ℝ) /
+                  Real.sqrt (roughSmallestEndpoint (a_rough3_dyadicLower yF)
+                    (a_rough3_dyadicLower yG) : ℝ) ≤
+              1 / ((N : ℝ) + 1) + Real.log (R N : ℝ) / Real.sqrt (R N : ℝ) := by
+          have hinvEq : 1 / ((N + 1 : ℕ) : ℝ) = 1 / ((N : ℝ) + 1) := by
+            simp [Nat.cast_add, Nat.cast_one]
+          rw [hinvEq]
+          exact add_le_add le_rfl hratioMono
+        simpa [B] using mul_le_mul_of_nonneg_left hsum hC.le
+      have hdyad' := hdyad.trans hrealBound
+      have hUpperF : a_rough3_dyadicUpper yF =
+          fun i => 2 * a_rough3_dyadicLower yF i := by
+        funext i
+        simp [a_rough3_dyadicUpper, a_rough3_dyadicLower, pow_succ, Nat.mul_comm]
+      have hUpperG : a_rough3_dyadicUpper yG =
+          fun j => 2 * a_rough3_dyadicLower yG j := by
+        funext j
+        simp [a_rough3_dyadicUpper, a_rough3_dyadicLower, pow_succ, Nat.mul_comm]
+      rw [hUpperF, hUpperG]
+      simpa [EHard] using hdyad'
+    have hupper : ∀ N,
+        independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EGood N) ≤ pProd N := by
+      intro N
+      calc
+        _ ≤ independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (ETotal N) :=
+          independentPrimePairProbability_mono
+            (loF N) (hiF N) (loG N) (hiG N) (EGood N) (ETotal N)
+            (by intro x y h; exact ⟨h.1, h.2.1⟩)
+        _ = pProd N := hTotalEq N
+    have hPairOrLe (N : ℕ)
+        (A B : (Fin kF → ℕ) → (Fin kG → ℕ) → Prop) :
+        independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N)
+            (fun x y => A x y ∨ B x y) ≤
+          independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) A +
+            independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) B := by
+      let D : (Fin kF → ℕ) → (Fin kG → ℕ) → Prop := fun x y => A x y ∧ ¬ B x y
+      have hEq : (fun x y => A x y ∨ B x y) = (fun x y => D x y ∨ B x y) := by
+        funext x y
+        apply propext
+        by_cases hB : B x y <;> simp [D, hB]
+      have hdisj : ∀ x y, ¬ (D x y ∧ B x y) := by
+        intro x y h
+        exact h.1.2 h.2
+      calc
+        _ = independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N)
+              (fun x y => D x y ∨ B x y) := by rw [hEq]
+        _ = independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) D +
+              independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) B :=
+            independentPrimePairProbability_add_disjoint
+              (loF N) (hiF N) (loG N) (hiG N) D B hdisj
+        _ ≤ independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) A +
+              independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) B := by
+            exact add_le_add
+              (independentPrimePairProbability_mono
+                (loF N) (hiF N) (loG N) (hiG N) D A
+                (by intro x y h; exact h.1)) le_rfl
+    have htotal_or (N : ℕ) :
+        independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (ETotal N) ≤
+          independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EGood N) +
+            independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EBadRestricted N) := by
+      calc
+        _ ≤ independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N)
+              (fun x y => EGood N x y ∨ EBadRestricted N x y) :=
+          independentPrimePairProbability_mono
+            (loF N) (hiF N) (loG N) (hiG N) (ETotal N)
+            (fun x y => EGood N x y ∨ EBadRestricted N x y)
+            (by
+              intro x y h
+              by_cases hcop : Nat.gcd
+                  (roughPart (N + 1) (evalIntegerPolynomial F (fun i => (x i : ℤ))))
+                  (roughPart (N + 1) (evalIntegerPolynomial G (fun i => (y i : ℤ)))) = 1
+              · left
+                exact ⟨h.1, h.2, hcop⟩
+              · right
+                exact ⟨h.1, h.2, hcop⟩)
+        _ ≤ independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EGood N) +
+              independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EBadRestricted N) :=
+          hPairOrLe N (EGood N) (EBadRestricted N)
+    have hbadMono (N : ℕ) :
+        independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EBadRestricted N) ≤
+          independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EHard N) :=
+      independentPrimePairProbability_mono
+        (loF N) (hiF N) (loG N) (hiG N) (EBadRestricted N) (EHard N)
+        (by
+          intro x y h
+          exact roughGcd_ne_one_implies_common h.2.2)
+    have hlower : ∀ᶠ N in atTop,
+        pProd N - B N ≤ independentPrimePairProbability
+          (loF N) (hiF N) (loG N) (hiG N) (EGood N) := by
+      filter_upwards [hhard] with N hbadBound
+      have hbound := htotal_or N
+      have hsumBound :
+          independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (ETotal N) ≤
+            independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EGood N) + B N :=
+        hbound.trans (by linarith [((hbadMono N).trans hbadBound)])
+      rw [hTotalEq N] at hsumBound
+      linarith
+    have hlowerT : Tendsto (fun N => pProd N - B N) atTop (𝓝 1) := by
+      simpa using hpProd.sub hB
+    exact tendsto_of_tendsto_of_tendsto_of_le_of_le'
+      hlowerT hpProd hlower (Filter.Eventually.of_forall hupper)
+  · have hkF : kF = 0 := by omega
+    have hkG : kG = 0 := by omega
+    subst kF
+    subst kG
+    let x0 : Fin 0 → ℕ := fun i => Fin.elim0 i
+    let y0 : Fin 0 → ℕ := fun i => Fin.elim0 i
+    let vF : ℤ := evalIntegerPolynomial F (fun i => (x0 i : ℤ))
+    let vG : ℤ := evalIntegerPolynomial G (fun i => (y0 i : ℤ))
+    have hxEval (x : Fin 0 → ℕ) :
+        evalIntegerPolynomial F (fun i => (x i : ℤ)) = vF := by
+      have hx : x = x0 := by
+        funext i
+        exact Fin.elim0 i
+      subst x
+      rfl
+    have hyEval (y : Fin 0 → ℕ) :
+        evalIntegerPolynomial G (fun i => (y i : ℤ)) = vG := by
+      have hy : y = y0 := by
+        funext i
+        exact Fin.elim0 i
+      subst y
+      rfl
+    have hrough : ∀ᶠ N in atTop,
+        Nat.gcd (roughPart (N + 1) vF) (roughPart (N + 1) vG) = 1 := by
+      filter_upwards [eventually_ge_atTop vF.natAbs,
+        eventually_ge_atTop vG.natAbs] with N hFbound hGbound
+      have hFpart := a_rough3_roughPart_eq_one_of_natAbs_le
+        (w := N + 1) (z := vF) (by omega)
+      have hGpart := a_rough3_roughPart_eq_one_of_natAbs_le
+        (w := N + 1) (z := vG) (by omega)
+      simp [hFpart, hGpart]
+    have hgood_eq : ∀ᶠ N in atTop, EGood N = ETotal N := by
+      filter_upwards [hrough] with N hN
+      funext x y
+      dsimp [EGood, ETotal]
+      rw [hxEval x, hyEval y]
+      simp [hN]
+    have htarget_eq : ∀ᶠ N in atTop,
+        independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EGood N) = pProd N := by
+      filter_upwards [hgood_eq] with N hN
+      rw [hN, hTotalEq N]
+    have htarget_eq' : ∀ᶠ N in atTop,
+        pProd N = independentPrimePairProbability (loF N) (hiF N) (loG N) (hiG N) (EGood N) := by
+      filter_upwards [htarget_eq] with N hN
+      exact hN.symm
+    exact hpProd.congr' htarget_eq'
 
 end
 end HindmanSumsProducts
