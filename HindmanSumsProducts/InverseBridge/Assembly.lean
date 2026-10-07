@@ -1,4 +1,5 @@
 import HindmanSumsProducts.InverseBridge.Menu
+import HindmanSumsProducts.InverseBridge.Assembly.AdjointExp
 
 /-!
 Final assembly of the cyclic inverse theorem into the fixed charted menu (IB.d1).
