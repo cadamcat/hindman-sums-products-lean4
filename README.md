@@ -18,6 +18,9 @@ lake exe cache get
 lake build
 ```
 
-The script applies each `lean/patches/*-lean4341.patch` of OpenAI's package to the package of the same name
-under `.lake/packages/`, and skips patches that are already applied, so it can be run again after any
-`lake update`.
+`lake update` exits with status 1, ending with an error from OpenAI's patch hook
+(`iut: Lake resolved an unexpected checkout at …`). The dependencies are resolved and `lake-manifest.json`
+is written all the same; run the script next. The script applies each `lean/patches/*-lean4341.patch` of
+OpenAI's package to the package of the same name under `.lake/packages/`, and skips patches that are
+already applied, so it can be run again after any `lake update`. OpenAI's hook also leaves unused clones
+under `.lake/packages/OAI/lean/.lake/packages/`; they can be deleted.
