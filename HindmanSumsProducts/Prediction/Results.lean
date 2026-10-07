@@ -347,7 +347,7 @@ theorem opus_dpo_translation_error (MS : MasterScales K As sl Dm) (B : Block K) 
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
       |opus_dpo_untranslatedAverage MS B gap T J0 hT direction N I -
         pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 ∅ N I| ≤ ε := by
-  sorry
+  exact opus_dpo_translation_error_proof MS B gap T J0 hgap hT hJ0 direction hdir k0
 
 /-- Part: one weighted Cauchy–Schwarz elimination step (05:137–148).  Eliminating the direction
 of the nonroot row `s ∉ E`: the copies of row `s` do not depend on its translation coordinate,

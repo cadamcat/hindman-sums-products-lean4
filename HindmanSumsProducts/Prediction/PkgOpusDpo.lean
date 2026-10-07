@@ -1210,6 +1210,359 @@ theorem opus_dpo_inner_translation {K sl b : ℕ} {As : Finset ℚ}
     _ = opus_dpo_insertError MS B gap T J0 direction N := by
       simp only [opus_dpo_insertError, hBd, hη, hA]
 
+
+/-! ### Translation insertion: decay and the part lemma -/
+
+/-- (Copied from lane sol-dpop.) Harmonic translation errors decay superpolynomially when the
+logarithmic cutoff
+separates every fixed power of a scale dominating the displacement and block scale. -/
+theorem opus_dpo_harmonicTranslation_superPolynomial
+    (X W H V S : ℕ → ℕ) (q : ℕ)
+    (hX : ∀ N, 1 ≤ X N) (hS : ∀ N, 1 ≤ S N)
+    (hStendsto : Tendsto (fun N => (S N : ℝ)) atTop atTop)
+    (hWle : ∀ᶠ N in atTop, W N ≤ S N)
+    (hVle : ∀ᶠ N in atTop, V N ≤ S N)
+    (hHle : ∀ᶠ N in atTop, H N ≤ S N ^ q)
+    (hlog : OAI.MicrocellScale.Dominates (fun N => Real.log (X N : ℝ))
+      (fun N => (S N : ℝ))) :
+    SuperPolynomialSmall (fun N => harmonicTranslationUniformError (X N) (W N) (H N))
+      (fun N => (V N : ℝ)) := by
+  intro C hC
+  let m : ℕ := Nat.ceil ((q : ℝ) + C + 1)
+  have hm : (q : ℝ) + C + 1 ≤ (m : ℝ) := Nat.le_ceil _
+  have hmpos : (0 : ℝ) < (m : ℝ) := by linarith
+  have hSpos (N : ℕ) : (0 : ℝ) < (S N : ℝ) := by exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one (hS N))
+  have hSone (N : ℕ) : (1 : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hS N
+  have hlargeLog : ∀ᶠ N in atTop, 2 * (S N : ℝ) ≤ Real.log (X N : ℝ) := by
+    filter_upwards [(hlog 1 (by norm_num)).eventually_ge_atTop 2] with N hN
+    have hN' : (2 : ℝ) ≤ Real.log (X N : ℝ) / (S N : ℝ) := by simpa using hN
+    exact (le_div_iff₀ (hSpos N)).mp hN'
+  have hpowerLog : ∀ᶠ N in atTop, (S N : ℝ) ^ (m : ℝ) ≤ Real.log (X N : ℝ) := by
+    filter_upwards [(hlog m hmpos).eventually_ge_atTop 1] with N hN
+    simpa using (le_div_iff₀ (Real.rpow_pos_of_pos (hSpos N) _)).mp hN
+  have hbound : ∀ᶠ N in atTop,
+      harmonicTranslationUniformError (X N) (W N) (H N) * (V N : ℝ) ^ C ≤
+        4 / (S N : ℝ) := by
+    filter_upwards [hWle, hVle, hHle, hlargeLog, hpowerLog]
+      with N hW hV hH hlogLarge hlogPower
+    let L := Real.log (X N : ℝ)
+    let D := (X N : ℝ) * (L - (W N : ℝ) / (X N : ℝ))
+    have hXone : (1 : ℝ) ≤ (X N : ℝ) := by exact_mod_cast hX N
+    have hXpos : (0 : ℝ) < (X N : ℝ) := by positivity
+    have hWreal : (W N : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hW
+    have hVreal : (V N : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hV
+    have hHreal : (H N : ℝ) ≤ (S N : ℝ) ^ q := by exact_mod_cast hH
+    have hLpos : 0 < L := by dsimp [L]; nlinarith [hSpos N]
+    have hFrac : (W N : ℝ) / (X N : ℝ) ≤ (S N : ℝ) := by
+      apply (div_le_iff₀ hXpos).mpr
+      exact hWreal.trans (by nlinarith [hSpos N])
+    have hDen : L / 2 ≤ L - (W N : ℝ) / (X N : ℝ) := by dsimp [L] at *; linarith
+    have hD : L ≤ 2 * D := by
+      dsimp [D]
+      have hhalfpos : 0 ≤ L / 2 := by positivity
+      have hmul := mul_le_mul hXone hDen hhalfpos (by positivity : (0 : ℝ) ≤ X N)
+      nlinarith
+    have hDpos : 0 < D := by linarith
+    have herror : harmonicTranslationUniformError (X N) (W N) (H N) ≤ 4 * (H N : ℝ) / L := by
+      calc
+        _ ≤ 2 * (H N : ℝ) / D := min_le_right _ _
+        _ ≤ _ := by
+          apply (div_le_div_iff₀ hDpos hLpos).mpr
+          nlinarith [Nat.cast_nonneg (α := ℝ) (H N)]
+    have hpowV : (V N : ℝ) ^ C ≤ (S N : ℝ) ^ C :=
+      Real.rpow_le_rpow (Nat.cast_nonneg _) hVreal hC.le
+    have hpower : (H N : ℝ) * (V N : ℝ) ^ C * (S N : ℝ) ≤ L := by
+      calc
+        _ ≤ (S N : ℝ) ^ q * (S N : ℝ) ^ C * (S N : ℝ) := by
+          exact mul_le_mul_of_nonneg_right
+            (mul_le_mul hHreal hpowV (Real.rpow_nonneg (Nat.cast_nonneg _) _) (by positivity))
+            (Nat.cast_nonneg _)
+        _ = (S N : ℝ) ^ ((q : ℝ) + C + 1) := by
+          calc
+            _ = (S N : ℝ) ^ ((q : ℝ) + C) * (S N : ℝ) := by
+              rw [← Real.rpow_natCast, ← Real.rpow_add (hSpos N)]
+            _ = (S N : ℝ) ^ ((q : ℝ) + C) * (S N : ℝ) ^ (1 : ℝ) := by rw [Real.rpow_one]
+            _ = _ := (Real.rpow_add (hSpos N) _ _).symm
+        _ ≤ (S N : ℝ) ^ (m : ℝ) := Real.rpow_le_rpow_of_exponent_le (hSone N) hm
+        _ ≤ L := hlogPower
+    calc
+      _ ≤ (4 * (H N : ℝ) / L) * (V N : ℝ) ^ C :=
+        mul_le_mul_of_nonneg_right herror (Real.rpow_nonneg (Nat.cast_nonneg _) _)
+      _ = 4 * ((H N : ℝ) * (V N : ℝ) ^ C) / L := by ring
+      _ ≤ 4 / (S N : ℝ) := by
+        apply (div_le_div_iff₀ hLpos (hSpos N)).mpr
+        nlinarith
+  have hupper : Tendsto (fun N => 4 / (S N : ℝ)) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using (tendsto_inv_atTop_zero.comp hStendsto).const_mul 4
+  have hnonneg : ∀ᶠ N in atTop,
+      0 ≤ harmonicTranslationUniformError (X N) (W N) (H N) * (V N : ℝ) ^ C := by
+    filter_upwards [hWle, hlargeLog] with N hW hlogLarge
+    have hXone : (1 : ℝ) ≤ (X N : ℝ) := by exact_mod_cast hX N
+    have hWreal : (W N : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hW
+    have hFrac : (W N : ℝ) / (X N : ℝ) ≤ (S N : ℝ) := by
+      apply (div_le_iff₀ (by positivity : (0 : ℝ) < X N)).mpr
+      exact hWreal.trans (by nlinarith [hSpos N])
+    unfold harmonicTranslationUniformError
+    apply mul_nonneg
+    · apply le_min (by norm_num)
+      apply div_nonneg (by positivity)
+      apply mul_nonneg (by positivity)
+      nlinarith [hSpos N]
+    · exact Real.rpow_nonneg (Nat.cast_nonneg _) _
+  exact squeeze_zero' hnonneg hbound hupper
+
+/-- Every good joint prime tuple is eventually regular (copy of the private
+`pkgB2_baseRegular_of_allGood_eventually`, from public PkgB2 lemmas). -/
+theorem opus_dpo_regular_eventually {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k) :
+    ∀ᶠ N : ℕ in atTop, ∀ p : Fin (b * sl) → ℕ,
+      pkgB2_goodPrimeEvent MS gap T hT N p → pkgB2_baseRegular MS B T J0 gap hT N p := by
+  have hshiftAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      (pkgB2_blockScale MS.core.parameters B N) ^ 1 ≤
+        (pkgB2_translationLength MS T J0 gap k N) ^ 2 := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => pkgB2_translationLength_ge_blockScale_pow MS B T J0 gap hgap hJ0 k 1)
+    filter_upwards [h] with N hN k
+    have hk : pkgB2_blockScale MS.core.parameters B N ^ 1 ≤
+        pkgB2_translationLength MS T J0 gap k N := hN k (Finset.mem_univ k)
+    calc
+      _ ≤ pkgB2_translationLength MS T J0 gap k N := hk
+      _ ≤ _ := by
+        rcases Nat.eq_zero_or_pos (pkgB2_translationLength MS T J0 gap k N) with h0 | h0
+        · rw [h0]; simp
+        · nlinarith
+  filter_upwards [hshiftAll] with N hN
+  intro p hpGood
+  have hV : 1 ≤ pkgB2_blockScale MS.core.parameters B N := by
+    dsimp [pkgB2_blockScale]
+    omega
+  refine ⟨hpGood, ?_, ?_⟩
+  · intro k
+    have hactual := pkgB2_shiftLengthFloor_le_actual MS T J0 gap hJ0 N
+      (fun k => pkgB2_repPrimeProject hT p k) hpGood k
+    have h2 : pkgB2_translationLength MS T J0 gap k N ^ 2 ≤ _ := Nat.sqrt_le' _
+    have hk := hN k
+    change 0 < (T k).length (corrScales MS) (gap k) (J0 k) N (pkgB2_repPrimeProject hT p k)
+    rw [pow_one] at hk
+    omega
+  · intro k
+    have hk := hN k
+    rw [pow_one] at hk
+    by_contra h0
+    push_neg at h0
+    have : pkgB2_translationLength MS T J0 gap k N = 0 := by omega
+    rw [this] at hk
+    simp at hk
+    omega
+
+theorem opus_dpo_blockScale_ge {K : ℕ} (A : Parameters K) (B : Block K) (N : ℕ) :
+    N ≤ pkgB2_blockScale A B N := by
+  dsimp [pkgB2_blockScale]
+  have h1 : N + 1 ≤ primorial (N + 1) := le_primorial_self
+  have h2 := A.Wle N
+  omega
+
+/-- The insertion error bound tends to zero. -/
+theorem opus_dpo_insertError_tendsto {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) :
+    Tendsto (opus_dpo_insertError MS B gap T J0 direction) atTop (𝓝 0) := by
+  classical
+  set A := MS.core.parameters with hA
+  let V : ℕ → ℕ := pkgB2_blockScale A B
+  let Hi : ℕ → ℕ := fun N => A.H N B.1
+  let m : ℕ := Fintype.card (Fin (Fintype.card (pkgB2_Occurrence T ∅)))
+  let n : ℕ := Fintype.card (Fin (Fintype.card (pkgB2_Coord T)))
+  let cC : ℕ := Fintype.card (pkgB2_Nonroot T) * opus_dpo_dirConst T direction
+  let harm : ℕ → ℝ := fun N => harmonicTranslationUniformError (A.X N B.1) (primorial (N + 1))
+    (opus_dpo_harmBound MS B T direction N)
+  let tk : Fin b → ℕ → ℝ := fun k N => 2 * (cC : ℝ) /
+    max 1 (pkgB2_translationLength MS T J0 gap k N : ℝ)
+  have hVge (N : ℕ) : N ≤ V N := opus_dpo_blockScale_ge A B N
+  have hVone (N : ℕ) : 1 ≤ V N := by
+    dsimp [V, pkgB2_blockScale]
+    omega
+  have hVtend : Tendsto (fun N => (V N : ℝ)) atTop atTop := by
+    apply tendsto_natCast_atTop_atTop.comp
+    rw [tendsto_atTop]
+    intro a
+    filter_upwards [eventually_ge_atTop a] with N hN
+    exact hN.trans (hVge N)
+  have hMH (N : ℕ) : A.M N ≤ Hi N := Nat.le_of_dvd (A.Hpos N B.1) (A.Hdiv N B.1)
+  have hWH (N : ℕ) : primorial (N + 1) ≤ Hi N := (A.Wle N).trans (hMH N)
+  have hHge (N : ℕ) : N ≤ Hi N := by
+    have h1 : N + 1 ≤ primorial (N + 1) := le_primorial_self
+    have := hWH N
+    omega
+  have hHtend : Tendsto (fun N => (Hi N : ℝ)) atTop atTop := by
+    apply tendsto_natCast_atTop_atTop.comp
+    rw [tendsto_atTop]
+    intro a
+    filter_upwards [eventually_ge_atTop a] with N hN
+    exact hN.trans (hHge N)
+  -- V ≤ H_i eventually, from the domination of the earlier scale
+  have hVH : ∀ᶠ N in atTop, V N ≤ Hi N := by
+    have hdom := A.Hdom B.1 2 (by norm_num)
+    filter_upwards [hdom.eventually_ge_atTop 1] with N hN
+    set P : ℕ := OAI.SourceAdmissible.previous (A.X N) B.1 with hP
+    have hS : (0 : ℝ) < OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+        (fun N => OAI.SourceAdmissible.previous (A.X N) B.1) N := by
+      unfold OAI.AdmissibleMicrocellBoundary.earlierScale
+      positivity
+    have hS2 := (le_div_iff₀ (Real.rpow_pos_of_pos hS 2)).mp hN
+    rw [one_mul, Real.rpow_two] at hS2
+    have hscale : (OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+        (fun N => OAI.SourceAdmissible.previous (A.X N) B.1) N) = 2 + (A.M N : ℝ) + P := by
+      rfl
+    rw [hscale] at hS2
+    have htail : ∏ j ∈ B.2.val, (A.X N j) ^ 2 ≤ P ^ 2 := by
+      rw [hP, OAI.SourceAdmissible.previous, ← Finset.prod_pow]
+      apply Finset.prod_le_prod_of_subset_of_one_le'
+      · intro j hj
+        exact Finset.mem_filter.mpr ⟨Finset.mem_univ j, B.2.property.2 j hj⟩
+      · intro j _ _
+        exact Nat.one_le_pow _ _ (A.Xpos N j)
+    have hVR : (V N : ℝ) ≤ 2 + (A.M N : ℝ) + (P : ℝ) ^ 2 := by
+      have : V N ≤ 2 + A.M N + P ^ 2 := by
+        dsimp [V, pkgB2_blockScale]
+        omega
+      exact_mod_cast this
+    have hsq : 2 + (A.M N : ℝ) + (P : ℝ) ^ 2 ≤ (2 + (A.M N : ℝ) + P) ^ 2 := by
+      have hM0 : (0 : ℝ) ≤ A.M N := Nat.cast_nonneg _
+      have hP0 : (0 : ℝ) ≤ P := Nat.cast_nonneg _
+      nlinarith
+    exact_mod_cast hVR.trans (hsq.trans hS2)
+  have hHb : ∀ᶠ N in atTop, opus_dpo_harmBound MS B T direction N ≤ Hi N ^ 3 := by
+    have hbig : ∀ᶠ N in atTop, cC ≤ Hi N := by
+      filter_upwards [eventually_ge_atTop cC] with N hN
+      exact hN.trans (hHge N)
+    filter_upwards [hbig] with N hN
+    dsimp [opus_dpo_harmBound]
+    calc
+      Fintype.card (pkgB2_Nonroot T) * opus_dpo_dirConst T direction * A.H N B.1 ^ 2 =
+          cC * Hi N ^ 2 := rfl
+      _ ≤ Hi N * Hi N ^ 2 := Nat.mul_le_mul_right _ hN
+      _ = Hi N ^ 3 := by ring
+  have hharm := opus_dpo_harmonicTranslation_superPolynomial (fun N => A.X N B.1)
+    (fun N => primorial (N + 1)) (fun N => opus_dpo_harmBound MS B T direction N) V Hi 3
+    (fun N => A.Xpos N B.1) (fun N => A.Hpos N B.1) hHtend
+    (Eventually.of_forall hWH) hVH hHb (A.Xdom B.1)
+  -- each term times any power of V tends to zero
+  have hharmPow : Tendsto (fun N => (V N : ℝ) ^ m * harm N) atTop (𝓝 0) := by
+    have h := hharm ((m : ℝ) + 1) (by positivity)
+    have hle : ∀ᶠ N in atTop, |(V N : ℝ) ^ m * harm N| ≤
+        |harm N * (V N : ℝ) ^ ((m : ℝ) + 1)| := by
+      filter_upwards with N
+      have hV1 : (1 : ℝ) ≤ V N := by exact_mod_cast hVone N
+      rw [abs_mul, abs_mul, mul_comm]
+      apply mul_le_mul_of_nonneg_left _ (abs_nonneg _)
+      rw [abs_of_nonneg (by positivity), abs_of_nonneg (by positivity), Real.rpow_add_one
+        (by positivity), Real.rpow_natCast]
+      nlinarith [pow_nonneg (by positivity : (0 : ℝ) ≤ V N) m]
+    exact squeeze_zero_norm' hle (by simpa using h.abs)
+  have htkPow (k : Fin b) : Tendsto (fun N => (V N : ℝ) ^ m * tk k N) atTop (𝓝 0) := by
+    have hfloor := pkgB2_translationLength_ge_blockScale_pow MS B T J0 gap hgap hJ0 k (m + 1)
+    have hupper : Tendsto (fun N => 2 * (cC : ℝ) / (V N : ℝ)) atTop (𝓝 0) := by
+      simpa [div_eq_mul_inv] using (tendsto_inv_atTop_zero.comp hVtend).const_mul (2 * (cC : ℝ))
+    apply squeeze_zero' (Eventually.of_forall fun N => by positivity) _ hupper
+    filter_upwards [hfloor] with N hN
+    have hN' : (V N : ℝ) ^ (m + 1) ≤ (pkgB2_translationLength MS T J0 gap k N : ℝ) := by
+      exact_mod_cast hN
+    have hV1 : (1 : ℝ) ≤ V N := by exact_mod_cast hVone N
+    have hVpos : (0 : ℝ) < V N := by linarith
+    have hApos : (0 : ℝ) < (pkgB2_translationLength MS T J0 gap k N : ℝ) :=
+      lt_of_lt_of_le (by positivity) hN'
+    have hmax : max 1 (pkgB2_translationLength MS T J0 gap k N : ℝ) =
+        (pkgB2_translationLength MS T J0 gap k N : ℝ) := by
+      apply max_eq_right
+      exact le_trans (one_le_pow₀ hV1) hN'
+    dsimp [tk]
+    rw [hmax]
+    rw [mul_div_assoc', div_le_div_iff₀ hApos hVpos]
+    calc
+      (V N : ℝ) ^ m * (2 * cC) * V N = 2 * cC * (V N : ℝ) ^ (m + 1) := by ring
+      _ ≤ 2 * cC * (pkgB2_translationLength MS T J0 gap k N : ℝ) :=
+        mul_le_mul_of_nonneg_left hN' (by positivity)
+  -- assemble
+  have hsum : Tendsto (fun N => (2 : ℝ) ^ m * n * ((V N : ℝ) ^ m * harm N +
+      ∑ k : Fin b, (V N : ℝ) ^ m * tk k N)) atTop (𝓝 0) := by
+    have h := (hharmPow.add (tendsto_finset_sum (Finset.univ : Finset (Fin b))
+      fun k _ => htkPow k)).const_mul
+      ((2 : ℝ) ^ m * n)
+    simpa using h
+  have hharm0 : ∀ᶠ N in atTop, 0 ≤ harm N := by
+    filter_upwards [pivotSamplingEventually MS B.1] with N hN
+    rcases hN with ⟨hX2, hlog⟩
+    have hXpos : (0 : ℝ) < (A.X N B.1 : ℝ) := by exact_mod_cast (A.Xpos N B.1)
+    dsimp [harm]
+    unfold harmonicTranslationUniformError
+    exact le_min (by norm_num) (div_nonneg (by positivity)
+      (mul_nonneg hXpos.le (sub_pos.mpr hlog).le))
+  apply squeeze_zero' _ _ hsum
+  · filter_upwards [hharm0] with N hN
+    unfold opus_dpo_insertError opus_dpo_eta
+    apply mul_nonneg (by positivity)
+    apply mul_nonneg (by positivity)
+    exact add_nonneg hN (Finset.sum_nonneg fun k _ => by positivity)
+  · filter_upwards [hharm0] with N hN
+    have hV1 : (1 : ℝ) ≤ V N := by exact_mod_cast hVone N
+    have hpow : (1 + (V N : ℝ)) ^ m ≤ (2 : ℝ) ^ m * (V N : ℝ) ^ m := by
+      rw [← mul_pow]
+      exact pow_le_pow_left₀ (by positivity) (by linarith) m
+    have hη0 : 0 ≤ harm N + ∑ k : Fin b, tk k N :=
+      add_nonneg hN (Finset.sum_nonneg fun k _ => by positivity)
+    unfold opus_dpo_insertError opus_dpo_eta
+    change (1 + (V N : ℝ)) ^ m * ((n : ℝ) * (harm N + ∑ k : Fin b, tk k N)) ≤ _
+    calc
+      (1 + (V N : ℝ)) ^ m * ((n : ℝ) * (harm N + ∑ k : Fin b, tk k N)) ≤
+          (2 : ℝ) ^ m * (V N : ℝ) ^ m * ((n : ℝ) * (harm N + ∑ k : Fin b, tk k N)) :=
+        mul_le_mul_of_nonneg_right hpow (by positivity)
+      _ = (2 : ℝ) ^ m * n * ((V N : ℝ) ^ m * harm N +
+          ∑ k : Fin b, (V N : ℝ) ^ m * tk k N) := by
+        rw [← Finset.mul_sum]
+        ring
+
+/-- Proof of the part `opus_dpo_translation_error`. -/
+theorem opus_dpo_translation_error_proof {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K)
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |opus_dpo_untranslatedAverage MS B gap T J0 hT direction N I -
+        pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 ∅ N I| ≤ ε := by
+  intro ε hε
+  have hdecay := opus_dpo_insertError_tendsto MS B gap T J0 hgap hJ0 direction
+  filter_upwards [hdecay.eventually (Iic_mem_nhds hε),
+    opus_dpo_regular_eventually MS B gap T J0 hgap hT hJ0,
+    pivotSamplingEventually MS B.1] with N hsmall hreg hsamp I
+  rcases hsamp with ⟨hX2, hlog⟩
+  rw [opus_dpo_stateAverage_eq]
+  unfold opus_dpo_untranslatedAverage
+  have hinner := fun p (hp : pkgB2_goodPrimeEvent MS gap T hT N p) =>
+    opus_dpo_inner_translation MS B gap T J0 hgap hT hJ0 direction N I p (hreg p hp) hX2 hlog
+  have hδ : 0 ≤ opus_dpo_insertError MS B gap T J0 direction N := by
+    have hXpos : (0 : ℝ) < (MS.core.parameters.X N B.1 : ℝ) := by
+      exact_mod_cast (MS.core.parameters.Xpos N B.1)
+    unfold opus_dpo_insertError opus_dpo_eta
+    apply mul_nonneg (by positivity)
+    apply mul_nonneg (by positivity)
+    apply add_nonneg
+    · unfold harmonicTranslationUniformError
+      exact le_min (by norm_num) (div_nonneg (by positivity)
+        (mul_nonneg hXpos.le (sub_pos.mpr hlog).le))
+    · exact Finset.sum_nonneg fun k _ => by positivity
+  exact (opus_dpo_average_sub_le MS B gap T J0 hT N _ _ _ hδ hinner).trans hsmall
+
 end
 
 end Prediction
