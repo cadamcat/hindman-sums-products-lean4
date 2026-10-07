@@ -327,6 +327,270 @@ noncomputable def pkgB2_csNextIntegrand {α β : Type*} [Fintype α]
   let (o, t₀) := pkgB2_shiftCoordAssignmentSplitEquiv E R (L b) v
   exact Ω b o * H b o t₀ * H b o t₁
 
+private theorem pkgB2_finite_weighted_cauchy {α : Type*} [Fintype α]
+    (μ Ω H₀ H₁ : α → ℝ)
+    (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+    (h₀ : ∀ x, |H₀ x| ≤ Ω x) :
+    |∑ x : α, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+      (∑ x, μ x * Ω x) * ∑ x, μ x * (Ω x * H₁ x ^ 2) := by
+  classical
+  let w : α → ℝ := fun x => μ x * Ω x
+  have hw (x : α) : 0 ≤ w x := mul_nonneg (hμ x) (hΩ x)
+  have hcsWeighted (f : α → ℝ) :
+      |∑ x : α, w x * f x| ^ 2 ≤ (∑ x, w x) * ∑ x, w x * f x ^ 2 := by
+    let u : α → ℝ := fun x => Real.sqrt (w x)
+    let v : α → ℝ := fun x => Real.sqrt (w x) * f x
+    have hsumuv : (∑ x : α, u x * v x) = ∑ x, w x * f x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [u, v]
+      calc
+        Real.sqrt (w x) * (Real.sqrt (w x) * f x) =
+            (Real.sqrt (w x) ^ 2) * f x := by ring
+        _ = w x * f x := by rw [Real.sq_sqrt (hw x)]
+    have hsumu : (∑ x : α, u x ^ 2) = ∑ x, w x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [u]
+      exact Real.sq_sqrt (hw x)
+    have hsumv : (∑ x : α, v x ^ 2) = ∑ x, w x * f x ^ 2 := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [v]
+      rw [mul_pow, Real.sq_sqrt (hw x)]
+    have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α) u v
+    rw [hsumuv, hsumu, hsumv] at hcs
+    simpa only [sq_abs] using hcs
+  have hdom : |∑ x : α, μ x * (H₀ x * H₁ x)| ≤
+      ∑ x : α, w x * |H₁ x| := by
+    calc
+      _ ≤ ∑ x : α, |μ x * (H₀ x * H₁ x)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ x : α, w x * |H₁ x| := by
+        apply Finset.sum_le_sum
+        intro x hx
+        rw [abs_mul, abs_mul, abs_of_nonneg (hμ x)]
+        calc
+          μ x * (|H₀ x| * |H₁ x|) = (μ x * |H₀ x|) * |H₁ x| := by ring
+          _ ≤ (μ x * Ω x) * |H₁ x| :=
+            mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (h₀ x) (hμ x))
+              (abs_nonneg _)
+          _ = w x * |H₁ x| := by rfl
+  have hsumNonneg : 0 ≤ ∑ x : α, w x * |H₁ x| :=
+    Finset.sum_nonneg fun x hx => mul_nonneg (hw x) (abs_nonneg _)
+  have hcs := hcsWeighted (fun x => |H₁ x|)
+  have hcs' : (∑ x : α, w x * |H₁ x|) ^ 2 ≤
+      (∑ x : α, w x) * ∑ x : α, w x * |H₁ x| ^ 2 := by
+    have habs : |(∑ x : α, w x * |H₁ x|)| = ∑ x : α, w x * |H₁ x| :=
+      abs_of_nonneg hsumNonneg
+    rw [habs] at hcs
+    exact hcs
+  calc
+    |∑ x : α, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+        (∑ x : α, w x * |H₁ x|) ^ 2 := by
+          have hleft : 0 ≤ |∑ x : α, μ x * (H₀ x * H₁ x)| := abs_nonneg _
+          nlinarith [hdom, hsumNonneg, hleft]
+    _ ≤ (∑ x : α, w x) * ∑ x : α, w x * |H₁ x| ^ 2 := hcs'
+    _ = (∑ x : α, μ x * Ω x) * ∑ x : α, μ x * (Ω x * H₁ x ^ 2) := by
+      have hsumW : (∑ x : α, w x) = ∑ x, μ x * Ω x := by simp [w]
+      have hsumWH : (∑ x : α, w x * |H₁ x| ^ 2) =
+          ∑ x, μ x * (Ω x * H₁ x ^ 2) := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        simp only [w, sq_abs]
+        ring
+      rw [hsumW, hsumWH]
+
+private abbrev pkgB2_PiExcept {α : Type*} [Fintype α] [DecidableEq α] (a : α) :=
+  {i : α // i ∈ (Finset.univ : Finset α).erase a}
+
+private noncomputable def pkgB2_piSplitAt {α : Type*} [Fintype α] [DecidableEq α]
+    (a : α) : (α → ℤ) ≃ ((pkgB2_PiExcept a → ℤ) × ℤ) where
+  toFun x := (fun i => x i.1, x a)
+  invFun z i := if h : i = a then z.2 else
+    z.1 ⟨i, Finset.mem_erase.mpr ⟨h, Finset.mem_univ i⟩⟩
+  left_inv := by
+    intro x
+    funext i
+    by_cases h : i = a
+    · simp [h]
+    · simp [h]
+  right_inv := by
+    intro z
+    apply Prod.ext
+    · funext i
+      have hne : i.1 ≠ a := (Finset.mem_erase.mp i.2).1
+      simp [hne]
+    · simp
+
+private noncomputable def pkgB2_piSupportSplitAt {α : Type*} [Fintype α]
+    [DecidableEq α] (a : α) (win : α → Finset ℤ) :
+    {x : α → ℤ // x ∈ Fintype.piFinset win} ≃
+      ({x : pkgB2_PiExcept a → ℤ //
+          x ∈ Fintype.piFinset (fun i : pkgB2_PiExcept a => win i.1)} ×
+        {z : ℤ // z ∈ win a}) where
+  toFun x :=
+    (⟨(pkgB2_piSplitAt a x.1).1,
+      Fintype.mem_piFinset.mpr (fun i => (Fintype.mem_piFinset.mp x.2) i.1)⟩,
+      ⟨(pkgB2_piSplitAt a x.1).2, Fintype.mem_piFinset.mp x.2 a⟩)
+  invFun z := ⟨(pkgB2_piSplitAt a).symm (z.1.1, z.2.1), by
+    apply Fintype.mem_piFinset.mpr
+    intro i
+    by_cases hi : i = a
+    · subst i
+      simpa [pkgB2_piSplitAt] using z.2.2
+    · let iRest : pkgB2_PiExcept a :=
+        ⟨i, Finset.mem_erase.mpr ⟨hi, Finset.mem_univ i⟩⟩
+      have hmem := Fintype.mem_piFinset.mp z.1.2 iRest
+      simpa [pkgB2_piSplitAt, hi, iRest] using hmem⟩
+  left_inv := by
+    intro x
+    apply Subtype.ext
+    exact (pkgB2_piSplitAt a).symm_apply_apply x.1
+  right_inv := by
+    intro z
+    have h := (pkgB2_piSplitAt a).apply_symm_apply (z.1.1, z.2.1)
+    apply Prod.ext
+    · apply Subtype.ext
+      funext i
+      exact congrFun (congrArg Prod.fst h) i
+    · apply Subtype.ext
+      exact congrArg Prod.snd h
+
+private theorem pkgB2_productLaw_tsum_splitAt {α : Type*} [Fintype α]
+    [DecidableEq α] (a : α) (law : α → ℤ → ℝ) (win : α → Finset ℤ)
+    (hzero : ∀ i z, z ∉ win i → law i z = 0) (F : (α → ℤ) → ℝ) :
+    (∑' x : α → ℤ, (∏ i, law i (x i)) * F x) =
+      ∑' xr : pkgB2_PiExcept a → ℤ,
+        (∏ i : pkgB2_PiExcept a, law i.1 (xr i)) *
+          ∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) := by
+  classical
+  let Full : Finset (α → ℤ) := Fintype.piFinset win
+  let Rest : Finset (pkgB2_PiExcept a → ℤ) :=
+    Fintype.piFinset (fun i : pkgB2_PiExcept a => win i.1)
+  let Selected : Finset ℤ := win a
+  let e := pkgB2_piSupportSplitAt a win
+  let restLaw (xr : pkgB2_PiExcept a → ℤ) : ℝ :=
+    ∏ i : pkgB2_PiExcept a, law i.1 (xr i)
+  have hfullWeightZero (x : α → ℤ) (hx : x ∉ Full) :
+      ∏ i, law i (x i) = 0 := by
+    have hnot : ¬ ∀ i, x i ∈ win i := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hzero i (x i) (by simpa using hi))
+  have hrestWeightZero (xr : pkgB2_PiExcept a → ℤ) (hx : xr ∉ Rest) :
+      restLaw xr = 0 := by
+    have hnot : ¬ ∀ i : pkgB2_PiExcept a, xr i ∈ win i.1 := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hzero i.1 (xr i) hi)
+  have hfullTermZero (x : α → ℤ) (hx : x ∉ Full) :
+      (∏ i, law i (x i)) * F x = 0 := by rw [hfullWeightZero x hx]; simp
+  have hselectedTermZero (xr : pkgB2_PiExcept a → ℤ) (z : ℤ) (hz : z ∉ Selected) :
+      law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) = 0 := by
+    rw [hzero a z (by simpa [Selected] using hz)]
+    simp
+  have hselectedTsum (xr : pkgB2_PiExcept a → ℤ) :
+      (∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z))) =
+        ∑ z ∈ Selected, law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) :=
+    tsum_eq_sum (s := Selected) (hselectedTermZero xr)
+  have hrestTermZero (xr : pkgB2_PiExcept a → ℤ) (hx : xr ∉ Rest) :
+      restLaw xr *
+        (∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z))) = 0 := by
+    rw [hrestWeightZero xr hx]
+    simp
+  have hprodLaw (x : α → ℤ) :
+      (∏ i, law i (x i)) =
+        restLaw (fun i : pkgB2_PiExcept a => x i.1) * law a (x a) := by
+    calc
+      ∏ i : α, law i (x i) =
+          (∏ i ∈ (Finset.univ : Finset α).erase a, law i (x i)) * law a (x a) :=
+            (Finset.prod_erase_mul (s := (Finset.univ : Finset α))
+              (f := fun i => law i (x i)) (a := a) (Finset.mem_univ a)).symm
+      _ = restLaw (fun i : pkgB2_PiExcept a => x i.1) * law a (x a) := by
+            have hrest : restLaw (fun i : pkgB2_PiExcept a => x i.1) =
+                ∏ i ∈ (Finset.univ : Finset α).erase a, law i (x i) := by
+              change (∏ i : {i : α // i ∈ (Finset.univ : Finset α).erase a},
+                law i.1 (x i.1)) = _
+              exact (Finset.prod_subtype ((Finset.univ : Finset α).erase a)
+                (by intro i; rfl) (fun i => law i (x i))).symm
+            rw [← hrest]
+  have hfinite :
+      (∑ x ∈ Full, (∏ i, law i (x i)) * F x) =
+        ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+          restLaw xr.1 * ∑ z ∈ Selected,
+            law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by
+    let eSub := pkgB2_piSupportSplitAt a win
+    have hattach : (∑ x ∈ Full, (∏ i, law i (x i)) * F x) =
+        ∑ x : {x : α → ℤ // x ∈ Full}, (∏ i, law i (x.1 i)) * F x.1 := by
+      rw [← Finset.sum_attach]
+      simp
+    calc
+      _ = ∑ x : {x : α → ℤ // x ∈ Full}, (∏ i, law i (x.1 i)) * F x.1 := hattach
+      _ = ∑ z : ({xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest} × {z : ℤ // z ∈ Selected}),
+            restLaw z.1.1 * law a z.2.1 * F (eSub.symm z).1 := by
+              apply Fintype.sum_equiv eSub
+              intro x
+              have hprod := hprodLaw x.1
+              have hF : F (eSub.symm (eSub x)).1 = F x.1 :=
+                congrArg (fun z => F z.1) (eSub.symm_apply_apply x)
+              calc
+                (∏ i, law i (x.1 i)) * F x.1 =
+                    (restLaw (fun i : pkgB2_PiExcept a => x.1 i.1) *
+                      law a (x.1 a)) * F (eSub.symm (eSub x)).1 := by
+                        rw [hprod, hF]
+                _ = restLaw (eSub x).1.1 * law a (eSub x).2.1 * F (eSub.symm (eSub x)) := by
+                        simp [eSub, pkgB2_piSupportSplitAt, pkgB2_piSplitAt, restLaw]
+      _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+            restLaw xr.1 * ∑ z : {z : ℤ // z ∈ Selected},
+              law a z.1 * F (eSub.symm (xr, z)).1 := by
+              rw [Fintype.sum_prod_type]
+              apply Finset.sum_congr rfl
+              intro xr hxr
+              rw [Finset.mul_sum]
+              apply Finset.sum_congr rfl
+              intro z hz
+              ring
+      _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+            restLaw xr.1 * ∑ z ∈ Selected,
+              law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by
+              apply Finset.sum_congr rfl
+              intro xr hxr
+              congr 1
+              have hvalues :
+                  (∑ z : {z : ℤ // z ∈ Selected},
+                    law a z.1 * F (eSub.symm (xr, z)).1) =
+                    ∑ z : {z : ℤ // z ∈ Selected},
+                      law a z.1 * F ((pkgB2_piSplitAt a).symm (xr.1, z.1)) := by
+                apply Finset.sum_congr rfl
+                intro z hz
+                rfl
+              calc
+                _ = ∑ z : {z : ℤ // z ∈ Selected},
+                    law a z.1 * F ((pkgB2_piSplitAt a).symm (xr.1, z.1)) := hvalues
+                _ = ∑ z ∈ Selected,
+                    law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by
+                      conv_rhs => rw [← Finset.sum_attach]
+                      simp
+      _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+            restLaw xr.1 * ∑ z ∈ Selected,
+              law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by rfl
+  calc
+    _ = ∑ x ∈ Full, (∏ i, law i (x i)) * F x :=
+          tsum_eq_sum (s := Full) hfullTermZero
+    _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+          restLaw xr.1 * ∑ z ∈ Selected,
+            law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := hfinite
+    _ = ∑' xr : pkgB2_PiExcept a → ℤ,
+          restLaw xr * ∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) := by
+          rw [tsum_eq_sum (s := Rest) (fun xr hx => hrestTermZero xr hx)]
+          conv_rhs => rw [← Finset.sum_attach]
+          simp
+          apply Finset.sum_congr rfl
+          intro xr hxr
+          rw [← hselectedTsum xr.1]
+
 theorem pkgB2_weightedShiftStateStep {α β : Type u} [Fintype α]
     [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
     (μ : β → ℝ) (L : β → ℕ) (hL : ∀ b, 0 < L b)
@@ -7194,6 +7458,204 @@ private theorem pkgB2_terminalStateInnerExpansion {K sl b : ℕ}
       intro M hM
       rw [← hmonomialSum P M]
 
+private theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (N : ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (hNonroot : Nonempty (pkgB2_Nonroot T)) :
+    pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+        Finset.univ N I =
+      ∑ P ∈ (pkgB2_nonrootOccurrenceSet (T := T) Finset.univ).powerset,
+        ∑ M ∈ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).powerset,
+          (-1 : ℝ) ^ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).card *
+            (-1 : ℝ) ^ M.card *
+              pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) := by
+  classical
+  let lo : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).lower
+  let hi : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).upper
+  let PrimeSupport := pkgB2_primeTupleSupport lo hi
+  let Good := pkgB2_goodPrimeEvent MS gap T hT N
+  let Pgood := independentPrimePoolProbability lo hi Good
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
+  let coefficient (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)))) :=
+    (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card
+  let innerState (p : Fin (b * sl) → ℕ) :=
+    ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+      pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x
+  let innerMonomial
+      (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ))))
+      (p : Fin (b * sl) → ℕ) :=
+    ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+      pkgB2_baseMass MS B T J0 gap hT N p x *
+        ∏ o ∈ P ∪ M,
+          nu MS.core.parameters N B
+            (pkgB2_stateRowValue MS T hT J0 gap direction Finset.univ N p o x)
+  have hprimeZero (p : Fin (b * sl) → ℕ) (hp : p ∉ PrimeSupport) :
+      independentPrimePoolMass lo hi p = 0 :=
+    pkgB2_independentPrimePoolMass_zero_of_not_mem lo hi p (by simpa [PrimeSupport] using hp)
+  have hstateZero (p : Fin (b * sl) → ℕ) (hp : p ∉ PrimeSupport) :
+      independentPrimePoolMass lo hi p * (if Good p then innerState p else 0) = 0 := by
+    rw [hprimeZero p hp]
+    simp
+  have hmonomialZero
+      (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ))))
+      (p : Fin (b * sl) → ℕ) (hp : p ∉ PrimeSupport) :
+      independentPrimePoolMass lo hi p *
+        (if Good p then innerMonomial P M p else 0) = 0 := by
+    rw [hprimeZero p hp]
+    simp
+  have hmonomialPrimeSum
+      (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)))) :
+      (∑' p : Fin (b * sl) → ℕ, independentPrimePoolMass lo hi p *
+        (if Good p then innerMonomial P M p else 0)) =
+        ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+          (if Good p then innerMonomial P M p else 0) :=
+    tsum_eq_sum (s := PrimeSupport) (hmonomialZero P M)
+  have hinnerExpansion (p : Fin (b * sl) → ℕ) :
+      (if Good p then innerState p else 0) =
+        ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M * (if Good p then innerMonomial P M p else 0) := by
+    by_cases hp : Good p
+    · simp only [if_pos hp]
+      simpa [innerState, innerMonomial, plus, minus, coefficient] using
+        (pkgB2_terminalStateInnerExpansion MS B gap T hT J0 direction N I hNonroot p)
+    · simp [hp]
+  have hfinitePrime :
+      (∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+        (if Good p then innerState p else 0)) =
+      ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        coefficient P M *
+          ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+            (if Good p then innerMonomial P M p else 0) := by
+    calc
+      _ = ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+          ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M * (if Good p then innerMonomial P M p else 0) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              rw [hinnerExpansion p]
+      _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M *
+              ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+                (if Good p then innerMonomial P M p else 0) := by
+              calc
+                _ = ∑ p ∈ PrimeSupport, ∑ P ∈ plus.powerset,
+                    ∑ M ∈ minus.powerset,
+                      independentPrimePoolMass lo hi p *
+                        (coefficient P M * (if Good p then innerMonomial P M p else 0)) := by
+                          apply Finset.sum_congr rfl
+                          intro p hp
+                          rw [Finset.mul_sum]
+                          apply Finset.sum_congr rfl
+                          intro P hP
+                          rw [Finset.mul_sum]
+                _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+                    ∑ p ∈ PrimeSupport,
+                      independentPrimePoolMass lo hi p *
+                        (coefficient P M * (if Good p then innerMonomial P M p else 0)) := by
+                          rw [Finset.sum_comm]
+                          apply Finset.sum_congr rfl
+                          intro P hP
+                          rw [Finset.sum_comm]
+                _ = _ := by
+                          apply Finset.sum_congr rfl
+                          intro P hP
+                          apply Finset.sum_congr rfl
+                          intro M hM
+                          calc
+                            _ = ∑ p ∈ PrimeSupport,
+                                (independentPrimePoolMass lo hi p *
+                                  (if Good p then innerMonomial P M p else 0)) *
+                                  coefficient P M := by
+                                    apply Finset.sum_congr rfl
+                                    intro p hp
+                                    ring
+                            _ = (∑ p ∈ PrimeSupport,
+                                  independentPrimePoolMass lo hi p *
+                                    (if Good p then innerMonomial P M p else 0)) *
+                                  coefficient P M := by rw [Finset.sum_mul]
+                            _ = _ := by ring
+  have houter :
+      (∑' p : Fin (b * sl) → ℕ, independentPrimePoolMass lo hi p *
+        (if Good p then innerState p else 0)) =
+        ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M *
+            ∑' p : Fin (b * sl) → ℕ,
+              independentPrimePoolMass lo hi p *
+                (if Good p then innerMonomial P M p else 0) := by
+    calc
+      _ = ∑ p ∈ PrimeSupport,
+            independentPrimePoolMass lo hi p * (if Good p then innerState p else 0) :=
+              tsum_eq_sum (s := PrimeSupport) hstateZero
+      _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M *
+              ∑ p ∈ PrimeSupport,
+                independentPrimePoolMass lo hi p *
+                  (if Good p then innerMonomial P M p else 0) := hfinitePrime
+      _ = _ := by
+        apply Finset.sum_congr rfl
+        intro P hP
+        apply Finset.sum_congr rfl
+        intro M hM
+        rw [← hmonomialPrimeSum P M]
+  calc
+    pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+        Finset.univ N I =
+      Pgood⁻¹ * (∑' p : Fin (b * sl) → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then innerState p else 0)) := by
+          unfold pkgB2_stateAverage
+          dsimp [pkgB2_goodPrimeEvent, Pgood, Good, lo, hi, innerState]
+          rfl
+    _ = Pgood⁻¹ *
+        (∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M *
+            ∑' p : Fin (b * sl) → ℕ,
+              independentPrimePoolMass lo hi p *
+                (if Good p then innerMonomial P M p else 0)) := by rw [houter]
+    _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M * pkgB2_stateMonomialAverage MS B gap T J0 hT
+            Finset.univ direction N (P ∪ M) := by
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro P hP
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro M hM
+          calc
+            Pgood⁻¹ * (coefficient P M *
+                ∑' p : Fin (b * sl) → ℕ,
+                  independentPrimePoolMass lo hi p *
+                    (if Good p then innerMonomial P M p else 0)) =
+          coefficient P M * (Pgood⁻¹ *
+                ∑' p : Fin (b * sl) → ℕ,
+                  independentPrimePoolMass lo hi p *
+                    (if Good p then innerMonomial P M p else 0)) := by
+                  ring
+            _ = coefficient P M *
+                pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ
+                  direction N (P ∪ M) := by
+                    unfold pkgB2_stateMonomialAverage
+                    dsimp [Good, Pgood, lo, hi, innerMonomial, pkgB2_goodPrimeEvent]
+
+private theorem pkgB2_rootOccurrenceSet_nonempty {b : ℕ} (T : Fin b → CubeTemplate) :
+    (pkgB2_rootOccurrenceSet (T := T) Finset.univ).Nonempty := by
+  classical
+  let rootO : pkgB2_Occurrence T Finset.univ := ⟨Sum.inl (), fun _ => 0⟩
+  let o := (pkgB2_occurrenceEnum T Finset.univ).symm rootO
+  refine ⟨o, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
+  simp [pkgB2_rootOccurrenceSet, pkgB2_occurrenceIsNonroot, o, rootO,
+    pkgB2_occurrenceEnum]
+
+
 
 private theorem pkgB2_alternatingPowersetSum_zero {α : Type*} [DecidableEq α]
     (s : Finset α) (hs : s.Nonempty) :
@@ -7282,6 +7744,151 @@ theorem pkgB2_signedMomentError_bound {α : Type*} [DecidableEq α]
       rw [hcardP, hcardM]
       push_cast
       rw [pow_add]
+
+
+private theorem pkgB2_filterUpperBound_abs_tendsto_zero {f : ℕ → ℝ}
+    (h : FilterUpperBound atTop (fun N => |f N|) 0) : Tendsto f atTop (𝓝 0) := by
+  refine tendsto_order.2 ⟨?_, ?_⟩
+  · intro b hb
+    have hε : 0 < -b / 2 := by linarith
+    filter_upwards [h (-b / 2) hε] with N hN
+    have hAbs := abs_le.mp (by simpa using hN)
+    linarith
+  · intro b hb
+    have hε : 0 < b / 2 := by linarith
+    filter_upwards [h (b / 2) hε] with N hN
+    have hAbs := abs_le.mp (by simpa using hN)
+    linarith
+
+private theorem pkgB2_terminalState_tendsto_zero {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k) (hsl : 0 < sl)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (hNonroot : Nonempty (pkgB2_Nonroot T))
+    (I : ∀ N, ∀ k, DualInput MS B (T k) N) :
+    Tendsto (fun N => pkgB2_stateAverage MS B gap T J0 hgap hT hJ0
+      direction hdir k0 Finset.univ N (I N)) atTop (𝓝 0) := by
+  classical
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
+  let q := Fintype.card (pkgB2_Occurrence T Finset.univ)
+  let C : ℝ := (2 : ℝ) ^ (plus.card + minus.card)
+  have hC : 0 < C := by dsimp [C]; positivity
+  have hdisj : Disjoint plus minus := by
+    rw [Finset.disjoint_left]
+    intro o ho hm
+    exact (Finset.mem_filter.mp hm).2 (Finset.mem_filter.mp ho).2
+  have hminus : minus.Nonempty := by
+    simpa [minus] using pkgB2_rootOccurrenceSet_nonempty T
+  have hclose (U : Finset (Fin q)) (ε : ℝ) (hε : 0 < ε) :
+      ∀ᶠ N : ℕ in atTop,
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+    have hlim := pkgB2_weightedGoodMonomial_tendsto_one MS B gap T J0
+      hgap hT hJ0 hsl direction hdir k0 Finset.univ U
+    have hlimState :
+        Tendsto (fun N => pkgB2_stateMonomialAverage MS B gap T J0 hT
+          Finset.univ direction N U) atTop (𝓝 1) := by
+      have hEq : (fun N =>
+          weightedLinearFormsAverage
+              (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+                direction hdir k0 Finset.univ U) N
+              (fun p => pkgB2_goodPrimeEvent MS gap T hT N p) /
+            weightedLinearFormsEventProbability
+              (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+                direction hdir k0 Finset.univ U) N
+              (pkgB2_goodPrimeEvent MS gap T hT N)) =ᶠ[atTop]
+          fun N => pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U := by
+        filter_upwards with N
+        exact (pkgB2_stateMonomialAverage_eq_wlf MS B gap T J0 hgap hT hJ0
+          direction hdir k0 Finset.univ U N).symm
+      exact hlim.congr' hEq
+    have hdist : Tendsto
+        (fun N => |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1|)
+        atTop (𝓝 0) := by
+      simpa [Real.norm_eq_abs] using (tendsto_iff_norm_sub_tendsto_zero).1 hlimState
+    filter_upwards [hdist.eventually (Iio_mem_nhds hε)] with N hN
+    exact le_of_lt hN
+  have hcloseForP (ε : ℝ) (hε : 0 < ε)
+      (P : Finset (Fin q)) : ∀ᶠ N : ℕ in atTop,
+        ∀ M ∈ minus.powerset,
+          |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+    have h := (eventually_all_finset minus.powerset).2
+      (fun M hM => hclose (P ∪ M) ε hε)
+    exact h
+  have hclosePairs (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
+      ∀ P ∈ plus.powerset, ∀ M ∈ minus.powerset,
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+    have h := (eventually_all_finset plus.powerset).2
+      (fun P hP => hcloseForP ε hε P)
+    exact h
+  have hbound (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+          Finset.univ N (I N)| ≤ C * ε := by
+    filter_upwards [hclosePairs ε hε] with N hcloseN
+    have hPartition : plus ∪ minus = Finset.univ := by
+      ext o
+      simp only [Finset.mem_union, Finset.mem_univ]
+      constructor
+      · intro h
+        trivial
+      · intro _
+        by_cases hn : pkgB2_occurrenceIsNonroot (T := T) Finset.univ o
+        · exact Or.inl (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+        · exact Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+    have hmain : ∀ U : Finset (Fin q),
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+      intro U
+      let P := U ∩ plus
+      let M := U ∩ minus
+      have hP : P ∈ plus.powerset := Finset.mem_powerset.mpr (by
+        intro o ho
+        exact (Finset.mem_inter.mp ho).2)
+      have hM : M ∈ minus.powerset := Finset.mem_powerset.mpr (by
+        intro o ho
+        exact (Finset.mem_inter.mp ho).2)
+      have hU : U = P ∪ M := by
+        ext o
+        constructor
+        · intro hoU
+          have hsplit : o ∈ plus ∨ o ∈ minus := by
+            have : o ∈ plus ∪ minus := by rw [hPartition]; exact Finset.mem_univ o
+            simpa using this
+          rcases hsplit with hplus | hminus
+          · exact Finset.mem_union.mpr (Or.inl (Finset.mem_inter.mpr ⟨hoU, hplus⟩))
+          · exact Finset.mem_union.mpr (Or.inr (Finset.mem_inter.mpr ⟨hoU, hminus⟩))
+        · intro h
+          rcases Finset.mem_union.mp h with hP | hM
+          · exact (Finset.mem_inter.mp hP).1
+          · exact (Finset.mem_inter.mp hM).1
+      rw [hU]
+      exact hcloseN P hP M hM
+    have hexpand := pkgB2_terminalStateAverage_expansion MS B gap T J0 hgap hT hJ0
+      direction hdir k0 N (I N) hNonroot
+    rw [hexpand]
+    have herr := pkgB2_signedMomentError_bound plus minus 1
+      (pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N)
+      ε (le_of_lt hε) hmain hminus
+    simpa [C, plus, minus] using herr
+  have hupper : FilterUpperBound atTop
+      (fun N => |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+        Finset.univ N (I N)|) 0 := by
+    intro ε hε
+    let δ := ε / (2 * C)
+    have hδ : 0 < δ := by dsimp [δ]; positivity
+    filter_upwards [hbound δ hδ] with N hN
+    have hCδ : C * δ ≤ ε := by
+      dsimp [δ]
+      have hC0 : C ≠ 0 := ne_of_gt hC
+      field_simp [hC0]
+      nlinarith
+    have hN' := hN.trans hCδ
+    simpa using hN'
+  exact pkgB2_filterUpperBound_abs_tendsto_zero hupper
+
 
 
 end Prediction
