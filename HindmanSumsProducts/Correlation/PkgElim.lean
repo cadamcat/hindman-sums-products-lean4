@@ -5244,6 +5244,91 @@ theorem pkgElim_weightedMomentAverage_eq_probability_mul
       unfold gapSlotAverage
       ring
 
+theorem pkgElim_expandedAuxiliaryMoment_tendsto_one
+    {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ i, a i ∈ Aset)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (hlisted : TestsListed Dm ι tests)
+    (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
+    (hbad : Tendsto
+      (fun N => gapSlotProbability S C.gap N
+        (fun p => ¬ GoodTuple S C.gap N tests dirs.poly p)) atTop (𝓝 0))
+    (hfactsEvent : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      IntegerDirectionFacts S C a N dirs tests B p)
+    (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
+    (F : Finset (Occurrence Sh)) :
+    Tendsto (pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F)
+      atTop (𝓝 1) := by
+  classical
+  let good : ℕ → (Fin q → ℕ) → Prop := fun N p =>
+    GoodTuple S C.gap N tests dirs.poly p
+  let E : ℕ → (Fin s → ℕ) → Prop := fun N p' =>
+    (pkgElim_weightedMomentData S ι C a Sh dirs tests hlisted J0 hJ0 B eO eX F
+      (pkgElim_momentGlobalData_eventually S C a ha Sh dirs tests J0 B hJ0 hfactsEvent)).goodDomain N p'
+  let D := pkgElim_weightedMomentData S ι C a Sh dirs tests hlisted J0 hJ0 B eO eX F
+    (pkgElim_momentGlobalData_eventually S C a ha Sh dirs tests J0 B hJ0 hfactsEvent)
+  let hGlobalEvent : ∀ᶠ N in atTop,
+      pkgElim_momentGlobalData S C a Sh dirs tests J0 B N :=
+    pkgElim_momentGlobalData_eventually S C a ha Sh dirs tests J0 B hJ0 hfactsEvent
+  have hgoodProb : Tendsto (fun N => gapSlotProbability S C.gap N (good N))
+      atTop (𝓝 1) :=
+    gapSlotProbability_tendsto_one_of_bad S C.gap good hbad
+  have hGlobalEvent' : ∀ᶠ N in atTop,
+      pkgElim_momentGlobalData S C a Sh dirs tests J0 B N := hGlobalEvent
+  have hprobEq : ∀ᶠ N in atTop,
+      FromArithmetic.weightedLinearFormsEventProbability D N (E N) =
+        gapSlotProbability S C.gap N (good N) := by
+    filter_upwards [hGlobalEvent'] with N hGlobal
+    have hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper := hGlobal.2.2.1
+    have hCyl := pkgElim_independentPrimePoolProbability_cylinder ι
+      (S.primeStage.pool N C.gap).lower (S.primeStage.pool N C.gap).upper hMass (good N)
+    simpa [FromArithmetic.weightedLinearFormsEventProbability, E, D,
+      pkgElim_weightedMomentData, good, gapSlotProbability, hGlobal] using hCyl
+  have hprob : Tendsto
+      (fun N => FromArithmetic.weightedLinearFormsEventProbability D N (E N))
+      atTop (𝓝 1) := (tendsto_congr' hprobEq).2 hgoodProb
+  have hE : ∀ᶠ N in atTop, ∀ p', E N p' → D.goodDomain N p' :=
+    Filter.Eventually.of_forall fun N p' hp => hp
+  have haverage : Tendsto
+      (fun N => FromArithmetic.weightedLinearFormsAverage D N (E N))
+      atTop (𝓝 1) :=
+    weightedLinearFormsAverage_tendsto_of_eventProbability D E 1 hE hprob
+  have hGpos : ∀ᶠ N in atTop, 0 < gapSlotProbability S C.gap N (good N) := by
+    filter_upwards [hgoodProb.eventually
+      (Ioo_mem_nhds (by norm_num : (0 : ℝ) < 1) (by norm_num : (1 : ℝ) < 2))]
+      with N hN
+    exact hN.1
+  have hinv : Tendsto
+      (fun N => (gapSlotProbability S C.gap N (good N))⁻¹) atTop (𝓝 1) := by
+    simpa using hgoodProb.inv₀ (by norm_num : (1 : ℝ) ≠ 0)
+  have hmomentEq :
+      (pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F) =ᶠ[atTop]
+        fun N => (gapSlotProbability S C.gap N (good N))⁻¹ *
+          FromArithmetic.weightedLinearFormsAverage D N (E N) := by
+    filter_upwards [hGlobalEvent', hGpos] with N hGlobal hGposN
+    have hEq := pkgElim_weightedMomentAverage_eq_probability_mul S ι C a Sh dirs tests
+      hlisted J0 hJ0 B eO eX F hGlobalEvent N hGlobal hGposN
+    have hEq' : (gapSlotProbability S C.gap N (good N))⁻¹ *
+        FromArithmetic.weightedLinearFormsAverage D N (E N) =
+          pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N := by
+      rw [hEq]
+      simp [good]
+      calc
+        _ = pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N *
+            (gapSlotProbability S C.gap N (good N) *
+              (gapSlotProbability S C.gap N (good N))⁻¹) := by ring
+        _ = pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N := by
+          rw [mul_inv_cancel₀ (ne_of_gt hGposN)]
+          simp
+    exact hEq'.symm
+  have hproduct : Tendsto
+      (fun N => (gapSlotProbability S C.gap N (good N))⁻¹ *
+        FromArithmetic.weightedLinearFormsAverage D N (E N)) atTop (𝓝 1) := by
+    simpa using hinv.mul haverage
+  exact (tendsto_congr' hmomentEq).2 hproduct
+
 
 end AdditiveMoment
 
