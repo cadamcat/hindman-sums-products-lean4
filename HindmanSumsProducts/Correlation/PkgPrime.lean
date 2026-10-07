@@ -43,7 +43,7 @@ private theorem harmonicNormalizer_pos (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
       field_simp [ne_of_gt hWreal, ne_of_gt hXreal]
     rw [heq]
     exact mul_pos hcoeff hdiff
-  have hnorm := (sampling_pointwise_claim X W hW hX hlog).normalizer hX hlog
+  have hnorm := (FromArithmetic.sampling_pointwise_claim X W hW hX hlog).normalizer hX hlog
   have hlower : (Nat.totient W : ℝ) / W * Real.log X -
       (Nat.totient W : ℝ) / X ≤ harmonicNormalizer X W := by
     have h := (abs_le.mp hnorm).1
@@ -249,20 +249,20 @@ private theorem primePoolAverage_reference_eq_weighted (X W lo hi : ℕ)
 
 private theorem prime_pool_eventual_data {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l : Fin K) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
     ∀ᶠ N in atTop,
       1 ≤ primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper ∧
       ∀ p ∈ primeSupport (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper,
         Nat.Coprime p (primorial (N + 1)) := by
   let A := S.core.parameters
-  have hVgeW : ∀ N, primorial (N + 1) ≤ masterScaleV A N l := by
+  have hVgeW : ∀ N, primorial (N + 1) ≤ FromArithmetic.masterScaleV A N l := by
     intro N
     have hWM := A.Wle N
-    unfold masterScaleV
+    unfold FromArithmetic.masterScaleV
     omega
-  have hVpos : ∀ N, 0 < (masterScaleV A N l : ℝ) := by
+  have hVpos : ∀ N, 0 < (FromArithmetic.masterScaleV A N l : ℝ) := by
     intro N
-    have hV : 2 ≤ masterScaleV A N l := by unfold masterScaleV; omega
+    have hV : 2 ≤ FromArithmetic.masterScaleV A N l := by unfold FromArithmetic.masterScaleV; omega
     exact_mod_cast lt_of_lt_of_le (by norm_num) hV
   have hmassDom := S.primeStage.pool_harmonic_mass_dominates l
   have hlowerDom := S.primeStage.pool_lower_dominates l
@@ -272,22 +272,22 @@ private theorem prime_pool_eventual_data {K s : ℕ} {Aset : Finset ℚ}
     filter_upwards [h] with N hN
     have hVposN := hVpos N
     have hratio : 1 ≤ primePoolMass (S.primeStage.pool N l).lower
-        (S.primeStage.pool N l).upper / (masterScaleV A N l : ℝ) := by
+        (S.primeStage.pool N l).upper / (FromArithmetic.masterScaleV A N l : ℝ) := by
       simpa [Real.rpow_one] using hN
-    have hVleS : (masterScaleV A N l : ℝ) ≤
+    have hVleS : (FromArithmetic.masterScaleV A N l : ℝ) ≤
         primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper :=
       (one_le_div hVposN).mp hratio
-    have hVone : 1 ≤ (masterScaleV A N l : ℝ) := by
-      have hV : 2 ≤ masterScaleV A N l := by unfold masterScaleV; omega
+    have hVone : 1 ≤ (FromArithmetic.masterScaleV A N l : ℝ) := by
+      have hV : 2 ≤ FromArithmetic.masterScaleV A N l := by unfold FromArithmetic.masterScaleV; omega
       exact_mod_cast (Nat.le_trans (by norm_num) hV)
     exact le_trans hVone hVleS
   have hlowerLarge : ∀ᶠ N in atTop,
-      2 * (masterScaleV A N l : ℝ) ≤ (S.primeStage.pool N l).lower := by
+      2 * (FromArithmetic.masterScaleV A N l : ℝ) ≤ (S.primeStage.pool N l).lower := by
     have h := (hlowerDom 1 (by norm_num)).eventually_ge_atTop 2
     filter_upwards [h] with N hN
     have hVposN := hVpos N
     have hratio : 2 ≤ (S.primeStage.pool N l).lower /
-        (masterScaleV A N l : ℝ) := by simpa [Real.rpow_one] using hN
+        (FromArithmetic.masterScaleV A N l : ℝ) := by simpa [Real.rpow_one] using hN
     exact (le_div_iff₀ hVposN).mp hratio
   filter_upwards [hmassLarge, hlowerLarge] with N hmass hlower
   constructor
@@ -297,9 +297,9 @@ private theorem prime_pool_eventual_data {K s : ℕ} {Aset : Finset ℚ}
         (S.primeStage.pool N l).upper ∧ Nat.Prime p := by
       simpa [primeSupport, Finset.mem_filter, Finset.mem_Ico, and_assoc] using hp
     have hWpos : 0 < primorial (N + 1) := primorial_pos _
-    have hWpV : primorial (N + 1) ≤ masterScaleV A N l := hVgeW N
+    have hWpV : primorial (N + 1) ≤ FromArithmetic.masterScaleV A N l := hVgeW N
     have hlt : primorial (N + 1) < p := by
-      have hlowN : 2 * masterScaleV A N l ≤ (S.primeStage.pool N l).lower := by
+      have hlowN : 2 * FromArithmetic.masterScaleV A N l ≤ (S.primeStage.pool N l).lower := by
         exact_mod_cast hlower
       omega
     exact hmem.2.2.coprime_iff_not_dvd.mpr (by
@@ -359,31 +359,31 @@ private theorem dominates_of_eventually_below_scale {A S T : ℕ → ℝ}
 
 private theorem prime_sampling_scale_dominance {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (B : ℕ) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (B : ℕ) :
     OAI.MicrocellScale.Dominates
       (fun N => (S.core.parameters.X N i : ℝ))
       (fun N => (2 + primorial (N + 1) +
-        ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B + 1 +
-        (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) ∧
+        ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B + 1 +
+        (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) ∧
     OAI.MicrocellScale.Dominates
       (fun N => Real.log (S.core.parameters.X N i : ℝ))
       (fun N => (2 + primorial (N + 1) +
-        ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B +
-        (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) := by
+        ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B +
+        (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
   let A := S.core.parameters
-  let size : ℕ → ℕ := fun N => (S.primeStage.pool N l).upper + masterScaleV A N l
+  let size : ℕ → ℕ := fun N => (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV A N l
   let commonX : ℕ → ℕ := fun N => 2 + primorial (N + 1) + size N ^ B + 1 + size N
   let commonLog : ℕ → ℕ := fun N => 2 + primorial (N + 1) + size N ^ B + size N
   have hsize2 : ∀ N, 2 ≤ size N := by
     intro N
     dsimp [size]
-    unfold masterScaleV
+    unfold FromArithmetic.masterScaleV
     omega
   have hWsize : ∀ N, primorial (N + 1) ≤ size N := by
     intro N
     have hWM : primorial (N + 1) ≤ A.M N := A.Wle N
     dsimp [size]
-    unfold masterScaleV
+    unfold FromArithmetic.masterScaleV
     omega
   have hHle : ∀ N, A.H N l ≤ A.H N i := by
     intro N
@@ -499,8 +499,8 @@ private theorem prime_sampling_scale_dominance {K s : ℕ} {Aset : Finset ℚ}
     (Filter.Eventually.of_forall (fun N => by positivity)) hlogScale hlogCommon
   have hfinalX :
       (fun N => (2 + primorial (N + 1) +
-        ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B + 1 +
-        (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) =
+        ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B + 1 +
+        (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) =
         (fun N => (commonX N : ℝ)) := by
     funext N
     dsimp [commonX, size, A]
@@ -508,8 +508,8 @@ private theorem prime_sampling_scale_dominance {K s : ℕ} {Aset : Finset ℚ}
     ring
   have hfinalLog :
       (fun N => (2 + primorial (N + 1) +
-        ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B +
-        (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) =
+        ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B +
+        (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) =
         (fun N => (commonLog N : ℝ)) := by
     funext N
     dsimp [commonLog, size, A]
@@ -521,14 +521,14 @@ private theorem prime_sampling_scale_dominance {K s : ℕ} {Aset : Finset ℚ}
 
 private theorem prime_residue_error_superpolynomial {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) :
     SuperPolynomialSmall
-      (fun N => harmonicResidueUniformError (S.core.parameters.X N i) (primorial (N + 1))
-        (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ 2))
+      (fun N => FromArithmetic.harmonicResidueUniformError (S.core.parameters.X N i) (primorial (N + 1))
+        (((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ 2))
       (fun N => (((S.primeStage.pool N l).upper +
-        masterScaleV S.core.parameters N l : ℕ) : ℝ)) := by
+        FromArithmetic.masterScaleV S.core.parameters N l : ℕ) : ℝ)) := by
   let size : ℕ → ℕ := fun N =>
-    (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l
+    (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l
   let Kseq : ℕ → ℕ := fun N => size N ^ 2
   let Vseq : ℕ → ℕ := size
   let Hseq : ℕ → ℕ := fun _ => 1
@@ -541,8 +541,8 @@ private theorem prime_residue_error_superpolynomial {K s : ℕ} {Aset : Finset �
     have heq :
         (fun N => (2 + Wseq N + Kseq N + Hseq N + Vseq N : ℝ)) =
         (fun N => (2 + primorial (N + 1) +
-          ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ 2 + 1 +
-          (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) := by
+          ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ 2 + 1 +
+          (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
       funext N
       dsimp [Wseq, Kseq, Hseq, Vseq, size]
       push_cast
@@ -555,8 +555,8 @@ private theorem prime_residue_error_superpolynomial {K s : ℕ} {Aset : Finset �
     have heq :
         (fun N => (2 + Wseq N + Kseq N + Vseq N : ℝ)) =
         (fun N => (2 + primorial (N + 1) +
-          ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ 2 +
-          (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) := by
+          ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ 2 +
+          (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
       funext N
       dsimp [Wseq, Kseq, Vseq, size]
       push_cast
@@ -599,17 +599,17 @@ private theorem prime_residue_error_superpolynomial {K s : ℕ} {Aset : Finset �
       nlinarith
     linarith
   have hsam := FromArithmetic.sampling_asymptotics Wseq Kseq Hseq Vseq Xseq
-    (by intro N; dsimp [Kseq]; exact one_le_pow₀ (by dsimp [size]; unfold masterScaleV; omega))
+    (by intro N; dsimp [Kseq]; exact one_le_pow₀ (by dsimp [size]; unfold FromArithmetic.masterScaleV; omega))
     (by intro N; rfl)
     (by
       intro N
       dsimp [Vseq, size]
-      have hv : 2 ≤ masterScaleV S.core.parameters N l := by unfold masterScaleV; omega
+      have hv : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N l := by unfold FromArithmetic.masterScaleV; omega
       omega)
     (by intro N; rfl)
     hXevent hden hDomX hDomLog
   have hsmall := hsam.1
-  simpa [harmonicResidueUniformError, Wseq, Kseq, Xseq, Vseq, size] using hsmall
+  simpa [FromArithmetic.harmonicResidueUniformError, Wseq, Kseq, Xseq, Vseq, size] using hsmall
 
 private noncomputable def harmonicDivProbability (X W k : ℕ) : ℝ :=
   ∑ y ∈ harmonicSupport X,
@@ -690,15 +690,15 @@ private theorem harmonicDivProbability_residue_error (X W k : ℕ)
     (hW : 0 < W) (hX : 2 ≤ X)
     (hlog : Real.log (X : ℝ) > (W : ℝ) / X)
     (hk : 0 < k) (hcop : Nat.Coprime k W) :
-    |(k : ℝ) * harmonicDivProbability X W k - 1| ≤ harmonicResidueError X W k := by
+    |(k : ℝ) * harmonicDivProbability X W k - 1| ≤ FromArithmetic.harmonicResidueError X W k := by
   rw [harmonicDivProbability_eq_residue X W k hk]
-  exact (sampling_pointwise_claim X W hW hX hlog).residue_pointwise
+  exact (FromArithmetic.sampling_pointwise_claim X W hW hX hlog).residue_pointwise
     hX hlog k 0 hcop hk hk
 
 private theorem harmonicResidueError_mono {X W k K : ℕ}
     (hkK : k ≤ K) (hX : 2 ≤ X)
     (hlog : Real.log (X : ℝ) > (W : ℝ) / X) :
-    harmonicResidueError X W k ≤ harmonicResidueError X W K := by
+    FromArithmetic.harmonicResidueError X W k ≤ FromArithmetic.harmonicResidueError X W K := by
   have hden : 0 < (X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X) := by
     apply mul_pos
     · exact_mod_cast (by omega : 0 < X)
@@ -706,7 +706,7 @@ private theorem harmonicResidueError_mono {X W k K : ℕ}
   have hnum : (W : ℝ) * (k + 1 : ℕ) ≤ (W : ℝ) * (K + 1 : ℕ) := by
     have hcast : (k + 1 : ℕ) ≤ (K + 1 : ℕ) := Nat.add_le_add_right hkK 1
     exact mul_le_mul_of_nonneg_left (by exact_mod_cast hcast) (by positivity)
-  unfold harmonicResidueError
+  unfold FromArithmetic.harmonicResidueError
   exact div_le_div_of_nonneg_right hnum hden.le
 
 private theorem harmonicDivProbability_bounds (X W k : ℕ) (E : ℝ)
@@ -1101,16 +1101,16 @@ private theorem primeDivWeight_variance_bound (X W : ℕ) (P : Finset ℕ)
 
 private theorem primeDivWeight_deviation_small {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) :
     ∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
-      (masterScaleV S.core.parameters N l : ℝ) ^ A *
+      (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A *
         ∑ y ∈ harmonicSupport (S.core.parameters.X N i),
           harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
             |primeDivisibilityWeight
                 (primeSupport (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper)
                 (primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper) y - 1| ≤ ε := by
   intro A ε hε
-  let V : ℕ → ℕ := fun N => masterScaleV S.core.parameters N l
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV S.core.parameters N l
   let size : ℕ → ℕ := fun N => (S.primeStage.pool N l).upper + V N
   let W : ℕ → ℕ := fun N => primorial (N + 1)
   let X : ℕ → ℕ := fun N => S.core.parameters.X N i
@@ -1119,7 +1119,7 @@ private theorem primeDivWeight_deviation_small {K s : ℕ} {Aset : Finset ℚ}
   let mass : ℕ → ℝ := fun N =>
     primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper
   let err : ℕ → ℝ := fun N =>
-    harmonicResidueUniformError (X N) (W N) (size N ^ 2)
+    FromArithmetic.harmonicResidueUniformError (X N) (W N) (size N ^ 2)
   let D : ℝ := max (2 * A) 1
   let T : ℝ := 128 / ε ^ 2
   have hDpos : 0 < D := by
@@ -1132,7 +1132,7 @@ private theorem primeDivWeight_deviation_small {K s : ℕ} {Aset : Finset ℚ}
   have hV2 : ∀ N, 2 ≤ V N := by
     intro N
     dsimp [V]
-    unfold masterScaleV
+    unfold FromArithmetic.masterScaleV
     omega
   have hsize2 : ∀ N, 2 ≤ size N := by
     intro N
@@ -1183,7 +1183,7 @@ private theorem primeDivWeight_deviation_small {K s : ℕ} {Aset : Finset ℚ}
     have h := (hresSmall D hDpos).eventually
       (Iio_mem_nhds (by positivity : 0 < ε ^ 2 / 512))
     filter_upwards [h] with N hN
-    simpa [err, size, X, W, harmonicResidueUniformError] using hN
+    simpa [err, size, X, W, FromArithmetic.harmonicResidueUniformError] using hN
   have hmassDom := S.primeStage.pool_harmonic_mass_dominates l
   have hmassRate : ∀ᶠ N in atTop,
       T ≤ mass N / (V N : ℝ) ^ (D + 1) := by
@@ -1238,7 +1238,7 @@ private theorem primeDivWeight_deviation_small {K s : ℕ} {Aset : Finset ℚ}
     dsimp [SN, mass, pset, P]
     rfl
   have hENnonneg : 0 ≤ EN := by
-    dsimp [EN, err, harmonicResidueUniformError, harmonicResidueError]
+    dsimp [EN, err, FromArithmetic.harmonicResidueUniformError, FromArithmetic.harmonicResidueError]
     positivity
   have hErrScaled : VN ^ (2 * A) * EN ≤ ε ^ 2 / 512 := by
     have hle : VN ^ (2 * A) * EN ≤ sizeN ^ D * EN :=
@@ -1299,7 +1299,7 @@ private theorem primeDivWeight_deviation_small {K s : ℕ} {Aset : Finset ℚ}
     have hkNat : k ≤ size N ^ 2 := by exact_mod_cast hkCast
     have hpoint := harmonicDivProbability_residue_error (X N) (W N) k hW hX hlog hk hkc
     have hmono := harmonicResidueError_mono hkNat hX hlog
-    simpa [EN, err, harmonicResidueUniformError] using hpoint.trans hmono
+    simpa [EN, err, FromArithmetic.harmonicResidueUniformError] using hpoint.trans hmono
   have hKprodReal : ∀ p ∈ pset, ∀ q ∈ pset,
       ((p * q : ℕ) : ℝ) ≤ sizeN ^ 2 := by
     intro p hp q hq
@@ -1601,18 +1601,18 @@ private theorem dilation_expectation_bound (X W k : ℕ) (hk : 0 < k)
 
 private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (B : ℕ) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (B : ℕ) :
     ∀ C : ℝ, 0 < C → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
       Nat.Coprime k (primorial (N + 1)) →
-      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-      (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+      k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+      (((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
         arithmeticL1
           (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
           (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
         ≤ ε := by
   intro C hC ε hε
   let size : ℕ → ℕ := fun N =>
-    (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l
+    (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l
   let Kseq : ℕ → ℕ := fun N => size N ^ B
   let Vseq : ℕ → ℕ := size
   let Hseq : ℕ → ℕ := fun _ => 1
@@ -1621,13 +1621,13 @@ private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset �
   have hsz : ∀ N, 2 ≤ size N := by
     intro N
     dsimp [size]
-    unfold masterScaleV
+    unfold FromArithmetic.masterScaleV
     omega
   have hWsize : ∀ N, Wseq N ≤ size N := by
     intro N
     dsimp [Wseq, size]
     have hWM := S.core.parameters.Wle N
-    unfold masterScaleV
+    unfold FromArithmetic.masterScaleV
     omega
   have hdominance := prime_sampling_scale_dominance S l i hli B
   have hDomX : OAI.MicrocellScale.Dominates
@@ -1636,8 +1636,8 @@ private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset �
     have heq :
         (fun N => (2 + Wseq N + Kseq N + Hseq N + Vseq N : ℝ)) =
         (fun N => (2 + primorial (N + 1) +
-          ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B + 1 +
-          (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) := by
+          ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B + 1 +
+          (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
       funext N
       dsimp [Wseq, Kseq, Hseq, Vseq, size]
       push_cast
@@ -1650,8 +1650,8 @@ private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset �
     have heq :
         (fun N => (2 + Wseq N + Kseq N + Vseq N : ℝ)) =
         (fun N => (2 + primorial (N + 1) +
-          ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B +
-          (S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℝ)) := by
+          ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B +
+          (S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
       funext N
       dsimp [Wseq, Kseq, Vseq, size]
       push_cast
@@ -1699,8 +1699,8 @@ private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset �
     (by
       intro N
       dsimp [Vseq, size]
-      have hv : 2 ≤ masterScaleV S.core.parameters N l := by
-        unfold masterScaleV
+      have hv : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N l := by
+        unfold FromArithmetic.masterScaleV
         omega
       omega)
     (by intro N; rfl)
@@ -1720,14 +1720,14 @@ private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset �
     exact le_trans hnat hnatX
   have heps : ∀ᶠ N in atTop,
       (size N : ℝ) ^ C *
-        harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) < ε := by
+        FromArithmetic.harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) < ε := by
     have h := (hsmall C hC).eventually (Iio_mem_nhds hε)
     filter_upwards [h] with N hN
     simpa [mul_comm, Vseq, size] using hN
   filter_upwards [hXevent, hden, hKleX, heps] with N hX hdenN hKleXN hepsN
   intro k hk hcop hkb
   have hkX : k ≤ Xseq N := le_trans hkb hKleXN
-  have hBounds : SamplingPointwiseBounds (Xseq N) (Wseq N) :=
+  have hBounds : FromArithmetic.SamplingPointwiseBounds (Xseq N) (Wseq N) :=
     FromArithmetic.sampling_pointwise_claim (Xseq N) (Wseq N)
       (primorial_pos (N + 1)) hX hdenN
   have hpoint := hBounds.dilation hX hdenN k
@@ -1752,37 +1752,37 @@ private theorem prime_insertion_fixed_dilation_mass {K s : ℕ} {Aset : Finset �
   have hformula :
       ((2 * Real.log (k : ℝ) + (Wseq N : ℝ) * k / Xseq N *
         (1 + 1 / Xseq N)) / (Real.log (Xseq N : ℝ) - (Wseq N : ℝ) / Xseq N)) ≤
-      harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) := by
-    unfold harmonicDilationUniformError
+      FromArithmetic.harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) := by
+    unfold FromArithmetic.harmonicDilationUniformError
     exact div_le_div_of_nonneg_right (by nlinarith [hnum]) (le_of_lt (sub_pos.mpr hdenN))
   have htotal : arithmeticL1
       (dilatedLaw (harmonicLaw (Xseq N) (Wseq N)) k)
       (dilationReference (harmonicLaw (Xseq N) (Wseq N)) k) ≤
-      harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) :=
+      FromArithmetic.harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) :=
     le_trans hpoint.1 hformula
   calc
     (size N : ℝ) ^ C * arithmeticL1
         (dilatedLaw (harmonicLaw (Xseq N) (Wseq N)) k)
         (dilationReference (harmonicLaw (Xseq N) (Wseq N)) k) ≤
-      (size N : ℝ) ^ C * harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) :=
+      (size N : ℝ) ^ C * FromArithmetic.harmonicDilationUniformError (Xseq N) (Wseq N) (Kseq N) :=
         mul_le_mul_of_nonneg_left htotal (Real.rpow_nonneg (by positivity) C)
     _ ≤ ε := le_of_lt hepsN
 
 theorem prime_insertion_fixed_dilation_aux {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (B : ℕ) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (B : ℕ) :
     (∀ C : ℝ, 0 < C → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
       Nat.Coprime k (primorial (N + 1)) →
-      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-      (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+      k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+      (((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
         arithmeticL1
           (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
           (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
         ≤ ε) ∧
     ∀ A : ℝ, ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ k : ℕ, 0 < k →
       Nat.Coprime k (primorial (N + 1)) →
-      k ≤ ((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l) ^ B →
-      ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      k ≤ ((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l) ^ B →
+      ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) →
         |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
             F ((k : ℤ) * y)) -
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
@@ -1799,15 +1799,15 @@ theorem prime_insertion_fixed_dilation_aux {K s : ℕ} {Aset : Finset ℚ}
     filter_upwards [hmass] with N hmassN
     intro k hk hcop hkb F hF
     let sizeN : ℕ := (S.primeStage.pool N l).upper +
-      masterScaleV S.core.parameters N l
+      FromArithmetic.masterScaleV S.core.parameters N l
     have hsize1 : 1 ≤ (sizeN : ℝ) := by
-      have hs : 1 ≤ sizeN := by dsimp [sizeN]; unfold masterScaleV; omega
+      have hs : 1 ≤ sizeN := by dsimp [sizeN]; unfold FromArithmetic.masterScaleV; omega
       exact_mod_cast hs
-    let V : ℝ := (masterScaleV S.core.parameters N l : ℝ)
+    let V : ℝ := (FromArithmetic.masterScaleV S.core.parameters N l : ℝ)
     have hV1 : 1 ≤ V := by
       dsimp [V]
-      exact_mod_cast (show 1 ≤ masterScaleV S.core.parameters N l by
-        unfold masterScaleV
+      exact_mod_cast (show 1 ≤ FromArithmetic.masterScaleV S.core.parameters N l by
+        unfold FromArithmetic.masterScaleV
         omega)
     have hVle : V ≤ (sizeN : ℝ) := by
       dsimp [V, sizeN]
@@ -1844,7 +1844,7 @@ theorem prime_insertion_fixed_dilation_aux {K s : ℕ} {Aset : Finset ℚ}
         V ^ A * arithmeticL1
           (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
           (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k) := hbound
-      _ ≤ (((S.primeStage.pool N l).upper + masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
+      _ ≤ (((S.primeStage.pool N l).upper + FromArithmetic.masterScaleV S.core.parameters N l : ℕ) : ℝ) ^ C *
           arithmeticL1
             (dilatedLaw (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k)
             (dilationReference (harmonicLaw (S.core.parameters.X N i) (primorial (N + 1))) k) := by
@@ -1853,9 +1853,9 @@ theorem prime_insertion_fixed_dilation_aux {K s : ℕ} {Aset : Finset ℚ}
 
 theorem prime_insertion_average_aux {K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (A : ℝ) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l i : Fin K) (hli : l < i) (A : ℝ) :
     ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ F : ℤ → ℝ,
-      (∀ y, |F y| ≤ (masterScaleV S.core.parameters N l : ℝ) ^ A) →
+      (∀ y, |F y| ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) →
       |(∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y * F y) -
         poolAverage S l N (fun p =>
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
@@ -1917,7 +1917,7 @@ theorem prime_insertion_average_aux {K s : ℕ} {Aset : Finset ℚ}
   have hmassOne : 1 ≤ mass := by simpa [mass, lo, hi] using hpoolN.1
   have hmassPos : 0 < mass := lt_of_lt_of_le (by norm_num) hmassOne
   have hprimeData : ∀ p ∈ P,
-      Nat.Prime p ∧ Nat.Coprime p (W N) ∧ p ≤ hi + masterScaleV S.core.parameters N l := by
+      Nat.Prime p ∧ Nat.Coprime p (W N) ∧ p ≤ hi + FromArithmetic.masterScaleV S.core.parameters N l := by
     intro p hp
     have hpFilter : p ∈ (Finset.Ico lo hi).filter Nat.Prime := by
       simpa [P, primeSupport] using hp
@@ -1925,13 +1925,13 @@ theorem prime_insertion_average_aux {K s : ℕ} {Aset : Finset ℚ}
     have hpPrime := (Finset.mem_filter.mp hpFilter).2
     have hpCop : Nat.Coprime p (W N) := by
       simpa [W] using hpoolN.2 p (by simpa [P, lo, hi, primeSupport] using hp)
-    have hpLe : p ≤ hi + masterScaleV S.core.parameters N l := by
+    have hpLe : p ≤ hi + FromArithmetic.masterScaleV S.core.parameters N l := by
       exact le_trans (Nat.le_of_lt (Finset.mem_Ico.mp hpIco).2) (Nat.le_add_right _ _)
     exact ⟨hpPrime, hpCop, hpLe⟩
   have hfg : ∀ p ∈ P, |f p - g p| ≤ ε / 2 := by
     intro p hp
     obtain ⟨hpPrime, hpCop, hpLe⟩ := hprimeData p hp
-    have hkbound : p ≤ (hi + masterScaleV S.core.parameters N l) ^ 1 := by
+    have hkbound : p ≤ (hi + FromArithmetic.masterScaleV S.core.parameters N l) ^ 1 := by
       simpa [pow_one] using hpLe
     have hd := hdilationN p hpPrime.pos hpCop hkbound F (by simpa [W, X] using hF)
     simpa [f, g, μ, X, W] using hd
@@ -1946,11 +1946,11 @@ theorem prime_insertion_average_aux {K s : ℕ} {Aset : Finset ℚ}
       |(∑' y : ℤ, μ y * F y) - reference| ≤ ε / 4 := by
     calc
       |(∑' y : ℤ, μ y * F y) - reference| ≤
-          (masterScaleV S.core.parameters N l : ℝ) ^ A *
+          (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A *
             ∑ y ∈ harmonicSupport (X N), μ y * |weight y - 1| := by
         exact harmonic_function_deviation_bound (X N) (W N)
           (by dsimp [W]; exact primorial_pos (N + 1)) (hX N) hlogN weight F
-          ((masterScaleV S.core.parameters N l : ℝ) ^ A) (by simpa [W, X] using hF)
+          ((FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A) (by simpa [W, X] using hF)
       _ ≤ ε / 4 := by
         simpa [μ, weight, P, mass, lo, hi, X, W] using hdeviationN
   have hreferenceError : |reference - poolAverage S l N f| ≤ ε / 2 := by
