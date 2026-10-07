@@ -2137,6 +2137,122 @@ private theorem momentBaseMass_zero_outside {K sl : ℕ} {As : Finset ℚ}
       exact False.elim (hx hzeroMem)
     · simp [momentBaseMass, hreg, hx0]
 
+private def momentReplicaShiftSupportInt (b d L : ℕ) :
+    Finset (MomentShiftIntegerTuple b d) :=
+  Fintype.piFinset (fun _ : Fin b =>
+    Fintype.piFinset (fun _ : Fin d =>
+      Fintype.piFinset (fun _ : Fin 2 => Finset.Ico (0 : ℤ) (L : ℤ))))
+
+private noncomputable def momentReplicaShiftMassInt {b d : ℕ} (L : ℕ)
+    (u : MomentShiftIntegerTuple b d) : ℝ :=
+  ∏ k : Fin b, ∏ j : Fin d, ∏ side : Fin 2,
+    uniformIntegerIntervalLaw 0 L (u k j side)
+
+private noncomputable def momentReplicaShiftAverageInt {b d : ℕ} (L : ℕ)
+    (F : MomentShiftIntegerTuple b d → ℝ) : ℝ :=
+  ∑' u : MomentShiftIntegerTuple b d, momentReplicaShiftMassInt L u * F u
+
+private theorem momentReplicaShiftMassInt_zero_of_not_mem {b d L : ℕ}
+    (u : MomentShiftIntegerTuple b d)
+    (hu : u ∉ momentReplicaShiftSupportInt b d L) :
+    momentReplicaShiftMassInt L u = 0 := by
+  classical
+  have hnot : ¬ ∀ k : Fin b, ∀ j : Fin d, ∀ side : Fin 2,
+      u k j side ∈ Finset.Ico (0 : ℤ) (L : ℤ) := by
+    simpa [momentReplicaShiftSupportInt, Fintype.mem_piFinset] using hu
+  obtain ⟨k, hk⟩ := not_forall.mp hnot
+  obtain ⟨j, hj⟩ := not_forall.mp hk
+  obtain ⟨side, hs⟩ := not_forall.mp hj
+  have hbounds : ¬ (0 ≤ u k j side ∧ u k j side < (L : ℤ)) := by
+    simpa only [Finset.mem_Ico] using hs
+  have hzero : uniformIntegerIntervalLaw 0 L (u k j side) = 0 := by
+    simp [uniformIntegerIntervalLaw, hbounds]
+  unfold momentReplicaShiftMassInt
+  have hside : ∏ side' : Fin 2, uniformIntegerIntervalLaw 0 L (u k j side') = 0 :=
+    Finset.prod_eq_zero (Finset.mem_univ side) hzero
+  have hjprod : ∏ j' : Fin d, ∏ side' : Fin 2,
+      uniformIntegerIntervalLaw 0 L (u k j' side') = 0 :=
+    Finset.prod_eq_zero (Finset.mem_univ j) hside
+  exact Finset.prod_eq_zero (Finset.mem_univ k) hjprod
+
+private theorem momentBaseMass_tsum_eq_Emu_replicaShift {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (hreg : momentBaseRegular MS B l T J0 N b p) (L : ℕ)
+    (hL : ∀ k : Fin b, T.length (corrScales MS) l J0 N
+      (fun j => p ((momentPrimeEnum b T.q).symm (k, j))) = L)
+    (F : (Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ) → ℝ) :
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b p x * F x =
+    Emu MS.core.parameters N B.1 (fun y =>
+      momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u))) := by
+  classical
+  let e := momentBaseCoordEquiv b T.d
+  let Sx := Fintype.piFinset (fun _ : Fin (Fintype.card (MomentBaseIndex b T.d)) =>
+    momentBaseWindow MS B l T J0 N b p)
+  let Spair := Sx.image e
+  have hpairZero (v : ℤ × MomentShiftIntegerTuple b T.d) (hv : v ∉ Spair) :
+      momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v) = 0 := by
+    have hx : e.symm v ∉ Sx := by
+      intro hx
+      apply hv
+      exact Finset.mem_image.mpr ⟨e.symm v, hx, by simp [e]⟩
+    simp [momentBaseMass_zero_outside MS B l T J0 N b p (e.symm v) (by simpa [Sx] using hx)]
+  have hpairSummable : Summable (fun v : ℤ × MomentShiftIntegerTuple b T.d =>
+      momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v)) := by
+    apply summable_of_ne_finset_zero (s := Spair)
+    intro v hv
+    exact hpairZero v (by simpa [Spair] using hv)
+  have hshiftSummable (y : ℤ) : Summable (fun u : MomentShiftIntegerTuple b T.d =>
+      momentReplicaShiftMassInt L u * F (momentBaseEncodeInt y u)) := by
+    apply summable_of_ne_finset_zero (s := momentReplicaShiftSupportInt b T.d L)
+    intro u hu
+    simp [momentReplicaShiftMassInt_zero_of_not_mem u hu]
+  have hinnerSummable (y : ℤ) : Summable (fun u : MomentShiftIntegerTuple b T.d =>
+      momentBaseMass MS B l T J0 N b p (e.symm (y, u)) * F (e.symm (y, u))) := by
+    apply summable_of_ne_finset_zero (s := momentReplicaShiftSupportInt b T.d L)
+    intro u hu
+    have heq : e.symm (y, u) = momentBaseEncodeInt y u := rfl
+    rw [heq, momentBaseMass_encodeInt MS B l T J0 N b p hreg L hL y u]
+    have hzero := momentReplicaShiftMassInt_zero_of_not_mem (L := L) u hu
+    change (harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+        momentReplicaShiftMassInt L u) * F (momentBaseEncodeInt y u) = 0
+    rw [hzero]
+    simp
+  have hreindex :
+      (∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+        momentBaseMass MS B l T J0 N b p x * F x) =
+      ∑' v : ℤ × MomentShiftIntegerTuple b T.d,
+        momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v) := by
+    simpa [e] using
+      (e.tsum_eq (fun v : ℤ × MomentShiftIntegerTuple b T.d =>
+        momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v)))
+  calc
+    _ = ∑' v : ℤ × MomentShiftIntegerTuple b T.d,
+          momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v) := hreindex
+    _ = ∑' y : ℤ, ∑' u : MomentShiftIntegerTuple b T.d,
+          momentBaseMass MS B l T J0 N b p (e.symm (y, u)) * F (e.symm (y, u)) :=
+      hpairSummable.tsum_prod' hinnerSummable
+    _ = ∑' y : ℤ, harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+          momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u)) := by
+      apply tsum_congr
+      intro y
+      calc
+        _ = ∑' u : MomentShiftIntegerTuple b T.d,
+              harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+                (momentReplicaShiftMassInt L u * F (momentBaseEncodeInt y u)) := by
+          apply tsum_congr
+          intro u
+          have heq : e.symm (y, u) = momentBaseEncodeInt y u := rfl
+          rw [heq, momentBaseMass_encodeInt MS B l T J0 N b p hreg L hL y u]
+          simp [e, momentBaseEncodeInt, momentReplicaShiftMassInt, mul_assoc]
+        _ = harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+              momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u)) :=
+          (hshiftSummable y).tsum_mul_left _
+    _ = Emu MS.core.parameters N B.1 (fun y =>
+          momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u))) := rfl
+
 private theorem momentBaseMass_tsum_eq_one {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
