@@ -8,6 +8,7 @@ import HindmanSumsProducts.Correlation.PkgElim2
 import HindmanSumsProducts.Correlation.PkgTest
 import HindmanSumsProducts.Correlation.PkgTest2
 import HindmanSumsProducts.Correlation.PkgOpusCorr
+import HindmanSumsProducts.Correlation.PkgVarS
 
 /-!
 # Removing multiplicative masks and detecting a shifted error (§4)
@@ -422,7 +423,63 @@ theorem opus_corr_elim_variance {m q r : ℕ} (Sh : RowShape m q r)
               averagedRetainedWeights S C a N dirs p z u) -
           (2 : ℝ) ^ (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) *
             additiveCube S C a N dirs tests J0 h| ≤ ε := by
-  sorry
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0 ε hε
+  obtain ⟨hm0, hm1, hm2⟩ :=
+    additive_elimination_auxiliary_moments Sh dirs hdirs tests htests hdt
+      S ι hlisted C a ha J0 hJ0
+  let b : ℝ := (2 : ℝ) ^ 2 ^ Fintype.card (NonTarget Sh)
+  let c : ℝ := (2 : ℝ) ^
+    (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1))
+  let E N := sol_var_eliminationLinear S C N dirs tests J0
+  let B N : ((Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ)) → ℝ :=
+    fun x => targetBound S C a N dirs x.1 x.2.1 x.2.2
+  let H N : ((Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ)) → ℝ :=
+    fun x => averagedRetainedWeights S C a N dirs x.1 x.2.1 x.2.2
+  have h0 : Tendsto (fun N => E N (B N)) atTop (𝓝 b) := hm0
+  have h1 : Tendsto (fun N => E N (fun x => B N x * H N x)) atTop (𝓝 (b * c)) := by
+    dsimp only [b, c]
+    rw [← pow_add]
+    exact hm1
+  have h2 : Tendsto (fun N => E N (fun x => B N x * H N x ^ 2))
+      atTop (𝓝 (b * c ^ 2)) := by
+    dsimp only [b, c]
+    rw [← pow_mul, ← pow_add,
+      Nat.mul_comm (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) 2]
+    exact hm2
+  let V N := E N (fun x => B N x * (H N x - c) ^ 2)
+  have hV : Tendsto V atTop (𝓝 0) := by
+    have hlinear := (h2.sub (h1.const_mul (2 * c))).add (h0.const_mul (c ^ 2))
+    have hzero : b * c ^ 2 - (2 * c) * (b * c) + c ^ 2 * b = 0 := by ring
+    rw [hzero] at hlinear
+    simpa only [V, sol_var_centered_moment] using hlinear
+  have hbound : Tendsto (fun N => E N (B N) * V N) atTop (𝓝 0) := by
+    simpa only [mul_zero] using h0.mul hV
+  filter_upwards [hbound.eventually (gt_mem_nhds (sq_pos_of_pos hε))] with N hN
+  intro h hh
+  let G : ((Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ)) → ℝ :=
+    fun x => ∏ ω : NonTarget Sh → Fin 2, atQ (h x.1)
+      (targetVertex (chainScale S.core.parameters C a N) Sh x.1
+        (directionModulus S N dirs.poly x.1) x.2.1 x.2.2 ω)
+  have hG (x) : |G x| ≤ B N x :=
+    c_elim2_target_cube_product_abs_le_targetBound S C a N dirs
+      x.1 x.2.1 x.2.2 (h x.1) (hh x.1)
+  have hCS := sol_var_weighted_cauchy (E N)
+    (sol_var_eliminationLinear_nonneg S C N dirs tests J0)
+    (B N) G (fun x => H N x - c)
+    (fun x => (abs_nonneg (G x)).trans (hG x)) hG
+  have hdiff : E N (fun x => G x * (H N x - c)) =
+      E N (fun x => G x * H N x) - c * additiveCube S C a N dirs tests J0 h := by
+    have heq : (fun x => G x * (H N x - c)) = (fun x => G x * H N x) - c • G := by
+      funext x
+      simp only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
+      ring
+    rw [heq, map_sub, map_smul]
+    rfl
+  rw [hdiff] at hCS
+  change |E N (fun x => G x * H N x) - c * additiveCube S C a N dirs tests J0 h| ≤ ε
+  change E N (B N) * V N < ε ^ 2 at hN
+  nlinarith only [hCS, hN, hε,
+    abs_nonneg (E N (fun x => G x * H N x) - c * additiveCube S C a N dirs tests J0 h)]
 
 /-- Lemma `lem:additive-elimination`, equation `eq:additive-elimination-output`: under the
 normalized good-tuple law, `|E∏_I f_I(ℓ_I(z))|^{2^d} ≤ C_m|E∏_{ω∈{0,1}^d}
