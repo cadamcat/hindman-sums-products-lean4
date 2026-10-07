@@ -3882,6 +3882,54 @@ theorem pkgElim_rationalResidue_intCast {r : ℕ} (hr : r.Prime) (z : ℤ) :
   letI : Fact r.Prime := ⟨hr⟩
   simp [FromArithmetic.rationalResidue]
 
+@[simp] theorem pkgElim_rationalResidue_zero {r : ℕ} (hr : r.Prime) :
+    FromArithmetic.rationalResidue r hr 0 = 0 := by
+  letI : Fact r.Prime := ⟨hr⟩
+  simp [FromArithmetic.rationalResidue]
+
+theorem pkgElim_responseUnit_residue_ne_zero {N V q r : ℕ}
+    {tests : Finset (IntegerPolynomial q)} {p : Fin q → ℕ} {x : ℚ}
+    (h : ResponseUnit N V tests p x) (hr : r.Prime) (hN : N + 1 < r)
+    (hV : r ≤ V)
+    (havoid : ∀ P ∈ tests,
+      ¬ ((r : ℤ) ∣ evalIntegerPolynomial P (fun i => (p i : ℤ)))) :
+    FromArithmetic.rationalResidue r hr x ≠ 0 := by
+  classical
+  letI : Fact r.Prime := ⟨hr⟩
+  obtain ⟨z, hz⟩ := pkgElim_responseUnit_integer h
+  have hnum : x.num = z := by
+    have hnumQ : (x.num : ℚ) = (z : ℚ) := calc
+      (x.num : ℚ) = x := (Rat.den_eq_one_iff x).mp h.2.1
+      _ = (z : ℚ) := hz
+    exact_mod_cast hnumQ
+  intro hzero
+  have hzero' : (z : ZMod r) = 0 := by
+    calc
+      (z : ZMod r) = FromArithmetic.rationalResidue r hr (z : ℚ) :=
+        (pkgElim_rationalResidue_intCast hr z).symm
+      _ = FromArithmetic.rationalResidue r hr x := by rw [hz]
+      _ = 0 := hzero
+  have hdiv : (r : ℤ) ∣ z := (ZMod.intCast_zmod_eq_zero_iff_dvd z r).mp hzero'
+  exact h.2.2 r hr hN hV havoid (by simpa [hnum] using hdiv)
+
+theorem pkgElim_productMinor_of_secondZero {α : Type*} [Semiring α]
+    [NoZeroDivisors α] (a b c d : α) (ha : a ≠ 0) (hb : b ≠ 0) (hc : c = 0) :
+    a * b ≠ c * d := by
+  intro h
+  have hab : a * b ≠ 0 := mul_ne_zero ha hb
+  apply hab
+  rw [h, hc]
+  simp
+
+theorem pkgElim_productMinor_of_firstZero {α : Type*} [Semiring α]
+    [NoZeroDivisors α] (a b c d : α) (ha : a = 0) (hc : c ≠ 0) (hd : d ≠ 0) :
+    a * b ≠ c * d := by
+  intro h
+  have hcd : c * d ≠ 0 := mul_ne_zero hc hd
+  apply hcd
+  rw [← h, ha]
+  simp
+
 theorem pkgElim_occurrenceAnchor_residue_ne_zero {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -3932,6 +3980,181 @@ theorem pkgElim_occurrenceAnchor_residue_ne_zero {K m q r s : ℕ} {Aset : Finse
     exact pow_ne_zero _ (hpiNZ i)
   rw [hcoeff, hval, pkgElim_rationalResidue_intCast]
   simpa using hprodNZ
+
+theorem pkgElim_occurrencePairwise_row_tests {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (N : ℕ) (p : Fin q → ℕ)
+    (J0 B : ℕ) (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly p)
+    (π : ℕ) (hπ : π.Prime) (hN : N + 1 < π)
+    (hV : π ≤ masterScaleV S.core.parameters N C.gap)
+    (havoid : ∀ P ∈ tests,
+      ¬ ((π : ℤ) ∣ evalIntegerPolynomial P (fun i => (p i : ℤ))))
+    (o o' : Occurrence Sh) (hne : o ≠ o') :
+    ∃ v w : Coordinate Sh,
+      FromArithmetic.rationalResidue π hπ (occurrenceCoeff S C a Sh dirs N p o v) *
+          FromArithmetic.rationalResidue π hπ (occurrenceCoeff S C a Sh dirs N p o' w) ≠
+        FromArithmetic.rationalResidue π hπ (occurrenceCoeff S C a Sh dirs N p o w) *
+          FromArithmetic.rationalResidue π hπ (occurrenceCoeff S C a Sh dirs N p o' v) := by
+  classical
+  letI : Fact π.Prime := ⟨hπ⟩
+  let ρ : ℚ → ZMod π := FromArithmetic.rationalResidue π hπ
+  let c := chainScale S.core.parameters C a N
+  let Mp := directionModulus S N dirs.poly p
+  have hGlobalKeep := hGlobal
+  rcases hGlobal with ⟨_, hFacts, _, _, _⟩
+  rcases hFacts p hGood with
+    ⟨_, _, _, hTargetResponse, _, _, hResponse, hRootResponse⟩
+  have hAnchorNZ (x : Occurrence Sh) :
+      ρ (occurrenceCoeff S C a Sh dirs N p x
+        (.inl (Sh.row (occurrenceRow Sh x)).anchor)) ≠ 0 := by
+    simpa [ρ] using pkgElim_occurrenceAnchor_residue_ne_zero S C a Sh dirs tests
+      N p x J0 B hGlobalKeep hGood π hπ hN hV
+  have hShiftNZ (R : NonTarget Sh) (I : NonTarget Sh)
+      (hIR : I.1 ≠ R.1) :
+      ρ (rowForm c (Sh.row I.1) p (dirs.translation c Mp p R.1)) ≠ 0 := by
+    exact pkgElim_responseUnit_residue_ne_zero
+      (hResponse R.1 I.1 R.property hIR) hπ hN hV havoid
+  have hRootNZ (I : NonTarget Sh) :
+      ρ (rowForm c (Sh.row I.1) p (dirs.rootTranslation c
+        (S.core.parameters.M N) p)) ≠ 0 := by
+    exact pkgElim_responseUnit_residue_ne_zero
+      (hRootResponse I.1 I.property) hπ hN hV havoid
+  have hMpNZ (R : NonTarget Sh) : ρ (Mp : ℚ) ≠ 0 := by
+    have hunit := pkgElim_responseUnit_residue_ne_zero
+      (hResponse R.1 Sh.star R.property (Ne.symm R.property)) hπ hN hV havoid
+    have hEq : rowForm c (Sh.row Sh.star) p (dirs.translation c Mp p R.1) = (Mp : ℚ) :=
+      hTargetResponse R.1 R.property
+    simpa [ρ, c, Mp, hEq] using hunit
+  have hdetSecondZero (x y : Occurrence Sh) (v w : Coordinate Sh)
+      (hxv : ρ (occurrenceCoeff S C a Sh dirs N p x v) ≠ 0)
+      (hyw : ρ (occurrenceCoeff S C a Sh dirs N p y w) ≠ 0)
+      (hyv : ρ (occurrenceCoeff S C a Sh dirs N p y v) = 0) :
+      ρ (occurrenceCoeff S C a Sh dirs N p x v) *
+          ρ (occurrenceCoeff S C a Sh dirs N p y w) ≠
+        ρ (occurrenceCoeff S C a Sh dirs N p x w) *
+          ρ (occurrenceCoeff S C a Sh dirs N p y v) := by
+    have h := pkgElim_productMinor_of_secondZero
+      (ρ (occurrenceCoeff S C a Sh dirs N p x v))
+      (ρ (occurrenceCoeff S C a Sh dirs N p y w))
+      (ρ (occurrenceCoeff S C a Sh dirs N p y v))
+      (ρ (occurrenceCoeff S C a Sh dirs N p x w)) hxv hyw hyv
+    simpa [mul_comm] using h
+  have hdetFirstZero (x y : Occurrence Sh) (v w : Coordinate Sh)
+      (hxv : ρ (occurrenceCoeff S C a Sh dirs N p x v) = 0)
+      (hxw : ρ (occurrenceCoeff S C a Sh dirs N p x w) ≠ 0)
+      (hyv : ρ (occurrenceCoeff S C a Sh dirs N p y v) ≠ 0) :
+      ρ (occurrenceCoeff S C a Sh dirs N p x v) *
+          ρ (occurrenceCoeff S C a Sh dirs N p y w) ≠
+        ρ (occurrenceCoeff S C a Sh dirs N p x w) *
+          ρ (occurrenceCoeff S C a Sh dirs N p y v) := by
+    have h := pkgElim_productMinor_of_firstZero
+      (ρ (occurrenceCoeff S C a Sh dirs N p x v))
+      (ρ (occurrenceCoeff S C a Sh dirs N p y w))
+      (ρ (occurrenceCoeff S C a Sh dirs N p x w))
+      (ρ (occurrenceCoeff S C a Sh dirs N p y v)) hxv hxw hyv
+    exact h
+  cases o with
+  | inl ω =>
+    cases o' with
+    | inl ω' =>
+      have hω : ω ≠ ω' := by
+        intro heq
+        apply hne
+        simp [heq]
+      have hdiff : ∃ R : NonTarget Sh, ω R ≠ ω' R := by
+        by_contra hno
+        push_neg at hno
+        apply hω
+        funext R
+        exact hno R
+      obtain ⟨R, hR⟩ := hdiff
+      let v : Coordinate Sh := .inr (.inl (R, ω R))
+      let w : Coordinate Sh := .inl (Sh.row Sh.star).anchor
+      have hxv : ρ (occurrenceCoeff S C a Sh dirs N p (.inl ω) v) ≠ 0 := by
+        simpa [ρ, v, c, Mp, occurrenceCoeff] using hMpNZ R
+      have hyv : ρ (occurrenceCoeff S C a Sh dirs N p (.inl ω') v) = 0 := by
+        simp [ρ, v, c, Mp, occurrenceCoeff, hR]
+      exact ⟨v, w, hdetSecondZero _ _ _ _ hxv (hAnchorNZ (.inl ω')) hyv⟩
+    | inr pair' =>
+      rcases pair' with ⟨j', ⟨I, η⟩⟩
+      let v : Coordinate Sh := .inr (.inl (I, ω I))
+      let w : Coordinate Sh := .inl (Sh.row I.1).anchor
+      have hxv : ρ (occurrenceCoeff S C a Sh dirs N p (.inl ω) v) ≠ 0 := by
+        simpa [ρ, v, c, Mp, occurrenceCoeff] using hMpNZ I
+      have hyv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j', ⟨I, η⟩)) v) = 0 := by
+        simp [ρ, v, c, Mp, occurrenceCoeff, occurrenceRow]
+      exact ⟨v, w, hdetSecondZero _ _ _ _ hxv
+        (hAnchorNZ (.inr (j', ⟨I, η⟩))) hyv⟩
+  | inr pair =>
+    rcases pair with ⟨j, ⟨I, η⟩⟩
+    cases o' with
+    | inl ω' =>
+      let v : Coordinate Sh := .inr (.inl (I, ω' I))
+      let w : Coordinate Sh := .inl (Sh.row I.1).anchor
+      have hxv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) v) = 0 := by
+        simp [ρ, v, c, Mp, occurrenceCoeff, occurrenceRow]
+      have hxw := hAnchorNZ (.inr (j, ⟨I, η⟩))
+      have hyv : ρ (occurrenceCoeff S C a Sh dirs N p (.inl ω') v) ≠ 0 := by
+        simpa [ρ, v, c, Mp, occurrenceCoeff] using hMpNZ I
+      exact ⟨v, w, hdetFirstZero _ _ _ _ hxv hxw hyv⟩
+    | inr pair' =>
+      rcases pair' with ⟨j', ⟨I', η'⟩⟩
+      by_cases hII : I ≠ I'
+      · have hI'I : I' ≠ I := Ne.symm hII
+        let R := I'
+        let e := η ⟨R, hI'I⟩
+        let v : Coordinate Sh := .inr (.inl (R, e))
+        let w : Coordinate Sh := .inl (Sh.row I'.1).anchor
+        have hIR : I.1 ≠ I'.1 := by
+          intro hval
+          apply hII
+          exact Subtype.ext hval
+        have hshift := hShiftNZ R I hIR
+        have hxv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) v) ≠ 0 := by
+          simpa [ρ, v, e, R, c, Mp, occurrenceCoeff, occurrenceRow, hI'I] using hshift
+        have hyv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j', ⟨I', η'⟩)) v) = 0 := by
+          simp [ρ, v, e, R, c, Mp, occurrenceCoeff, occurrenceRow, hI'I]
+        exact ⟨v, w, hdetSecondZero _ _ _ _ hxv
+          (hAnchorNZ (.inr (j', ⟨I', η'⟩))) hyv⟩
+      · have hIIeq : I = I' := by simpa using hII
+        subst I'
+        by_cases hη : η ≠ η'
+        · have hdiff : ∃ R : {R : NonTarget Sh // R ≠ I}, η R ≠ η' R := by
+            by_contra hno
+            push_neg at hno
+            apply hη
+            funext R
+            exact hno R
+          obtain ⟨R, hR⟩ := hdiff
+          let e := η R
+          let v : Coordinate Sh := .inr (.inl (R.1, e))
+          let w : Coordinate Sh := .inl (Sh.row I.1).anchor
+          have hIR : I.1 ≠ R.1 := by
+            intro heq
+            exact R.property (Subtype.ext heq.symm)
+          have hshift := hShiftNZ R.1 I hIR
+          have hxv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) v) ≠ 0 := by
+            simpa [ρ, v, e, c, Mp, occurrenceCoeff, occurrenceRow, R.property] using hshift
+          have hyv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j', ⟨I, η'⟩)) v) = 0 := by
+            simp [ρ, v, e, c, Mp, occurrenceCoeff, occurrenceRow, R.property, hR]
+          exact ⟨v, w, hdetSecondZero _ _ _ _ hxv
+            (hAnchorNZ (.inr (j', ⟨I, η'⟩))) hyv⟩
+        · have heqη : η = η' := by simpa using hη
+          have hj : j ≠ j' := by
+            intro heqj
+            apply hne
+            simp [heqj, heqη]
+          let v : Coordinate Sh := .inr (.inr j)
+          let w : Coordinate Sh := .inl (Sh.row I.1).anchor
+          have hxv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) v) ≠ 0 := by
+            simpa [ρ, v, c, Mp, occurrenceCoeff, occurrenceRow] using hRootNZ I
+          have hyv : ρ (occurrenceCoeff S C a Sh dirs N p (.inr (j', ⟨I, η'⟩)) v) = 0 := by
+            simp [ρ, v, c, Mp, occurrenceCoeff, occurrenceRow, hj]
+          exact ⟨v, w, hdetSecondZero _ _ _ _ hxv
+            (hAnchorNZ (.inr (j', ⟨I, η'⟩))) hyv⟩
 
 theorem pkgElim_occurrenceCoeff_integer {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
