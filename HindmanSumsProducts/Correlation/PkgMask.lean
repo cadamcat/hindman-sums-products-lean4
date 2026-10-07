@@ -140,6 +140,44 @@ theorem RowTemplate.padSlot_value {m q : ℕ} (T : RowTemplate m q)
     simp [RowTemplate.value, RowTemplate.padSlot, extendPrimeTuple, h,
       Fin.prod_univ_succ]
 
+def RowTemplate.ExponentsBinary {m q : ℕ} (T : RowTemplate m q) : Prop :=
+  ∀ k e, T.entry k = some e → ∀ i, e i ≤ 1
+
+theorem RowTemplate.scaleColumn_entry {m q : ℕ} (T : RowTemplate m q) (u k : Fin m)
+    (e : Fin q → ℕ) (he : T.entry k = some e) :
+    (T.scaleColumn u).entry k = some (Fin.cases (if k = u then 1 else 0) e) := by
+  simp [RowTemplate.scaleColumn, he]
+
+theorem RowTemplate.padSlot_entry {m q : ℕ} (T : RowTemplate m q) (k : Fin m)
+    (e : Fin q → ℕ) (he : T.entry k = some e) :
+    T.padSlot.entry k = some (Fin.cases 0 e) := by
+  simp [RowTemplate.padSlot, he]
+
+theorem RowTemplate.scaleColumn_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
+    (hT : T.ExponentsBinary) (u : Fin m) : (T.scaleColumn u).ExponentsBinary := by
+  intro k e he i
+  cases h : T.entry k with
+  | none => simp [RowTemplate.scaleColumn, h] at he
+  | some e₀ =>
+    have hnew := T.scaleColumn_entry u k e₀ h
+    have heq : Fin.cases (if k = u then 1 else 0) e₀ = e :=
+      Option.some.inj (hnew.symm.trans he)
+    subst e
+    refine Fin.cases ?_ (fun j => hT k e₀ h j) i
+    by_cases hku : k = u <;> simp [hku]
+
+theorem RowTemplate.padSlot_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
+    (hT : T.ExponentsBinary) : T.padSlot.ExponentsBinary := by
+  intro k e he i
+  cases h : T.entry k with
+  | none => simp [RowTemplate.padSlot, h] at he
+  | some e₀ =>
+    have hnew := T.padSlot_entry k e₀ h
+    have heq : Fin.cases 0 e₀ = e := Option.some.inj (hnew.symm.trans he)
+    subst e
+    refine Fin.cases ?_ (fun j => hT k e₀ h j) i
+    norm_num
+
 theorem rowForm_padSlot {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate m q)
     (p : Fin q → ℕ) (p₀ : ℕ) (z : Fin m → ℚ) :
     rowForm c T.padSlot (extendPrimeTuple p p₀) z = rowForm c T p z := by
@@ -244,6 +282,24 @@ noncomputable def RowTemplate.scaleBalancedP {m q : ℕ} (T : RowTemplate m q) (
 
 noncomputable def RowTemplate.scaleBalancedQ {m q : ℕ} (T : RowTemplate m q) (u v : Fin m) :
     RowTemplate m (q + 2) := (T.scaleColumn u).scaleColumn v
+
+theorem RowTemplate.scaleBranchP_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
+    (hT : T.ExponentsBinary) (u : Fin m) : (T.scaleBranchP u).ExponentsBinary := by
+  exact (T.scaleColumn u).padSlot_exponentsBinary (T.scaleColumn_exponentsBinary hT u)
+
+theorem RowTemplate.scaleBranchQ_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
+    (hT : T.ExponentsBinary) (u : Fin m) : (T.scaleBranchQ u).ExponentsBinary := by
+  exact (T.padSlot).scaleColumn_exponentsBinary (T.padSlot_exponentsBinary hT) u
+
+theorem RowTemplate.scaleBalancedP_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
+    (hT : T.ExponentsBinary) (u v : Fin m) : (T.scaleBalancedP u v).ExponentsBinary := by
+  exact (T.scaleColumn v).scaleColumn_exponentsBinary
+    (T.scaleColumn_exponentsBinary hT v) u
+
+theorem RowTemplate.scaleBalancedQ_exponentsBinary {m q : ℕ} (T : RowTemplate m q)
+    (hT : T.ExponentsBinary) (u v : Fin m) : (T.scaleBalancedQ u v).ExponentsBinary := by
+  exact (T.scaleColumn u).scaleColumn_exponentsBinary
+    (T.scaleColumn_exponentsBinary hT u) v
 
 theorem rowForm_scaleBalancedP {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate m q)
     (u v : Fin m) (huv : u ≠ v) (p : Fin q → ℕ) (p₁ p₀ : ℕ)
