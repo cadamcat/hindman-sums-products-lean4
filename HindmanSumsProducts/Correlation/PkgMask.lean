@@ -1900,8 +1900,8 @@ theorem parameterTailProductLaw_eq_divisorTemplateLaw_ofFinset {n b : ℕ}
     (hX : ∀ j, 0 < A.X N j)
     (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1)))
     (σ : ℕ) :
-    parameterTailProductLaw A N T σ =
-      divisorTemplateLaw A N (divisorTemplateOfFinset T hT) σ := by
+    FromArithmetic.parameterTailProductLaw A N T σ =
+      FromArithmetic.divisorTemplateLaw A N (divisorTemplateOfFinset T hT) σ := by
   classical
   let D := divisorTemplateOfFinset T hT
   let ord : Fin T.card ≃ T := (T.orderIsoOfFin rfl).toEquiv
@@ -1979,7 +1979,7 @@ theorem parameterTailProductLaw_eq_divisorTemplateLaw_ofFinset {n b : ℕ}
   have hfin := harmonicProductLaw_eq_finite_sum (primorial (N + 1))
     (fun i => A.X N (D.cutoff i)) σ
   calc
-    parameterTailProductLaw A N T σ = ∑ u ∈ Dsub, subTerm u := by
+    FromArithmetic.parameterTailProductLaw A N T σ = ∑ u ∈ Dsub, subTerm u := by
       simpa [Dsub, subTerm] using hsub
     _ = ∑ w ∈ Dfin, finTerm w := hbij.symm
     _ = harmonicProductLaw (primorial (N + 1))
@@ -1990,7 +1990,7 @@ theorem parameterTailProductLaw_eq_divisorTemplateLaw_ofFinset {n b : ℕ}
             ∏ i, harmonicNatLaw (A.X N (D.cutoff i))
               (primorial (N + 1)) (w i)) = _
       exact hfin.symm
-    _ = divisorTemplateLaw A N D σ := by rfl
+    _ = FromArithmetic.divisorTemplateLaw A N D σ := by rfl
 
 theorem parameterTailProductLaw_support_pos {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)

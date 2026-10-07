@@ -3277,7 +3277,7 @@ noncomputable def coordinateLaw {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_coordinateLaw_nonneg {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ) :
     0 ≤ coordinateLaw S C Sh dirs J0 N p v z := by
@@ -3321,7 +3321,7 @@ noncomputable def coordinateProductLaw {K m q r s d : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_coordinateProductLaw_nonneg {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) :
     0 ≤ coordinateProductLaw S C Sh dirs J0 N p eX x := by
@@ -3332,7 +3332,7 @@ theorem pkgElim_coordinateProductLaw_nonneg {K m q r s d : ℕ} {Aset : Finset �
 
 noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) : Finset ℤ :=
   match v with
@@ -3344,7 +3344,7 @@ noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ
 
 theorem pkgElim_coordinateLaw_zero_of_not_mem {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ)
     (hz : z ∉ pkgElim_coordinateSupport S C Sh dirs J0 N p v) :
@@ -3393,7 +3393,7 @@ theorem pkgElim_coordinateLaw_zero_of_not_mem {K m q r s : ℕ} {Aset : Finset �
 
 theorem pkgElim_coordinateLaw_tsum_one {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) :
     ∑' z : ℤ, coordinateLaw S C Sh dirs J0 N p v z = 1 := by
@@ -3411,7 +3411,7 @@ theorem pkgElim_coordinateLaw_tsum_one {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_coordinateProductLaw_tsum_one {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) :
     ∑' x : Fin d → ℤ, coordinateProductLaw S C Sh dirs J0 N p eX x = 1 := by
@@ -3492,7 +3492,7 @@ theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (o : Occurrence Sh) (x : Coordinate Sh → ℤ) :
     (∑ k : Fin m, occurrenceCoeff S C a Sh dirs N p o (.inl k) *
@@ -3503,7 +3503,7 @@ theorem pkgElim_occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ
 
 theorem pkgElim_occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
     (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
@@ -3522,7 +3522,7 @@ theorem pkgElim_occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
     (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
@@ -3581,7 +3581,7 @@ theorem pkgElim_occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset 
 
 theorem pkgElim_occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
     (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
