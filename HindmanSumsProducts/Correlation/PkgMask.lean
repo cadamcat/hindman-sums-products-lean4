@@ -9411,4 +9411,57 @@ theorem gapPivot_weighted_cauchy_schwarz {K s m q : ℕ} {Aset : Finset ℚ}
   · exact gapPivotMass_mul_summable S C N Ω
   · exact gapPivotMass_mul_summable S C N (fun x => Ω x * H₁ x ^ 2)
 
+theorem pkgMask_poolAverage_mul {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (l : Fin K) (N : ℕ) (F G : ℕ → ℝ) :
+    poolAverage S l N F * poolAverage S l N G =
+      ∑' pq : ℕ × ℕ,
+        (primePoolLaw (S.primeStage.pool N l).lower
+          (S.primeStage.pool N l).upper pq.1 *
+          primePoolLaw (S.primeStage.pool N l).lower
+            (S.primeStage.pool N l).upper pq.2) * (F pq.1 * G pq.2) := by
+  classical
+  let lo := (S.primeStage.pool N l).lower
+  let hi := (S.primeStage.pool N l).upper
+  let P := primePoolSupport lo hi
+  have hFzero (p : ℕ) (hp : p ∉ P) : primePoolLaw lo hi p * F p = 0 := by
+    simp [primePoolLaw_zero_of_not_mem_support lo hi p hp]
+  have hGzero (p : ℕ) (hp : p ∉ P) : primePoolLaw lo hi p * G p = 0 := by
+    simp [primePoolLaw_zero_of_not_mem_support lo hi p hp]
+  have hpairzero (pq : ℕ × ℕ) (hpq : pq ∉ P ×ˢ P) :
+      (primePoolLaw lo hi pq.1 * primePoolLaw lo hi pq.2) *
+        (F pq.1 * G pq.2) = 0 := by
+    have hcoord : pq.1 ∉ P ∨ pq.2 ∉ P := by
+      by_contra h
+      push_neg at h
+      exact hpq (Finset.mem_product.mpr h)
+    rcases hcoord with hp | hq
+    · simp [primePoolLaw_zero_of_not_mem_support lo hi pq.1 hp]
+    · simp [primePoolLaw_zero_of_not_mem_support lo hi pq.2 hq]
+  calc
+    poolAverage S l N F * poolAverage S l N G =
+        (∑ p ∈ P, primePoolLaw lo hi p * F p) *
+          (∑ p ∈ P, primePoolLaw lo hi p * G p) := by
+      unfold poolAverage
+      rw [tsum_eq_sum (s := P) hFzero, tsum_eq_sum (s := P) hGzero]
+    _ = ∑ p ∈ P, ∑ q ∈ P,
+          (primePoolLaw lo hi p * primePoolLaw lo hi q) * (F p * G q) := by
+      rw [Finset.sum_mul]
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro q hq
+      ring
+    _ = ∑ pq ∈ P ×ˢ P,
+          (primePoolLaw lo hi pq.1 * primePoolLaw lo hi pq.2) *
+            (F pq.1 * G pq.2) := by
+      symm
+      exact Finset.sum_product' P P
+        (fun p q => (primePoolLaw lo hi p * primePoolLaw lo hi q) * (F p * G q))
+    _ = ∑' pq : ℕ × ℕ,
+          (primePoolLaw lo hi pq.1 * primePoolLaw lo hi pq.2) *
+            (F pq.1 * G pq.2) := by
+      symm
+      exact tsum_eq_sum (s := P ×ˢ P) hpairzero
 end HindmanSumsProducts
