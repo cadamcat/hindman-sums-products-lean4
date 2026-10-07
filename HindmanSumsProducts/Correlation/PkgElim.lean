@@ -8,9 +8,14 @@ open Filter
 open FromArithmetic
 open scoped Topology
 
+local notation "MasterScales" => FromArithmetic.MasterScales
+local notation "masterScaleV" => FromArithmetic.masterScaleV
+local notation "masterCRTModulus" => FromArithmetic.masterCRTModulus
+local notation "parameterTailProductLaw" => FromArithmetic.parameterTailProductLaw
+
 /-- Encode a chain tail as the finite-coordinate divisor template used by §3. -/
 noncomputable def tailDivisorTemplate {n : ℕ} (T : Finset (Fin n)) :
-    DivisorTemplate n n where
+    FromArithmetic.DivisorTemplate n n where
   arity := T.card
   arity_le := by simpa using Finset.card_le_univ T
   cutoff i := ((T.equivFinOfCardEq rfl).symm i).val
@@ -18,13 +23,13 @@ noncomputable def tailDivisorTemplate {n : ℕ} (T : Finset (Fin n)) :
 /-- An arity-zero divisor template contributes the constant weight one. -/
 theorem nuB_divisorTemplate_arity_zero {n b : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
-    (D : DivisorTemplate n b) (hD : D.arity = 0) (y : ℤ) :
-    nuB (divisorTemplateLaw A N D) y = 1 := by
+    (D : FromArithmetic.DivisorTemplate n b) (hD : D.arity = 0) (y : ℤ) :
+    nuB (FromArithmetic.divisorTemplateLaw A N D) y = 1 := by
   cases D with
   | mk arity arity_le cutoff =>
     have hzero : arity = 0 := hD
     subst arity
-    simp [nuB, divisorTemplateLaw, harmonicProductLaw]
+    simp [nuB, FromArithmetic.divisorTemplateLaw, harmonicProductLaw]
     rw [tsum_eq_single 1]
     · simp
     · intro σ hσ
@@ -631,15 +636,15 @@ theorem harmonic_cutoff_log_condition {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X
 
 theorem masterScaleV_ge_primorial {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (l : Fin n) :
-    primorial (N + 1) ≤ masterScaleV A N l := by
+    primorial (N + 1) ≤ FromArithmetic.masterScaleV A N l := by
   have hW : primorial (N + 1) ≤ A.M N := A.Wle N
-  unfold masterScaleV
+  unfold FromArithmetic.masterScaleV
   omega
 
 theorem pkgElim_masterScaleV_ge_modulus {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (l : Fin n) :
     A.M N ≤ masterScaleV A N l := by
-  unfold masterScaleV
+  unfold FromArithmetic.masterScaleV
   omega
 
 theorem pkgElim_masterScaleV_tendsto {n : ℕ}
@@ -703,13 +708,13 @@ theorem microcellDominates_mono {A B S : ℕ → ℝ}
 
 theorem chainPivot_log_dominates_poolSize {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (k : Fin m) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (k : Fin m) :
     OAI.MicrocellScale.Dominates
       (fun N => Real.log (S.core.parameters.X N (C.block k).1 : ℝ))
       (fun N => ((S.primeStage.pool N C.gap).upper +
-        masterScaleV S.core.parameters N C.gap : ℝ)) := by
+        FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
   let T : ℕ → ℝ := fun N =>
-    (S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap
+    (S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap
   have hgap := S.gapStage.gap_dominates_pool_and_bound C.gap
   have hle : ∀ᶠ N in atTop,
       (S.core.parameters.H N C.gap : ℝ) ≤
@@ -720,8 +725,8 @@ theorem chainPivot_log_dominates_poolSize {K s m : ℕ}
     exact_mod_cast Nat.le_of_dvd (S.core.parameters.Hpos N (C.block k).1) hdvd
   have hTpos : ∀ᶠ N in atTop, 0 < T N := by
     filter_upwards [] with N
-    have hV : 0 < masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+    have hV : 0 < FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
       positivity
     dsimp [T]
     positivity
@@ -733,17 +738,17 @@ theorem chainPivot_log_dominates_poolSize {K s m : ℕ}
 
 theorem chainPivot_nat_dominates_poolSize {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (k : Fin m) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (k : Fin m) :
     OAI.MicrocellScale.Dominates
       (fun N => (S.core.parameters.X N (C.block k).1 : ℝ))
       (fun N => ((S.primeStage.pool N C.gap).upper +
-        masterScaleV S.core.parameters N C.gap : ℝ)) := by
+        FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
   let T : ℕ → ℝ := fun N =>
-    (S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap
+    (S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap
   have hTpos : ∀ᶠ N in atTop, 0 < T N := by
     filter_upwards [] with N
-    have hV : 0 < masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+    have hV : 0 < FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
       positivity
     dsimp [T]
     positivity
@@ -835,14 +840,14 @@ theorem samplingScale_envelope_le_poolPow (P V W q : ℕ)
 
 theorem chainPivot_harmonicResidueError_superpoly {K s m q : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (k : Fin m) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (k : Fin m) :
     SuperPolynomialSmall
       (fun N => FromArithmetic.harmonicResidueUniformError
         (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
-        (masterScaleV S.core.parameters N C.gap ^ q))
-      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+        (FromArithmetic.masterScaleV S.core.parameters N C.gap ^ q))
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
   classical
-  let V : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV S.core.parameters N C.gap
   let W : ℕ → ℕ := fun N => primorial (N + 1)
   let Kseq : ℕ → ℕ := fun N => V N ^ q
   let H : ℕ → ℕ := fun _ => 1
@@ -853,7 +858,7 @@ theorem chainPivot_harmonicResidueError_superpoly {K s m q : ℕ}
     ((2 + W N + Kseq N + H N + V N : ℕ) : ℝ)
   have hV : ∀ N, 2 ≤ V N := by
     intro N
-    dsimp [V, masterScaleV]
+    dsimp [V, FromArithmetic.masterScaleV]
     omega
   have hWle : ∀ N, W N ≤ V N := by
     intro N
@@ -861,8 +866,8 @@ theorem chainPivot_harmonicResidueError_superpoly {K s m q : ℕ}
   have hT : ∀ N, 2 ≤ T N := by
     intro N
     dsimp [T, V]
-    have : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+    have : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
       omega
     exact_mod_cast le_trans this (Nat.le_add_left _ _)
   have hUpos : ∀ᶠ N in atTop, 0 < U N := by
@@ -874,7 +879,7 @@ theorem chainPivot_harmonicResidueError_superpoly {K s m q : ℕ}
     dsimp [U, W, Kseq, H, T, V]
     exact_mod_cast samplingScale_envelope_le_poolPow
       ((S.primeStage.pool N C.gap).upper)
-      (masterScaleV S.core.parameters N C.gap) (primorial (N + 1)) q
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap) (primorial (N + 1)) q
       (hWle N) (hV N)
   have hXDom : OAI.MicrocellScale.Dominates (fun N => (X N : ℝ)) U :=
     microcellDominates_of_eventually_le_pow q
@@ -883,7 +888,7 @@ theorem chainPivot_harmonicResidueError_superpoly {K s m q : ℕ}
   have hK : ∀ N, 1 ≤ Kseq N := by
     intro N
     dsimp [Kseq, V]
-    exact Nat.one_le_pow q _ (by unfold masterScaleV; omega)
+    exact Nat.one_le_pow q _ (by unfold FromArithmetic.masterScaleV; omega)
   have hH : ∀ N, 1 ≤ H N := by intro N; simp [H]
   have hVpos : ∀ N, 1 ≤ V N := by
     intro N
@@ -1077,24 +1082,24 @@ theorem roughPart_pos (w : ℕ) (a : ℤ) : 0 < roughPart w a := by
 
 theorem shiftLength_lower_pow_of_modulus_bound {K s m r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (J0 B q : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (J0 B q : ℕ)
     (hJ0 : 0 < J0) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (tests : Finset (IntegerPolynomial q))
     (hbound : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
       directionModulus S N dirs.poly p ≤
-        ((S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap) ^ B) :
+        ((S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B) :
     ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
-      ((S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap) ^ q ≤
+      ((S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ q ≤
         shiftLength S C.gap J0 N dirs.poly p := by
   classical
   let H : ℕ → ℕ := fun N => S.core.parameters.H N C.gap
   let T : ℕ → ℕ := fun N =>
-    (S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap
+    (S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap
   have hT : ∀ N, 1 ≤ T N := by
     intro N
     dsimp [T]
-    have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+    have hV : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
       omega
     omega
   have hscale : OAI.MicrocellScale.Dominates (fun N => (H N : ℝ)) (fun N => (T N : ℝ)) := by
@@ -1108,7 +1113,7 @@ theorem shiftLength_lower_pow_of_modulus_bound {K s m r : ℕ}
   filter_upwards [hlarge, hbound] with N hlargeN hboundN p hp
   let Mp := directionModulus S N dirs.poly p
   have hTnat : T N =
-      (S.primeStage.pool N C.gap).upper + masterScaleV S.core.parameters N C.gap := rfl
+      (S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap := rfl
   have hTpos : 0 < T N := Nat.lt_of_lt_of_le Nat.zero_lt_one (hT N)
   have hdenMaxPos : 0 < J0 * T N ^ B := Nat.mul_pos hJ0 (Nat.pow_pos hTpos)
   have hprodMax : T N ^ q * (J0 * T N ^ B) ≤ H N :=
@@ -1224,6 +1229,43 @@ theorem rowForm_eq_linearRowValue {m q r : ℕ} (c : Fin m → ℚ)
       FromArithmetic.linearRowValue
         (fun _ p' _ k => rowTemplateCoefficient c T p' k) N p u x := by
   simp [rowForm, FromArithmetic.linearRowValue, rowTemplateCoefficient]
+
+theorem pkgElim_rowForm_add {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate m q)
+    (p : Fin q → ℕ) (v w : Fin m → ℚ) :
+    rowForm c T p (v + w) =
+      rowForm c T p v + rowForm c T p w := by
+  simp [rowForm, Finset.sum_add_distrib, mul_add]
+
+theorem pkgElim_rowForm_sum {α : Type*} [Fintype α] [DecidableEq α]
+    {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (v : α → Fin m → ℚ) :
+    rowForm c T p (fun k => ∑ i, v i k) =
+      ∑ i, rowForm c T p (v i) := by
+  classical
+  let b : Fin m → ℚ := fun k => c k / c T.anchor * T.value p k
+  unfold rowForm
+  change (∑ k : Fin m, b k * (∑ i : α, v i k)) =
+    ∑ i : α, ∑ k : Fin m, b k * v i k
+  calc
+    _ = ∑ k : Fin m, ∑ i : α, b k * v i k := by
+      apply Finset.sum_congr rfl
+      intro k hk
+      rw [Finset.mul_sum]
+    _ = _ := Finset.sum_comm
+
+theorem pkgElim_rowForm_const_mul {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (t : ℚ) (v : Fin m → ℚ) :
+    rowForm c T p (fun k => t * v k) = t * rowForm c T p v := by
+  classical
+  let b : Fin m → ℚ := fun k => c k / c T.anchor * T.value p k
+  unfold rowForm
+  change (∑ k, b k * (t * v k)) = t * ∑ k, b k * v k
+  calc
+    _ = ∑ k, t * (b k * v k) := by
+      apply Finset.sum_congr rfl
+      intro k hk
+      ring
+    _ = _ := by rw [Finset.mul_sum]
 
 theorem pkgElim_rowTemplateValue_integer {m q : ℕ}
     (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) :
@@ -2612,7 +2654,7 @@ theorem independentPrimePoolProbability_compl {m : ℕ} (lo hi : Fin m → ℕ)
 
 theorem gapSlotProbability_tendsto_one_of_bad {K s q : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (l : Fin K)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K)
     (E : ℕ → (Fin q → ℕ) → Prop)
     (hbad : Tendsto (fun N => gapSlotProbability S l N (fun p => ¬ E N p))
       atTop (𝓝 0)) :
@@ -2621,17 +2663,17 @@ theorem gapSlotProbability_tendsto_one_of_bad {K s q : ℕ}
   have hratio : Tendsto
       (fun N => primePoolMass (S.primeStage.pool N l).lower
         (S.primeStage.pool N l).upper /
-        (masterScaleV S.core.parameters N l : ℝ)) atTop atTop :=
+        (FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) atTop atTop :=
     by
       simpa [pow_one] using S.primeStage.pool_harmonic_mass_dominates l 1 (by norm_num)
   have hmasspos : ∀ᶠ N in atTop,
       0 < primePoolMass (S.primeStage.pool N l).lower
         (S.primeStage.pool N l).upper := by
     filter_upwards [hratio.eventually_ge_atTop (1 : ℝ)] with N hN
-    have hV : 0 < (masterScaleV S.core.parameters N l : ℝ) := by
-      unfold masterScaleV
+    have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+      unfold FromArithmetic.masterScaleV
       positivity
-    have hmul : (masterScaleV S.core.parameters N l : ℝ) ≤
+    have hmul : (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ≤
         primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper :=
       by simpa using (le_div_iff₀ hV).mp hN
     linarith
@@ -2759,18 +2801,18 @@ theorem harmonicProductLaw_support_facts {k W : ℕ} (X : Fin k → ℕ) (σ : �
   exact ⟨hprodGe, hprodLe, hcop⟩
 
 theorem divisorTemplateLaw_support_facts {n b : ℕ}
-    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (D : DivisorTemplate n b)
-    (σ : ℕ) (hσ : divisorTemplateLaw A N D σ ≠ 0) :
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (D : FromArithmetic.DivisorTemplate n b)
+    (σ : ℕ) (hσ : FromArithmetic.divisorTemplateLaw A N D σ ≠ 0) :
     1 ≤ σ ∧ σ ≤ ∏ i : Fin D.arity, (A.X N (D.cutoff i)) ^ 2 ∧
       Nat.Coprime σ (primorial (N + 1)) := by
-  unfold divisorTemplateLaw at hσ
+  unfold FromArithmetic.divisorTemplateLaw at hσ
   exact harmonicProductLaw_support_facts
     (fun i : Fin D.arity => A.X N (D.cutoff i)) σ hσ
 
 theorem parameterTailProductLaw_eq_tailSubtypeSum {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n))
     (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) (σ : ℕ) :
-    parameterTailProductLaw A N T σ =
+    FromArithmetic.parameterTailProductLaw A N T σ =
       ∑ x : ∀ j : {i // i ∈ T},
           {z : ℕ // z ∈ (Finset.Ico (A.X N j.1) ((A.X N j.1) ^ 2)).filter
             (fun z => Nat.Coprime z (primorial (N + 1)))},
@@ -2921,8 +2963,8 @@ theorem parameterTailProductLaw_eq_tailSubtypeSum {n : ℕ}
     rw [htailprod, hprod]
     dsimp [tailTerm, restTerm]
     ring
-  have hsumImage : parameterTailProductLaw A N T σ = ∑ x : V, term (rawMap x) := by
-    unfold parameterTailProductLaw
+  have hsumImage : FromArithmetic.parameterTailProductLaw A N T σ = ∑ x : V, term (rawMap x) := by
+    unfold FromArithmetic.parameterTailProductLaw
     rw [tsum_eq_sum hsupp]
     rw [Finset.sum_image (s := Finset.univ) (g := rawMap) (f := term) hinj.injOn]
   have hReindex :
@@ -2984,8 +3026,8 @@ theorem parameterTailProductLaw_eq_tailSubtypeSum {n : ℕ}
 theorem parameterTailProductLaw_eq_divisorTemplateLaw {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n))
     (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) :
-    parameterTailProductLaw A N T =
-      divisorTemplateLaw A N (tailDivisorTemplate T) := by
+    FromArithmetic.parameterTailProductLaw A N T =
+      FromArithmetic.divisorTemplateLaw A N (tailDivisorTemplate T) := by
   classical
   let W := primorial (N + 1)
   let eT : T ≃ Fin T.card := T.equivFinOfCardEq rfl
@@ -3001,7 +3043,7 @@ theorem parameterTailProductLaw_eq_divisorTemplateLaw {n : ℕ}
   let ePi : Tail ≃ FinTail := Equiv.piCongrLeft' (fun j : T => β j.1) eT
   funext σ
   rw [parameterTailProductLaw_eq_tailSubtypeSum A N T hX σ]
-  unfold divisorTemplateLaw
+  unfold FromArithmetic.divisorTemplateLaw
   change (∑ x : Tail,
       (if (∏ j : T, (x j).val) = σ then 1 else 0) *
         ∏ j : T, harmonicNatLaw (A.X N j.1) W (x j).val) =
@@ -3052,7 +3094,7 @@ theorem parameterTailProductLaw_eq_divisorTemplateLaw {n : ℕ}
 theorem parameterTailProductLaw_support_facts {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n))
     (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) (σ : ℕ)
-    (hσ : parameterTailProductLaw A N T σ ≠ 0) :
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) :
     1 ≤ σ ∧ σ ≤ ∏ j : T, (A.X N j.1) ^ 2 ∧
       Nat.Coprime σ (primorial (N + 1)) := by
   classical
@@ -3072,10 +3114,10 @@ theorem parameterTailProductLaw_support_facts {n : ℕ}
 
 theorem chainTailProductLaw_support_facts {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ) (k : Fin m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ) (k : Fin m)
     (σ : ℕ)
-    (hσ : parameterTailProductLaw S.core.parameters N (C.block k).2.val σ ≠ 0) :
-    1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap ∧
+    (hσ : FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block k).2.val σ ≠ 0) :
+    1 ≤ σ ∧ σ ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap ∧
       Nat.Coprime σ (primorial (N + 1)) := by
   classical
   let T := (C.block k).2.val
@@ -3107,8 +3149,8 @@ theorem chainTailProductLaw_support_facts {K s m : ℕ}
       (by intro j hjU hjnot; exact hone j hjU)
   have hUle :
       (∏ j ∈ U, (S.core.parameters.X N j) ^ 2) ≤
-    masterScaleV S.core.parameters N C.gap := by
-    unfold masterScaleV
+    FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+    unfold FromArithmetic.masterScaleV
     simp [U]
   exact ⟨htail.1, le_trans hupperT (le_trans hprodSub hUle), htail.2.2⟩
 
@@ -3253,7 +3295,7 @@ theorem weightedLinearFormsAverage_tendsto_of_eventProbability
 /-- The pointwise target-cube product is dominated by its product of weight bounds. -/
 theorem target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (p : Fin q → ℕ) (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ)
     (g : ℤ → ℝ)
@@ -3291,12 +3333,115 @@ abbrev Occurrence {m q r : ℕ} (Sh : RowShape m q r) :=
 abbrev Coordinate {m q r : ℕ} (Sh : RowShape m q r) :=
   Fin m ⊕ ((NonTarget Sh × Fin 2) ⊕ Fin 2)
 
+theorem pkgElim_fin2_lt_card (k : ℕ) (hk : k ≤ 2) :
+    Fintype.card {j : Fin 2 // j.val < k} = k := by
+  cases k with
+  | zero => simp
+  | succ k =>
+    cases k with
+    | zero => norm_num
+    | succ k =>
+      cases k with
+      | zero =>
+        let e : {j : Fin 2 // j.val < 2} ≃ Fin 2 :=
+          { toFun := Subtype.val
+            invFun := fun j => ⟨j, j.isLt⟩
+            left_inv := by intro j; cases j; rfl
+            right_inv := by intro j; rfl }
+        simpa using Fintype.card_congr e
+      | succ k => omega
+
 noncomputable def activeOccurrences {m q r : ℕ} (Sh : RowShape m q r) (k : ℕ) :
     Finset (Occurrence Sh) := by
   classical
   exact Finset.univ.filter fun o => match o with
     | .inl _ => True
     | .inr jI => jI.1.val < k
+
+theorem pkgElim_retainedIndex_card {m q r : ℕ} (Sh : RowShape m q r) :
+    Fintype.card (RetainedIndex Sh) =
+      Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1) := by
+  classical
+  let d := Fintype.card (NonTarget Sh)
+  have hneq (I : NonTarget Sh) :
+      Fintype.card {R : NonTarget Sh // R ≠ I} = d - 1 := by
+    have heq : Fintype.card {R : NonTarget Sh // R = I} = 1 := by
+      let e : {R : NonTarget Sh // R = I} ≃ PUnit.{0} :=
+        { toFun := fun _ => PUnit.unit
+          invFun := fun _ => ⟨I, rfl⟩
+          left_inv := by
+            intro x
+            rcases x with ⟨R, hRI⟩
+            cases hRI
+            rfl
+          right_inv := by intro x; cases x; rfl }
+      simpa using Fintype.card_congr e
+    rw [Fintype.card_subtype_compl (fun R : NonTarget Sh => R = I), heq]
+  calc
+    Fintype.card (RetainedIndex Sh) =
+        ∑ I : NonTarget Sh, Fintype.card ({R : NonTarget Sh // R ≠ I} → Fin 2) :=
+      Fintype.card_sigma
+    _ = ∑ I : NonTarget Sh, 2 ^ (d - 1) := by
+      apply Finset.sum_congr rfl
+      intro I hI
+      simp [Fintype.card_fun, Fintype.card_fin, hneq I]
+    _ = Fintype.card (NonTarget Sh) * 2 ^ (d - 1) := by
+      simp [d, Finset.sum_const, nsmul_eq_mul]
+
+theorem pkgElim_activeOccurrences_card {m q r : ℕ} (Sh : RowShape m q r)
+    (k : ℕ) (hk : k ≤ 2) :
+    (activeOccurrences Sh k).card =
+      2 ^ Fintype.card (NonTarget Sh) +
+        k * Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1) := by
+  classical
+  let Target : Finset (Occurrence Sh) :=
+    (Finset.univ : Finset (NonTarget Sh → Fin 2)).image
+      (fun ω => (Sum.inl ω : Occurrence Sh))
+  let Roots : Finset {j : Fin 2 // j.val < k} := Finset.univ
+  let Retained : Finset (Occurrence Sh) :=
+    (Roots.product (Finset.univ : Finset (RetainedIndex Sh))).image
+      (fun jr => (Sum.inr (jr.1.1, jr.2) : Occurrence Sh))
+  have hActive : activeOccurrences Sh k = Target ∪ Retained := by
+    ext o
+    cases o with
+    | inl ω => simp [activeOccurrences, Target, Retained, Roots]
+    | inr pair =>
+        rcases pair with ⟨j, Iη⟩
+        simp [activeOccurrences, Target, Retained, Roots]
+  have hdisj : Disjoint Target Retained := by
+    rw [Finset.disjoint_left]
+    intro o ho hr
+    rcases Finset.mem_image.mp ho with ⟨ω, hω, hωeq⟩
+    rcases Finset.mem_image.mp hr with ⟨jr, hjr, hjreq⟩
+    cases o with
+    | inl _ => simp at hjreq
+    | inr _ => simp at hωeq
+  have hTargetCard : Target.card = 2 ^ Fintype.card (NonTarget Sh) := by
+    dsimp [Target]
+    rw [Finset.card_image_of_injective _ (fun _ _ h => Sum.inl.inj h)]
+    simp [Fintype.card_fun, Fintype.card_fin]
+  have hRootCard : Roots.card = k := by
+    simpa [Roots] using pkgElim_fin2_lt_card k hk
+  have hRetainedInj : Function.Injective
+      (fun jr : {j : Fin 2 // j.val < k} × RetainedIndex Sh =>
+        (Sum.inr (jr.1.1, jr.2) : Occurrence Sh)) := by
+    intro a b hab
+    cases a with
+    | mk aj ar =>
+      cases b with
+      | mk bj br =>
+        have h := Sum.inr.inj hab
+        have hj : aj.1 = bj.1 := congrArg Prod.fst h
+        have hr : ar = br := congrArg Prod.snd h
+        have haj : aj = bj := by apply Subtype.ext; exact hj
+        exact Prod.ext haj hr
+  have hRetainedCard : Retained.card = k * Fintype.card (RetainedIndex Sh) := by
+    dsimp [Retained]
+    rw [Finset.card_image_of_injective _ hRetainedInj, Finset.card_product,
+      hRootCard, Finset.card_univ]
+  rw [hActive, Finset.card_union_of_disjoint hdisj, hTargetCard, hRetainedCard,
+    pkgElim_retainedIndex_card]
+  simpa [Nat.mul_assoc]
 
 def occurrenceRow {m q r : ℕ} (Sh : RowShape m q r) (o : Occurrence Sh) : Fin r :=
   match o with
@@ -3305,7 +3450,7 @@ def occurrenceRow {m q r : ℕ} (Sh : RowShape m q r) (o : Occurrence Sh) : Fin 
 
 noncomputable def occurrenceCoeff {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh)
     (N : ℕ) (p : Fin q → ℕ) (o : Occurrence Sh) (v : Coordinate Sh) : ℚ :=
   let c := chainScale S.core.parameters C a N
@@ -3331,14 +3476,14 @@ noncomputable def occurrenceCoeff {K m q r s : ℕ} {Aset : Finset ℚ}
 
 noncomputable def occurrenceValue {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (o : Occurrence Sh) (x : Coordinate Sh → ℤ) : ℚ :=
   ∑ v, occurrenceCoeff S C a Sh dirs N p o v * (x v : ℚ)
 
 noncomputable def coordinateLaw {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ) : ℝ :=
   match v with
@@ -3351,7 +3496,7 @@ noncomputable def coordinateLaw {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_coordinateLaw_nonneg {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ) :
     0 ≤ coordinateLaw S C Sh dirs J0 N p v z := by
@@ -3388,14 +3533,14 @@ theorem pkgElim_coordinateLaw_nonneg {K m q r s : ℕ} {Aset : Finset ℚ}
 
 noncomputable def coordinateProductLaw {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) : ℝ :=
   ∏ i : Fin d, coordinateLaw S C Sh dirs J0 N p (eX.symm i) (x i)
 
 theorem pkgElim_coordinateProductLaw_nonneg {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) :
     0 ≤ coordinateProductLaw S C Sh dirs J0 N p eX x := by
@@ -3406,7 +3551,7 @@ theorem pkgElim_coordinateProductLaw_nonneg {K m q r s d : ℕ} {Aset : Finset �
 
 noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) : Finset ℤ :=
   match v with
@@ -3418,7 +3563,7 @@ noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ
 
 theorem pkgElim_coordinateLaw_zero_of_not_mem {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ)
     (hz : z ∉ pkgElim_coordinateSupport S C Sh dirs J0 N p v) :
@@ -3467,7 +3612,7 @@ theorem pkgElim_coordinateLaw_zero_of_not_mem {K m q r s : ℕ} {Aset : Finset �
 
 theorem pkgElim_coordinateLaw_tsum_one {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (v : Coordinate Sh) :
     ∑' z : ℤ, coordinateLaw S C Sh dirs J0 N p v z = 1 := by
@@ -3485,7 +3630,7 @@ theorem pkgElim_coordinateLaw_tsum_one {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_coordinateProductLaw_tsum_one {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) :
     ∑' x : Fin d → ℤ, coordinateProductLaw S C Sh dirs J0 N p eX x = 1 := by
@@ -3504,14 +3649,15 @@ theorem pkgElim_coordinateProductLaw_tsum_one {K m q r s d : ℕ} {Aset : Finset
 
 noncomputable def occurrenceDivisorTemplate {K m q r : ℕ}
     (C : MasterChain K m) (Sh : RowShape m q r) (o : Occurrence Sh) :
-    DivisorTemplate K K :=
+    FromArithmetic.DivisorTemplate K K :=
   tailDivisorTemplate ((C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val)
 
 theorem pkgElim_occurrenceDivisorTemplateLaw_eq {K m q r s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (o : Occurrence Sh) (N σ : ℕ) :
-    divisorTemplateLaw S.core.parameters N (occurrenceDivisorTemplate C Sh o) σ =
+    FromArithmetic.divisorTemplateLaw S.core.parameters N
+        (occurrenceDivisorTemplate C Sh o) σ =
       parameterTailProductLaw S.core.parameters N
         (C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val σ := by
   unfold occurrenceDivisorTemplate
@@ -3523,14 +3669,15 @@ theorem pkgElim_selectedOccurrenceDivisor_support {K m q r s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (o : Occurrence Sh) (N σ : ℕ)
-    (hσ : divisorTemplateLaw S.core.parameters N (occurrenceDivisorTemplate C Sh o) σ ≠ 0) :
+    (hσ : FromArithmetic.divisorTemplateLaw S.core.parameters N
+      (occurrenceDivisorTemplate C Sh o) σ ≠ 0) :
     1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap ∧
       Nat.Coprime σ (primorial (N + 1)) := by
   rw [pkgElim_occurrenceDivisorTemplateLaw_eq S C Sh o N] at hσ
   exact chainTailProductLaw_support_facts S C N
     (Sh.row (occurrenceRow Sh o)).anchor σ hσ
 
-def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
+def emptyDivisorTemplate (K : ℕ) : FromArithmetic.DivisorTemplate K K where
   arity := 0
   arity_le := Nat.zero_le K
   cutoff := Fin.elim0
@@ -3538,7 +3685,7 @@ def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
 noncomputable def pkgElim_momentDivisorTemplate {K m q r h : ℕ}
     (C : MasterChain K m) (Sh : RowShape m q r)
     (eO : Occurrence Sh ≃ Fin h) (F : Finset (Occurrence Sh)) :
-    Fin h → DivisorTemplate K K := fun u =>
+    Fin h → FromArithmetic.DivisorTemplate K K := fun u =>
       if eO.symm u ∈ F then occurrenceDivisorTemplate C Sh (eO.symm u)
       else emptyDivisorTemplate K
 
@@ -3570,7 +3717,7 @@ theorem pkgElim_momentDivisorTemplate_support {K m q r h s : ℕ}
         rw [Fin.prod_univ_zero]
       exact hempty.2.1.trans hprod
     have hV : 1 ≤ masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+      unfold FromArithmetic.masterScaleV
       omega
     exact ⟨hempty.1, hσone.trans hV, hempty.2.2⟩
 
@@ -3582,7 +3729,7 @@ noncomputable def pkgElim_retainedChoice {m q r : ℕ} (Sh : RowShape m q r)
 
 noncomputable def rowCoeff {K m q r s h d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (eO : Occurrence Sh ≃ Fin h)
     (eX : Coordinate Sh ≃ Fin d) :
@@ -3592,7 +3739,7 @@ noncomputable def rowCoeff {K m q r s h d : ℕ} {Aset : Finset ℚ}
 
 theorem linearRowValue_eq_occurrenceValue {K m q r s h d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
     (dirs : RowDirections Sh) (eO : Occurrence Sh ≃ Fin h)
     (eX : Coordinate Sh ≃ Fin d) (N : ℕ) (p' : Fin s → ℕ)
@@ -3625,7 +3772,7 @@ noncomputable def pkgElim_expandedAuxiliaryMoment {K m q r s d : ℕ} {Aset : Fi
 
 theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (ω : NonTarget Sh → Fin 2) (x : Coordinate Sh → ℤ) :
     occurrenceValue S C a Sh dirs N p (.inl ω) x =
@@ -3641,7 +3788,7 @@ theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (o : Occurrence Sh) (x : Coordinate Sh → ℤ) :
     (∑ k : Fin m, occurrenceCoeff S C a Sh dirs N p o (.inl k) *
@@ -3652,7 +3799,7 @@ theorem pkgElim_occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ
 
 theorem pkgElim_occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
     (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
@@ -3671,7 +3818,7 @@ theorem pkgElim_occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgElim_occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
     (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
@@ -3730,7 +3877,7 @@ theorem pkgElim_occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset 
 
 theorem pkgElim_occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
     (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
@@ -3808,13 +3955,14 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
       (fun N => primePoolMass (S.primeStage.pool N C.gap).lower
         (S.primeStage.pool N C.gap).upper /
           (masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
-    simpa [pow_one] using S.primeStage.pool_harmonic_mass_dominates C.gap 1 (by norm_num)
+    simpa [Real.rpow_one] using S.primeStage.pool_harmonic_mass_dominates C.gap 1
+      (by norm_num)
   have hmassEvent : ∀ᶠ N in atTop,
       0 < primePoolMass (S.primeStage.pool N C.gap).lower
         (S.primeStage.pool N C.gap).upper := by
     filter_upwards [hmassRatio.eventually_ge_atTop (1 : ℝ)] with N hN
     have hV : 0 < (masterScaleV S.core.parameters N C.gap : ℝ) := by
-      unfold masterScaleV
+      unfold FromArithmetic.masterScaleV
       positivity
     have hmul : (masterScaleV S.core.parameters N C.gap : ℝ) ≤
         primePoolMass (S.primeStage.pool N C.gap).lower
@@ -3827,13 +3975,14 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
   have hlowerRatio : Tendsto
       (fun N => ((S.primeStage.pool N C.gap).lower : ℝ) /
         (masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
-    simpa [pow_one] using S.primeStage.pool_lower_dominates C.gap 1 (by norm_num)
+    simpa [Real.rpow_one] using S.primeStage.pool_lower_dominates C.gap 1
+      (by norm_num)
   have hlowerEvent : ∀ᶠ N in atTop,
       masterScaleV S.core.parameters N C.gap + 1 <
         (S.primeStage.pool N C.gap).lower := by
     filter_upwards [hlowerRatio.eventually_ge_atTop (2 : ℝ)] with N hN
     have hVnat : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+      unfold FromArithmetic.masterScaleV
       omega
     have hV : 0 < (masterScaleV S.core.parameters N C.gap : ℝ) := by positivity
     have hmul : 2 * (masterScaleV S.core.parameters N C.gap : ℝ) ≤
@@ -3847,12 +3996,12 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
     intro N
     dsimp [T]
     have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+      unfold FromArithmetic.masterScaleV
       omega
     omega
   have hDmin := nat_div_lower_from_dominance
     (Filter.Eventually.of_forall hT)
-    (by simpa [T] using S.gapStage.gap_dominates_pool_and_bound C.gap)
+    (by simpa [T, Nat.cast_add] using S.gapStage.gap_dominates_pool_and_bound C.gap)
     J0 B 1 hJ0
   have hDminEvent : ∀ᶠ N in atTop,
       1 ≤ S.core.parameters.H N C.gap / (J0 * T N ^ B) := by
@@ -3860,7 +4009,7 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
     have hT2 : 2 ≤ T N := by
       dsimp [T]
       have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-        unfold masterScaleV
+        unfold FromArithmetic.masterScaleV
         omega
       omega
     have hN' : T N ≤ S.core.parameters.H N C.gap / (J0 * T N ^ B) := by
@@ -4364,7 +4513,7 @@ theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
     intro N
     dsimp [T, V]
     have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-      unfold masterScaleV
+      unfold FromArithmetic.masterScaleV
       omega
     omega
   have hT1 : ∀ᶠ N in atTop, 1 ≤ T N :=
@@ -4374,7 +4523,7 @@ theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
     exact_mod_cast hN
   have hDom : OAI.MicrocellScale.Dominates
       (fun N => (S.core.parameters.H N C.gap : ℝ)) (fun N => (T N : ℝ)) := by
-    simpa [T] using S.gapStage.gap_dominates_pool_and_bound C.gap
+    simpa [T, Nat.cast_add] using S.gapStage.gap_dominates_pool_and_bound C.gap
   let oldErr : ℕ → ℝ := fun N => pkgElim_momentOldResidueError S C Sh J0 B N
   have hOldT : SuperPolynomialSmall oldErr (fun N => (T N : ℝ)) := by
     simpa [oldErr, pkgElim_momentOldResidueError, T, V] using
@@ -4382,7 +4531,7 @@ theorem pkgElim_momentBaseError_superpolynomial {K m q r s : ℕ}
         (Fintype.card (Occurrence Sh)) hJ0)
   have hVpos : ∀ N, 0 < (V N : ℝ) := by
     intro N
-    dsimp [V, masterScaleV]
+    dsimp [V, FromArithmetic.masterScaleV]
     positivity
   have hVleT : ∀ N, (V N : ℝ) ≤ (T N : ℝ) := by
     intro N
@@ -4974,6 +5123,7 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
       goodDomain := fun N p' =>
         pkgElim_momentGlobalData S C a Sh dirs tests J0 B N ∧
           GoodTuple S C.gap N tests dirs.poly (fun i => p' (ι i))
+      epsilonBase_nonnegative := ?_
       V_lower := ?_
       V_tendsto := ?_
       slot_gap_bound := ?_
@@ -4989,6 +5139,41 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
       crt_error_bound := ?_
       epsilonBase_superpolynomial := ?_
       epsilonCRT_superpolynomial := ?_ }
+  · unfold pkgElim_momentBaseError
+    intro N
+    have hpivot (k : Fin m) :
+        0 ≤ FromArithmetic.harmonicResidueUniformError
+          (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
+          (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh)) := by
+      have hX := S.gapStage.valid_raw_cutoffs N (C.block k).1
+      have hW : 0 < primorial (N + 1) := primorial_pos _
+      have hXpos : 0 < S.core.parameters.X N (C.block k).1 := by omega
+      have hden : 0 < (S.core.parameters.X N (C.block k).1 : ℝ) *
+          (Real.log (S.core.parameters.X N (C.block k).1 : ℝ) -
+            (primorial (N + 1) : ℝ) /
+              S.core.parameters.X N (C.block k).1) := by
+        apply mul_pos (by exact_mod_cast hXpos)
+        exact sub_pos.mpr (harmonic_cutoff_log_condition hW hX)
+      unfold FromArithmetic.harmonicResidueUniformError
+        FromArithmetic.harmonicResidueError
+      apply div_nonneg
+      · exact mul_nonneg (by positivity) (by positivity)
+      · exact le_of_lt hden
+    have hold : 0 ≤ pkgElim_momentOldResidueError S C Sh J0 B N := by
+      unfold pkgElim_momentOldResidueError
+      apply div_nonneg
+      · positivity
+      · exact_mod_cast Nat.zero_le _
+    have hroot : 0 ≤ pkgElim_momentRootResidueError S C Sh N := by
+      unfold pkgElim_momentRootResidueError
+      apply div_nonneg
+      · positivity
+      · exact_mod_cast Nat.zero_le _
+    apply add_nonneg
+    · apply add_nonneg
+      · exact Finset.sum_nonneg fun k _ => hpivot k
+      · exact mul_nonneg (by positivity) hold
+    · exact mul_nonneg (by positivity) hroot
   · intro N
     exact pkgElim_masterScaleV_ge_modulus S.core.parameters N C.gap
   · exact (tendsto_natCast_atTop_iff).mp
@@ -5494,6 +5679,512 @@ noncomputable def pkgElim_coordinatePiecesEquiv {m q r : ℕ}
     pkgElim_coordinatePiecesEquiv Sh (z, (old, root)) (.inr (.inr j)) = root j := by
   simp [pkgElim_coordinatePiecesEquiv]
 
+noncomputable def pkgElim_occurrenceFactor {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
+    (o : Occurrence Sh) (x : Coordinate Sh → ℤ) : ℝ :=
+  atQ (chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor)
+    (occurrenceValue S C a Sh dirs N p o x)
+
+theorem pkgElim_targetOccurrenceValue_pieces
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
+    (ω : NonTarget Sh → Fin 2) :
+    occurrenceValue S C a Sh dirs N p (.inl ω)
+        (pkgElim_coordinatePiecesEquiv Sh
+          (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ)))) =
+      targetVertex (chainScale S.core.parameters C a N) Sh p
+        (directionModulus S N dirs.poly p) (fun k => (z k : ℚ)) u ω := by
+  rw [occurrenceValue_target]
+  simp [targetVertex, pkgElim_coordinatePiecesEquiv]
+
+theorem pkgElim_sum_except {α M : Type*} [Fintype α] [DecidableEq α]
+    [AddCommGroup M] (I : α) (f : α → M) :
+    (∑ x : α, if x = I then 0 else f x) =
+      ∑ x : {x : α // x ≠ I}, f x.1 := by
+  classical
+  have hsplit : f I + (∑ x : {x : α // x ≠ I}, f x.1) = ∑ x : α, f x := by
+    haveI : Unique {x : α // x = I} :=
+      ⟨⟨I, rfl⟩, fun x => by apply Subtype.ext; exact x.property⟩
+    have hDefault : (default : {x : α // x = I}).1 = I :=
+      (default : {x : α // x = I}).2
+    simpa [hDefault] using Fintype.sum_subtype_add_sum_subtype
+      (fun x : α => x = I) f
+  calc
+    (∑ x : α, if x = I then 0 else f x) =
+        ∑ x : α, (f x - if x = I then f x else 0) := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      by_cases h : x = I <;> simp [h]
+    _ = (∑ x : α, f x) - ∑ x : α, (if x = I then f x else 0) := by
+      rw [← Finset.sum_sub_distrib]
+    _ = (∑ x : α, f x) - f I := by simp [Finset.sum_ite_eq']
+    _ = ∑ x : {x : α // x ≠ I}, f x.1 := by
+      rw [← hsplit]
+      simp [add_comm]
+
+theorem pkgElim_retainedOccurrenceValue_pieces
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
+    (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) :
+    occurrenceValue S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+        (pkgElim_coordinatePiecesEquiv Sh
+          (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ)))) =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (fun k => (z k : ℚ) + (v j : ℚ) *
+            dirs.rootTranslation (chainScale S.core.parameters C a N)
+              (S.core.parameters.M N) p k +
+          ∑ R : {R : NonTarget Sh // R ≠ I},
+            (u R.1 (η R) : ℚ) *
+              dirs.translation (chainScale S.core.parameters C a N)
+                (directionModulus S N dirs.poly p) p R.1.1 k) := by
+  classical
+  rw [pkgElim_occurrenceValue_retained]
+  simp only [pkgElim_coordinatePiecesEquiv_apply_pivot,
+    pkgElim_coordinatePiecesEquiv_apply_old,
+    pkgElim_coordinatePiecesEquiv_apply_root]
+  have hsum :
+      (∑ R : NonTarget Sh, if R = I then 0 else
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1) *
+          ((u R (pkgElim_retainedChoice Sh I η R) : ℤ) : ℚ)) =
+      ∑ R : {R : NonTarget Sh // R ≠ I},
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1.1) *
+          (u R.1 (η R) : ℚ) := by
+    rw [pkgElim_sum_except I (fun R =>
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (dirs.translation (chainScale S.core.parameters C a N)
+          (directionModulus S N dirs.poly p) p R.1) *
+        ((u R (pkgElim_retainedChoice Sh I η R) : ℤ) : ℚ))]
+    apply Finset.sum_congr rfl
+    intro R hR
+    simp [pkgElim_retainedChoice, R.property]
+  rw [hsum]
+  have hvec :
+      (fun k => (z k : ℚ) + (v j : ℚ) *
+          dirs.rootTranslation (chainScale S.core.parameters C a N)
+            (S.core.parameters.M N) p k +
+        ∑ R : {R : NonTarget Sh // R ≠ I},
+          (u R.1 (η R) : ℚ) *
+            dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1.1 k) =
+      (fun k => (z k : ℚ)) +
+        (fun k => (v j : ℚ) *
+          dirs.rootTranslation (chainScale S.core.parameters C a N)
+            (S.core.parameters.M N) p k) +
+        (fun k => ∑ R : {R : NonTarget Sh // R ≠ I},
+          (u R.1 (η R) : ℚ) *
+            dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1.1 k) := by
+    funext k
+    rfl
+  rw [hvec, pkgElim_rowForm_add, pkgElim_rowForm_add,
+    pkgElim_rowForm_const_mul, pkgElim_rowForm_sum]
+  have hOld :
+      (∑ R : {R : NonTarget Sh // R ≠ I},
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (fun k => (u R.1 (η R) : ℚ) *
+            dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1.1 k)) =
+      ∑ R : {R : NonTarget Sh // R ≠ I},
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1.1) *
+          (u R.1 (η R) : ℚ) := by
+    apply Finset.sum_congr rfl
+    intro R hR
+    rw [pkgElim_rowForm_const_mul]
+    ring
+  rw [hOld]
+  norm_cast
+  ring
+
+theorem pkgElim_targetBound_eq_occurrenceProduct
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ) :
+    targetBound S C a N dirs p (fun k => (z k : ℚ)) u =
+      ∏ ω : NonTarget Sh → Fin 2,
+        (1 + pkgElim_occurrenceFactor S C a Sh dirs N p (.inl ω)
+          (pkgElim_coordinatePiecesEquiv Sh
+            (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ))))) := by
+  unfold targetBound pkgElim_occurrenceFactor
+  apply Finset.prod_congr rfl
+  intro ω hω
+  rw [pkgElim_targetOccurrenceValue_pieces]
+  simp [occurrenceRow]
+
+theorem pkgElim_retainedWeights_eq_occurrenceProduct
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
+    (j : Fin 2) :
+    retainedWeights S C a N dirs p
+        (fun k => (z k : ℚ) + (v j : ℚ) *
+          dirs.rootTranslation (chainScale S.core.parameters C a N)
+            (S.core.parameters.M N) p k) u =
+    ∏ ri : RetainedIndex Sh,
+        (1 + pkgElim_occurrenceFactor S C a Sh dirs N p (.inr (j, ri))
+          (pkgElim_coordinatePiecesEquiv Sh
+            (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ))))) := by
+  classical
+  let f : (I : NonTarget Sh) →
+      ({R : NonTarget Sh // R ≠ I} → Fin 2) → ℝ := fun I η =>
+    1 + atQ (chainWeight S.core.parameters C N (Sh.row I.1).anchor)
+      (rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (fun k => ((z k : ℚ) + (v j : ℚ) *
+            dirs.rootTranslation (chainScale S.core.parameters C a N)
+              (S.core.parameters.M N) p k) +
+          ∑ R : {R : NonTarget Sh // R ≠ I},
+            (u R.1 (η R) : ℚ) *
+              dirs.translation (chainScale S.core.parameters C a N)
+                (directionModulus S N dirs.poly p) p R.1.1 k))
+  change (∏ I, ∏ η, f I η) =
+    ∏ ri : RetainedIndex Sh,
+      (1 + pkgElim_occurrenceFactor S C a Sh dirs N p (.inr (j, ri))
+        (pkgElim_coordinatePiecesEquiv Sh
+          (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ)))))
+  calc
+    _ = ∏ ri : RetainedIndex Sh, f ri.1 ri.2 :=
+      (Fintype.prod_sigma' f).symm
+    _ = _ := by
+      apply Fintype.prod_congr
+      intro ri
+      rcases ri with ⟨I, η⟩
+      dsimp [f, pkgElim_occurrenceFactor]
+      rw [pkgElim_retainedOccurrenceValue_pieces]
+      simp [occurrenceRow]
+
+theorem pkgElim_activeOccurrenceProduct_eq
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) (v : Fin 2 → ℕ)
+    (k : ℕ) :
+    ∏ o ∈ activeOccurrences Sh k,
+        (1 + pkgElim_occurrenceFactor S C a Sh dirs N p o
+          (pkgElim_coordinatePiecesEquiv Sh
+            (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ))))) =
+      targetBound S C a N dirs p (fun i => (z i : ℚ)) u *
+        ∏ j : {j : Fin 2 // j.val < k},
+          retainedWeights S C a N dirs p
+            (fun i => (z i : ℚ) + (v j.1 : ℚ) *
+              dirs.rootTranslation (chainScale S.core.parameters C a N)
+                (S.core.parameters.M N) p i) u := by
+  classical
+  let G : Occurrence Sh → ℝ := fun o =>
+    1 + pkgElim_occurrenceFactor S C a Sh dirs N p o
+      (pkgElim_coordinatePiecesEquiv Sh
+        (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ))))
+  let Target : Finset (Occurrence Sh) :=
+    (Finset.univ : Finset (NonTarget Sh → Fin 2)).image
+      (fun ω => (Sum.inl ω : Occurrence Sh))
+  let Roots : Finset {j : Fin 2 // j.val < k} := Finset.univ
+  let Retained : Finset (Occurrence Sh) :=
+    (Roots.product (Finset.univ : Finset (RetainedIndex Sh))).image
+      (fun jr => (Sum.inr (jr.1.1, jr.2) : Occurrence Sh))
+  have hActive : activeOccurrences Sh k = Target ∪ Retained := by
+    ext o
+    cases o with
+    | inl ω => simp [activeOccurrences, Target, Retained, Roots]
+    | inr pair =>
+        rcases pair with ⟨j, Iη⟩
+        simp [activeOccurrences, Target, Retained, Roots]
+  have hdisj : Disjoint Target Retained := by
+    rw [Finset.disjoint_left]
+    intro o ho hr
+    rcases Finset.mem_image.mp ho with ⟨ω, hω, hωeq⟩
+    rcases Finset.mem_image.mp hr with ⟨jr, hjr, hjreq⟩
+    cases o with
+    | inl _ => simp at hjreq
+    | inr _ => simp at hωeq
+  have hRetInj : Function.Injective
+      (fun jr : {j : Fin 2 // j.val < k} × RetainedIndex Sh =>
+        (Sum.inr (jr.1.1, jr.2) : Occurrence Sh)) := by
+    intro x y hxy
+    cases x with
+    | mk xj xr =>
+      cases y with
+      | mk yj yr =>
+        have h := Sum.inr.inj hxy
+        have hj : xj.1 = yj.1 := congrArg Prod.fst h
+        have hr : xr = yr := congrArg Prod.snd h
+        have hxj : xj = yj := by apply Subtype.ext; exact hj
+        exact Prod.ext hxj hr
+  have hTarget :
+      (∏ o ∈ Target, G o) = ∏ ω : NonTarget Sh → Fin 2, G (.inl ω) := by
+    dsimp [Target]
+    rw [Finset.prod_image (s := Finset.univ)
+      (g := fun ω : NonTarget Sh → Fin 2 => (Sum.inl ω : Occurrence Sh))
+      (f := G) (fun _ _ _ _ h => Sum.inl.inj h)]
+  have hRetained :
+      (∏ o ∈ Retained, G o) =
+        ∏ j : {j : Fin 2 // j.val < k},
+          retainedWeights S C a N dirs p
+            (fun i => (z i : ℚ) + (v j.1 : ℚ) *
+              dirs.rootTranslation (chainScale S.core.parameters C a N)
+                (S.core.parameters.M N) p i) u := by
+    dsimp [Retained]
+    let g : {j : Fin 2 // j.val < k} × RetainedIndex Sh → Occurrence Sh :=
+      fun jr => Sum.inr (jr.1.1, jr.2)
+    change (∏ o ∈ (Roots.product Finset.univ).image g, G o) = _
+    have hImage :
+        (∏ o ∈ (Roots.product Finset.univ).image g, G o) =
+          ∏ jr ∈ Roots.product Finset.univ, G (g jr) :=
+      Finset.prod_image (s := Roots.product Finset.univ) (g := g) (f := G)
+        hRetInj.injOn
+    have hProduct := Finset.prod_product Roots
+      (Finset.univ : Finset (RetainedIndex Sh)) (fun jr => G (g jr))
+    rw [hImage]
+    calc
+      _ = ∏ j ∈ Roots, ∏ ri : RetainedIndex Sh, G (g (j, ri)) := hProduct
+      _ = _ := by
+        apply Finset.prod_congr rfl
+        intro j hj
+        have h := pkgElim_retainedWeights_eq_occurrenceProduct S C a Sh dirs N p z u v j.1
+        simpa [G, pkgElim_occurrenceFactor] using h.symm
+  calc
+    _ = (∏ o ∈ Target, G o) * ∏ o ∈ Retained, G o := by
+      rw [hActive, Finset.prod_union hdisj]
+    _ = _ := by
+      rw [hTarget, hRetained, pkgElim_targetBound_eq_occurrenceProduct]
+
+theorem pkgElim_fin2_range_sum (L : ℕ) (F : (Fin 2 → ℕ) → ℝ) :
+    (∑ v ∈ Fintype.piFinset (fun _ : Fin 2 => Finset.range L), F v) =
+      ∑ ab ∈ Finset.range L ×ˢ Finset.range L,
+        F ((piFinTwoEquiv (fun _ : Fin 2 => ℕ)).symm ab) := by
+  classical
+  let e := piFinTwoEquiv (fun _ : Fin 2 => ℕ)
+  refine Finset.sum_bij (fun v _ => e v) ?_ ?_ ?_ ?_
+  · intro v hv
+    apply Finset.mem_product.mpr
+    have hv' := Fintype.mem_piFinset.mp hv
+    exact ⟨hv' 0, hv' 1⟩
+  · intro v hv w hw h
+    exact e.injective h
+  · intro ab hab
+    refine ⟨e.symm ab, ?_, e.apply_symm_apply ab⟩
+    apply Fintype.mem_piFinset.mpr
+    intro i
+    fin_cases i
+    · exact (Finset.mem_product.mp hab).1
+    · exact (Finset.mem_product.mp hab).2
+  · intro v hv
+    exact (congrArg F (e.symm_apply_apply v)).symm
+
+theorem pkgElim_rootProduct_filter {k : ℕ} (v : Fin 2 → ℕ) (R : ℕ → ℝ) :
+    (∏ j : {j : Fin 2 // j.val < k}, R (v j.1)) =
+      ∏ j ∈ Finset.univ.filter (fun j : Fin 2 => j.val < k), R (v j) := by
+  classical
+  exact (Finset.prod_subtype
+    (s := Finset.univ.filter (fun j : Fin 2 => j.val < k))
+    (h := by intro j; simp)
+    (f := fun j => R (v j))).symm
+
+theorem pkgElim_rootPair_average_power (L : ℕ) (hL : 0 < L)
+    (k : ℕ) (hk : k ≤ 2) (B : ℝ) (R : ℕ → ℝ) :
+    (1 / (L : ℝ)) ^ 2 *
+        ∑ v ∈ Fintype.piFinset (fun _ : Fin 2 => Finset.range L),
+          B * ∏ j : {j : Fin 2 // j.val < k}, R (v j.1) =
+      B * ((1 / (L : ℝ)) * ∑ t ∈ Finset.range L, R t) ^ k := by
+  classical
+  let e := piFinTwoEquiv (fun _ : Fin 2 => ℕ)
+  have hfilter0 : Finset.univ.filter (fun j : Fin 2 => j.val < 0) = ∅ := by
+    ext j
+    fin_cases j <;> simp
+  have hfilter1 : Finset.univ.filter (fun j : Fin 2 => j.val < 1) = {0} := by
+    ext j
+    fin_cases j <;> simp
+  have hfilter2 : Finset.univ.filter (fun j : Fin 2 => j.val < 2) = Finset.univ := by
+    ext j
+    fin_cases j <;> simp
+  let G : (ℕ × ℕ) → ℝ := fun ab =>
+    B * ∏ j : {j : Fin 2 // j.val < k}, R ((e.symm ab) j.1)
+  have hprodSum :
+      (∑ ab ∈ Finset.range L ×ˢ Finset.range L, G ab) =
+        ∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, G (a, b) :=
+    Finset.sum_product (Finset.range L) (Finset.range L) G
+  rw [pkgElim_fin2_range_sum L
+    (fun v => B * ∏ j : {j : Fin 2 // j.val < k}, R (v j.1)), hprodSum]
+  have hconst (c : ℝ) :
+      ∑ b ∈ Finset.range L, c = (L : ℝ) * c := by
+    simp [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  let hsum : ℝ := ∑ t ∈ Finset.range L, R t
+  have hLpos : (0 : ℝ) < (L : ℝ) := by exact_mod_cast hL
+  have hLne : (L : ℝ) ≠ 0 := ne_of_gt hLpos
+  have hkcases : k = 0 ∨ k = 1 ∨ k = 2 := by omega
+  rcases hkcases with hk0 | hk1 | hk2
+  · subst k
+    have hroot (v : Fin 2 → ℕ) :
+        (∏ j : {j : Fin 2 // j.val < 0}, R (v j.1)) = 1 := by
+      rw [pkgElim_rootProduct_filter, hfilter0]
+      simp
+    have hG (a b : ℕ) : G (a, b) = B := by
+      dsimp [G]
+      rw [hroot]
+      simp [e]
+    have hsumG :
+        (∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, G (a, b)) =
+          ∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, B := by
+      apply Finset.sum_congr rfl
+      intro a ha
+      apply Finset.sum_congr rfl
+      intro b hb
+      exact hG a b
+    rw [hsumG]
+    have hdouble :
+        (∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, B) = (L : ℝ) ^ 2 * B := by
+      calc
+        _ = ∑ a ∈ Finset.range L, (L : ℝ) * B := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          exact hconst B
+        _ = (L : ℝ) * ((L : ℝ) * B) := hconst ((L : ℝ) * B)
+        _ = _ := by ring
+    rw [hdouble]
+    simp only [one_div, inv_pow, pow_zero, mul_one]
+    field_simp [hLne]
+  · subst k
+    have hroot (v : Fin 2 → ℕ) :
+        (∏ j : {j : Fin 2 // j.val < 1}, R (v j.1)) = R (v 0) := by
+      rw [pkgElim_rootProduct_filter, hfilter1]
+      simp
+    have hG (a b : ℕ) : G (a, b) = B * R a := by
+      dsimp [G]
+      rw [hroot]
+      simp [e]
+    have hsumG :
+        (∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, G (a, b)) =
+          ∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, B * R a := by
+      apply Finset.sum_congr rfl
+      intro a ha
+      apply Finset.sum_congr rfl
+      intro b hb
+      exact hG a b
+    rw [hsumG]
+    have hdouble :
+        (∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, B * R a) =
+          (L : ℝ) * B * hsum := by
+      calc
+        _ = ∑ a ∈ Finset.range L, (L : ℝ) * (B * R a) := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          exact hconst (B * R a)
+        _ = (L : ℝ) * B * hsum := by
+          calc
+            _ = ∑ a ∈ Finset.range L, ((L : ℝ) * B) * R a := by
+              apply Finset.sum_congr rfl
+              intro a ha
+              ring
+            _ = ((L : ℝ) * B) * hsum := by rw [← Finset.mul_sum]
+            _ = _ := by ring
+    rw [hdouble]
+    simp only [one_div, inv_pow, pow_one]
+    field_simp [hLne]
+    ring
+  · subst k
+    have hroot (v : Fin 2 → ℕ) :
+        (∏ j : {j : Fin 2 // j.val < 2}, R (v j.1)) = R (v 0) * R (v 1) := by
+      rw [pkgElim_rootProduct_filter, hfilter2]
+      simp [Fin.prod_univ_two]
+    have hG (a b : ℕ) : G (a, b) = B * R a * R b := by
+      dsimp [G]
+      rw [hroot]
+      simp [e]
+      ring
+    have hsumG :
+        (∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, G (a, b)) =
+          ∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, B * R a * R b := by
+      apply Finset.sum_congr rfl
+      intro a ha
+      apply Finset.sum_congr rfl
+      intro b hb
+      exact hG a b
+    rw [hsumG]
+    have hdouble :
+        (∑ a ∈ Finset.range L, ∑ b ∈ Finset.range L, B * R a * R b) =
+          B * hsum ^ 2 := by
+      calc
+        _ = ∑ a ∈ Finset.range L, (B * R a) * hsum := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          rw [← Finset.mul_sum]
+        _ = (∑ a ∈ Finset.range L, B * R a) * hsum := by rw [← Finset.sum_mul]
+        _ = (B * hsum) * hsum := by rw [← Finset.mul_sum]
+        _ = _ := by ring
+    rw [hdouble]
+    simp only [one_div, inv_pow]
+    ring
+
+theorem pkgElim_coordinateProductTsum_powersetExpansion
+    {K m q r s d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d)
+    (A : Finset (Occurrence Sh)) :
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ A, (1 + pkgElim_occurrenceFactor S C a Sh dirs N p o
+          (fun v => x (eX v))) =
+    ∑ F ∈ A.powerset, ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ F, pkgElim_occurrenceFactor S C a Sh dirs N p o
+          (fun v => x (eX v)) := by
+  classical
+  let μ : (Fin d → ℤ) → ℝ := coordinateProductLaw S C Sh dirs J0 N p eX
+  let support : Fin d → Finset ℤ := fun i =>
+    pkgElim_coordinateSupport S C Sh dirs J0 N p (eX.symm i)
+  let T : Finset (Fin d → ℤ) := Fintype.piFinset support
+  let g : Occurrence Sh → (Fin d → ℤ) → ℝ := fun o x =>
+    pkgElim_occurrenceFactor S C a Sh dirs N p o (fun v => x (eX v))
+  have hzero (x : Fin d → ℤ) (hx : x ∉ T) : μ x = 0 := by
+    have hnot : ∃ i : Fin d, x i ∉ support i := by
+      by_contra h
+      push_neg at h
+      apply hx
+      exact Fintype.mem_piFinset.mpr h
+    obtain ⟨i, hi⟩ := hnot
+    unfold μ coordinateProductLaw
+    exact Finset.prod_eq_zero (Finset.mem_univ i)
+      (pkgElim_coordinateLaw_zero_of_not_mem S C Sh dirs J0 N p (eX.symm i)
+        (x i) hi)
+  have hzeroA (x : Fin d → ℤ) (hx : x ∉ T) :
+      μ x * ∏ o ∈ A, (1 + g o x) = 0 := by
+    rw [hzero x hx]
+    simp
+  have hzeroF (F : Finset (Occurrence Sh)) (x : Fin d → ℤ)
+      (hx : x ∉ T) : μ x * ∏ o ∈ F, g o x = 0 := by
+    rw [hzero x hx]
+    simp
+  rw [tsum_eq_sum (L := SummationFilter.unconditional (Fin d → ℤ))
+    (f := fun x => μ x * ∏ o ∈ A, (1 + g o x)) (s := T) hzeroA]
+  have hprod (x : Fin d → ℤ) :
+      ∏ o ∈ A, (1 + g o x) = ∑ F ∈ A.powerset, ∏ o ∈ F, g o x :=
+    prod_one_add_eq_powerset_sum A (fun o => g o x)
+  calc
+    _ = ∑ x ∈ T, ∑ F ∈ A.powerset, μ x * ∏ o ∈ F, g o x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      rw [hprod x, Finset.mul_sum]
+    _ = ∑ F ∈ A.powerset, ∑ x ∈ T, μ x * ∏ o ∈ F, g o x :=
+      Finset.sum_comm
+    _ = ∑ F ∈ A.powerset, ∑' x : Fin d → ℤ, μ x * ∏ o ∈ F, g o x := by
+      apply Finset.sum_congr rfl
+      intro F hF
+      rw [← tsum_eq_sum (L := SummationFilter.unconditional (Fin d → ℤ))
+        (f := fun x => μ x * ∏ o ∈ F, g o x) (s := T) (hzeroF F)]
+
 noncomputable def pkgElim_coordinateMapLaw {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
@@ -5813,6 +6504,219 @@ theorem pkgElim_coordinateProductAverage_eq_pivotShiftRoot
         pivotMass S.core.parameters C N z *
           shiftAverage (NonTarget Sh) L
             (fun u => rootMean z (fun w => ((u w.1 w.2 : ℤ)))) := hOldFactor
+
+theorem pkgElim_activeOccurrenceCoordinateAverage
+    {K m q r s d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) (hJ0 : 0 < J0)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d)
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly p)
+    (k : ℕ) (hk : k ≤ 2) :
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ activeOccurrences Sh k,
+          (1 + pkgElim_occurrenceFactor S C a Sh dirs N p o
+            (fun v => x (eX v))) =
+    ∑' z : Fin m → ℤ,
+      pivotMass S.core.parameters C N z *
+        shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (fun u => targetBound S C a N dirs p (fun i => (z i : ℚ)) u *
+            averagedRetainedWeights S C a N dirs p (fun i => (z i : ℚ)) u ^ k) := by
+  classical
+  let F : (Coordinate Sh → ℤ) → ℝ := fun x =>
+    ∏ o ∈ activeOccurrences Sh k,
+      (1 + pkgElim_occurrenceFactor S C a Sh dirs N p o x)
+  have hcoordinate := pkgElim_coordinateProductAverage_eq_pivotShiftRoot
+    S C a Sh dirs tests J0 B N hJ0 p eX hGlobal hGood F
+  have hroot (z : Fin m → ℤ) (u : NonTarget Sh → Fin 2 → ℕ) :
+      (1 / (S.core.parameters.H N C.gap : ℝ)) ^ 2 *
+        ∑ v ∈ Fintype.piFinset
+          (fun _ : Fin 2 => Finset.range (S.core.parameters.H N C.gap)),
+          F (pkgElim_coordinatePiecesEquiv Sh
+            (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ)))) =
+      targetBound S C a N dirs p (fun i => (z i : ℚ)) u *
+        averagedRetainedWeights S C a N dirs p (fun i => (z i : ℚ)) u ^ k := by
+    let Bz : ℝ := targetBound S C a N dirs p (fun i => (z i : ℚ)) u
+    let Rz : ℕ → ℝ := fun t =>
+      retainedWeights S C a N dirs p
+        (fun i => (z i : ℚ) + (t : ℚ) *
+          dirs.rootTranslation (chainScale S.core.parameters C a N)
+            (S.core.parameters.M N) p i) u
+    have hfactor (v : Fin 2 → ℕ) :
+        F (pkgElim_coordinatePiecesEquiv Sh
+          (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ)))) =
+        Bz * ∏ j : {j : Fin 2 // j.val < k}, Rz (v j.1) := by
+      dsimp [F, Bz, Rz]
+      exact pkgElim_activeOccurrenceProduct_eq S C a Sh dirs N p z u v k
+    calc
+      _ = (1 / (S.core.parameters.H N C.gap : ℝ)) ^ 2 *
+          ∑ v ∈ Fintype.piFinset
+            (fun _ : Fin 2 => Finset.range (S.core.parameters.H N C.gap)),
+            Bz * ∏ j : {j : Fin 2 // j.val < k}, Rz (v j.1) := by
+          congr 1
+          apply Finset.sum_congr rfl
+          intro v hv
+          exact hfactor v
+      _ = Bz * ((1 / (S.core.parameters.H N C.gap : ℝ)) *
+          ∑ t ∈ Finset.range (S.core.parameters.H N C.gap), Rz t) ^ k :=
+        pkgElim_rootPair_average_power (S.core.parameters.H N C.gap)
+          (S.core.parameters.Hpos N C.gap) k hk Bz Rz
+      _ = _ := by
+          simp [Bz, Rz, averagedRetainedWeights, one_div]
+  calc
+    _ = ∑' x : Fin d → ℤ,
+        coordinateProductLaw S C Sh dirs J0 N p eX x * F (fun v => x (eX v)) := by
+      rfl
+    _ = ∑' z : Fin m → ℤ,
+        pivotMass S.core.parameters C N z *
+          shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+            (fun u => (1 / (S.core.parameters.H N C.gap : ℝ)) ^ 2 *
+              ∑ v ∈ Fintype.piFinset
+                (fun _ : Fin 2 => Finset.range (S.core.parameters.H N C.gap)),
+                F (pkgElim_coordinatePiecesEquiv Sh
+                  (z, (fun w => (u w.1 w.2 : ℤ), fun j => (v j : ℤ))))) := hcoordinate
+    _ = _ := by
+      apply tsum_congr
+      intro z
+      unfold shiftAverage
+      apply congrArg (fun x : ℝ =>
+        pivotMass S.core.parameters C N z *
+          (((shiftLength S C.gap J0 N dirs.poly p : ℝ) ^
+            (2 * Fintype.card (NonTarget Sh)))⁻¹ * x))
+      apply Finset.sum_congr rfl
+      intro u hu
+      exact hroot z u
+
+theorem pkgElim_goodSlotAverage_sum
+    {K s q : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (l : Fin K) (N : ℕ)
+    (good : (Fin q → ℕ) → Prop) {α : Type*} [Fintype α] [DecidableEq α]
+    (A : Finset α) (F : α → (Fin q → ℕ) → ℝ) :
+    goodSlotAverage S l N good (fun p => ∑ a ∈ A, F a p) =
+      ∑ a ∈ A, goodSlotAverage S l N good (F a) := by
+  classical
+  let lo : Fin q → ℕ := fun _ => (S.primeStage.pool N l).lower
+  let upper : Fin q → ℕ := fun _ => (S.primeStage.pool N l).upper
+  let I : Fin q → Finset ℕ := fun i =>
+    (Finset.Ico (lo i) (upper i)).filter Nat.Prime
+  let P : Finset (Fin q → ℕ) := Fintype.piFinset I
+  have hmassZero (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S l N p = 0 := by
+    have hnot : ∃ i, p i ∉ I i := by
+      by_contra h
+      push_neg at h
+      exact hp (Fintype.mem_piFinset.mpr h)
+    obtain ⟨i, hnotI⟩ := hnot
+    have hLaw : primePoolLaw (lo i) (upper i) (p i) = 0 := by
+      unfold primePoolLaw
+      rw [if_neg]
+      intro h
+      exact hnotI (Finset.mem_filter.mpr
+        ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩)
+    change independentPrimePoolMass lo upper p = 0
+    unfold independentPrimePoolMass
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+  have hzeroSum (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S l N p * (if good p then ∑ a ∈ A, F a p else 0) = 0 := by
+    rw [hmassZero p hp]
+    simp
+  have hzeroOne (a : α) (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S l N p * (if good p then F a p else 0) = 0 := by
+    rw [hmassZero p hp]
+    simp
+  have hlin :
+      (∑' p : Fin q → ℕ,
+        gapSlotMass S l N p * (if good p then ∑ a ∈ A, F a p else 0)) =
+        ∑ a ∈ A, ∑' p : Fin q → ℕ,
+          gapSlotMass S l N p * (if good p then F a p else 0) := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (Fin q → ℕ))
+      (f := fun p => gapSlotMass S l N p *
+        (if good p then ∑ a ∈ A, F a p else 0)) (s := P) hzeroSum]
+    calc
+      _ = ∑ p ∈ P, ∑ a ∈ A,
+          gapSlotMass S l N p * (if good p then F a p else 0) := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        by_cases hg : good p
+        · simp [hg, Finset.mul_sum]
+        · simp [hg]
+      _ = ∑ a ∈ A, ∑ p ∈ P,
+          gapSlotMass S l N p * (if good p then F a p else 0) := Finset.sum_comm
+      _ = ∑ a ∈ A, ∑' p : Fin q → ℕ,
+          gapSlotMass S l N p * (if good p then F a p else 0) := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [← tsum_eq_sum (L := SummationFilter.unconditional (Fin q → ℕ))
+          (f := fun p => gapSlotMass S l N p * (if good p then F a p else 0))
+          (s := P) (hzeroOne a)]
+  unfold goodSlotAverage
+  rw [hlin, ← Finset.mul_sum]
+
+theorem pkgElim_eliminationMoment_eq_powersetSum
+    {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
+    (hGlobalEvent : ∀ᶠ N in atTop,
+      pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (eX : Coordinate Sh ≃ Fin d) (k : ℕ) (hk : k ≤ 2) :
+    ∀ᶠ N in atTop,
+      eliminationAverage S C N dirs tests J0 (fun p z u =>
+        targetBound S C a N dirs p z u *
+          averagedRetainedWeights S C a N dirs p z u ^ k) =
+        ∑ F ∈ (activeOccurrences Sh k).powerset,
+          pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N := by
+  classical
+  let good : ℕ → (Fin q → ℕ) → Prop := fun N p =>
+    GoodTuple S C.gap N tests dirs.poly p
+  let A : Finset (Occurrence Sh) := activeOccurrences Sh k
+  let Pset : Finset (Finset (Occurrence Sh)) := A.powerset
+  let subsetInner : Finset (Occurrence Sh) → ℕ → (Fin q → ℕ) → ℝ := fun F N p =>
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ F, pkgElim_occurrenceFactor S C a Sh dirs N p o
+          (fun v => x (eX v))
+  let activeInner : ℕ → (Fin q → ℕ) → ℝ := fun N p =>
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ A, (1 + pkgElim_occurrenceFactor S C a Sh dirs N p o
+          (fun v => x (eX v)))
+  let eliminationInner : ℕ → (Fin q → ℕ) → ℝ := fun N p =>
+    ∑' z : Fin m → ℤ,
+      pivotMass S.core.parameters C N z *
+        shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (fun u => targetBound S C a N dirs p (fun i => (z i : ℚ)) u *
+            averagedRetainedWeights S C a N dirs p (fun i => (z i : ℚ)) u ^ k)
+  filter_upwards [hGlobalEvent] with N hGlobal
+  have hgoodInner (p : Fin q → ℕ) (hp : good N p) :
+      eliminationInner N p = ∑ F ∈ Pset, subsetInner F N p := by
+    have hcoord := pkgElim_activeOccurrenceCoordinateAverage S C a Sh dirs tests J0 B N
+      hJ0 p eX hGlobal hp k hk
+    have hexpand := pkgElim_coordinateProductTsum_powersetExpansion S C a Sh dirs J0 N p eX A
+    calc
+      eliminationInner N p = activeInner N p := by
+        simpa [eliminationInner, activeInner, A] using hcoord.symm
+      _ = ∑ F ∈ Pset, subsetInner F N p := by
+        simpa [activeInner, subsetInner, Pset, A] using hexpand
+  have hAvg :
+      goodSlotAverage S C.gap N (good N) (eliminationInner N) =
+        goodSlotAverage S C.gap N (good N) (fun p => ∑ F ∈ Pset, subsetInner F N p) := by
+    unfold goodSlotAverage
+    congr 1
+    apply tsum_congr
+    intro p
+    by_cases hp : good N p
+    · simp [hp, hgoodInner p hp]
+    · simp [hp]
+  change goodSlotAverage S C.gap N (good N) (eliminationInner N) = _
+  rw [hAvg, pkgElim_goodSlotAverage_sum S C.gap N (good N) Pset
+    (fun F p => subsetInner F N p)]
+  apply Finset.sum_congr rfl
+  intro F hF
+  rfl
 
 theorem pkgElim_expandedAuxiliaryMoment_tendsto_one
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}

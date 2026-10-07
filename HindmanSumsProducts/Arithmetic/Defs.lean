@@ -35,7 +35,8 @@ def harmonicLaw (X W : ℕ) (z : ℤ) : ℝ :=
 /-- Translation of a signed-integer law by an integer. -/
 def translatedLaw {α : Type*} [AddGroup α] (μ : α → ℝ) (h : α) (z : α) : ℝ := μ (z - h)
 
-/-- Pushforward of a signed-integer law by multiplication by `k`. -/
+/-- Pushforward of a signed-integer law by multiplication by `k`, for `0 < k` (the only case used;
+at `k = 0` the formula is not the pushforward). -/
 def dilatedLaw (μ : ℤ → ℝ) (k : ℕ) (z : ℤ) : ℝ :=
   if z % (k : ℤ) = 0 then μ (z / (k : ℤ)) else 0
 
@@ -136,7 +137,7 @@ def harmonicProductLaw {k : ℕ} (W : ℕ) (X : Fin k → ℕ) (σ : ℕ) : ℝ 
   ∑' t : Fin k → ℕ,
     (if (∏ i, t i) = σ then 1 else 0) * ∏ i, harmonicNatLaw (X i) W (t i)
 
-/-- The rough part `|a|_{>w}` as defined in §3, for all integers (zero maps to zero). -/
+/-- The rough part `|a|_{>w}` as defined in §3 for nonzero integers; the formula gives `1` at `a = 0`. -/
 def roughPart (w : ℕ) (a : ℤ) : ℕ :=
   ∏ p ∈ (Finset.range (a.natAbs + 1)).filter (fun p => p.Prime ∧ w < p),
     p ^ (Nat.factorization a.natAbs p)
