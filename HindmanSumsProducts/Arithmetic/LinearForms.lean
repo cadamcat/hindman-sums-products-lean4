@@ -4329,6 +4329,7 @@ private theorem exists_top_two_positive_valuations {q : ℕ}
         ∀ w, w ≠ u → a w ≤ a v := by
   classical
   let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  have hcardU : 2 ≤ U.card := by simpa [U] using hcard
   have hUnonempty : U.Nonempty := by
     apply Finset.card_pos.mp
     omega
@@ -4345,14 +4346,76 @@ private theorem exists_top_two_positive_valuations {q : ℕ}
   have hvR' := Finset.mem_erase.mp hvR
   have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
   have hvPos : 0 < a v := (Finset.mem_filter.mp hvR'.2).2
-  refine ⟨u, v, huPos, hvPos, hvR'.1,
-    huMax v (Finset.mem_erase.mpr ⟨hvR'.1, hvR'.2⟩), ?_⟩
+  refine ⟨u, v, huPos, hvPos, Ne.symm hvR'.1,
+    huMax v hvR'.2, ?_⟩
   intro w hwu
   by_cases hw : 0 < a w
   · have hwU : w ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hw⟩
     exact hvMax w (Finset.mem_erase.mpr ⟨hwu, hwU⟩)
   · have hwa : a w = 0 := by omega
     omega
+
+private def regularPrimeLocalExcess {q : ℕ} (p : ℕ) (a : Fin q → ℕ) : ℝ :=
+  ∑ u : Fin q, ∑ v : Fin q,
+    if u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+        ∀ w, w ≠ u → a w ≤ a v then
+      (p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1 else 0
+
+private def exceptionalPrimeLocalExcess {q : ℕ} (p : ℕ) (a : Fin q → ℕ) : ℝ :=
+  ∑ u : Fin q,
+    if 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u then
+      (p : ℝ) ^ ((∑ w, a w) - a u) - 1 else 0
+
+private theorem rowValuationPair_le_sum {q : ℕ} (a : Fin q → ℕ)
+    (u v : Fin q) (huv : u ≠ v) :
+    a u + a v ≤ ∑ w, a w := by
+  have hsub : ({u, v} : Finset (Fin q)) ⊆ Finset.univ := by simp
+  have hsum : (∑ w ∈ ({u, v} : Finset (Fin q)), a w) ≤ ∑ w, a w :=
+    Finset.sum_le_sum_of_subset_of_nonneg (f := a) hsub (by
+    intro w hwU hwNot
+    exact Nat.zero_le (a w))
+  have hpair : (∑ w ∈ ({u, v} : Finset (Fin q)), a w) = a u + a v := by
+    simp [huv, add_comm]
+  rw [hpair] at hsum
+  exact hsum
+
+private theorem rowValuation_le_sum {q : ℕ} (a : Fin q → ℕ) (u : Fin q) :
+    a u ≤ ∑ w, a w :=
+  Finset.single_le_sum (f := a) (fun w hw => Nat.zero_le _) (Finset.mem_univ u)
+
+private theorem regularPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) : 0 ≤ regularPrimeLocalExcess p a := by
+  classical
+  have hpR : (1 : ℝ) ≤ (p : ℝ) := by
+    have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
+    exact_mod_cast hpNat
+  unfold regularPrimeLocalExcess
+  apply Finset.sum_nonneg
+  intro u hu
+  apply Finset.sum_nonneg
+  intro v hv
+  split_ifs with h
+  · have hsum := rowValuationPair_le_sum a u v h.1
+    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u - a v) :=
+      one_le_pow₀ hpR
+    linarith
+  · norm_num
+
+private theorem exceptionalPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.Prime)
+    (a : Fin q → ℕ) : 0 ≤ exceptionalPrimeLocalExcess p a := by
+  classical
+  have hpR : (1 : ℝ) ≤ (p : ℝ) := by
+    have hpNat : 1 ≤ p := Nat.le_trans (by norm_num) hp.two_le
+    exact_mod_cast hpNat
+  unfold exceptionalPrimeLocalExcess
+  apply Finset.sum_nonneg
+  intro u hu
+  split_ifs with h
+  · have hsum := rowValuation_le_sum a u
+    have hpow : (1 : ℝ) ≤ (p : ℝ) ^ ((∑ w, a w) - a u) :=
+      one_le_pow₀ hpR
+    linarith
+  · norm_num
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
