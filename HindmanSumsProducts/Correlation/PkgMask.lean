@@ -3805,7 +3805,7 @@ theorem logPivot_dominates_samplingInput {n : ℕ}
   exact div_le_div_of_nonneg_left hlogNonneg
     (Real.rpow_pos_of_pos (hTpos N) B) (hTpow N)
 
-theorem pivot_sampling_log_condition_eventually {n K s m : ℕ}
+theorem pivot_sampling_log_condition_eventually {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (i : Fin m) :
     ∀ᶠ N in atTop,
@@ -3849,6 +3849,117 @@ theorem rawPivot_dominates_samplingInput {n : ℕ}
   have hXpos : 0 ≤ (A.X N i : ℝ) := by positivity
   exact div_le_div_of_nonneg_right
     (Real.log_le_self hXpos) (by positivity)
+
+noncomputable def pivotBaseResidueErrorSum {K s m r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) : ℝ :=
+  ∑ i : Fin m,
+    harmonicResidueUniformError (S.core.parameters.X N (C.block i).1)
+      (primorial (N + 1)) (masterScaleV S.core.parameters N C.gap ^ r)
+
+theorem pivotBaseResidueErrorSum_superPolynomialSmall
+    {K s m r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) :
+    SuperPolynomialSmall (pivotBaseResidueErrorSum (r := r) S C)
+      (fun N => (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+  intro B hB
+  let Vseq : ℕ → ℕ := fun N => masterScaleV S.core.parameters N C.gap
+  have hsample (i : Fin m) :
+      SuperPolynomialSmall
+        (fun N => harmonicResidueUniformError
+          (S.core.parameters.X N (C.block i).1) (primorial (N + 1)) (Vseq N ^ r))
+        (fun N => (Vseq N : ℝ)) := by
+    let Wseq : ℕ → ℕ := fun N => primorial (N + 1)
+    let Kseq : ℕ → ℕ := fun N => Vseq N ^ r
+    let Hseq : ℕ → ℕ := fun _ => 1
+    let Xseq : ℕ → ℕ := fun N => S.core.parameters.X N (C.block i).1
+    have hK : ∀ N, 1 ≤ Kseq N := by
+      intro N
+      dsimp [Kseq, Vseq]
+      have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+        unfold masterScaleV
+        omega
+      exact Nat.one_le_pow r _ (by omega : 0 < masterScaleV S.core.parameters N C.gap)
+    have hH : ∀ N, 1 ≤ Hseq N := by intro N; simp [Hseq]
+    have hV : ∀ N, 1 ≤ Vseq N := by
+      intro N
+      dsimp [Vseq]
+      have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+        unfold masterScaleV
+        omega
+      omega
+    have hW : ∀ N, Wseq N = primorial (N + 1) := by intro N; rfl
+    have hX : ∀ᶠ N in atTop, 2 ≤ Xseq N := by
+      filter_upwards [Filter.Eventually.of_forall
+        (fun N => S.gapStage.valid_raw_cutoffs N (C.block i).1)] with N hcut
+      dsimp [Xseq]
+      have hW : 0 < primorial (N + 1) := primorial_pos (N + 1)
+      omega
+    have hden : ∀ᶠ N in atTop,
+        Real.log (Xseq N : ℝ) > (Wseq N : ℝ) / Xseq N := by
+      simpa [Wseq, Xseq] using
+        pivot_sampling_log_condition_eventually S C i
+    have hDomX : OAI.MicrocellScale.Dominates
+        (fun N => (Xseq N : ℝ))
+        (fun N => 2 + (Wseq N : ℝ) + (Kseq N : ℝ) +
+          (Hseq N : ℝ) + (Vseq N : ℝ)) := by
+      simpa [Wseq, Kseq, Hseq, Vseq] using
+        rawPivot_dominates_samplingInput S.core.parameters C.gap (C.block i).1
+          (C.pivots_after_gap i) r
+    have hDomLogX : OAI.MicrocellScale.Dominates
+        (fun N => Real.log (Xseq N : ℝ))
+        (fun N => 2 + (Wseq N : ℝ) + (Kseq N : ℝ) + (Vseq N : ℝ)) := by
+      intro D hD
+      have hfull := logPivot_dominates_samplingInput S.core.parameters C.gap
+        (C.block i).1 (C.pivots_after_gap i) r D hD
+      apply tendsto_atTop_mono' atTop ?_ hfull
+      filter_upwards with N
+      have hlogNonneg : 0 ≤ Real.log (Xseq N : ℝ) := by
+        have hXpos : 0 < Xseq N := S.core.parameters.Xpos N (C.block i).1
+        exact Real.log_nonneg (by exact_mod_cast (Nat.one_le_of_lt hXpos))
+      have hsmall :
+          (2 + (Wseq N : ℝ) + (Kseq N : ℝ) + (Vseq N : ℝ)) ≤
+            (2 + (Wseq N : ℝ) + (Kseq N : ℝ) + 1 + (Vseq N : ℝ)) := by
+        dsimp [Wseq, Kseq, Vseq]
+        linarith
+      exact div_le_div_of_nonneg_left hlogNonneg
+        (Real.rpow_pos_of_pos (by positivity) D)
+        (Real.rpow_le_rpow (by positivity)
+          (by simpa [Wseq, Kseq, Vseq] using hsmall) hD.le)
+    have hasym := FromArithmetic.sampling_asymptotics
+      Wseq Kseq Hseq Vseq Xseq hK hH hV hW hX hden hDomX hDomLogX
+    exact hasym.1
+  have hterm (i : Fin m) : Tendsto
+      (fun N => harmonicResidueUniformError
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
+        (masterScaleV S.core.parameters N C.gap ^ r) *
+          (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop (nhds 0) := by
+    simpa [Vseq] using hsample i B hB
+  have hsum (s : Finset (Fin m)) : Tendsto
+      (fun N => ∑ i ∈ s,
+        harmonicResidueUniformError
+          (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
+          (masterScaleV S.core.parameters N C.gap ^ r) *
+            (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop
+      (nhds (∑ i ∈ s, (0 : ℝ))) := by
+    induction s using Finset.induction_on with
+    | empty => simp
+    | @insert i s hi ih =>
+      simpa [Finset.sum_insert, hi] using (hterm i).add ih
+  have hsumUniv : Tendsto
+      (fun N => ∑ i : Fin m,
+        harmonicResidueUniformError
+          (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
+          (masterScaleV S.core.parameters N C.gap ^ r) *
+            (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop (nhds 0) := by
+    simpa using hsum Finset.univ
+  have hsumError : Tendsto
+      (fun N => pivotBaseResidueErrorSum (r := r) S C N *
+        (masterScaleV S.core.parameters N C.gap : ℝ) ^ B) atTop (nhds 0) := by
+    convert hsumUniv using 1
+    funext N
+    simp [pivotBaseResidueErrorSum, Finset.sum_mul]
+  simpa [Vseq] using hsumError
 
 theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
