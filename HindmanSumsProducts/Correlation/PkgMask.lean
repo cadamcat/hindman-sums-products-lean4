@@ -4753,6 +4753,23 @@ theorem pkgMask_poolAverage_tsum_pivot_interchange {K s : ℕ} {Aset : Finset �
       intro y hy
       rw [hpoolEq y]
 
+theorem pkgMask_poolAverage_const_mul {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (l : Fin K) (N : ℕ) (c : ℝ) (F : ℕ → ℝ) :
+    poolAverage S l N (fun p => c * F p) = c * poolAverage S l N F := by
+  unfold poolAverage
+  calc
+    (∑' p : ℕ, primePoolLaw (S.primeStage.pool N l).lower
+        (S.primeStage.pool N l).upper p * (c * F p)) =
+        ∑' p : ℕ, c *
+          (primePoolLaw (S.primeStage.pool N l).lower
+            (S.primeStage.pool N l).upper p * F p) := by
+      apply tsum_congr
+      intro p
+      ring
+    _ = c * ∑' p : ℕ, primePoolLaw (S.primeStage.pool N l).lower
+          (S.primeStage.pool N l).upper p * F p := tsum_mul_left
+
 noncomputable def pivotMassSupport {K s m : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) : Finset (Fin m → ℤ) :=
@@ -8411,6 +8428,21 @@ theorem pkgMask_stateCoordinatePrimeInsertion_joint {m q r K s : ℕ}
           pkgMask_stateIntegrand st S C a N x.1
             (Function.update x.2 u ((pNew : ℤ) * x.2 u))))
 
+noncomputable def pkgMask_outsideStepAverageFunction {m q r K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (U : Finset (Fin m)) (u : Fin m) (Ω :
+      (Fin q → ℕ) × (Fin m → ℤ) → ℝ)
+    (x : (Fin q → ℕ) × (Fin m → ℤ)) (pNew : ℕ) : ℝ :=
+  ((∏ V ∈ st.masks.erase U,
+      st.maskFunction V x.1
+        (∏ k ∈ V, Function.update x.2 u ((pNew : ℤ) * x.2 u) k)) *
+    ∏ R, atQ (st.rowFunction R x.1)
+      (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) x.1
+        (Function.update (fun k => (x.2 k : ℚ)) u
+          ((pNew : ℚ) * (x.2 u : ℚ))))) / Ω x
+
 theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -8516,6 +8548,62 @@ theorem pkgMask_stateIntegrand_selectedMask_factor {m q r K s : ℕ} {Aset : Fin
   have h := pkgMask_stateIntegrand_outsideFactor st S C a N U u p z prime 1 hU hu
     (by norm_num)
   simpa using h
+
+theorem pkgMask_stateCoordinatePrimeInsertion_outside_factor {m q r K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (U : Finset (Fin m)) (u : Fin m) (hU : U ∈ st.masks) (hu : u ∉ U)
+    (Ω : (Fin q → ℕ) × (Fin m → ℤ) → ℝ) (hΩ : ∀ x, Ω x ≠ 0) :
+    pkgMask_stateCoordinatePrimeInsertion st S C a N u =
+      ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N x.1 x.2 *
+          ((st.maskFunction U x.1 (∏ k ∈ U, x.2 k) * Ω x) *
+            poolAverage S C.gap N (pkgMask_outsideStepAverageFunction
+              st S C a N U u Ω x)) := by
+  classical
+  have hjoint := pkgMask_stateCoordinatePrimeInsertion_joint st S C a N u
+  rw [hjoint]
+  apply tsum_congr
+  intro x
+  apply congrArg (fun t : ℝ => gapPivotMass S C N x.1 x.2 * t)
+  calc
+    poolAverage S C.gap N (fun pNew =>
+        pkgMask_stateIntegrand st S C a N x.1
+          (Function.update x.2 u ((pNew : ℤ) * x.2 u))) =
+      poolAverage S C.gap N (fun pNew =>
+        (st.maskFunction U x.1 (∏ k ∈ U, x.2 k) * Ω x) *
+          pkgMask_outsideStepAverageFunction st S C a N U u Ω x pNew) := by
+      unfold poolAverage
+      apply tsum_congr
+      intro pNew
+      have hfactor := pkgMask_stateIntegrand_outsideFactor st S C a N U u
+        x.1 x.2 pNew (Ω x) hU hu (hΩ x)
+      have hcast :
+          (fun k =>
+            ((Function.update x.2 u ((pNew : ℤ) * x.2 u) k : ℤ) : ℚ)) =
+            Function.update (fun k => (x.2 k : ℚ)) u
+              ((pNew : ℚ) * (x.2 u : ℚ)) := by
+        funext k
+        by_cases hku : k = u
+        · subst k
+          simp
+        · simp [hku]
+      change primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper pNew *
+          pkgMask_stateIntegrand st S C a N x.1
+            (Function.update x.2 u ((pNew : ℤ) * x.2 u)) =
+        primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper pNew *
+          (st.maskFunction U x.1 (∏ k ∈ U, x.2 k) * Ω x *
+            pkgMask_outsideStepAverageFunction st S C a N U u Ω x pNew)
+      rw [hfactor]
+      unfold pkgMask_outsideStepAverageFunction
+      rw [← hcast]
+    _ = (st.maskFunction U x.1 (∏ k ∈ U, x.2 k) * Ω x) *
+        poolAverage S C.gap N (pkgMask_outsideStepAverageFunction
+          st S C a N U u Ω x) :=
+      pkgMask_poolAverage_const_mul S C.gap N _ _
 
 end MaskRemovalState
 
