@@ -881,6 +881,15 @@ noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
   simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
     Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
 
+theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
+    (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
+    (insert R E).erase I = insert R (E.erase I) := by
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  exact Finset.erase_insert_of_ne hRI
+
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
