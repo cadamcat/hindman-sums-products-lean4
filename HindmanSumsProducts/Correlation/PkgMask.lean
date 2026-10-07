@@ -1321,6 +1321,24 @@ theorem harmonicProductLaw_coprime_of_ne_zero {q : ℕ} (W : ℕ)
   intro t ht
   exact hterm t
 
+theorem integerResidue_eq_natMod_of_nonneg {K : ℕ} (hK : 0 < K) {z : ℤ}
+    (hz : 0 ≤ z) :
+    FromArithmetic.integerResidue K hK z = ⟨z.toNat % K, Nat.mod_lt _ hK⟩ := by
+  apply Fin.ext
+  change (z % (K : ℤ)).toNat = z.toNat % K
+  have hcast : (z.toNat : ℤ) = z := Int.toNat_of_nonneg hz
+  have hmod : z % (K : ℤ) = ((z.toNat % K : ℕ) : ℤ) := by
+    calc
+      z % (K : ℤ) = (z.toNat : ℤ) % (K : ℤ) :=
+        congrArg (fun x : ℤ => x % (K : ℤ)) hcast.symm
+      _ = ((z.toNat % K : ℕ) : ℤ) := (Int.natCast_mod _ _).symm
+  have hmodNonneg : 0 ≤ z % (K : ℤ) :=
+    Int.emod_nonneg _ (by exact_mod_cast hK.ne')
+  have hcastMod : ((z % (K : ℤ)).toNat : ℤ) = (z.toNat % K : ℤ) := by
+    rw [Int.toNat_of_nonneg hmodNonneg, hmod]
+    simp
+  exact_mod_cast hcastMod
+
 def finsetComplement {α : Type*} [Fintype α] [DecidableEq α] (T : Finset α) : Finset α :=
   Finset.univ.filter fun i => i ∉ T
 
