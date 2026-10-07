@@ -2851,4 +2851,39 @@ theorem c_elim2_shiftStateAverage_le_fullUniformAverage
     _ ≤ c_elim2_uniformFintypeAverage F :=
       c_elim2_uniformFintypeAverage_mono _ _ hpoint
 
+theorem c_elim2_normalized_product_measure {P Z : Type*} [Fintype P] [Fintype Z]
+    (a b : P → ℝ) (c : Z → ℝ) (prob : ℝ)
+    (hP : (∑ p, a p * b p) = prob) (hZ : (∑ z, c z) = 1)
+    (hprob : 0 < prob) :
+    ∑ x : P × Z, prob⁻¹ * (a x.1 * b x.1 * c x.2) = 1 := by
+  classical
+  rw [Fintype.sum_prod_type]
+  have hinner (p : P) :
+      (∑ z : Z, prob⁻¹ * (a p * b p * c z)) =
+        prob⁻¹ * (a p * b p * ∑ z : Z, c z) := by
+    calc
+      _ = ∑ z : Z, (prob⁻¹ * (a p * b p)) * c z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        ring
+      _ = (prob⁻¹ * (a p * b p)) * ∑ z : Z, c z := by
+        rw [← Finset.mul_sum]
+      _ = _ := by ring
+  calc
+    (∑ p : P, ∑ z : Z, prob⁻¹ * (a p * b p * c z)) =
+        ∑ p : P, prob⁻¹ * (a p * b p * ∑ z : Z, c z) := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          exact hinner p
+    _ = prob⁻¹ * (∑ p : P, a p * b p) * (∑ z : Z, c z) := by
+      calc
+        _ = ∑ p : P, (prob⁻¹ * (∑ z : Z, c z)) * (a p * b p) := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          ring
+        _ = (prob⁻¹ * (∑ z : Z, c z)) * ∑ p : P, a p * b p := by
+          rw [← Finset.mul_sum]
+        _ = _ := by ring
+    _ = 1 := by rw [hP, hZ]; field_simp
+
 end HindmanSumsProducts
