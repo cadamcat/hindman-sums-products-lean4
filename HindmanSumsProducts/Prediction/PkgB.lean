@@ -1291,6 +1291,43 @@ private theorem momentLinearRowValue_baseEncode {K sl : ℕ} {As : Finset ℚ}
     rw [hsumShift]
   exact_mod_cast hInt
 
+private theorem momentLinearRowValue_rootBaseEncode {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate) (l : Fin K)
+    (N : ℕ) (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    linearRowValue (momentRowCoeff MS b T l) N p
+      ((momentRowEnum b T.d).symm (.inl ())) (momentBaseEncode y u) = (y : ℚ) := by
+  classical
+  let row := (momentRowEnum b T.d).symm (.inl ())
+  let root := (momentBaseEnum b T.d).symm (.inl ())
+  have hsum :
+      (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) =
+      ∑ v : MomentBaseIndex b T.d,
+        momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm v) := by
+    exact Fintype.sum_equiv (momentBaseEnum b T.d)
+      (fun i => momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i)
+      (fun v => momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm v)) (by intro i; simp)
+  have hrootCoeff (a : Unit) :
+      momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm (.inl a)) = 1 := by
+    simp [row, momentRowCoeffInt]
+  have hshiftCoeff (k : Fin b) (j : Fin T.d) (side : Fin 2) :
+      momentRowCoeffInt MS b T l N p row
+        ((momentBaseEnum b T.d).symm (.inr (k, (j, side)))) = 0 := by
+    simp [row, momentRowCoeffInt]
+  rw [momentLinearRowValue_eq_castInt]
+  have hInt :
+      (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) = y := by
+    rw [hsum]
+    simp only [MomentBaseIndex, Fintype.sum_sum_type, Fintype.sum_prod_type]
+    simp_rw [hrootCoeff, hshiftCoeff, momentBaseEncode_root, momentBaseEncode_shift]
+    simp [root]
+  exact_mod_cast hInt
+
 theorem clip_eq_self_of_abs_le (K x : ℝ) (hx : |x| ≤ K) :
     clip K x = x := by
   have hx' := (abs_le.mp hx)
