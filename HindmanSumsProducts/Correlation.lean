@@ -143,7 +143,28 @@ there are integer polynomial vectors `w_R` (`R ≠ *`) and `w_0` with `A_Rw_R=0`
 `A_Iw_R ≠ 0` (`I ≠ R`), `A_*w_0=0`, `A_Iw_0 ≠ 0` (`I ≠ *`), chosen from the templates alone. -/
 theorem row_directions_polynomial {m q r : ℕ} (Sh : RowShape m q r) :
     ∃ dirs : RowDirections Sh, dirs.Valid := by
-  sorry
+  classical
+  have starSep (I : Fin r) (hI : I ≠ Sh.star) :
+      ¬ (Sh.row Sh.star).Parallel (Sh.row I) := Sh.nonparallel Sh.star I (Ne.symm hI)
+  obtain ⟨w0, hw0, hw0other⟩ :=
+    rowDirections_exists_kernel_separating Sh Sh.star starSep
+  let w : Fin r → Fin m → IntegerPolynomial q := fun R =>
+    if hR : R ≠ Sh.star then
+      Classical.choose (rowDirections_exists_kernel_separating Sh R
+        (fun I hI => Sh.nonparallel R I (Ne.symm hI)))
+    else fun _ => 0
+  have hw (R : Fin r) (hR : R ≠ Sh.star) :
+      templateResponse (Sh.row R) (w R) = 0 ∧
+        ∀ I, I ≠ R → templateResponse (Sh.row I) (w R) ≠ 0 := by
+    simpa [w, hR] using Classical.choose_spec
+      (rowDirections_exists_kernel_separating Sh R
+        (fun I hI => Sh.nonparallel R I (Ne.symm hI)))
+  refine ⟨⟨w, w0⟩, ?_⟩
+  refine ⟨?_, ?_, hw0, hw0other⟩
+  · intro R hR
+    exact (hw R hR).1
+  · intro R I hR hIR
+    exact (hw R hR).2 I hIR
 
 /-- The conclusions of the second part of Lemma `lem:row-directions` for fixed directions and
 tests, with size exponent `B`: for all master scales whose list contains the tests, every chain
