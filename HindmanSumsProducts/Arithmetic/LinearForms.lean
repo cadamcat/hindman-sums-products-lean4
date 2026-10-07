@@ -7805,6 +7805,158 @@ private theorem linearFormsPrimeAverage_divisorExpansion {n q d b m : ℕ}
       simpa [support, coeffMass, μ, rowDiv,
         linearFormsDivisorTupleMass, mul_ite]
 
+set_option maxHeartbeats 3000000 in
+private theorem linearFormsBaseTupleKernel_error {n q d b m K : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (slots : Fin m → ℕ) (hgood : D.goodDomain N slots)
+    (σ : Fin q → ℕ)
+    (hσ : ∀ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u) ≠ 0)
+    [∀ u : Fin q, NeZero (σ u)]
+    (K : ℕ) [NeZero K] (hK : 0 < K) (hKprod : ∏ u, σ u = K)
+    (hdiv : ∀ u, σ u ∣ K) :
+    |(∑' x : Fin d → ℤ,
+        D.baseMass N slots x * (K : ℝ) *
+          (if ∀ u, (σ u : ℤ) ∣
+            (linearRowValue D.rowCoeff N slots u x).num then 1 else 0)) -
+      normalizedKernelCount
+        (globalDivisibilityAddHom σ hdiv
+          (fun u j =>
+            (rationalRowClearedCoefficient
+              (fun j => D.rowCoeff N slots u j) j : ZMod K))).toMultiplicative| ≤
+      (K : ℝ) * D.epsilonBase N := by
+  classical
+  letI : NeZero K := ⟨Nat.ne_of_gt hK⟩
+  have hσpos (u : Fin q) : 0 < σ u :=
+    lt_of_lt_of_le Nat.zero_lt_one (D.divisor_positive N u (σ u) (hσ u))
+  letI : ∀ u : Fin q, NeZero (σ u) := fun u => ⟨Nat.ne_of_gt (hσpos u)⟩
+  let μ : (Fin d → ℤ) → ℝ := D.baseMass N slots
+  let rows : Fin q → Fin d → ℚ := fun u j => D.rowCoeff N slots u j
+  let coeff : Fin q → Fin d → ZMod K := fun u j =>
+    (rationalRowClearedCoefficient (rows u) j : ZMod K)
+  let rowDiv (x : Fin d → ℤ) : Prop := ∀ u,
+    (σ u : ℤ) ∣ (linearRowValue D.rowCoeff N slots u x).num
+  let f : (Fin d → Fin K) → ℝ := fun r =>
+    if globalDivisibilityAddHom σ hdiv coeff
+        (fun j => (ZMod.finEquiv K) (r j)) = 0 then (K : ℝ) else 0
+  have hKnonneg : 0 ≤ (K : ℝ) := Nat.cast_nonneg _
+  have hμtotal : (∑' x : Fin d → ℤ, μ x) = 1 := by
+    simpa [μ] using D.base_normalized N slots
+  have hTV : finiteL1 (baseResidueLaw K hK (D.baseMass N slots))
+      (uniformBaseResidueLaw K d) ≤ D.epsilonBase N := by
+    have hEq :
+        finiteL1 (baseResidueLaw K hK (D.baseMass N slots))
+          (uniformBaseResidueLaw K d) =
+        finiteL1 (baseResidueLaw (∏ u, σ u)
+          (Finset.prod_pos fun u hu => hσpos u)
+          (D.baseMass N slots)) (uniformBaseResidueLaw (∏ u, σ u) d) := by
+      cases hKprod
+      rfl
+    rw [hEq]
+    exact D.base_residue_uniform N slots σ hgood hσ hσpos
+  have hfbound (r : Fin d → Fin K) : |f r| ≤ (K : ℝ) := by
+    dsimp [f]
+    split_ifs <;> simp [abs_of_nonneg hKnonneg]
+  have hbaseError := baseResidue_expectation_error hK (D.baseMass N slots)
+    (D.base_normalized N slots) (D.epsilonBase N) f (K : ℝ) hKnonneg hfbound hTV
+  have hkernel := uniformBaseKernelCount_eq_normalizedKernelCount
+    hK σ hσpos hKprod hdiv coeff
+  have hDcopK (u : Fin q) (j : Fin d) :
+      Nat.Coprime (rows u j).den K := by
+    have h := divisorTuple_rowDenominators_coprime D N slots σ hgood hσ u j
+    simpa [hKprod] using h
+  have hDcopσ (u : Fin q) :
+      Nat.Coprime (rationalRowDenominator (rows u)) (σ u) := by
+    apply Nat.coprime_fintype_prod_left_iff.mpr
+    intro j
+    have h := hDcopK u j
+    exact h.coprime_dvd_right (hdiv u)
+  have hrowDen (x : Fin d → ℤ) (hx : μ x ≠ 0) (u : Fin q) :
+      (linearRowValue D.rowCoeff N slots u x).den = 1 := by
+    have h := D.row_integer_on_support N slots x hgood hx u
+    simpa [μ, linearRowValue] using h
+  have hrowDivMod (x : Fin d → ℤ) (hx : μ x ≠ 0) (u : Fin q) :
+      (ZMod.castHom (hdiv u) (ZMod (σ u))
+        (∑ j, (rationalRowClearedCoefficient (rows u) j : ZMod K) *
+          (x j : ZMod K)) = 0) ↔
+      (σ u : ℤ) ∣ (linearRowValue D.rowCoeff N slots u x).num := by
+    have h := rationalRow_cleared_modulus_divisibility (hdiv u) (rows u) x
+      (fun j => (x j : ZMod K)) (fun _ => rfl) (hDcopσ u) (hrowDen x hx u)
+    simpa [linearRowValue, rows] using h
+  have hGlobalZero (x : Fin d → ℤ) (hx : μ x ≠ 0) :
+      globalDivisibilityAddHom σ hdiv coeff (fun j => (x j : ZMod K)) = 0 ↔ rowDiv x := by
+    constructor
+    · intro hz u
+      have hu := congrFun hz u
+      have hu' : ZMod.castHom (hdiv u) (ZMod (σ u))
+          (∑ j, (rationalRowClearedCoefficient (rows u) j : ZMod K) *
+            (x j : ZMod K)) = 0 := by
+        simpa [globalDivisibilityAddHom, globalRowModulusValue, coeff] using hu
+      exact (hrowDivMod x hx u).1 hu'
+    · intro hrow
+      ext u
+      change ZMod.castHom (hdiv u) (ZMod (σ u))
+        (∑ j, (rationalRowClearedCoefficient (rows u) j : ZMod K) *
+          (x j : ZMod K)) = 0
+      exact (hrowDivMod x hx u).2 (hrow u)
+  have hmatch (x : Fin d → ℤ) :
+      μ x * f (fun j => integerResidue K hK (x j)) =
+        μ x * ((K : ℝ) * (if rowDiv x then 1 else 0)) := by
+    by_cases hx : μ x = 0
+    · simp [hx]
+    · have hmap :
+        globalDivisibilityAddHom σ hdiv coeff
+          (fun j => (ZMod.finEquiv K) (integerResidue K hK (x j))) =
+        globalDivisibilityAddHom σ hdiv coeff (fun j => (x j : ZMod K)) := by
+          congr 1
+          funext j
+          exact integerResidue_finEquiv hK (x j)
+      have hf : f (fun j => integerResidue K hK (x j)) =
+          (K : ℝ) * (if rowDiv x then 1 else 0) := by
+        dsimp [f]
+        rw [hmap]
+        by_cases hrow : rowDiv x
+        · rw [if_pos ((hGlobalZero x hx).2 hrow)]
+          simp [hrow]
+        · have hne : globalDivisibilityAddHom σ hdiv coeff
+              (fun j => (x j : ZMod K)) ≠ 0 := by
+            intro hzero
+            exact hrow ((hGlobalZero x hx).1 hzero)
+          rw [if_neg hne]
+          simp [hrow]
+      rw [hf]
+  have hbaseToF :
+      (∑' x : Fin d → ℤ,
+        μ x * ((K : ℝ) * (if rowDiv x then 1 else 0))) =
+        ∑' x : Fin d → ℤ, μ x * f (fun j => integerResidue K hK (x j)) := by
+    apply tsum_congr
+    intro x
+    exact (hmatch x).symm
+  have hleftEq :
+      (∑' x : Fin d → ℤ,
+        D.baseMass N slots x * (K : ℝ) *
+          (if ∀ u, (σ u : ℤ) ∣
+            (linearRowValue D.rowCoeff N slots u x).num then 1 else 0)) =
+        ∑' x : Fin d → ℤ, μ x * ((K : ℝ) * (if rowDiv x then 1 else 0)) := by
+    apply tsum_congr
+    intro x
+    simp [μ, rowDiv]
+  have hrewritten :
+      (∑' x : Fin d → ℤ,
+        μ x * ((K : ℝ) * (if rowDiv x then 1 else 0))) -
+        normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative =
+      (∑' x : Fin d → ℤ,
+        μ x * f (fun j => integerResidue K hK (x j))) -
+        ∑ r : Fin d → Fin K, uniformBaseResidueLaw K d r * f r := by
+    rw [hbaseToF, ← hkernel]
+  calc
+    _ = |(∑' x : Fin d → ℤ,
+        μ x * f (fun j => integerResidue K hK (x j))) -
+        ∑ r : Fin d → Fin K, uniformBaseResidueLaw K d r * f r| := by
+          rw [hleftEq, hrewritten]
+    _ ≤ (K : ℝ) * D.epsilonBase N := hbaseError
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
