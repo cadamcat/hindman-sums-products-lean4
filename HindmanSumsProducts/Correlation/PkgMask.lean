@@ -4128,6 +4128,97 @@ def MaskRowDataGoodDomain {K s m q r : ℕ} {Aset : Finset ℚ}
     (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) ∧
   ∀ j, masterScaleV S.core.parameters N C.gap < p j
 
+theorem maskRowAnchorReady_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, MaskRowAnchorReady S C a Sh ι N := by
+  filter_upwards [rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
+      S C a ha Sh ι] with N hready
+  intro p hp v hv hNv hvV R
+  apply hready p R v hv hNv hvV
+  intro i
+  have hi := (independentPrimePoolSupport_mem_iff
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) p).mp hp i
+  rcases Finset.mem_filter.mp hi with ⟨hIco, hprime⟩
+  rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+  exact ⟨hlo, hhi, hprime⟩
+
+theorem maskRowPairwiseReady_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm) :
+    ∀ᶠ N in atTop, MaskRowPairwiseReady S C a Sh ι N := by
+  filter_upwards [rowShapeLinearCoefficients_pairwise_independent_eventually
+      S C a ha Sh ι hlisted] with N hready
+  intro p hp v hv hNv hvV havoid R I hRI
+  have hpool : ∀ i,
+      (S.primeStage.pool N C.gap).lower ≤ p i ∧
+        p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime := by
+    intro i
+    have hi := (independentPrimePoolSupport_mem_iff
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) p).mp hp i
+    rcases Finset.mem_filter.mp hi with ⟨hIco, hprime⟩
+    rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+    exact ⟨hlo, hhi, hprime⟩
+  obtain ⟨j, k, hne⟩ := hready p hpool v hv hNv hvV havoid R I hRI
+  exact ⟨j, k, sub_ne_zero.mp hne⟩
+
+theorem maskRowDataGoodDomain_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm) :
+    ∀ᶠ N in atTop, ∀ p,
+      p ∈ independentPrimePoolSupport
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) →
+      MaskRowDataGoodDomain S C a Sh ι N p := by
+  have hlogs : ∀ᶠ N in atTop, ∀ i : Fin m,
+      Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+        (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1 :=
+    Filter.eventually_all.2 fun i => pivot_sampling_log_condition_eventually S C i
+  have hrowden := rowForm_den_one_eventually (q := q) S C a ha
+  have hcoeffden := rowShapeLinearCoefficients_den_one_eventually S C a ha Sh ι
+  have hanchor := maskRowAnchorReady_eventually S C a ha Sh ι
+  have hpair := maskRowPairwiseReady_eventually S C a ha Sh ι hlisted
+  have hpool := pool_lower_gt_masterScaleV_eventually S C.gap
+  filter_upwards [hlogs, hrowden, hcoeffden, hanchor, hpair, hpool]
+    with N hlogs hrowden hcoeffden hanchor hpair hpool
+  intro p hp
+  refine ⟨?_, ?_, ?_, hanchor, hpair, hp, ?_⟩
+  · exact hlogs
+  · intro R p' x
+    exact hrowden (Sh.row R) (fun j => p' (ι j)) x
+  · intro R j
+    exact hcoeffden p R j
+  · intro j
+    have hj := (independentPrimePoolSupport_mem_iff
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) p).mp hp j
+    rcases Finset.mem_filter.mp hj with ⟨hIco, hprime⟩
+    rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+    exact lt_of_lt_of_le hpool hlo
+
+theorem maskWeightedLinearFormsData_goodDomain_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm) :
+    ∀ᶠ N in atTop, ∀ p,
+      p ∈ independentPrimePoolSupport
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) →
+      MaskRowDataGoodDomain S C a Sh ι N p :=
+  maskRowDataGoodDomain_eventually S C a ha Sh ι hlisted
+
 def masterCRTOptionFactor (w e V : ℕ) : Option (CRTPrimeRange w V) → ℕ
   | none => primorial w ^ e
   | some p => p.val
