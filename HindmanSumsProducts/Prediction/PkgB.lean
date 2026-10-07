@@ -3963,6 +3963,113 @@ private theorem momentPrimeTupleCRTLaw_eq_prod {m w V : ℕ}
             (by simpa [S] using hn)
         simp [f, hlaw]
 
+private theorem momentUniformUnitResidueLaw_sum_eq_one (Q : ℕ) (hQ : 0 < Q) :
+    ∑ a : Fin Q, uniformUnitResidueLaw Q a = 1 := by
+  classical
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  let Source := {a : Fin Q // Nat.Coprime a.val Q}
+  let G := (ZMod Q)ˣ
+  let c : ℝ := 1 / (Fintype.card G : ℝ)
+  let good : Fin Q → Prop := fun a => Nat.Coprime a.val Q
+  let eUnit : Source ≃ G := momentFinCoprimeEquivUnits Q hQ
+  have hcardR : (Fintype.card G : ℝ) = (Nat.totient Q : ℝ) := by
+    have hcard : Fintype.card (ZMod Q)ˣ = Nat.totient Q :=
+      ZMod.card_units_eq_totient (n := Q)
+    exact_mod_cast hcard
+  have hterm (a : Fin Q) :
+      uniformUnitResidueLaw Q a = if good a then c else 0 := by
+    by_cases ha : Nat.Coprime a.val Q <;>
+      simp [uniformUnitResidueLaw, good, c, ha, hcardR]
+  have hsource :
+      (∑ a : Fin Q, uniformUnitResidueLaw Q a) = ∑ a : Source, c := by
+    calc
+      _ = ∑ a : Fin Q, if good a then c else 0 := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        exact hterm a
+      _ = (∑ a : Source, (if good a.1 then c else 0)) +
+            ∑ a : {a : Fin Q // ¬ good a}, (if good a.1 then c else 0) := by
+        exact (Fintype.sum_subtype_add_sum_subtype good
+          (fun a : Fin Q => if good a then c else 0)).symm
+      _ = ∑ a : Source, c := by
+        have hgoodSum :
+            (∑ a : Source, (if good a.1 then c else 0)) = ∑ a : Source, c := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          exact if_pos a.property
+        have hbadSum :
+            (∑ a : {a : Fin Q // ¬ good a}, (if good a.1 then c else 0)) = 0 := by
+          apply Finset.sum_eq_zero
+          intro a ha
+          exact if_neg a.property
+        rw [hgoodSum, hbadSum]
+        simp
+  have hcardSource : Fintype.card Source = Fintype.card G :=
+    Fintype.card_congr eUnit
+  calc
+    _ = ∑ a : Source, c := hsource
+    _ = (Fintype.card Source : ℝ) * c := by simp [Finset.sum_const, nsmul_eq_mul]
+    _ = 1 := by
+      rw [hcardSource]
+      dsimp [c, G]
+      have hcardPos : (0 : ℝ) < (Fintype.card (ZMod Q)ˣ : ℝ) := by positivity
+      field_simp
+
+private theorem momentCRTUniformLaw_sum_eq_one {w e V : ℕ} :
+    ∑ r : CRTResidues w V, momentCRTUniformLaw r = 1 := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hQpos : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  calc
+    _ = ∑ r : CRTResidues w V, ∑ a : Fin Q,
+          uniformUnitResidueLaw Q a *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro r hr
+        exact (momentCRTUniformProjectionLaw_eq (w := w) (e := e) (V := V) r).symm
+    _ = ∑ a : Fin Q, uniformUnitResidueLaw Q a := by
+        rw [Finset.sum_comm]
+        apply Finset.sum_congr rfl
+        intro a ha
+        change (∑ r ∈ (Finset.univ : Finset (CRTResidues w V)),
+            uniformUnitResidueLaw Q a *
+              (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0)) = _
+        rw [← Finset.mul_sum]
+        simp
+    _ = 1 := momentUniformUnitResidueLaw_sum_eq_one Q hQpos
+
+private theorem uniformPrimeTupleCRTLaw_eq_prod {m w V : ℕ}
+    (r : Fin m → CRTResidues w V) :
+    uniformPrimeTupleCRTLaw w V r = ∏ i, momentCRTUniformLaw (r i) := by
+  rfl
+
+private theorem momentPrimePoolCRTActualLaw_l1_le {w e V lo hi : ℕ} :
+    finiteL1 (momentPrimePoolCRTActualLaw w V lo hi) (momentCRTUniformLaw (w := w) (V := V)) ≤
+      finiteL1 (primePoolResidueLaw lo hi (masterCRTModulus w e V))
+        (uniformUnitResidueLaw (masterCRTModulus w e V)) := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hμ : momentPrimePoolCRTActualLaw w V lo hi =
+      fun r : CRTResidues w V =>
+        ∑ a : Fin Q, primePoolResidueLaw lo hi Q a *
+          (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+    funext r
+    exact momentPrimePoolCRTProjectionLaw_eq r
+  have hν : momentCRTUniformLaw (w := w) (V := V) =
+      fun r : CRTResidues w V =>
+        ∑ a : Fin Q, uniformUnitResidueLaw Q a *
+          (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+    funext r
+    exact (momentCRTUniformProjectionLaw_eq r).symm
+  rw [hμ, hν]
+  exact pkgB_finiteL1_pushforward_le (momentCRTProjection w V Q)
+    (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q)
+
 end Prediction
 
 end HindmanSumsProducts
