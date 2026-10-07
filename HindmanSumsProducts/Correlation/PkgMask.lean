@@ -1282,35 +1282,27 @@ def finsetComplement {α : Type*} [Fintype α] [DecidableEq α] (T : Finset α) 
 
 def piFinsetSplit {n : ℕ} [DecidableEq (Fin n)] (T : Finset (Fin n)) :
     (Fin n → ℕ) ≃ ((∀ i : T, ℕ) × ∀ i : finsetComplement T, ℕ) := by
-  have hdisj : Disjoint T (finsetComplement T) := by
-    apply Finset.disjoint_left.mpr
-    intro i hiT hiC
-    exact (Finset.mem_filter.mp hiC).2 hiT
-  have hunion : T ∪ finsetComplement T = Finset.univ := by
-    ext i
-    constructor
-    · intro _
-      exact Finset.mem_univ i
-    · intro _
-      by_cases hi : i ∈ T
-      · exact Finset.mem_union.mpr (Or.inl hi)
-      · exact Finset.mem_union.mpr
-          (Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi⟩))
-  let eUnion : {i : Fin n // i ∈ T ∪ finsetComplement T} ≃ Fin n := {
-    toFun := fun i => i.val
-    invFun := fun i =>
-      ⟨i, by
-        change i ∈ T ∪ finsetComplement T
-        rw [hunion]
-        exact Finset.mem_univ i⟩
-    left_inv := fun i => by
-      apply Subtype.ext
-      rfl
-    right_inv := fun _ => rfl
-  }
-  exact ((Equiv.piFinsetUnion (fun _ : Fin n => ℕ) hdisj).trans
-    (Equiv.piCongrLeft'
-      (fun _ : {i : Fin n // i ∈ T ∪ finsetComplement T} => ℕ) eUnion)).symm
+  letI : DecidablePred (fun j : Fin n => j ∈ T) :=
+    fun j => Finset.decidableMem j T
+  refine
+    { toFun := fun f => (fun i => f i.1, fun i => f i.1)
+      invFun := fun z j =>
+        if hj : j ∈ T then z.1 ⟨j, hj⟩
+        else z.2 ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj⟩⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro f
+    funext j
+    by_cases hj : j ∈ T <;> simp [hj]
+  · intro z
+    rcases z with ⟨u, v⟩
+    apply Prod.ext
+    · funext i
+      simp [i.property]
+    · funext i
+      have hi : (i : Fin n) ∉ T := by
+        simpa [finsetComplement] using i.property
+      simp [hi]
 
 theorem harmonicLaw_summable (X W : ℕ) : Summable (harmonicLaw X W) := by
   classical
