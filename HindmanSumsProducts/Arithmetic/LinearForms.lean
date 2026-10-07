@@ -8308,6 +8308,47 @@ private theorem linearFormsPrimeAverage_error_envelope {n q d b m : ℕ}
 
 /-- Part 3. Transfer through the prime-slot law: the weighted average differs from the event
 probability by the base and CRT errors plus the uniform CRT expectation of the envelope. -/
+private theorem l_p3_finite_event_error_varying {α : Type*} [DecidableEq α]
+    (s : Finset α) (mass F R : α → ℝ) (E : α → Prop) (δ : ℝ)
+    (hmass : ∀ x ∈ s, 0 ≤ mass x)
+    (hF : ∀ x, E x → |F x - 1| ≤ δ + R x) :
+    |(∑ x ∈ s, mass x * (if E x then 1 else 0) * F x) -
+        ∑ x ∈ s, mass x * (if E x then 1 else 0)| ≤
+      δ * (∑ x ∈ s, mass x * (if E x then 1 else 0)) +
+        ∑ x ∈ s, mass x * (if E x then 1 else 0) * R x := by
+  classical
+  have hrewrite :
+      (∑ x ∈ s, mass x * (if E x then 1 else 0) * F x) -
+        ∑ x ∈ s, mass x * (if E x then 1 else 0) =
+      ∑ x ∈ s, mass x * (if E x then 1 else 0) * (F x - 1) := by
+    rw [← Finset.sum_sub_distrib]
+    apply Finset.sum_congr rfl
+    intro x hx
+    ring
+  have hterm (x : α) (hx : x ∈ s) :
+      |mass x * (if E x then 1 else 0) * (F x - 1)| ≤
+        mass x * (if E x then 1 else 0) * δ +
+          mass x * (if E x then 1 else 0) * R x := by
+    by_cases hEx : E x
+    · simpa [hEx, abs_mul, abs_of_nonneg (hmass x hx), mul_add,
+        mul_assoc, mul_left_comm, mul_comm] using
+        (mul_le_mul_of_nonneg_left (hF x hEx) (hmass x hx))
+    · simp [hEx]
+  calc
+    |(∑ x ∈ s, mass x * (if E x then 1 else 0) * F x) -
+        ∑ x ∈ s, mass x * (if E x then 1 else 0)| =
+        |∑ x ∈ s, mass x * (if E x then 1 else 0) * (F x - 1)| := by rw [hrewrite]
+    _ ≤ ∑ x ∈ s, |mass x * (if E x then 1 else 0) * (F x - 1)| :=
+      Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ x ∈ s,
+        (mass x * (if E x then 1 else 0) * δ +
+          mass x * (if E x then 1 else 0) * R x) :=
+      Finset.sum_le_sum fun x hx => hterm x hx
+    _ = δ * (∑ x ∈ s, mass x * (if E x then 1 else 0)) +
+        ∑ x ∈ s, mass x * (if E x then 1 else 0) * R x := by
+      rw [Finset.sum_add_distrib, ← Finset.sum_mul]
+      ring
+
 private theorem weightedLinearForms_error_transfer {n q d b m : ℕ}
     {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
@@ -8318,7 +8359,137 @@ private theorem weightedLinearForms_error_transfer {n q d b m : ℕ}
       (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) +
         ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
           uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r := by
-  sorry
+  classical
+  let lo : Fin m → ℕ := fun i => (S.primeStage.pool N (D.gap i)).lower
+  let hi : Fin m → ℕ := fun i => (S.primeStage.pool N (D.gap i)).upper
+  let T := linearFormsPrimeSupport lo hi
+  let μ : (Fin m → ℕ) → ℝ := independentPrimePoolMass lo hi
+  let B : ℝ := (D.V N : ℝ) ^ q
+  let δ : ℝ := B * D.epsilonBase N
+  let R (p : Fin m → ℕ) : ℝ :=
+    linearFormsCrtEnvelope D N (fun i => integerCRTResidues (N + 1) (D.V N) (p i))
+  have hB : 0 ≤ B := by positivity
+  have hδ : 0 ≤ δ := mul_nonneg hB (D.epsilonBase_nonnegative N)
+  have hzero (p : Fin m → ℕ) (hp : p ∉ T) : μ p = 0 := by
+    exact independentPrimePoolMass_zero_of_not_mem_linearFormsSupport lo hi p
+      (by simpa [T] using hp)
+  have hzeroAvg (p : Fin m → ℕ) (hp : p ∉ T) :
+      μ p * (if E p then 1 else 0) * linearFormsPrimeAverage D N p = 0 := by
+    rw [hzero p hp]
+    simp
+  have hzeroProb (p : Fin m → ℕ) (hp : p ∉ T) :
+      μ p * (if E p then 1 else 0) = 0 := by
+    rw [hzero p hp]
+    simp
+  have hzeroEnvelope (p : Fin m → ℕ) (hp : p ∉ T) : μ p * R p = 0 := by
+    rw [hzero p hp]
+    simp
+  have hmassNonneg (p : Fin m → ℕ) : 0 ≤ μ p := by
+    unfold μ independentPrimePoolMass
+    apply Finset.prod_nonneg
+    intro i hmem
+    exact primePoolLaw_nonneg_local (lo i) (hi i) (p i)
+  have htotalFin : (∑ p ∈ T, μ p) ≤ 1 := by
+    have htotal := independentPrimePoolMass_total_le_one lo hi
+    rw [tsum_eq_sum (s := T) hzero] at htotal
+    simpa [T, μ] using htotal
+  have heventMass :
+      (∑ p ∈ T, μ p * (if E p then 1 else 0)) ≤ 1 := by
+    calc
+      (∑ p ∈ T, μ p * (if E p then 1 else 0)) ≤ ∑ p ∈ T, μ p := by
+        apply Finset.sum_le_sum
+        intro p hp
+        by_cases hEp : E p <;> simp [hEp, hmassNonneg p]
+      _ ≤ 1 := htotalFin
+  have havg : weightedLinearFormsAverage D N E =
+      ∑ p ∈ T, μ p * (if E p then 1 else 0) * linearFormsPrimeAverage D N p := by
+    unfold weightedLinearFormsAverage
+    change (∑' p : Fin m → ℕ,
+      μ p * (if E p then 1 else 0) * linearFormsPrimeAverage D N p) = _
+    rw [tsum_eq_sum (s := T) hzeroAvg]
+  have hprob : weightedLinearFormsEventProbability D N E =
+      ∑ p ∈ T, μ p * (if E p then 1 else 0) := by
+    unfold weightedLinearFormsEventProbability independentPrimePoolProbability
+    change (∑' p : Fin m → ℕ, μ p * (if E p then 1 else 0)) = _
+    rw [tsum_eq_sum (s := T) hzeroProb]
+  have hpointwise (p : Fin m → ℕ) (hEp : E p) :
+      |linearFormsPrimeAverage D N p - 1| ≤ δ + R p := by
+    have hgood := hE p hEp
+    simpa [δ, B, R] using linearFormsPrimeAverage_error_envelope D N p hgood
+  have hfinite := l_p3_finite_event_error_varying T μ
+    (fun p => linearFormsPrimeAverage D N p) R E δ
+    (fun p hp => hmassNonneg p) hpointwise
+  have hRnonneg (p : Fin m → ℕ) : 0 ≤ R p :=
+    (linearFormsCrtEnvelope_bounds D N
+      (fun i => integerCRTResidues (N + 1) (D.V N) (p i))).1
+  have hEventEnvelope :
+      (∑ p ∈ T, μ p * (if E p then 1 else 0) * R p) ≤
+        ∑' p : Fin m → ℕ, μ p * R p := by
+    have hsum :
+        (∑' p : Fin m → ℕ, μ p * R p) = ∑ p ∈ T, μ p * R p :=
+      tsum_eq_sum (s := T) hzeroEnvelope
+    rw [hsum]
+    apply Finset.sum_le_sum
+    intro p hp
+    by_cases hEp : E p
+    · simp [hEp]
+    · simp [hEp]
+      exact mul_nonneg (hmassNonneg p) (hRnonneg p)
+  have hcrt :
+      |(∑' p : Fin m → ℕ, μ p * R p) -
+          ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r| ≤
+        B * D.epsilonCRT N := by
+    calc
+      |(∑' p : Fin m → ℕ, μ p * R p) -
+          ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r| ≤
+          B * finiteL1 (primeTupleCRTLaw lo hi (N + 1) (D.V N))
+            (uniformPrimeTupleCRTLaw (N + 1) (D.V N)) := by
+        apply primeCRT_expectation_error lo hi
+          (fun r => linearFormsCrtEnvelope D N r) B hB
+        intro r
+        have hr := linearFormsCrtEnvelope_bounds D N r
+        rw [abs_of_nonneg hr.1]
+        simpa [B] using hr.2
+      _ ≤ B * D.epsilonCRT N := by
+        apply mul_le_mul_of_nonneg_left _ hB
+        simpa [lo, hi] using D.crt_error_bound N
+  have hcrtUpper :
+      (∑' p : Fin m → ℕ, μ p * R p) ≤
+        (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) +
+            B * D.epsilonCRT N := by
+    have h := abs_le.mp hcrt
+    linarith
+  have htransferred := le_trans hEventEnvelope hcrtUpper
+  have hweighted :
+      |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
+        δ * (∑ p ∈ T, μ p * (if E p then 1 else 0)) +
+          (∑ p ∈ T, μ p * (if E p then 1 else 0) * R p) := by
+    rw [havg, hprob]
+    exact hfinite
+  calc
+    |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
+        δ * (∑ p ∈ T, μ p * (if E p then 1 else 0)) +
+          (∑ p ∈ T, μ p * (if E p then 1 else 0) * R p) := hweighted
+    _ ≤ δ +
+        (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) +
+          B * D.epsilonCRT N := by
+      calc
+        _ ≤ δ + (∑ p ∈ T, μ p * (if E p then 1 else 0) * R p) :=
+          by linarith [mul_le_mul_of_nonneg_left heventMass hδ]
+        _ ≤ δ + ((∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+              uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+                linearFormsCrtEnvelope D N r) + B * D.epsilonCRT N) :=
+          by linarith [htransferred]
+        _ = _ := by ring
+    _ = (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) +
+        ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r := by
+      dsimp [δ, B]
+      ring
 
 /-- Part 4. The uniform CRT expectation of the capped envelope is eventually `O(1/(N+1))`. -/
 private theorem linearForms_uniformCrtEnvelope_eventual {n q d b m : ℕ}
