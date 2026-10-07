@@ -2098,6 +2098,76 @@ theorem c_elim2_boxWeightRowFactor_nonneg {α β : Type u} [Fintype α]
   unfold c_elim2_boxWeightRowFactor
   exact Finset.prod_nonneg (fun ω hω => hweight ω)
 
+theorem c_elim2_boxWeightedShiftStateStep {α β : Type u} [Fintype α]
+    [DecidableEq α] [Fintype β] (D : c_elim2_AdditiveBoxData α β)
+    (E : Finset α) (R : α) (hR : R ∉ E) (μ : β → ℝ)
+    (H₀ : ∀ b, c_elim2_ShiftOutside E R (D.shiftLength b) → ℝ)
+    (Ω : ∀ b, c_elim2_ShiftOutside E R (D.shiftLength b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (D.shiftLength b) →
+      Fin (D.shiftLength b) → ℝ)
+    (hL : ∀ b, 0 < D.shiftLength b)
+    (hμ : ∀ b, 0 ≤ μ b) (hΩ : ∀ b o, 0 ≤ Ω b o)
+    (h₀ : ∀ b o, |H₀ b o| ≤ Ω b o)
+    (hCS : ∀ {γ : Type u} (μ Ω H₀ H₁ : γ → ℝ)
+      (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+      (h₀ : ∀ x, |H₀ x| ≤ Ω x)
+      (hΩs : Summable (fun x => μ x * Ω x))
+      (h₁s : Summable (fun x => μ x * (Ω x * H₁ x ^ 2))),
+      |∑' x, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+        (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2))
+    (hCurrent : ∀ b,
+      c_elim2_shiftStateAverage E (D.shiftLength b)
+        (c_elim2_csCurrentIntegrand E R (fun b => D.shiftLength b) H₀ H b) =
+      c_elim2_shiftStateAverage E (D.shiftLength b)
+        (c_elim2_boxStateIntegrand D E b))
+    (hNext : ∀ b,
+      c_elim2_shiftStateAverage (insert R E) (D.shiftLength b)
+        (c_elim2_csNextIntegrand E R hR (fun b => D.shiftLength b) Ω H b) =
+      c_elim2_shiftStateAverage (insert R E) (D.shiftLength b)
+        (c_elim2_boxStateIntegrand D (insert R E) b)) :
+    |c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+        (c_elim2_boxStateIntegrand D E)| ^ 2 ≤
+      c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+        (c_elim2_csWeightIntegrand E R (fun b => D.shiftLength b) Ω) *
+      c_elim2_jointStateAverage (insert R E) μ (fun b => D.shiftLength b)
+        (c_elim2_boxStateIntegrand D (insert R E)) := by
+  classical
+  have hcurrent :
+      c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+        (c_elim2_csCurrentIntegrand E R (fun b => D.shiftLength b) H₀ H) =
+      c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+        (c_elim2_boxStateIntegrand D E) := by
+    unfold c_elim2_jointStateAverage
+    apply Finset.sum_congr rfl
+    intro b hb
+    rw [hCurrent b]
+  have hnext :
+      c_elim2_jointStateAverage (insert R E) μ (fun b => D.shiftLength b)
+        (c_elim2_csNextIntegrand E R hR (fun b => D.shiftLength b) Ω H) =
+      c_elim2_jointStateAverage (insert R E) μ (fun b => D.shiftLength b)
+        (c_elim2_boxStateIntegrand D (insert R E)) := by
+    unfold c_elim2_jointStateAverage
+    apply Finset.sum_congr rfl
+    intro b hb
+    rw [hNext b]
+  calc
+    |c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+        (c_elim2_boxStateIntegrand D E)| ^ 2 =
+      |c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+        (c_elim2_csCurrentIntegrand E R (fun b => D.shiftLength b) H₀ H)| ^ 2 := by
+          rw [hcurrent]
+    _ ≤ c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+          (c_elim2_csWeightIntegrand E R (fun b => D.shiftLength b) Ω) *
+        c_elim2_jointStateAverage (insert R E) μ (fun b => D.shiftLength b)
+          (c_elim2_csNextIntegrand E R hR (fun b => D.shiftLength b) Ω H) :=
+            c_elim2_weightedShiftStateStep E R hR μ
+              (fun b => D.shiftLength b) hL H₀ Ω H hμ hΩ h₀ hCS
+    _ = c_elim2_jointStateAverage E μ (fun b => D.shiftLength b)
+          (c_elim2_csWeightIntegrand E R (fun b => D.shiftLength b) Ω) *
+        c_elim2_jointStateAverage (insert R E) μ (fun b => D.shiftLength b)
+          (c_elim2_boxStateIntegrand D (insert R E)) := by
+            rw [hnext]
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
