@@ -2159,6 +2159,34 @@ theorem chainScale_ratio_num_coprime_eventually {K s m : ℕ} {Aset : Finset ℚ
     (Nat.Prime.coprime_iff_not_dvd hr).2 hnot
   simpa [t, x, y, d] using hcop.symm
 
+theorem rational_scale_num_cross_eq {m : ℕ} (c : Fin m → ℚ)
+    (a b j k : Fin m) (ha : c a ≠ 0) (hb : c b ≠ 0)
+    (haj : (c j / c a).den = 1) (hbk : (c k / c b).den = 1)
+    (hak : (c k / c a).den = 1) (hbj : (c j / c b).den = 1) :
+    (c j / c a).num * (c k / c b).num =
+      (c k / c a).num * (c j / c b).num := by
+  have hrat : c j / c a * (c k / c b) = c k / c a * (c j / c b) := by
+    field_simp [ha, hb]
+  have hnumA : ((c j / c a).num : ℚ) = c j / c a :=
+    (Rat.den_eq_one_iff _).mp haj
+  have hnumB : ((c k / c b).num : ℚ) = c k / c b :=
+    (Rat.den_eq_one_iff _).mp hbk
+  have hnumC : ((c k / c a).num : ℚ) = c k / c a :=
+    (Rat.den_eq_one_iff _).mp hak
+  have hnumD : ((c j / c b).num : ℚ) = c j / c b :=
+    (Rat.den_eq_one_iff _).mp hbj
+  have hcast :
+      (((c j / c a).num * (c k / c b).num : ℤ) : ℚ) =
+        (((c k / c a).num * (c j / c b).num : ℤ) : ℚ) := by
+    calc
+      _ = ((c j / c a).num : ℚ) * ((c k / c b).num : ℚ) := by simp
+      _ = (c j / c a) * (c k / c b) := by rw [hnumA, hnumB]
+      _ = (c k / c a) * (c j / c b) := hrat
+      _ = ((c k / c a).num : ℚ) * ((c j / c b).num : ℚ) := by
+        rw [hnumC, hnumD]
+      _ = _ := by simp
+  exact_mod_cast hcast
+
 theorem intCast_ne_zero_of_natAbs_coprime {r : ℕ} (hr : r.Prime) (z : ℤ)
     (hz : Nat.Coprime z.natAbs r) : (z : ZMod r) ≠ 0 := by
   intro hzero
