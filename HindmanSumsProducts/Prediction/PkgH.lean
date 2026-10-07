@@ -205,7 +205,7 @@ theorem atQ_mem_Icc_of_mem (f : ℤ → ℝ) (q : ℚ)
   · norm_num
 
 /-- The raw harmonic weights are nonnegative, including when the interval is empty. -/
-theorem harmonicNatLaw_nonneg (X W n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
+theorem pkgH_harmonicNatLaw_nonneg (X W n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
   have hnorm : 0 ≤ harmonicNormalizer X W := by
     unfold harmonicNormalizer
     exact Finset.sum_nonneg fun j hj => div_nonneg (by norm_num) (by positivity)
@@ -215,14 +215,14 @@ theorem harmonicNatLaw_nonneg (X W n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
   · positivity
 
 /-- The tail-product mass induced by harmonic coordinates is nonnegative. -/
-theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
+theorem pkgH_parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) : 0 ≤ parameterTailProductLaw A N T σ := by
   unfold parameterTailProductLaw
   apply tsum_nonneg
   intro t
   apply mul_nonneg
   · split_ifs <;> positivity
-  · exact Finset.prod_nonneg fun j hj => harmonicNatLaw_nonneg (A.X N j)
+  · exact Finset.prod_nonneg fun j hj => pkgH_harmonicNatLaw_nonneg (A.X N j)
       (primorial (N + 1)) (t j)
 
 /-- Nonnegative tail masses induce a nonnegative divisor weight. -/
@@ -236,10 +236,10 @@ theorem nuB_nonneg_of_nonneg (tailLaw : TailProductLaw) (hTail : ∀ σ, 0 ≤ t
   · split_ifs <;> positivity
 
 /-- The divisor weights used by Prediction are nonnegative. -/
-theorem nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (B : Block n) (y : ℤ) :
+theorem pkgH_nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (B : Block n) (y : ℤ) :
     0 ≤ nu A N B y := by
   exact nuB_nonneg_of_nonneg (parameterTailProductLaw A N B.2.val)
-    (parameterTailProductLaw_nonneg A N B.2.val) y
+    (pkgH_parameterTailProductLaw_nonneg A N B.2.val) y
 
 /-- The correlation package's copied tail law is definitionally the §3 tail law. -/
 @[simp] theorem fromArithmetic_parameterTailProductLaw_eq {n : ℕ}
@@ -1509,7 +1509,7 @@ theorem chainCount_telescope_helper (m : ℕ) (MS : MasterScales K As sl Dm)
                   simpa [anchor, chainWeight, nu, corrScales,
                     fromArithmetic_parameterTailProductLaw_eq] using
                     (hG₂ N (C.block (anchor J hJ2)) (a (anchor J hJ2)) c y)
-            · have hν := nu_nonneg A N (C.block (J.max' hJ)) y
+            · have hν := pkgH_nu_nonneg A N (C.block (J.max' hJ)) y
               have hgd : gd N J y = nu A N (C.block (J.max' hJ)) y := by
                 simp [gd, hJ2, stage, hJ]
               rw [hgd, abs_of_nonneg hν]
@@ -1599,10 +1599,10 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.parameterJointBlockProductMass_support_finite
 #print axioms HindmanSumsProducts.Prediction.weightedPivotTupleMass_support_finite
 #print axioms HindmanSumsProducts.Prediction.abs_tsum_mul_sub_le_tsum_abs_diff
-#print axioms HindmanSumsProducts.Prediction.harmonicNatLaw_nonneg
-#print axioms HindmanSumsProducts.Prediction.parameterTailProductLaw_nonneg
+#print axioms HindmanSumsProducts.Prediction.pkgH_harmonicNatLaw_nonneg
+#print axioms HindmanSumsProducts.Prediction.pkgH_parameterTailProductLaw_nonneg
 #print axioms HindmanSumsProducts.Prediction.nuB_nonneg_of_nonneg
-#print axioms HindmanSumsProducts.Prediction.nu_nonneg
+#print axioms HindmanSumsProducts.Prediction.pkgH_nu_nonneg
 #print axioms HindmanSumsProducts.Prediction.filterUpperBound_abs_tendsto_zero
 #print axioms HindmanSumsProducts.Prediction.harmonicLaw_support_finite
 #print axioms HindmanSumsProducts.Prediction.pivotMass_support_finite
