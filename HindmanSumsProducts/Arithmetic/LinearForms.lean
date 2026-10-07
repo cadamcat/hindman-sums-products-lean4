@@ -8491,6 +8491,32 @@ private theorem weightedLinearForms_error_transfer {n q d b m : ℕ}
       dsimp [δ, B]
       ring
 
+private theorem g_p4_eventual_log_scale {n : ℕ} (A : OAI.SourceAdmissible.Parameters n) :
+    ∀ᶠ N in atTop, ∀ i : Fin n,
+      4 * (primorial (N + 1) : ℝ) ≤ Real.log (A.X N i : ℝ) := by
+  have hscale : ∀ᶠ N in atTop, ∀ i : Fin n,
+      4 * primorial (N + 1) ≤ A.X N i ∧
+      4 * (primorial (N + 1) : ℝ) ≤ Real.log (A.X N i : ℝ) := by
+    simp only [Filter.eventually_all]
+    intro i
+    have hratio : ∀ᶠ N in atTop,
+        (4 : ℝ) ≤ Real.log (A.X N i : ℝ) / (A.H N i : ℝ) := by
+      simpa using
+        (A.Xdom i 1 (by norm_num : (0 : ℝ) < 1)).eventually_ge_atTop (4 : ℝ)
+    filter_upwards [(A.eventual_X i), hratio] with N hX hratio
+    have hMleH : A.M N ≤ A.H N i :=
+      Nat.le_of_dvd (A.Hpos N i) (A.Hdiv N i)
+    have hWleH : primorial (N + 1) ≤ A.H N i := (A.Wle N).trans hMleH
+    have hHposR : 0 < (A.H N i : ℝ) := by exact_mod_cast A.Hpos N i
+    have hWleHR : (primorial (N + 1) : ℝ) ≤ (A.H N i : ℝ) := by
+      exact_mod_cast hWleH
+    have hlogH : 4 * (A.H N i : ℝ) ≤ Real.log (A.X N i : ℝ) :=
+      (le_div_iff₀ hHposR).mp hratio
+    exact ⟨hX, (mul_le_mul_of_nonneg_left hWleHR (by norm_num)).trans hlogH⟩
+  filter_upwards [hscale] with N hscaleN
+  intro i
+  exact (hscaleN i).2
+
 /-- Part 4. The uniform CRT expectation of the capped envelope is eventually `O(1/(N+1))`. -/
 private theorem linearForms_uniformCrtEnvelope_eventual {n q d b m : ℕ}
     {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
@@ -8500,7 +8526,43 @@ private theorem linearForms_uniformCrtEnvelope_eventual {n q d b m : ℕ}
       (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
         uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) ≤
         C / (N + 1 : ℝ) := by
-  sorry
+  classical
+  let B : ℕ := linearFormsTestHeight tests
+  have hB : 0 < B := by
+    dsimp [B, linearFormsTestHeight]
+    omega
+  have hsize := linearFormsTestHeight_spec tests
+  obtain ⟨C₁, hC₁pos, hlocal⟩ :=
+    averagedLocalBeta_prime_square_bound (q := q) (b := b) tests B hB
+  have hC₁nonneg : 0 ≤ C₁ := le_of_lt hC₁pos
+  let C : ℝ := (6 : ℝ) ^ (b * q) * (Real.exp C₁ * C₁)
+  have hCpos : 0 < C := by
+    dsimp [C]
+    positivity
+  refine ⟨C, hCpos, ?_⟩
+  have hlog_ev := g_p4_eventual_log_scale S.core.parameters
+  filter_upwards [hlog_ev] with N hlogN
+  have hwpos : 0 < N + 1 := Nat.succ_pos N
+  have hexcess :=
+    linearForms_uniformCrtEnvelope_excess D N hlogN B hB hsize C₁ hC₁nonneg hlocal
+  have htail :=
+    inverseSquare_prime_product_tail (N + 1) (D.V N) hwpos C₁ hC₁nonneg
+  change (∏ p ∈ linearFormsPrimeSet D N, (1 + C₁ / (p : ℝ) ^ 2)) - 1 ≤
+    (Real.exp C₁ * C₁) / ((N + 1 : ℕ) : ℝ) at htail
+  have hsix_nonneg : 0 ≤ (6 : ℝ) ^ (b * q) := by positivity
+  have hmul := mul_le_mul_of_nonneg_left htail hsix_nonneg
+  have hscale : (6 : ℝ) ^ (b * q) * ((Real.exp C₁ * C₁) / ((N + 1 : ℕ) : ℝ)) =
+      C / (N + 1 : ℝ) := by
+    dsimp [C]
+    push_cast
+    ring
+  calc
+    (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+      uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) ≤
+        (6 : ℝ) ^ (b * q) *
+          ((∏ p ∈ linearFormsPrimeSet D N, (1 + C₁ / (p : ℝ) ^ 2)) - 1) := hexcess
+    _ ≤ (6 : ℝ) ^ (b * q) * ((Real.exp C₁ * C₁) / ((N + 1 : ℕ) : ℝ)) := hmul
+    _ = C / (N + 1 : ℝ) := hscale
 
 private theorem independentPrimePoolProbability_bounds {m : ℕ}
     (lo hi : Fin m → ℕ) (E : (Fin m → ℕ) → Prop) :
