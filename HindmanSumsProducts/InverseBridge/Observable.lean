@@ -1016,6 +1016,47 @@ private theorem linearizedObservableLift_locally_equi {L : Type*} [LieRing L]
       _ < ε := by linarith
   exact lt_of_le_of_lt hsumdiff hsmall
 
+/-- A uniform neighborhood estimate for an invariant lift descends to any
+compatible metric on the quotient. -/
+theorem ObservableDescent.equicontinuous_of_lift {G : Type*} [Group G]
+    [TopologicalSpace G] [IsTopologicalGroup G] {Γ : Subgroup G}
+    [MetricSpace (G ⧸ Γ)] {Y : Type*} [MetricSpace Y]
+    (O : ObservableDescent G Γ Y)
+    (hmetric : QuotientGroup.instTopologicalSpace Γ =
+      (inferInstance : MetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace)
+    (hloc : ∀ g ε, 0 < ε →
+      ∃ U ∈ 𝓝 g, ∀ g' ∈ U, ∀ H : LipOne Y,
+        |O.lift H.1 g' - O.lift H.1 g| < ε) :
+    ∀ x ε, 0 < ε →
+      ∃ δ, 0 < δ ∧ ∀ y, dist y x < δ → ∀ H : LipOne Y,
+        |O.desc H.1 y - O.desc H.1 x| < ε := by
+  intro x ε hε
+  refine Quotient.inductionOn x ?_
+  intro g
+  obtain ⟨U, hU, hclose⟩ := hloc g ε hε
+  obtain ⟨V, hVU, hVopen, hgV⟩ := mem_nhds_iff.mp hU
+  let q : G → G ⧸ Γ := QuotientGroup.mk
+  have hqopen : IsOpen (q '' V) :=
+    QuotientGroup.isOpenQuotientMap_mk.isOpenMap V hVopen
+  have hqg : q g ∈ q '' V := ⟨g, hgV, rfl⟩
+  have hqmem : q '' V ∈ 𝓝 (q g) := hqopen.mem_nhds hqg
+  have hqmemMetric : q '' V ∈
+      @nhds (G ⧸ Γ)
+        (inferInstance : MetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace (q g) := by
+    rw [← hmetric]
+    exact hqmem
+  obtain ⟨δ, hδ, hball⟩ := Metric.mem_nhds_iff.mp hqmemMetric
+  refine ⟨δ, hδ, ?_⟩
+  intro y hy H
+  have hyball : y ∈ Metric.ball (q g) δ := by
+    simpa [Metric.mem_ball, dist_comm] using hy
+  obtain ⟨g', hg'V, hgy⟩ := hball hyball
+  calc
+    |O.desc H.1 y - O.desc H.1 (q g)| =
+        |O.desc H.1 (q g') - O.desc H.1 (q g)| := by rw [← hgy]
+    _ = |O.lift H.1 g' - O.lift H.1 g| := by rw [O.desc_mk, O.desc_mk]
+    _ < ε := hclose g' (hVU hg'V) H
+
 private theorem realTranslationElement_zero {L : Type*} [LieRing L]
     [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s) :
     realTranslationElement F hs 0 = 1 := by
