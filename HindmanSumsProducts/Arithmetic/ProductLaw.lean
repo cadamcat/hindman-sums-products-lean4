@@ -76,7 +76,12 @@ theorem block_product_weight_average_is_nu {n : ℕ}
     (∑' σ : ℕ, parameterTailProductLaw A N B.2.val σ *
       dilationReference (harmonicLaw (A.X N B.1) (primorial (N + 1))) σ z) =
       weightedPivotMass A N B z := by
-  sorry
+  classical
+  unfold weightedPivotMass nuB dilationReference
+  rw [← tsum_mul_right]
+  apply tsum_congr
+  intro σ
+  by_cases hdiv : (σ : ℤ) ∣ z <;> simp [hdiv] <;> ring
 
 end
 end HindmanSumsProducts
