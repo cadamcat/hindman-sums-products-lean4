@@ -5,6 +5,7 @@ import HindmanSumsProducts.Correlation.PkgMask
 import HindmanSumsProducts.Correlation.PkgRows
 import HindmanSumsProducts.Correlation.PkgElim
 import HindmanSumsProducts.Correlation.PkgTest
+import HindmanSumsProducts.Correlation.PkgTest2
 
 /-!
 # Removing multiplicative masks and detecting a shifted error (§4)
