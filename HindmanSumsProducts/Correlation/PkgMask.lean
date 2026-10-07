@@ -10,6 +10,14 @@ open Filter
 open FromArithmetic
 attribute [local instance] Classical.propDecidable
 
+theorem rationalResidue_eq_num_of_den_one {p : ℕ} (hp : p.Prime) (x : ℚ)
+    (hx : x.den = 1) :
+    FromArithmetic.rationalResidue p hp x = (x.num : ZMod p) := by
+  letI : Fact p.Prime := ⟨hp⟩
+  unfold FromArithmetic.rationalResidue
+  rw [hx]
+  simp only [Nat.cast_one, div_one]
+
 theorem SuperPolynomialSmall.mul_rpow_tendsto {e V : ℕ → ℝ}
     (hsmall : SuperPolynomialSmall e V) (he : ∀ᶠ N in atTop, 0 ≤ e N)
     (hV : ∀ᶠ N in atTop, 1 ≤ V N) (B : ℝ) :
@@ -2077,9 +2085,39 @@ theorem chainScale_num_coprime_of_prime_gt_eventually {K s m : ℕ} {Aset : Fins
 def RowTemplate.valueNat {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (k : Fin m) : ℕ := (T.entry k).elim 0 fun e => ∏ i, p i ^ e i
 
+theorem RowTemplate.valueNat_cast_ne_zero_of_slot_not_dvd {m q : ℕ}
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) (r : ℕ)
+    (hr : r.Prime) (hk : k ∈ T.support) (hslot : ∀ i, ¬ r ∣ p i) :
+    ((T.valueNat p k : ℕ) : ZMod r) ≠ 0 := by
+  letI : Fact r.Prime := ⟨hr⟩
+  obtain ⟨e, he⟩ := T.entry_exists_of_mem_support k hk
+  have hv : T.valueNat p k = ∏ i, p i ^ e i := by
+    simp [RowTemplate.valueNat, he]
+  rw [hv]
+  simp only [Nat.cast_prod, Nat.cast_pow]
+  apply Finset.prod_ne_zero_iff.mpr
+  intro i hi
+  apply pow_ne_zero
+  intro hz
+  exact hslot i ((ZMod.natCast_eq_zero_iff (p i) r).mp hz)
+
 theorem RowTemplate.value_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) : T.value p k = (T.valueNat p k : ℚ) := by
   cases h : T.entry k <;> simp [RowTemplate.value, RowTemplate.valueNat, h]
+
+theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (k : Fin m) :
+    evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) = T.valueNat p k := by
+  cases h : T.entry k <;>
+    simp [evalIntegerPolynomial, RowTemplate.poly, RowTemplate.valueNat, h,
+      MvPolynomial.eval_monomial]
+
+theorem evalIntegerPolynomial_rename {q s : ℕ} (ι : Fin q ↪ Fin s)
+    (P : IntegerPolynomial q) (p : Fin s → ℕ) :
+    evalIntegerPolynomial (MvPolynomial.rename ι P) (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial P (fun i => (p (ι i) : ℤ)) := by
+  unfold evalIntegerPolynomial
+  exact MvPolynomial.eval_rename ι (fun i => (p i : ℤ)) P
 
 theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
