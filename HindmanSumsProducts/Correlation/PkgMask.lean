@@ -885,7 +885,8 @@ theorem exists_branch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       (e : RowBranchIndex I ≃ Fin r'),
       (∀ x : RowBranchIndex I,
         Sh'.row (e x) = RowBranchTemplate Sh L R x.val.1 x.val.2) ∧
-        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧
+          Sh'.star = e ⟨(Sh.star, 0), Or.inl rfl⟩ := by
   classical
   letI : DecidablePred I := Classical.decPred I
   let β := RowBranchIndex I
@@ -955,7 +956,7 @@ theorem exists_branch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
   have hrowmap (x : β) : Sh'.row (e x) = btemp x.val := by
     change btemp (e.symm (e x)).val = btemp x.val
     simp
-  refine ⟨Fintype.card β, Sh', e, ?_, hcard, hstar⟩
+  refine ⟨Fintype.card β, Sh', e, ?_, hcard, hstar, rfl⟩
   intro x
   exact hrowmap x
 
@@ -969,7 +970,8 @@ theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       (∀ x, Sh'.row (e x) = RowBranchTemplate Sh
         (fun i => (Sh.row i).scaleBranchP u)
         (fun i => (Sh.row i).scaleBranchQ u) x.val.1 x.val.2) ∧
-        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧
+        Sh'.star = e ⟨(Sh.star, 0), Or.inl rfl⟩ := by
   let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchP u
   let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchQ u
   let I : Fin r → Prop := fun i => (L i).Parallel (R i)
@@ -1008,11 +1010,12 @@ theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       ((Sh.row Sh.star).scaleBranchP u).support = (Sh.row Sh.star).support :=
         RowTemplate.scaleBranchP_support _ _
       _ = Jstar := hStarSupport
-  obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+  obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
     exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
-  refine ⟨r', Sh', ?_, ?_, hr', hstar'⟩
+  refine ⟨r', Sh', ?_, ?_, hr', hstar', ?_⟩
   · simpa [I, L, R] using e
   · simpa [I, L, R, RowBranchTemplate] using hrow
+  · simpa [I, L, R] using hstarIndex
 
 theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar : Finset (Fin m)) (hStarSupport : (Sh.row Sh.star).support = Jstar)
@@ -1024,7 +1027,8 @@ theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       (∀ x, Sh'.row (e x) = RowBranchTemplate Sh
         (fun i => (Sh.row i).scaleBalancedP u v)
         (fun i => (Sh.row i).scaleBalancedQ u v) x.val.1 x.val.2) ∧
-        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧
+        Sh'.star = e ⟨(Sh.star, 0), Or.inl rfl⟩ := by
   let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedP u v
   let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedQ u v
   let I : Fin r → Prop := fun i => (L i).Parallel (R i)
@@ -1068,11 +1072,12 @@ theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       ((Sh.row Sh.star).scaleBalancedP u v).support = (Sh.row Sh.star).support :=
         RowTemplate.scaleBalancedP_support _ _ _
       _ = Jstar := hStarSupport
-  obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+  obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
     exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
-  refine ⟨r', Sh', ?_, ?_, hr', hstar'⟩
+  refine ⟨r', Sh', ?_, ?_, hr', hstar', ?_⟩
   · simpa [I, L, R] using e
   · simpa [I, L, R, RowBranchTemplate] using hrow
+  · simpa [I, L, R] using hstarIndex
 
 theorem card_nonempty_mask_subsets (m : ℕ) :
     Fintype.card {U : Finset (Fin m) // U.Nonempty} = maskCount m := by
@@ -3222,6 +3227,67 @@ theorem RowTemplate.rowForm_eq_monomial_scale_of_parallel {m q : ℕ}
 def dropPrimeTuple2 {q : ℕ} (p : Fin (q + 2) → ℕ) : Fin q → ℕ :=
   fun i => p i.succ.succ
 
+theorem RowTemplate.anchor_eq_of_support_eq {m q q' : ℕ}
+    (T : RowTemplate m q) (U : RowTemplate m q')
+    (h : T.support = U.support) : T.anchor = U.anchor := by
+  apply le_antisymm
+  · apply Finset.max'_le
+    intro k hk
+    have hk' : k ∈ U.support := by simpa [h] using hk
+    exact Finset.le_max' U.support k hk'
+  · apply Finset.max'_le
+    intro k hk
+    have hk' : k ∈ T.support := by simpa [h] using hk
+    exact Finset.le_max' T.support k hk'
+
+def outsideBranchMaskFunction {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u : Fin m) (U : Finset (Fin m))
+    (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
+  f U (dropPrimeTuple2 p)
+      ((if u ∈ U then (p 1 : ℤ) else 1) * y) *
+    f U (dropPrimeTuple2 p)
+      ((if u ∈ U then (p 0 : ℤ) else 1) * y)
+
+def balancedBranchMaskFunction {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u v : Fin m) (U : Finset (Fin m))
+    (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
+  f U (dropPrimeTuple2 p)
+      ((if u ∈ U then (p 0 : ℤ) else 1) *
+        (if v ∈ U then (p 1 : ℤ) else 1) * y) *
+    f U (dropPrimeTuple2 p)
+      ((if v ∈ U then (p 0 : ℤ) else 1) *
+        (if u ∈ U then (p 1 : ℤ) else 1) * y)
+
+theorem outsideBranchMaskFunction_abs_le {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ) (y : ℤ)
+    (hf : ∀ U p y, |f U p y| ≤ 1) :
+    |outsideBranchMaskFunction f u U p y| ≤ 1 := by
+  unfold outsideBranchMaskFunction
+  rw [abs_mul]
+  calc
+    |f U (dropPrimeTuple2 p) ((if u ∈ U then (p 1 : ℤ) else 1) * y)| *
+        |f U (dropPrimeTuple2 p) ((if u ∈ U then (p 0 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+          exact mul_le_mul (hf U _ _) (hf U _ _) (abs_nonneg _) (by norm_num)
+    _ = 1 := by norm_num
+
+theorem balancedBranchMaskFunction_abs_le {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u v : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ) (y : ℤ)
+    (hf : ∀ U p y, |f U p y| ≤ 1) :
+    |balancedBranchMaskFunction f u v U p y| ≤ 1 := by
+  unfold balancedBranchMaskFunction
+  rw [abs_mul]
+  calc
+    |f U (dropPrimeTuple2 p)
+          ((if u ∈ U then (p 0 : ℤ) else 1) * (if v ∈ U then (p 1 : ℤ) else 1) * y)| *
+        |f U (dropPrimeTuple2 p)
+          ((if v ∈ U then (p 0 : ℤ) else 1) * (if u ∈ U then (p 1 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+          exact mul_le_mul (hf U _ _) (hf U _ _) (abs_nonneg _) (by norm_num)
+    _ = 1 := by norm_num
+
 theorem extendPrimeTuple2_drop {q : ℕ} (p : Fin (q + 2) → ℕ) :
     extendPrimeTuple (extendPrimeTuple (dropPrimeTuple2 p) (p 1)) (p 0) = p := by
   funext i
@@ -3283,6 +3349,10 @@ noncomputable def combineParallelRowFunction {q : ℕ}
     (W : ℤ → ℝ) (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
   f (dropPrimeTuple2 p) y *
     atQ (f (dropPrimeTuple2 p)) (scale p * (y : ℚ)) / W y
+
+noncomputable def RowTemplate.parallelScaleFactor {m q : ℕ}
+    (T T' : RowTemplate m q) (hpar : T.Parallel T') (p : Fin q → ℕ) : ℚ :=
+  ∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)
 
 theorem combineParallelRowFunction_abs_le {q : ℕ}
     (f : (Fin q → ℕ) → ℤ → ℝ) (scale : (Fin (q + 2) → ℕ) → ℚ)
@@ -3651,6 +3721,53 @@ theorem chainWeight_scaleBalanced_invariant {K s m : ℕ} {Aset : Finset ℚ}
     simp only [if_pos hsingleV] at hden ⊢
     exact chainWeight_rat_div_mul_eq_of_prime_gt S C N d (p 0) (p 1)
       hp₀ hp₁ hV₀ hV₁ hne y hden
+
+noncomputable def mergedBranchRowFunction {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ) (j : Fin r') (y : ℤ) : ℝ := by
+  classical
+  let x := e.symm j
+  by_cases h : I x.val.1
+  · by_cases hg : good p
+    ·
+      let hpar : (L x.val.1).Parallel (R x.val.1) := hInv x.val.1 |>.mp h
+      exact combineParallelRowFunction (f x.val.1)
+        (fun p' => RowTemplate.parallelScaleFactor (L x.val.1) (R x.val.1) hpar p')
+        (W x.val.1) p y
+    · exact 0
+  · exact f x.val.1 (dropPrimeTuple2 p) y
+
+theorem mergedBranchRowFunction_abs_le {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ)
+    (hf : ∀ i p y, |f i p y| ≤ W i y)
+    (hW : ∀ i y, 0 ≤ W i y) (hWpos : ∀ i y, 0 < W i y)
+    (hinv : ∀ i (h : I i) (p : Fin (q + 2) → ℕ) (y : ℤ), good p →
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp h) p * (y : ℚ)).den = 1 →
+      W i ((RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp h) p *
+        (y : ℚ)).num) = W i y) (j : Fin r') (y : ℤ) :
+    |mergedBranchRowFunction good L R e hInv f W p j y| ≤ W (e.symm j).val.1 y := by
+  classical
+  let x := e.symm j
+  by_cases h : I x.val.1
+  · by_cases hg : good p
+    · have hInvRow := hInv x.val.1 |>.mp h
+      have hBound := combineParallelRowFunction_abs_le (f x.val.1)
+        (fun p' => RowTemplate.parallelScaleFactor (L x.val.1) (R x.val.1) hInvRow p')
+        (W x.val.1) p
+        (hW x.val.1) (hWpos x.val.1) (hf x.val.1)
+        (fun y hden => hinv x.val.1 h p y hg hden)
+      simpa [mergedBranchRowFunction, x, h, hg, hInvRow] using hBound y
+    · simpa [mergedBranchRowFunction, x, h, hg] using hW x.val.1 y
+  · simpa [mergedBranchRowFunction, x, h] using hf x.val.1 (dropPrimeTuple2 p) y
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
@@ -4024,6 +4141,132 @@ noncomputable def pivotMassSupport {K s m : ℕ} {Aset : Finset ℚ}
   Fintype.piFinset fun k =>
     harmonicLawSupport (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
 
+noncomputable def pkgMask_coordinateSplit {m : ℕ} (u : Fin m) :
+    (Fin m → ℤ) ≃ ℤ × (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) := by
+  refine
+    { toFun := fun z => (z u, fun i => z i.1)
+      invFun := fun x k =>
+        if hk : k = u then x.1
+        else x.2 ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro hmem
+    exact hk (Finset.mem_singleton.mp hmem)
+  · intro z
+    funext k
+    by_cases hk : k = u <;> simp [hk]
+  · intro x
+    apply Prod.ext
+    · simp
+    · funext i
+      have hnot : (i : Fin m) ≠ u := by
+        intro hEq
+        have hmem : (i : Fin m) ∈ ({u} : Finset (Fin m)) := by simp [hEq]
+        exact (Finset.mem_filter.mp i.property).2 hmem
+      simp [hnot]
+
+noncomputable def pkgMask_coordinateJoin {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) : Fin m → ℤ :=
+  (pkgMask_coordinateSplit u).symm (y, w)
+
+noncomputable def pkgMask_pivotRestMass {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) : ℝ :=
+  ∏ i : finsetComplement ({u} : Finset (Fin m)),
+    harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (w i)
+
+theorem pkgMask_pivotRestMass_zero_of_not_mem {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
+    (hw : w ∉ Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
+      harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))) :
+    pkgMask_pivotRestMass S C N u w = 0 := by
+  have hnot : ¬ ∀ i : finsetComplement ({u} : Finset (Fin m)),
+      w i ∈ harmonicLawSupport (S.core.parameters.X N (C.block i.1).1)
+        (primorial (N + 1)) := by
+    intro hall
+    apply hw
+    exact Fintype.mem_piFinset.mpr hall
+  push_neg at hnot
+  obtain ⟨i, hi⟩ := hnot
+  unfold pkgMask_pivotRestMass
+  exact Finset.prod_eq_zero (f := fun j : finsetComplement ({u} : Finset (Fin m)) =>
+    harmonicLaw (S.core.parameters.X N (C.block j.1).1) (primorial (N + 1)) (w j))
+    (Finset.mem_univ i) (harmonicLaw_zero_of_not_mem_support _ _ _ hi)
+
+theorem pkgMask_coordinateJoin_at {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) :
+    pkgMask_coordinateJoin u y w u = y := by
+  have h := (pkgMask_coordinateSplit u).apply_symm_apply (y, w)
+  exact congrArg Prod.fst h
+
+theorem pkgMask_coordinateJoin_other {m : ℕ} (u : Fin m) (y : ℤ)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
+    (i : finsetComplement ({u} : Finset (Fin m))) :
+    pkgMask_coordinateJoin u y w i.1 = w i := by
+  have h := (pkgMask_coordinateSplit u).apply_symm_apply (y, w)
+  exact congrFun (congrArg Prod.snd h) i
+
+theorem pkgMask_pivotMass_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) (z : Fin m → ℤ) :
+    pivotMass S.core.parameters C N z =
+      harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) (z u) *
+        ∏ i : finsetComplement ({u} : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+  classical
+  let Tcomp := finsetComplement ({u} : Finset (Fin m))
+  have hdisj : Disjoint ({u} : Finset (Fin m)) Tcomp := by
+    apply Finset.disjoint_left.mpr
+    intro k hk hcomp
+    exact (Finset.mem_filter.mp hcomp).2 hk
+  have hunion : ({u} : Finset (Fin m)) ∪ Tcomp = Finset.univ := by
+    ext k
+    constructor
+    · intro _
+      exact Finset.mem_univ k
+    · intro _
+      by_cases hk : k = u
+      · exact Finset.mem_union.mpr (Or.inl (Finset.mem_singleton.mpr hk))
+      · exact Finset.mem_union.mpr (Or.inr (Finset.mem_filter.mpr
+          ⟨Finset.mem_univ _, by
+            intro hmem
+            exact hk (Finset.mem_singleton.mp hmem)⟩))
+  have hattach :
+      (∏ k ∈ Tcomp,
+        harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)) =
+      ∏ i : Tcomp,
+        harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+    calc
+      _ = ∏ i ∈ Tcomp.attach,
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+            (primorial (N + 1)) (z i.1) :=
+        (Finset.prod_attach Tcomp fun k =>
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)).symm
+      _ = _ := by simp
+  unfold pivotMass
+  calc
+    (∏ k : Fin m,
+        harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)) =
+        ∏ k ∈ (Finset.univ : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k) := by
+      simp
+    _ = ∏ k ∈ ({u} : Finset (Fin m)) ∪ Tcomp,
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k) := by
+      rw [hunion]
+    _ = (∏ k ∈ ({u} : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k)) *
+        ∏ k ∈ Tcomp,
+          harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) (z k) :=
+      Finset.prod_union hdisj
+    _ = harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) (z u) *
+        ∏ i : Tcomp,
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (z i.1) := by
+      simp only [Finset.prod_singleton]
+      rw [hattach]
+
 private theorem pivotMass_zero_of_not_mem_support {K s m : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (z : Fin m → ℤ)
@@ -4105,6 +4348,327 @@ theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
       intro z hz
       exact pivotMass_zero_of_not_mem_support S C N z hz
     _ = 1 := hfinite
+
+theorem pkgMask_pivotTsum_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) (F : (Fin m → ℤ) → ℝ) :
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z =
+      ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+        (∏ i : finsetComplement ({u} : Finset (Fin m)),
+          harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+            (primorial (N + 1)) (w i)) *
+          ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+  classical
+  let Tcomp := finsetComplement ({u} : Finset (Fin m))
+  let A := harmonicLawSupport (S.core.parameters.X N (C.block u).1) (primorial (N + 1))
+  let B := Fintype.piFinset fun i : Tcomp =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  let D := pivotMassSupport S C N
+  let e := pkgMask_coordinateSplit u
+  let restMass : (∀ i : Tcomp, ℤ) → ℝ := fun w =>
+    ∏ i : Tcomp, harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+      (primorial (N + 1)) (w i)
+  have hRestZero (w : ∀ i : Tcomp, ℤ) (hw : w ∉ B) : restMass w = 0 := by
+    have hnot : ¬ ∀ i : Tcomp,
+        w i ∈ harmonicLawSupport (S.core.parameters.X N (C.block i.1).1)
+          (primorial (N + 1)) := by
+      intro hall
+      apply hw
+      exact Fintype.mem_piFinset.mpr hall
+    push_neg at hnot
+    obtain ⟨i, hi⟩ := hnot
+    dsimp [restMass]
+    exact Finset.prod_eq_zero (f := fun j : Tcomp =>
+      harmonicLaw (S.core.parameters.X N (C.block j.1).1) (primorial (N + 1)) (w j))
+      (Finset.mem_univ i) (harmonicLaw_zero_of_not_mem_support _ _ _ hi)
+  have hDforward (z : Fin m → ℤ) (hz : z ∈ D) : e z ∈ A ×ˢ B := by
+    apply Finset.mem_product.mpr
+    constructor
+    · exact (Fintype.mem_piFinset.mp hz) u
+    · apply Fintype.mem_piFinset.mpr
+      intro i
+      exact (Fintype.mem_piFinset.mp hz) i.1
+  have hDbackward (x : ℤ × (∀ i : Tcomp, ℤ)) (hx : x ∈ A ×ˢ B) :
+      e.symm x ∈ D := by
+    apply Fintype.mem_piFinset.mpr
+    intro k
+    by_cases hk : k = u
+    · subst k
+      have hcoords := e.apply_symm_apply x
+      have hval : (e.symm x) u = x.1 := by
+        exact congrArg Prod.fst hcoords
+      rw [hval]
+      exact (Finset.mem_product.mp hx).1
+    · let i : Tcomp := ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+          intro hmem
+          exact hk (Finset.mem_singleton.mp hmem)⟩⟩
+      have hcoords := e.apply_symm_apply x
+      have hval : (e.symm x) k = x.2 i := by
+        exact congrFun (congrArg Prod.snd hcoords) i
+      rw [hval]
+      exact (Fintype.mem_piFinset.mp (Finset.mem_product.mp hx).2) i
+  have hmassJoin (y : ℤ) (w : ∀ i : Tcomp, ℤ) :
+      pivotMass S.core.parameters C N (pkgMask_coordinateJoin u y w) =
+        harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y *
+          restMass w := by
+    rw [pkgMask_pivotMass_coordinate_split S C N u
+      (pkgMask_coordinateJoin u y w)]
+    rw [pkgMask_coordinateJoin_at u y w]
+    apply congrArg (fun t : ℝ =>
+      harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y * t)
+    simp only [restMass]
+    apply Finset.prod_congr rfl
+    intro i hi
+    rw [pkgMask_coordinateJoin_other u y w i]
+  have hRightOuterZero (w : ∀ i : Tcomp, ℤ) (hw : w ∉ B) :
+      restMass w * ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+        (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) = 0 := by
+    rw [hRestZero w hw]
+    simp
+  have hsum :
+      (∑ z ∈ D, pivotMass S.core.parameters C N z * F z) =
+        ∑ x ∈ A ×ˢ B,
+          (harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) x.1 *
+            restMass x.2) * F (pkgMask_coordinateJoin u x.1 x.2) := by
+    apply Finset.sum_bij (fun z _ => e z)
+    · intro z hz
+      exact hDforward z hz
+    · intro z hz z' hz' heq
+      exact e.injective heq
+    · intro x hx
+      exact ⟨e.symm x, hDbackward x hx, e.apply_symm_apply x⟩
+    · intro z hz
+      have hcoords := e.symm_apply_apply z
+      have hjoin : pkgMask_coordinateJoin u (e z).1 (e z).2 = z := by
+        change e.symm ((e z).1, (e z).2) = z
+        rw [show ((e z).1, (e z).2) = e z by cases e z <;> rfl]
+        exact hcoords
+      calc
+        pivotMass S.core.parameters C N z * F z =
+            pivotMass S.core.parameters C N (pkgMask_coordinateJoin u (e z).1 (e z).2) *
+              F (pkgMask_coordinateJoin u (e z).1 (e z).2) := by rw [hjoin]
+        _ = _ := by rw [hmassJoin]
+  have hLeft :
+      (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z) =
+        ∑ z ∈ D, pivotMass S.core.parameters C N z * F z := by
+    apply tsum_eq_sum
+    intro z hz
+    simp [pivotMass_zero_of_not_mem_support S C N z hz]
+  have hRight :
+      (∑' w : ∀ i : Tcomp, ℤ, restMass w *
+        ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+          (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w)) =
+        ∑ w ∈ B, restMass w *
+          ∑ y ∈ A, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+    rw [tsum_eq_sum (s := B) hRightOuterZero]
+    apply Finset.sum_congr rfl
+    intro w hw
+    rw [tsum_eq_sum (s := A) (fun y hy => by
+      simp [harmonicLaw_zero_of_not_mem_support _ _ _ hy])]
+  calc
+    (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z) =
+        ∑ w ∈ B, restMass w *
+          ∑ y ∈ A, harmonicLaw (S.core.parameters.X N (C.block u).1)
+            (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+      rw [hLeft, hsum]
+      calc
+        (∑ x ∈ A ×ˢ B,
+            (harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) x.1 *
+              restMass x.2) * F (pkgMask_coordinateJoin u x.1 x.2)) =
+            ∑ y ∈ A, ∑ w ∈ B,
+              harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y *
+                restMass w * F (pkgMask_coordinateJoin u y w) := by
+          exact Finset.sum_product' A B (fun y w =>
+            harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) y *
+              restMass w * F (pkgMask_coordinateJoin u y w))
+        _ = ∑ w ∈ B, restMass w *
+              ∑ y ∈ A, harmonicLaw (S.core.parameters.X N (C.block u).1)
+                (primorial (N + 1)) y * F (pkgMask_coordinateJoin u y w) := by
+          rw [Finset.sum_comm]
+          apply Finset.sum_congr rfl
+          intro w hw
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro y hy
+          ring
+    _ = _ := hRight.symm
+
+theorem pkgMask_pivotRestMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) :
+    ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+      pkgMask_pivotRestMass S C N u w = 1 := by
+  have hcoord :
+      ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+        (primorial (N + 1)) y = 1 := by
+    apply harmonicLaw_tsum_one_of_normalizer_pos
+    · exact S.core.parameters.Xpos N (C.block u).1
+    · exact harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+        (S.gapStage.valid_raw_cutoffs N (C.block u).1)
+  have hsplit :=
+    (pkgMask_pivotTsum_coordinate_split S C N u (fun _ => 1)).symm
+  calc
+    (∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+        pkgMask_pivotRestMass S C N u w) =
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z := by
+      simpa [pkgMask_pivotRestMass, hcoord] using hsplit
+    _ = 1 := pivotMass_tsum_one S C N
+
+theorem pkgMask_gapRestMass_tsum_one {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper) :
+    ∑' x : (Fin q → ℕ) ×
+        (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+      gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2 = 1 := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let B := Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  let D := P ×ˢ B
+  have hPzero (p : Fin q → ℕ) (hp : p ∉ P) : gapSlotMass S C.gap N p = 0 := by
+    unfold gapSlotMass
+    exact independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) p hp
+  have hPsum : (∑ p ∈ P, gapSlotMass S C.gap N p) = 1 := by
+    calc
+      (∑ p ∈ P, gapSlotMass S C.gap N p) =
+          ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p := (tsum_eq_sum (s := P) hPzero).symm
+      _ = 1 := gapSlotMass_tsum_one S C.gap N hMass
+  have hBsum :
+      (∑ w ∈ B, pkgMask_pivotRestMass S C N u w) = 1 := by
+    calc
+      (∑ w ∈ B, pkgMask_pivotRestMass S C N u w) =
+          ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+            pkgMask_pivotRestMass S C N u w := by
+        symm
+        apply tsum_eq_sum
+        intro w hw
+        exact pkgMask_pivotRestMass_zero_of_not_mem S C N u w hw
+      _ = 1 := pkgMask_pivotRestMass_tsum_one S C N u
+  have hDzero (x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)) (hx : x ∉ D) :
+      gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2 = 0 := by
+    by_cases hp : x.1 ∈ P
+    · have hw : x.2 ∉ B := by
+        intro hw
+        exact hx (Finset.mem_product.mpr ⟨hp, hw⟩)
+      rw [pkgMask_pivotRestMass_zero_of_not_mem S C N u x.2 hw]
+      simp
+    · rw [hPzero x.1 hp]
+      simp
+  have hfinite :
+      (∑ x ∈ D, gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) = 1 := by
+    calc
+      (∑ x ∈ D, gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) =
+          ∑ p ∈ P, ∑ w ∈ B,
+            gapSlotMass S C.gap N p * pkgMask_pivotRestMass S C N u w := by
+        dsimp [D]
+        exact Finset.sum_product' P B (fun p w =>
+          gapSlotMass S C.gap N p * pkgMask_pivotRestMass S C N u w)
+      _ = (∑ p ∈ P, gapSlotMass S C.gap N p) *
+          (∑ w ∈ B, pkgMask_pivotRestMass S C N u w) := by
+        calc
+          (∑ p ∈ P, ∑ w ∈ B,
+              gapSlotMass S C.gap N p * pkgMask_pivotRestMass S C N u w) =
+              ∑ p ∈ P, gapSlotMass S C.gap N p *
+                (∑ w ∈ B, pkgMask_pivotRestMass S C N u w) := by
+            apply Finset.sum_congr rfl
+            intro p hp
+            rw [← Finset.mul_sum]
+          _ = _ := by rw [Finset.sum_mul]
+      _ = 1 := by rw [hPsum, hBsum]; norm_num
+  calc
+    (∑' x : (Fin q → ℕ) ×
+        (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+      gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) =
+        ∑ x ∈ D, gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2 := by
+      apply tsum_eq_sum
+      intro x hx
+      exact hDzero x hx
+    _ = 1 := hfinite
+
+theorem pkgMask_weightedError_tsum_le {α : Type*} [Countable α]
+    (μ f : α → ℝ) (ε : ℝ) (hμ : ∀ a, 0 ≤ μ a)
+    (hμsum : Summable μ) (hμtotal : ∑' a, μ a = 1)
+    (hε : 0 ≤ ε) (hbound : ∀ a, |f a| ≤ ε) :
+    |∑' a, μ a * f a| ≤ ε := by
+  have hnormle (a : α) : ‖μ a * f a‖ ≤ μ a * ε := by
+    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hμ a)]
+    exact mul_le_mul_of_nonneg_left (hbound a) (hμ a)
+  have hprodSummable : Summable (fun a => μ a * f a) := by
+    apply (hμsum.mul_right ε).of_norm_bounded
+    exact hnormle
+  calc
+    |∑' a, μ a * f a| = ‖∑' a, μ a * f a‖ := by rw [Real.norm_eq_abs]
+    _ ≤ ∑' a, ‖μ a * f a‖ := norm_tsum_le_tsum_norm hprodSummable.norm
+    _ ≤ ∑' a, μ a * ε := hprodSummable.norm.tsum_le_tsum hnormle
+      (hμsum.mul_right ε)
+    _ = ε := by rw [hμsum.tsum_mul_right ε, hμtotal]; ring
+
+theorem pkgMask_gapRestMass_summable {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) :
+    Summable (fun x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) =>
+        gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let B := Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  apply summable_of_ne_finset_zero (s := P ×ˢ B)
+  intro x hx
+  by_cases hp : x.1 ∈ P
+  · have hw : x.2 ∉ B := by
+      intro hw
+      exact hx (Finset.mem_product.mpr ⟨hp, hw⟩)
+    rw [pkgMask_pivotRestMass_zero_of_not_mem S C N u x.2 hw]
+    simp
+  · unfold gapSlotMass
+    rw [independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) x.1 hp]
+    simp
+
+theorem pkgMask_gapRestAverage_error_le {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper)
+    (E : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) → ℝ)
+    (ε : ℝ) (hε : 0 ≤ ε)
+    (hE : ∀ x, |E x| ≤ ε) :
+    |∑' x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+        (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * E x| ≤ ε := by
+  apply pkgMask_weightedError_tsum_le
+    (μ := fun x => gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2)
+    E ε
+  · intro x
+    apply mul_nonneg
+    · unfold gapSlotMass independentPrimePoolMass
+      exact Finset.prod_nonneg fun i _ =>
+        primePoolLaw_nonneg (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper (x.1 i) hMass
+    · unfold pkgMask_pivotRestMass
+      apply Finset.prod_nonneg
+      intro i hi
+      exact harmonicLaw_nonneg_of_normalizer_pos _ _
+        (harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+          (S.gapStage.valid_raw_cutoffs N (C.block i.1).1)) (x.2 i)
+  · exact pkgMask_gapRestMass_summable S C N u
+  · exact pkgMask_gapRestMass_tsum_one S C N u hMass
+  · exact hε
+  · exact hE
 
 theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
@@ -6816,7 +7380,492 @@ theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
     st.correlation S C a N = rowCorrelation S C a N st.shape st.rowFunction := by
   simp [correlation, rowCorrelation, hmasks]
 
+theorem pkgMask_stateCorrelation_joint {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) :
+    st.correlation S C a N =
+      ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N x.1 x.2 *
+          ((∏ U ∈ st.masks, st.maskFunction U x.1 (∏ k ∈ U, x.2 k)) *
+            ∏ R, atQ (st.rowFunction R x.1)
+              (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) x.1
+                fun k => (x.2 k : ℚ))) := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let Z := pivotMassSupport S C N
+  let D := P ×ˢ Z
+  let F : (Fin q → ℕ) → (Fin m → ℤ) → ℝ := fun p z =>
+    (∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
+      ∏ R, atQ (st.rowFunction R p)
+        (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+          fun k => (z k : ℚ))
+  have hPzero (p : Fin q → ℕ) (hp : p ∉ P) : gapSlotMass S C.gap N p = 0 := by
+    unfold gapSlotMass
+    exact independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) p hp
+  have hZzero (z : Fin m → ℤ) (hz : z ∉ Z) : pivotMass S.core.parameters C N z = 0 :=
+    pivotMass_zero_of_not_mem_support S C N z hz
+  have houterZero (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S C.gap N p * (∑' z, pivotMass S.core.parameters C N z * F p z) = 0 := by
+    rw [hPzero p hp]
+    simp
+  have hDzero (x : (Fin q → ℕ) × (Fin m → ℤ)) (hx : x ∉ D) :
+      gapPivotMass S C N x.1 x.2 * F x.1 x.2 = 0 := by
+    rw [gapPivotMass_zero_of_not_mem_support S C N x hx]
+    simp
+  calc
+    st.correlation S C a N =
+        ∑ p ∈ P, gapSlotMass S C.gap N p *
+          ∑ z ∈ Z, pivotMass S.core.parameters C N z * F p z := by
+      unfold MaskRemovalState.correlation gapSlotAverage
+      rw [tsum_eq_sum (s := P) houterZero]
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [tsum_eq_sum (s := Z) (fun z hz => by simp [hZzero z hz])]
+    _ = ∑ x ∈ D, gapPivotMass S C N x.1 x.2 * F x.1 x.2 := by
+      calc
+        (∑ p ∈ P, gapSlotMass S C.gap N p *
+            ∑ z ∈ Z, pivotMass S.core.parameters C N z * F p z) =
+            ∑ p ∈ P, ∑ z ∈ Z,
+              gapSlotMass S C.gap N p * pivotMass S.core.parameters C N z * F p z := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro z hz
+          ring
+        _ = ∑ x ∈ D, gapPivotMass S C N x.1 x.2 * F x.1 x.2 := by
+          dsimp [D, gapPivotMass]
+          symm
+          exact Finset.sum_product' P Z
+            (fun p z => gapSlotMass S C.gap N p *
+              pivotMass S.core.parameters C N z * F p z)
+    _ = ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+          gapPivotMass S C N x.1 x.2 * F x.1 x.2 := by
+      symm
+      exact tsum_eq_sum (s := D) hDzero
+    _ = _ := by rfl
+
+theorem pkgMask_stateCorrelation_coordinate_split {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (u : Fin m) :
+    st.correlation S C a N =
+      ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
+        ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+          (∏ i : finsetComplement ({u} : Finset (Fin m)),
+            harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+              (primorial (N + 1)) (w i)) *
+            ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+              (primorial (N + 1)) y *
+              ((∏ V ∈ st.masks,
+                  st.maskFunction V p
+                    (∏ k ∈ V, (pkgMask_coordinateJoin u y w) k)) *
+                ∏ R, atQ (st.rowFunction R p)
+                  (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+                    fun k => (pkgMask_coordinateJoin u y w k : ℚ))) := by
+  classical
+  unfold MaskRemovalState.correlation gapSlotAverage
+  apply tsum_congr
+  intro p
+  congr 1
+  exact pkgMask_pivotTsum_coordinate_split S C N u (fun z =>
+    (∏ V ∈ st.masks, st.maskFunction V p (∏ k ∈ V, z k)) *
+      ∏ R, atQ (st.rowFunction R p)
+        (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+          fun k => (z k : ℚ)))
+
+theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (p : Fin q → ℕ) (z : Fin m → ℤ) :
+    |(∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
+      ∏ R, atQ (st.rowFunction R p)
+        (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+          fun k => (z k : ℚ))| ≤
+      (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+  rcases hvalid with ⟨_, hmask, hrows, _⟩
+  have hmaskProd :
+      |∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)| ≤ 1 := by
+    rw [Finset.abs_prod]
+    calc
+      (∏ U ∈ st.masks, |st.maskFunction U p (∏ k ∈ U, z k)|) ≤
+          ∏ U ∈ st.masks, (1 : ℝ) := by
+        apply Finset.prod_le_prod₀
+        · intro U hU
+          positivity
+        · intro U hU
+          exact hmask U hU p _
+      _ = 1 := by simp
+  have hrowProd := rowProduct_integrand_bound_eventually S C a st.shape N
+    st.rowFunction hrows p z
+  rw [abs_mul]
+  calc
+    |∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)| *
+        |∏ R, atQ (st.rowFunction R p)
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+            fun k => (z k : ℚ))| ≤
+        1 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+          exact mul_le_mul hmaskProd hrowProd (abs_nonneg _) (by norm_num)
+    _ = _ := by norm_num
+
+theorem pkgMask_stateCoordinateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar) (u : Fin m)
+    (p : Fin q → ℕ) (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
+    (y : ℤ) :
+    |(∏ V ∈ st.masks,
+          st.maskFunction V p (∏ k ∈ V, (pkgMask_coordinateJoin u y w) k)) *
+        ∏ R, atQ (st.rowFunction R p)
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+            fun k => (pkgMask_coordinateJoin u y w k : ℚ))| ≤
+      (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) :=
+  pkgMask_stateIntegrand_abs_le st S C a N Jstar gstar hvalid p
+    (pkgMask_coordinateJoin u y w)
+
 end MaskRemovalState
+
+noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBranchP u).Parallel ((st.shape.row i).scaleBranchQ u)) ≃ Fin r') :
+    MaskRemovalState m (q + 2) r' := by
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchQ u
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  have hI : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  refine ⟨Sh', st.masks.erase U,
+    (fun V p y => outsideBranchMaskFunction st.maskFunction u V p y), ?_⟩
+  intro R' p y
+  exact mergedBranchRowFunction
+    (fun p => p ∈ independentPrimePoolSupport
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper))
+    L R e hI st.rowFunction
+    (fun R y => 1 + chainWeight S.core.parameters C N (st.shape.row R).anchor y)
+    p R' y
+
+theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
+    (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBranchP u).Parallel
+        ((st.shape.row i).scaleBranchQ u)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBranchP u)
+      (fun i => (st.shape.row i).scaleBranchQ u) x.val.1 x.val.2)
+    (hstarIndex : Sh'.star = e ⟨(st.shape.star, 0), Or.inl rfl⟩)
+    (hstarNot : ¬ ((st.shape.row st.shape.star).scaleBranchP u).Parallel
+      ((st.shape.row st.shape.star).scaleBranchQ u))
+    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+      (S.primeStage.pool N C.gap).lower) :
+    (outsideBranchMaskRemovalState S C N st U u Sh' e).Valid
+      S C a N Jstar gstar := by
+  classical
+  rcases hvalid with ⟨hstarSupport, hmask, hrowBound, hstarFunction⟩
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchQ u
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  let hInv : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  let good : (Fin (q + 2) → ℕ) → Prop := fun p => p ∈ independentPrimePoolSupport
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper)
+  let W : Fin r → ℤ → ℝ := fun i y =>
+    1 + chainWeight S.core.parameters C N (st.shape.row i).anchor y
+  let xstar : RowBranchIndex I := ⟨(st.shape.star, 0), Or.inl rfl⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · calc
+      (Sh'.row Sh'.star).support =
+          (Sh'.row (e xstar)).support := by rw [hstarIndex]
+      _ = (RowBranchTemplate st.shape L R st.shape.star 0).support :=
+        congrArg (fun T : RowTemplate m (q + 2) => T.support)
+          (by simpa [L, R] using hrow xstar)
+      _ = (L st.shape.star).support := by simp [RowBranchTemplate]
+      _ = (st.shape.row st.shape.star).support :=
+        (st.shape.row st.shape.star).scaleBranchP_support u
+      _ = Jstar := hstarSupport
+  · intro V hV p y
+    rcases Finset.mem_erase.mp hV with ⟨_, hVold⟩
+    change |outsideBranchMaskFunction st.maskFunction u V p y| ≤ 1
+    unfold outsideBranchMaskFunction
+    rw [abs_mul]
+    calc
+      |st.maskFunction V (dropPrimeTuple2 p)
+          ((if u ∈ V then (p 1 : ℤ) else 1) * y)| *
+        |st.maskFunction V (dropPrimeTuple2 p)
+          ((if u ∈ V then (p 0 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+            exact mul_le_mul
+              (hmask V hVold (dropPrimeTuple2 p) _)
+              (hmask V hVold (dropPrimeTuple2 p) _)
+              (abs_nonneg _) (by norm_num)
+      _ = 1 := by norm_num
+  · intro R' p y
+    let x := e.symm R'
+    have hRbranch : (Sh'.row R').support = (st.shape.row x.val.1).support := by
+      rw [show R' = e x from by simp [x]]
+      rw [show Sh'.row (e x) =
+        RowBranchTemplate st.shape L R x.val.1 x.val.2 by simpa [L, R] using hrow x]
+      by_cases hzero : x.val.2.val = 0
+      · have hb : x.val.2 = 0 := Fin.ext hzero
+        simpa [RowBranchTemplate, hb] using
+          (st.shape.row x.val.1).scaleBranchP_support u
+      · have hone : x.val.2.val = 1 := by omega
+        have hb : x.val.2 = 1 := Fin.ext hone
+        simpa [RowBranchTemplate, hb] using
+          (st.shape.row x.val.1).scaleBranchQ_support u
+    have hanchor : (Sh'.row R').anchor = (st.shape.row x.val.1).anchor :=
+      RowTemplate.anchor_eq_of_support_eq (Sh'.row R') (st.shape.row x.val.1) hRbranch
+    have hWnonneg : ∀ i y, 0 ≤ W i y := by
+      intro i y
+      dsimp [W]
+      have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+      linarith
+    have hWpos : ∀ i y, 0 < W i y := by
+      intro i y
+      dsimp [W]
+      have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+      linarith
+    have hInvWeight : ∀ i (hi : I i) p' (y : ℤ),
+        good p' →
+        (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' *
+          (y : ℚ)).den = 1 →
+        W i (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' *
+          (y : ℚ)).num = W i y := by
+      intro i hi p' y hgood hden
+      have hslots := (independentPrimePoolSupport_mem_iff
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper) p').mp hgood
+      have hslot (j : Fin (q + 2)) :
+          (S.primeStage.pool N C.gap).lower ≤ p' j ∧
+            p' j < (S.primeStage.pool N C.gap).upper ∧ (p' j).Prime := by
+        rcases Finset.mem_filter.mp (hslots j) with ⟨hIco, hpj⟩
+        rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+        exact ⟨hlo, hhi, hpj⟩
+      have hp0 : (p' 0).Prime := (hslot 0).2.2
+      have hp1 : (p' 1).Prime := (hslot 1).2.2
+      have hV0 : masterScaleV S.core.parameters N C.gap < p' 0 :=
+        lt_of_lt_of_le hpoolLower (hslot 0).1
+      have hV1 : masterScaleV S.core.parameters N C.gap < p' 1 :=
+        lt_of_lt_of_le hpoolLower (hslot 1).1
+      have hpall : ∀ j, p' j ≠ 0 := fun j =>
+        Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
+      have hp1q : (p' 1 : ℚ) ≠ 0 := by exact_mod_cast hpall 1
+      by_cases heq : p' 0 = p' 1
+      · have hfac : RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' = 1 := by
+          change (∏ j, (p' j : ℚ) ^ (Classical.choose (hInv i |>.mp hi).2 j)) = 1
+          rw [RowTemplate.scaleBranch_parallel_factor_eq (st.shape.row i) u p' hpall
+            (hInv i |>.mp hi)]
+          by_cases hsingle : (st.shape.row i).support = {u}
+          · simp [hsingle, heq, hp1q]
+          · simp [hsingle]
+        rw [hfac] at hden ⊢
+        simpa [W]
+      · have hwt := chainWeight_scaleBranch_invariant S C N
+          (st.shape.row i).anchor (st.shape.row i) u p' hpall hp0 hp1 hV0 hV1 heq
+          (hInv i |>.mp hi) y hden
+        simpa [W, RowTemplate.parallelScaleFactor] using
+          congrArg (fun t : ℝ => 1 + t) hwt
+    have hbound := mergedBranchRowFunction_abs_le good L R e hInv st.rowFunction W p
+      hrowBound hWnonneg hWpos hInvWeight R' y
+    simpa [outsideBranchMaskRemovalState, W, hanchor] using hbound
+  · intro p
+    change mergedBranchRowFunction good L R e hInv st.rowFunction W p Sh'.star = gstar
+    rw [hstarIndex]
+    have hx : ¬ I st.shape.star := by simpa [I, L, R] using hstarNot
+    have hmerged :
+        mergedBranchRowFunction good L R e hInv st.rowFunction W p (e xstar) =
+          st.rowFunction st.shape.star (dropPrimeTuple2 p) := by
+      unfold mergedBranchRowFunction
+      simp only [Equiv.symm_apply_apply]
+      simp [xstar, I, L, R, hstarNot]
+    rw [hmerged]
+    exact hstarFunction (dropPrimeTuple2 p)
+
+noncomputable def pkgMask_balancedBranchMaskRemovalState {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u v : Fin m)
+    (huv : u ≠ v) (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBalancedP u v).Parallel
+        ((st.shape.row i).scaleBalancedQ u v)) ≃ Fin r') :
+    MaskRemovalState m (q + 2) r' := by
+  let L : Fin r → RowTemplate m (q + 2) :=
+    fun i => (st.shape.row i).scaleBalancedP u v
+  let R : Fin r → RowTemplate m (q + 2) :=
+    fun i => (st.shape.row i).scaleBalancedQ u v
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  have hI : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  refine ⟨Sh', st.masks.erase U,
+    (fun V p y => balancedBranchMaskFunction st.maskFunction u v V p y), ?_⟩
+  intro R' p y
+  exact mergedBranchRowFunction
+    (fun p => p ∈ independentPrimePoolSupport
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper))
+    L R e hI st.rowFunction
+    (fun R y => 1 + chainWeight S.core.parameters C N (st.shape.row R).anchor y)
+    p R' y
+
+theorem pkgMask_balancedBranchMaskRemovalState_valid {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u v : Fin m)
+    (huv : u ≠ v) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBalancedP u v).Parallel
+        ((st.shape.row i).scaleBalancedQ u v)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBalancedP u v)
+      (fun i => (st.shape.row i).scaleBalancedQ u v) x.val.1 x.val.2)
+    (hstarIndex : Sh'.star = e ⟨(st.shape.star, 0), Or.inl rfl⟩)
+    (hstarNot : ¬ ((st.shape.row st.shape.star).scaleBalancedP u v).Parallel
+      ((st.shape.row st.shape.star).scaleBalancedQ u v))
+    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+      (S.primeStage.pool N C.gap).lower) :
+    (pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).Valid
+      S C a N Jstar gstar := by
+  classical
+  rcases hvalid with ⟨hstarSupport, hmask, hrowBound, hstarFunction⟩
+  let L : Fin r → RowTemplate m (q + 2) :=
+    fun i => (st.shape.row i).scaleBalancedP u v
+  let R : Fin r → RowTemplate m (q + 2) :=
+    fun i => (st.shape.row i).scaleBalancedQ u v
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  let hInv : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  let good : (Fin (q + 2) → ℕ) → Prop := fun p => p ∈ independentPrimePoolSupport
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper)
+  let W : Fin r → ℤ → ℝ := fun i y =>
+    1 + chainWeight S.core.parameters C N (st.shape.row i).anchor y
+  let xstar : RowBranchIndex I := ⟨(st.shape.star, 0), Or.inl rfl⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · calc
+      (Sh'.row Sh'.star).support =
+          (Sh'.row (e xstar)).support := by rw [hstarIndex]
+      _ = (RowBranchTemplate st.shape L R st.shape.star 0).support :=
+        congrArg (fun T : RowTemplate m (q + 2) => T.support)
+          (by simpa [L, R] using hrow xstar)
+      _ = (L st.shape.star).support := by simp [RowBranchTemplate]
+      _ = (st.shape.row st.shape.star).support :=
+        (st.shape.row st.shape.star).scaleBalancedP_support u v
+      _ = Jstar := hstarSupport
+  · intro V hV p y
+    rcases Finset.mem_erase.mp hV with ⟨_, hVold⟩
+    change |balancedBranchMaskFunction st.maskFunction u v V p y| ≤ 1
+    unfold balancedBranchMaskFunction
+    rw [abs_mul]
+    calc
+      |st.maskFunction V (dropPrimeTuple2 p)
+          ((if u ∈ V then (p 0 : ℤ) else 1) *
+            (if v ∈ V then (p 1 : ℤ) else 1) * y)| *
+        |st.maskFunction V (dropPrimeTuple2 p)
+          ((if v ∈ V then (p 0 : ℤ) else 1) *
+            (if u ∈ V then (p 1 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+            exact mul_le_mul
+              (hmask V hVold (dropPrimeTuple2 p) _)
+              (hmask V hVold (dropPrimeTuple2 p) _)
+              (abs_nonneg _) (by norm_num)
+      _ = 1 := by norm_num
+  · intro R' p y
+    let x := e.symm R'
+    have hRbranch : (Sh'.row R').support = (st.shape.row x.val.1).support := by
+      rw [show R' = e x from by simp [x]]
+      rw [show Sh'.row (e x) =
+        RowBranchTemplate st.shape L R x.val.1 x.val.2 by simpa [L, R] using hrow x]
+      by_cases hzero : x.val.2.val = 0
+      · have hb : x.val.2 = 0 := Fin.ext hzero
+        simpa [RowBranchTemplate, hb] using
+          (st.shape.row x.val.1).scaleBalancedP_support u v
+      · have hone : x.val.2.val = 1 := by omega
+        have hb : x.val.2 = 1 := Fin.ext hone
+        simpa [RowBranchTemplate, hb] using
+          (st.shape.row x.val.1).scaleBalancedQ_support u v
+    have hanchor : (Sh'.row R').anchor = (st.shape.row x.val.1).anchor :=
+      RowTemplate.anchor_eq_of_support_eq (Sh'.row R') (st.shape.row x.val.1) hRbranch
+    have hWnonneg : ∀ i y, 0 ≤ W i y := by
+      intro i y
+      dsimp [W]
+      have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+      linarith
+    have hWpos : ∀ i y, 0 < W i y := by
+      intro i y
+      dsimp [W]
+      have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+      linarith
+    have hInvWeight : ∀ i (hi : I i) p' (y : ℤ),
+        good p' →
+        (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' *
+          (y : ℚ)).den = 1 →
+        W i (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' *
+          (y : ℚ)).num = W i y := by
+      intro i hi p' y hgood hden
+      have hslots := (independentPrimePoolSupport_mem_iff
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper) p').mp hgood
+      have hslot (j : Fin (q + 2)) :
+          (S.primeStage.pool N C.gap).lower ≤ p' j ∧
+            p' j < (S.primeStage.pool N C.gap).upper ∧ (p' j).Prime := by
+        rcases Finset.mem_filter.mp (hslots j) with ⟨hIco, hpj⟩
+        rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+        exact ⟨hlo, hhi, hpj⟩
+      have hp0 : (p' 0).Prime := (hslot 0).2.2
+      have hp1 : (p' 1).Prime := (hslot 1).2.2
+      have hV0 : masterScaleV S.core.parameters N C.gap < p' 0 :=
+        lt_of_lt_of_le hpoolLower (hslot 0).1
+      have hV1 : masterScaleV S.core.parameters N C.gap < p' 1 :=
+        lt_of_lt_of_le hpoolLower (hslot 1).1
+      have hpall : ∀ j, p' j ≠ 0 := fun j =>
+        Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
+      have hp0q : (p' 0 : ℚ) ≠ 0 := by exact_mod_cast hpall 0
+      have hp1q : (p' 1 : ℚ) ≠ 0 := by exact_mod_cast hpall 1
+      by_cases heq : p' 0 = p' 1
+      · have hfac : RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' = 1 := by
+          change (∏ j, (p' j : ℚ) ^ (Classical.choose (hInv i |>.mp hi).2 j)) = 1
+          rw [RowTemplate.scaleBalanced_parallel_factor_eq
+            (st.shape.row i) u v huv p' hpall (hInv i |>.mp hi)]
+          by_cases hsingleU : (st.shape.row i).support = {u}
+          · simp [hsingleU, heq, hp0q, hp1q]
+          · by_cases hsingleV : (st.shape.row i).support = {v}
+            · simp [hsingleU, hsingleV, heq, hp0q, hp1q]
+            · simp [hsingleU, hsingleV]
+        rw [hfac] at hden ⊢
+        simpa [W]
+      · have hwt := chainWeight_scaleBalanced_invariant S C N
+          (st.shape.row i).anchor (st.shape.row i) u v huv p' hpall hp0 hp1
+          hV0 hV1 heq (hInv i |>.mp hi) y hden
+        simpa [W, RowTemplate.parallelScaleFactor] using
+          congrArg (fun t : ℝ => 1 + t) hwt
+    have hbound := mergedBranchRowFunction_abs_le good L R e hInv st.rowFunction W p
+      hrowBound hWnonneg hWpos hInvWeight R' y
+    simpa [pkgMask_balancedBranchMaskRemovalState, W, hanchor] using hbound
+  · intro p
+    change mergedBranchRowFunction good L R e hInv st.rowFunction W p Sh'.star = gstar
+    rw [hstarIndex]
+    have hmerged :
+        mergedBranchRowFunction good L R e hInv st.rowFunction W p (e xstar) =
+          st.rowFunction st.shape.star (dropPrimeTuple2 p) := by
+      unfold mergedBranchRowFunction
+      simp only [Equiv.symm_apply_apply]
+      simp [xstar, I, L, R, hstarNot]
+    rw [hmerged]
+    exact hstarFunction (dropPrimeTuple2 p)
 
 theorem exists_maskShape_step {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar U : Finset (Fin m)) (hJ : 2 ≤ Jstar.card)
@@ -6832,12 +7881,12 @@ theorem exists_maskShape_step {m q r : ℕ} (Sh : RowShape m q r)
     rcases Finset.mem_erase.mp hvErase with ⟨hvu, hvJ⟩
     have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
     have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
-    obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+    obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
       exists_scaleBranch_row_shape Sh Jstar hStar u v huSupp hvSupp hvu
     exact ⟨r', Sh', hr', hstar'⟩
   · have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
     have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
-    obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+    obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
       exists_scaleBalanced_row_shape Sh Jstar hStar u v huSupp hvSupp huv
     exact ⟨r', Sh', hr', hstar'⟩
 
