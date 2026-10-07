@@ -44,6 +44,41 @@ structure ObservableDescent (G : Type*) [Group G] (Γ : Subgroup G) (Y : Type*) 
   scale : ∀ (c : ℝ) H x, desc (fun y => c * H y) x = c * desc H x
   unit_bound : ∀ H, (∀ y, |H y| ≤ 1) → ∀ x, |desc H x| ≤ 1
 
+namespace ObservableDescent
+
+/-- Descend an invariant lift on left-coset quotients, preserving scaling and bounds. -/
+noncomputable def ofLift {G : Type*} [Group G] (Γ : Subgroup G) {Y : Type*}
+    (lift : (Y → ℝ) → G → ℝ)
+    (hinv : ∀ H g γ, γ ∈ Γ → lift H (g * γ) = lift H g)
+    (hscale : ∀ c H g, lift (fun y => c * H y) g = c * lift H g)
+    (hbound : ∀ H, (∀ y, |H y| ≤ 1) → ∀ g, |lift H g| ≤ 1) :
+    ObservableDescent G Γ Y where
+  lift := lift
+  desc H := Quotient.lift (lift H) (by
+    intro a b hab
+    have hab' : a⁻¹ * b ∈ Γ := (QuotientGroup.leftRel_apply).mp hab
+    have hb : b = a * (a⁻¹ * b) := by group
+    rw [hb]
+    exact (hinv H a _ hab').symm)
+  desc_mk := by
+    intro H g
+    rfl
+  invariant := hinv
+  scale := by
+    intro c H x
+    refine Quotient.inductionOn x ?_
+    intro g
+    simp only [Quotient.lift_mk]
+    exact hscale c H g
+  unit_bound := by
+    intro H hH x
+    refine Quotient.inductionOn x ?_
+    intro g
+    simp only [Quotient.lift_mk]
+    exact hbound H hH g
+
+end ObservableDescent
+
 /-- The normalized, one-Lipschitz observables used to define the custom metric. -/
 def LipOne (Y : Type*) [MetricSpace Y] :=
   {H : Y → ℝ // (∀ y, |H y| ≤ 1) ∧ LipschitzWith 1 H}
