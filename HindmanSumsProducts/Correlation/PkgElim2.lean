@@ -114,6 +114,9 @@ universe u
 abbrev c_elim2_ShiftCoord {α : Type u} (E : Finset α) :=
   {x : α × Fin 2 // x.2.val = 0 ∨ x.1 ∈ E}
 
+abbrev c_elim2_ShiftCoordExcept {α : Type u} (E : Finset α) (R : α) :=
+  {x : c_elim2_ShiftCoord E // x.val ≠ (R, 0)}
+
 noncomputable def c_elim2_uniformFintypeAverage {α : Type*} [Fintype α]
     (f : α → ℝ) : ℝ :=
   (Fintype.card α : ℝ)⁻¹ * ∑ x, f x
@@ -135,6 +138,16 @@ theorem c_elim2_uniformFintypeAverage_prod {α β : Type*} [Fintype α] [Fintype
         ∑ x, ((Fintype.card β : ℝ)⁻¹ * ∑ y, f (x, y)) := by
       congr 1
       rw [← Finset.mul_sum]
+
+theorem c_elim2_uniformFintypeAverage_sq {α : Type*} [Fintype α]
+    (f : α → ℝ) :
+    (c_elim2_uniformFintypeAverage f) ^ 2 =
+      c_elim2_uniformFintypeAverage (fun p : α × α => f p.1 * f p.2) := by
+  classical
+  unfold c_elim2_uniformFintypeAverage
+  rw [Fintype.card_prod, Nat.cast_mul, Fintype.sum_prod_type,
+    ← Fintype.sum_mul_sum, mul_inv_rev]
+  ring
 
 noncomputable def c_elim2_shiftStateAverage {α : Type*} [Fintype α]
     [DecidableEq α] (E : Finset α) (L : ℕ)
@@ -191,6 +204,122 @@ noncomputable def c_elim2_shiftCoord_insert_equiv {α : Type u} [DecidableEq α]
     | inr u =>
         cases u
         simp [f, g, extra]
+
+noncomputable def c_elim2_shiftCoord_split_equiv {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) :
+    c_elim2_ShiftCoord E ≃ c_elim2_ShiftCoordExcept E R ⊕ PUnit.{u + 1} := by
+  classical
+  let point : c_elim2_ShiftCoord E := ⟨(R, 0), Or.inl rfl⟩
+  let f : c_elim2_ShiftCoord E → c_elim2_ShiftCoordExcept E R ⊕ PUnit.{u + 1} :=
+    fun x => if hx : x.val = (R, 0) then Sum.inr PUnit.unit else
+      Sum.inl ⟨x, hx⟩
+  let g : c_elim2_ShiftCoordExcept E R ⊕ PUnit.{u + 1} → c_elim2_ShiftCoord E :=
+    fun y => match y with
+      | Sum.inl x => x.val
+      | Sum.inr _ => point
+  refine ⟨f, g, ?_, ?_⟩
+  · intro x
+    apply Subtype.ext
+    by_cases hx : x.val = (R, 0)
+    · simp [f, g, hx, point]
+    · simp [f, g, hx]
+  · intro y
+    cases y with
+    | inl x =>
+        have hx : x.val.val ≠ (R, 0) := x.property
+        simp [f, g, hx]
+    | inr v =>
+        cases v
+        simp [f, g, point]
+
+noncomputable def c_elim2_shiftCoordAssignmentSplitEquiv {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (L : ℕ) :
+    (c_elim2_ShiftCoord E → Fin L) ≃
+      (c_elim2_ShiftCoordExcept E R → Fin L) × Fin L := by
+  classical
+  let eCoord := c_elim2_shiftCoord_split_equiv E R
+  exact (Equiv.arrowCongr eCoord (Equiv.refl (Fin L))).trans
+    ((Equiv.sumArrowEquivProdArrow (c_elim2_ShiftCoordExcept E R) PUnit.{u + 1} (Fin L)).trans
+      (Equiv.prodCongr (Equiv.refl (c_elim2_ShiftCoordExcept E R → Fin L))
+        (Equiv.punitArrowEquiv (Fin L))) )
+
+theorem c_elim2_shiftStateAverage_split {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (L : ℕ)
+    (F : (c_elim2_ShiftCoord E → Fin L) → ℝ) :
+    c_elim2_shiftStateAverage E L F =
+      c_elim2_uniformFintypeAverage (fun v : c_elim2_ShiftCoordExcept E R → Fin L =>
+        c_elim2_uniformFintypeAverage (fun t : Fin L =>
+          F ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (v, t)))) := by
+  classical
+  let e := c_elim2_shiftCoordAssignmentSplitEquiv E R L
+  have hsum : (∑ x : c_elim2_ShiftCoord E → Fin L, F x) =
+      ∑ p : (c_elim2_ShiftCoordExcept E R → Fin L) × Fin L, F (e.symm p) := by
+    exact Fintype.sum_equiv e F (fun p => F (e.symm p)) (by intro x; simp)
+  have hcard : Fintype.card (c_elim2_ShiftCoord E → Fin L) =
+      Fintype.card ((c_elim2_ShiftCoordExcept E R → Fin L) × Fin L) :=
+    Fintype.card_congr e
+  unfold c_elim2_shiftStateAverage c_elim2_uniformFintypeAverage
+  rw [hsum, hcard]
+  exact c_elim2_uniformFintypeAverage_prod (fun p => F (e.symm p))
+
+noncomputable def c_elim2_shiftCoordExcept_insert_equiv {α : Type u}
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) :
+    c_elim2_ShiftCoordExcept (insert R E) R ≃ c_elim2_ShiftCoord E := by
+  classical
+  let oldPoint : c_elim2_ShiftCoord E := ⟨(R, 0), Or.inl rfl⟩
+  have hcoord (x : c_elim2_ShiftCoordExcept (insert R E) R)
+      (hx : x.val.val.1 ≠ R) :
+      x.val.val.2.val = 0 ∨ x.val.val.1 ∈ E := by
+    rcases x.val.property with hzero | hxmem
+    · exact Or.inl hzero
+    · rcases Finset.mem_insert.mp hxmem with heq | hxE
+      · exact False.elim (hx heq)
+      · exact Or.inr hxE
+  let f : c_elim2_ShiftCoordExcept (insert R E) R → c_elim2_ShiftCoord E :=
+    fun x => if hx : x.val.val.1 = R then oldPoint else ⟨x.val.val, hcoord x hx⟩
+  let g : c_elim2_ShiftCoord E → c_elim2_ShiftCoordExcept (insert R E) R :=
+    fun x => if hx : x.val.1 = R then
+        ⟨⟨(R, 1), Or.inr (Finset.mem_insert_self R E)⟩, by simp⟩
+      else ⟨⟨x.val, Or.elim x.property Or.inl (fun hxE =>
+        Or.inr (Finset.mem_insert_of_mem hxE))⟩, by
+          intro heq
+          exact hx (congrArg Prod.fst heq)⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro x
+    by_cases hx : x.val.val.1 = R
+    · have hb : x.val.val.2.val = 1 := by
+        have hne : x.val.val.2.val ≠ 0 := by
+          intro hzero
+          apply x.property
+          apply Prod.ext hx
+          exact Fin.ext hzero
+        omega
+      have hbFin : x.val.val.2 = 1 := Fin.ext hb
+      have hgf : g (f x) =
+          ⟨⟨(R, 1), Or.inr (Finset.mem_insert_self R E)⟩, by simp⟩ := by
+        apply Subtype.ext
+        simp [f, g, hx, oldPoint]
+      rw [hgf]
+      apply Subtype.ext
+      apply Subtype.ext
+      change (R, 1) = x.val.val
+      exact Prod.ext hx.symm hbFin.symm
+    · simp [f, g, hx, oldPoint]
+  · intro x
+    by_cases hx : x.val.1 = R
+    · have hzero : x.val.2.val = 0 := by
+        rcases x.property with hzero | hxE
+        · exact hzero
+        · exact False.elim (hR (hx ▸ hxE))
+      have hzeroFin : x.val.2 = 0 := Fin.ext hzero
+      have hfg : f (g x) = oldPoint := by
+        apply Subtype.ext
+        simp [f, g, hx, oldPoint]
+      rw [hfg]
+      apply Subtype.ext
+      change (R, 0) = x.val
+      exact Prod.ext hx.symm hzeroFin.symm
+    · simp [f, g, hx, oldPoint]
 
 noncomputable def c_elim2_shiftStateInsertEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ) :
