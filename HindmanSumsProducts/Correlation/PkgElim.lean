@@ -3784,6 +3784,52 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
   refine ⟨hcoeffN, hfactsN, hmassN, hlowerN, ?_⟩
   simpa [T] using hDminN
 
+noncomputable def pkgElim_momentOldResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (J0 B N : ℕ) : ℝ :=
+  let V := masterScaleV S.core.parameters N C.gap
+  let T := (S.primeStage.pool N C.gap).upper + V
+  let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
+  2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ)
+
+noncomputable def pkgElim_momentRootResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (N : ℕ) : ℝ :=
+  2 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) /
+    (S.core.parameters.H N C.gap : ℝ)
+
+noncomputable def pkgElim_momentBaseError {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (J0 B N : ℕ) : ℝ :=
+  (∑ k : Fin m, FromArithmetic.harmonicResidueUniformError
+      (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
+      (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))) +
+    ((2 * Fintype.card (NonTarget Sh) : ℕ) : ℝ) *
+      pkgElim_momentOldResidueError S C Sh J0 B N +
+    2 * pkgElim_momentRootResidueError S C Sh N
+
+noncomputable def pkgElim_momentCRTError {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) : ℝ := by
+  classical
+  let V := masterScaleV S.core.parameters N C.gap
+  let lo := (S.primeStage.pool N C.gap).lower
+  let hi := (S.primeStage.pool N C.gap).upper
+  let e := S.primeStage.e0 N
+  let δ := finiteL1 (primePoolResidueLaw lo hi
+      (FromArithmetic.masterCRTModulus (N + 1) e V))
+    (uniformUnitResidueLaw (FromArithmetic.masterCRTModulus (N + 1) e V))
+  exact if pkgElim_momentGlobalData S C a Sh dirs tests J0 B N then
+      (s : ℝ) * δ
+    else finiteL1
+      (FromArithmetic.primeTupleCRTLaw (fun _ : Fin s => lo) (fun _ => hi) (N + 1) V)
+      (FromArithmetic.uniformPrimeTupleCRTLaw (N + 1) V)
+
 end AdditiveMoment
 
 end HindmanSumsProducts
