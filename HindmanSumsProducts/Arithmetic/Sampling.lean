@@ -2215,6 +2215,47 @@ private theorem harmonic_dilation_term_tail_bound (X W k : ℕ) (hW : 0 < W)
       rw [if_neg hLower, if_neg hUpper]
       simp
 
+private theorem harmonic_coprime_interval_reciprocal_bound (W : ℕ) (hW : 0 < W)
+    {A B : ℝ} (hA : 0 < A) (hAB : A < B) :
+    |(∑ n ∈ Finset.Ico ⌈A⌉₊ ⌈B⌉₊,
+        (if A ≤ (n : ℝ) ∧ (n : ℝ) < B ∧ Nat.Coprime n W then 1 else 0) / (n : ℝ)) -
+      (Nat.totient W : ℝ) / W * Real.log (B / A)| ≤ (Nat.totient W : ℝ) / A := by
+  have h := periodic_harmonic_interval_bound W 1 0 hW (by omega) (by simp) (by omega) hA hAB
+  simpa [Nat.mod_one, div_one, and_assoc, and_left_comm, and_comm] using h
+
+private theorem harmonic_dilation_reference_mass_eq_residue (X W k : ℕ) (hk : 0 < k) :
+    (∑' z : ℤ, dilationReference (harmonicLaw X W) k z) =
+      (k : ℝ) * harmonicResidueLaw (harmonicLaw X W) k ⟨0, by omega⟩ := by
+  have hfun : (fun z : ℤ => dilationReference (harmonicLaw X W) k z) =
+      fun z => (k : ℝ) *
+        (if 0 ≤ z ∧ z.toNat % k = 0 then harmonicLaw X W z else 0) := by
+    funext z
+    by_cases hz : 0 ≤ z
+    · have hzcast : (z.toNat : ℤ) = z := Int.natCast_toNat_eq_self.mpr hz
+      have hdiv : (k : ℤ) ∣ z ↔ z.toNat % k = 0 := by
+        constructor
+        · intro hdiv
+          have hdivNat : k ∣ z.toNat := by
+            apply Int.natCast_dvd_natCast.mp
+            simpa [hzcast] using hdiv
+          exact Nat.dvd_iff_mod_eq_zero.mp hdivNat
+        · intro hmod
+          have hdivNat : k ∣ z.toNat := Nat.dvd_iff_mod_eq_zero.mpr hmod
+          have hdivInt : (k : ℤ) ∣ (z.toNat : ℤ) := Int.natCast_dvd_natCast.mpr hdivNat
+          simpa [hzcast] using hdivInt
+      by_cases hmod : z.toNat % k = 0
+      · rw [dilationReference, if_pos (hdiv.mpr hmod)]
+        simp [hmod, hz]
+      · rw [dilationReference, if_neg (mt hdiv.mp hmod)]
+        simp [hmod, hz]
+    · have hμzero : harmonicLaw X W z = 0 := by
+        unfold harmonicLaw
+        simp [not_le_of_gt (show z < 0 by omega)]
+      simp [dilationReference, hz, hμzero]
+  rw [hfun, tsum_mul_left]
+  unfold harmonicResidueLaw
+  congr 1
+
 /-- Pointwise harmonic estimates underlying Lemma `lem:sampling`. -/
 theorem sampling_pointwise_claim (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
     (hlog : Real.log X > (W : ℝ) / X) : SamplingPointwiseBounds X W := by
@@ -2306,7 +2347,324 @@ theorem sampling_pointwise_claim (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
         have habs : |(h : ℝ)| = -h := abs_of_nonpos (by exact_mod_cast hh)
         simpa [hnegCast, habs] using hbound.1
       exact le_min hbound.2 hratio
-  · sorry
+  · intro hX' hden k hk hkX hcop
+    have hkpos : 0 < k := by omega
+    have hXpos : 0 < (X : ℝ) := by exact_mod_cast (show 0 < X by omega)
+    have hkRpos : 0 < (k : ℝ) := by exact_mod_cast hkpos
+    have hWposR : 0 < (W : ℝ) := by exact_mod_cast hW
+    have hZpos : 0 < harmonicNormalizer X W := harmonicNormalizer_pos X W hW hX' hden
+    have hDpos : 0 < Real.log X - (W : ℝ) / X := sub_pos.mpr hden
+    have hmass := harmonic_residue_pointwise_bound X W hW hX' hden
+      k 0 hcop hkpos (by omega)
+    have hmassEq := harmonic_dilation_reference_mass_eq_residue X W k hkpos
+    constructor
+    · by_cases hkone : k = 1
+      · subst k
+        rw [harmonic_dilation_l1_scaled_sum X W 1 hW hX' hden (by omega)]
+        have hzero : (∑ m ∈ Finset.Icc 0 (X ^ 2),
+            |harmonicLaw X W (m : ℤ) - (1 : ℝ) *
+              harmonicLaw X W ((1 * m : ℕ) : ℤ)|) = 0 := by
+          apply Finset.sum_eq_zero
+          intro m hm
+          simp
+        have hzero' : (∑ m ∈ Finset.Icc 0 (X ^ 2),
+            |harmonicLaw X W (m : ℤ) - (1 : ℝ) *
+              harmonicLaw X W ((1 * m : ℕ) : ℤ)|) = 0 := by simpa using hzero
+        simp only [Nat.cast_one]
+        rw [hzero]
+        have hnum : 0 ≤ 2 * Real.log (1 : ℝ) +
+            (W : ℝ) * 1 / X * (1 + 1 / X) := by
+          simp
+          positivity
+        exact div_nonneg hnum hDpos.le
+      · have hkge2 : 2 ≤ k := by omega
+        have hkRge : 1 ≤ (k : ℝ) := by exact_mod_cast hk
+        let F : Finset ℕ := Finset.Icc 0 (X ^ 2)
+        let Plo : ℕ → Prop := fun m => m < X ∧ X ≤ k * m ∧ Nat.Coprime m W
+        let Pup : ℕ → Prop := fun m => X ≤ m ∧ m < X ^ 2 ∧
+          X ^ 2 ≤ k * m ∧ Nat.Coprime m W
+        let fLo : ℕ → ℝ := fun m =>
+          if Plo m then 1 / ((m : ℝ) * harmonicNormalizer X W) else 0
+        let fUp : ℕ → ℝ := fun m =>
+          if Pup m then 1 / ((m : ℝ) * harmonicNormalizer X W) else 0
+        have hpointSum :
+            (∑ m ∈ F, |harmonicLaw X W (m : ℤ) -
+                (k : ℝ) * harmonicLaw X W ((k * m : ℕ) : ℤ)|) ≤
+              (∑ m ∈ F, fLo m) + (∑ m ∈ F, fUp m) := by
+          calc
+            _ ≤ ∑ m ∈ F, (fLo m + fUp m) := by
+              apply Finset.sum_le_sum
+              intro m hm
+              simpa [fLo, fUp, Plo, Pup] using
+                (harmonic_dilation_term_tail_bound X W k hW hX' hden hk hkX hcop m)
+            _ = _ := Finset.sum_add_distrib
+        let ALo : ℝ := (X : ℝ) / (k : ℝ)
+        let AUp : ℝ := ((X ^ 2 : ℕ) : ℝ) / (k : ℝ)
+        let gLo : ℕ → ℝ := fun m =>
+          (if ALo ≤ (m : ℝ) ∧ (m : ℝ) < X ∧ Nat.Coprime m W then 1 else 0) /
+            (m : ℝ)
+        let gUp : ℕ → ℝ := fun m =>
+          (if AUp ≤ (m : ℝ) ∧ (m : ℝ) < (X ^ 2 : ℕ) ∧ Nat.Coprime m W
+            then 1 else 0) / (m : ℝ)
+        have hALoPos : 0 < ALo := by dsimp [ALo]; positivity
+        have hAUpPos : 0 < AUp := by dsimp [AUp]; positivity
+        have hALoLt : ALo < (X : ℝ) := by
+          dsimp [ALo]
+          apply (div_lt_iff₀ hkRpos).2
+          have hkRge2 : 2 ≤ (k : ℝ) := by exact_mod_cast hkge2
+          nlinarith [hXpos, hkRge2]
+        have hAUpLt : AUp < ((X ^ 2 : ℕ) : ℝ) := by
+          dsimp [AUp]
+          have hXsqpos : 0 < ((X ^ 2 : ℕ) : ℝ) := by positivity
+          apply (div_lt_iff₀ hkRpos).2
+          have hkRge2 : 2 ≤ (k : ℝ) := by exact_mod_cast hkge2
+          nlinarith [hXsqpos, hkRge2]
+        have hALoQuot : (X : ℝ) / ALo = (k : ℝ) := by
+          dsimp [ALo]
+          field_simp [ne_of_gt hXpos, ne_of_gt hkRpos]
+        have hAUpQuot : ((X ^ 2 : ℕ) : ℝ) / AUp = (k : ℝ) := by
+          dsimp [AUp]
+          have hXsqpos : 0 < ((X ^ 2 : ℕ) : ℝ) := by positivity
+          field_simp [ne_of_gt hXsqpos, ne_of_gt hkRpos]
+        let TLo : Finset ℕ := Finset.Ico ⌈ALo⌉₊ X
+        let TUp : Finset ℕ := Finset.Ico ⌈AUp⌉₊ (X ^ 2)
+        have hLoSubset : F.filter Plo ⊆ TLo := by
+          intro m hm
+          rcases Finset.mem_filter.mp hm with ⟨_, hmlo⟩
+          have hmulR : (X : ℝ) ≤ (k : ℝ) * (m : ℝ) := by exact_mod_cast hmlo.2.1
+          have hALe : ALo ≤ (m : ℝ) := by
+            dsimp [ALo]
+            apply (div_le_iff₀ hkRpos).2
+            nlinarith [hmulR]
+          apply Finset.mem_Ico.mpr
+          constructor
+          · exact (Nat.ceil_le).2 hALe
+          · exact_mod_cast hmlo.1
+        have hUpSubset : F.filter Pup ⊆ TUp := by
+          intro m hm
+          rcases Finset.mem_filter.mp hm with ⟨_, hmup⟩
+          have hmulR : ((X ^ 2 : ℕ) : ℝ) ≤ (k : ℝ) * (m : ℝ) := by
+            exact_mod_cast hmup.2.2.1
+          have hA_le : AUp ≤ (m : ℝ) := by
+            dsimp [AUp]
+            apply (div_le_iff₀ hkRpos).2
+            nlinarith [hmulR]
+          apply Finset.mem_Ico.mpr
+          constructor
+          · exact (Nat.ceil_le).2 hA_le
+          · exact_mod_cast hmup.2.1
+        have hLoFactor : (∑ m ∈ F, fLo m) =
+            (harmonicNormalizer X W)⁻¹ *
+              (∑ m ∈ F.filter Plo, 1 / (m : ℝ)) := by
+          calc
+            _ = ∑ m ∈ F.filter Plo,
+                1 / ((m : ℝ) * harmonicNormalizer X W) := by
+                  dsimp [fLo]
+                  rw [← Finset.sum_filter]
+            _ = _ := by
+                  rw [Finset.mul_sum]
+                  apply Finset.sum_congr rfl
+                  intro m hm
+                  rcases Finset.mem_filter.mp hm with ⟨_, hmlo⟩
+                  have hmpos : 0 < m := by
+                    by_contra hm0
+                    have hmz : m = 0 := Nat.eq_zero_of_not_pos hm0
+                    subst m
+                    omega
+                  have hmRpos : 0 < (m : ℝ) := by exact_mod_cast hmpos
+                  field_simp [ne_of_gt hmRpos, ne_of_gt hZpos]
+                  <;> ring
+        have hUpFactor : (∑ m ∈ F, fUp m) =
+            (harmonicNormalizer X W)⁻¹ *
+              (∑ m ∈ F.filter Pup, 1 / (m : ℝ)) := by
+          calc
+            _ = ∑ m ∈ F.filter Pup,
+                1 / ((m : ℝ) * harmonicNormalizer X W) := by
+                  dsimp [fUp]
+                  rw [← Finset.sum_filter]
+            _ = _ := by
+                  rw [Finset.mul_sum]
+                  apply Finset.sum_congr rfl
+                  intro m hm
+                  rcases Finset.mem_filter.mp hm with ⟨_, hmup⟩
+                  have hmpos : 0 < m := by
+                    by_contra hm0
+                    have hmz : m = 0 := Nat.eq_zero_of_not_pos hm0
+                    subst m
+                    omega
+                  have hmRpos : 0 < (m : ℝ) := by exact_mod_cast hmpos
+                  field_simp [ne_of_gt hmRpos, ne_of_gt hZpos]
+                  <;> ring
+        have hLoRawLe : (∑ m ∈ F.filter Plo, 1 / (m : ℝ)) ≤
+            ∑ m ∈ TLo, gLo m := by
+          calc
+            _ = ∑ m ∈ F.filter Plo, gLo m := by
+                  apply Finset.sum_congr rfl
+                  intro m hm
+                  rcases Finset.mem_filter.mp hm with ⟨_, hmlo⟩
+                  have hmulR : (X : ℝ) ≤ (k : ℝ) * (m : ℝ) := by
+                    exact_mod_cast hmlo.2.1
+                  have hALe : ALo ≤ (m : ℝ) := by
+                    dsimp [ALo]
+                    apply (div_le_iff₀ hkRpos).2
+                    nlinarith [hmulR]
+                  have hmLt : (m : ℝ) < X := by exact_mod_cast hmlo.1
+                  dsimp [gLo]
+                  rw [if_pos ⟨hALe, hmLt, hmlo.2.2⟩]
+            _ ≤ _ := by
+                  apply Finset.sum_le_sum_of_subset_of_nonneg hLoSubset
+                  intro m hmT hnot
+                  have hmT' := Finset.mem_Ico.mp hmT
+                  have hALe : ALo ≤ (m : ℝ) := (Nat.ceil_le).1 hmT'.1
+                  have hmRpos : 0 < (m : ℝ) := lt_of_lt_of_le hALoPos hALe
+                  dsimp [gLo]
+                  split_ifs <;> positivity
+        have hUpRawLe : (∑ m ∈ F.filter Pup, 1 / (m : ℝ)) ≤
+            ∑ m ∈ TUp, gUp m := by
+          calc
+            _ = ∑ m ∈ F.filter Pup, gUp m := by
+                  apply Finset.sum_congr rfl
+                  intro m hm
+                  rcases Finset.mem_filter.mp hm with ⟨_, hmup⟩
+                  have hmulR : ((X ^ 2 : ℕ) : ℝ) ≤ (k : ℝ) * (m : ℝ) := by
+                    exact_mod_cast hmup.2.2.1
+                  have hA_le : AUp ≤ (m : ℝ) := by
+                    dsimp [AUp]
+                    apply (div_le_iff₀ hkRpos).2
+                    nlinarith [hmulR]
+                  have hmLt : (m : ℝ) < (X ^ 2 : ℕ) := by exact_mod_cast hmup.2.1
+                  dsimp [gUp]
+                  rw [if_pos ⟨hA_le, hmLt, hmup.2.2.2⟩]
+            _ ≤ _ := by
+                  apply Finset.sum_le_sum_of_subset_of_nonneg hUpSubset
+                  intro m hmT hnot
+                  have hmT' := Finset.mem_Ico.mp hmT
+                  have hA_le : AUp ≤ (m : ℝ) := (Nat.ceil_le).1 hmT'.1
+                  have hmRpos : 0 < (m : ℝ) := lt_of_lt_of_le hAUpPos hA_le
+                  dsimp [gUp]
+                  split_ifs <;> positivity
+        have hLoPeriod := harmonic_coprime_interval_reciprocal_bound W hW hALoPos hALoLt
+        have hUpPeriod := harmonic_coprime_interval_reciprocal_bound W hW hAUpPos hAUpLt
+        have hLoPeriod' :
+            |(∑ m ∈ TLo, gLo m) - (Nat.totient W : ℝ) / W *
+                Real.log ((X : ℝ) / ALo)| ≤ (Nat.totient W : ℝ) / ALo := by
+          simpa [TLo, gLo] using hLoPeriod
+        have hUpPeriod' :
+            |(∑ m ∈ TUp, gUp m) - (Nat.totient W : ℝ) / W *
+                Real.log (((X ^ 2 : ℕ) : ℝ) / AUp)| ≤
+              (Nat.totient W : ℝ) / AUp := by
+          have hceil : ⌈((X ^ 2 : ℕ) : ℝ)⌉₊ = X ^ 2 := Nat.ceil_natCast _
+          rw [hceil] at hUpPeriod
+          simpa [TUp, gUp] using hUpPeriod
+        rw [hALoQuot] at hLoPeriod'
+        rw [hAUpQuot] at hUpPeriod'
+        have hLoRaw : (∑ m ∈ TLo, gLo m) ≤
+            (Nat.totient W : ℝ) / W * Real.log k +
+              (Nat.totient W : ℝ) / ALo := by
+          have h := (abs_le.mp hLoPeriod').2
+          linarith
+        have hUpRaw : (∑ m ∈ TUp, gUp m) ≤
+            (Nat.totient W : ℝ) / W * Real.log k +
+              (Nat.totient W : ℝ) / AUp := by
+          have h := (abs_le.mp hUpPeriod').2
+          linarith
+        have hLoNorm : (∑ m ∈ F, fLo m) ≤
+            ((Nat.totient W : ℝ) / W * Real.log k +
+              (Nat.totient W : ℝ) / ALo) / harmonicNormalizer X W := by
+          rw [hLoFactor]
+          calc
+            _ ≤ (harmonicNormalizer X W)⁻¹ *
+                ((Nat.totient W : ℝ) / W * Real.log k +
+                  (Nat.totient W : ℝ) / ALo) :=
+              mul_le_mul_of_nonneg_left (hLoRawLe.trans hLoRaw)
+                (inv_nonneg.mpr hZpos.le)
+            _ = _ := by ring
+        have hUpNorm : (∑ m ∈ F, fUp m) ≤
+            ((Nat.totient W : ℝ) / W * Real.log k +
+              (Nat.totient W : ℝ) / AUp) / harmonicNormalizer X W := by
+          rw [hUpFactor]
+          calc
+            _ ≤ (harmonicNormalizer X W)⁻¹ *
+                ((Nat.totient W : ℝ) / W * Real.log k +
+                  (Nat.totient W : ℝ) / AUp) :=
+              mul_le_mul_of_nonneg_left (hUpRawLe.trans hUpRaw)
+                (inv_nonneg.mpr hZpos.le)
+            _ = _ := by ring
+        have hLoErr : (Nat.totient W : ℝ) / ALo =
+            (Nat.totient W : ℝ) * k / X := by
+          dsimp [ALo]
+          field_simp [ne_of_gt hXpos, ne_of_gt hkRpos]
+          <;> ring
+        have hUpErr : (Nat.totient W : ℝ) / AUp =
+            (Nat.totient W : ℝ) * k / (X : ℝ) ^ 2 := by
+          dsimp [AUp]
+          have hXsqpos : 0 < ((X ^ 2 : ℕ) : ℝ) := by positivity
+          have hXsqCast : ((X ^ 2 : ℕ) : ℝ) = (X : ℝ) ^ 2 := by norm_cast
+          rw [hXsqCast]
+          field_simp [ne_of_gt hXsqpos, ne_of_gt hkRpos]
+          <;> ring
+        let C : ℝ := 2 * Real.log k + (W : ℝ) * k / X * (1 + 1 / X)
+        have hC : 0 ≤ C := by
+          dsimp [C]
+          exact add_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg hkRge)) (by positivity)
+        have hThetaD :
+            (Nat.totient W : ℝ) / W *
+              (Real.log X - (W : ℝ) / X) ≤ harmonicNormalizer X W :=
+          harmonicNormalizer_lower X W hW hX' hden
+        have hNumBound :
+            ((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / ALo) +
+              ((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / AUp) ≤
+              ((Nat.totient W : ℝ) / W) * C := by
+          apply le_of_eq
+          rw [hLoErr, hUpErr]
+          dsimp [C]
+          field_simp [ne_of_gt hWposR, ne_of_gt hXpos]
+          <;> ring
+        have hL1Num : arithmeticL1 (dilatedLaw (harmonicLaw X W) k)
+              (dilationReference (harmonicLaw X W) k) ≤
+            (((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / ALo) +
+              ((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / AUp)) / harmonicNormalizer X W := by
+          calc
+            _ ≤ (∑ m ∈ F, fLo m) + (∑ m ∈ F, fUp m) := by
+              rw [harmonic_dilation_l1_scaled_sum X W k hW hX' hden hk]
+              exact hpointSum
+            _ ≤ ((Nat.totient W : ℝ) / W * Real.log k +
+                  (Nat.totient W : ℝ) / ALo) / harmonicNormalizer X W +
+                ((Nat.totient W : ℝ) / W * Real.log k +
+                  (Nat.totient W : ℝ) / AUp) / harmonicNormalizer X W :=
+              add_le_add hLoNorm hUpNorm
+            _ = _ := by ring
+        have hcross :
+            (((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / ALo) +
+              ((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / AUp)) *
+                (Real.log X - (W : ℝ) / X) ≤
+              C * harmonicNormalizer X W := by
+          calc
+            _ ≤ (((Nat.totient W : ℝ) / W) * C) *
+                (Real.log X - (W : ℝ) / X) :=
+              mul_le_mul_of_nonneg_right hNumBound hDpos.le
+            _ = C * (((Nat.totient W : ℝ) / W) *
+                (Real.log X - (W : ℝ) / X)) := by ring
+            _ ≤ _ := mul_le_mul_of_nonneg_left hThetaD hC
+        have hratio :
+            (((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / ALo) +
+              ((Nat.totient W : ℝ) / W * Real.log k +
+                (Nat.totient W : ℝ) / AUp)) / harmonicNormalizer X W ≤ C /
+              (Real.log X - (W : ℝ) / X) :=
+          (div_le_div_iff₀ hZpos hDpos).2 hcross
+        have hL1 : arithmeticL1 (dilatedLaw (harmonicLaw X W) k)
+              (dilationReference (harmonicLaw X W) k) ≤
+            C / (Real.log X - (W : ℝ) / X) := hL1Num.trans hratio
+        simpa [C] using hL1
+    · rw [hmassEq]
+      exact hmass
 
 /-- Uniform sampling on an integer interval: residue total-mass error and translation error
 from §3 lines 132–143. -/
