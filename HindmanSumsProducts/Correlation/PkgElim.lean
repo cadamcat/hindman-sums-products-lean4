@@ -3838,6 +3838,62 @@ theorem pkgElim_responseUnit_integer {N V q : ℕ}
   refine ⟨x.num, ?_⟩
   exact (Rat.den_eq_one_iff x).mp h.2.1 |>.symm
 
+theorem pkgElim_rationalResidue_intCast {r : ℕ} (hr : r.Prime) (z : ℤ) :
+    FromArithmetic.rationalResidue r hr (z : ℚ) = (z : ZMod r) := by
+  letI : Fact r.Prime := ⟨hr⟩
+  simp [FromArithmetic.rationalResidue]
+
+theorem pkgElim_occurrenceAnchor_residue_ne_zero {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (N : ℕ) (p : Fin q → ℕ) (o : Occurrence Sh) (J0 B : ℕ)
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly p)
+    (π : ℕ) (hπ : π.Prime) (hπN : N + 1 < π)
+    (hπV : π ≤ masterScaleV S.core.parameters N C.gap) :
+    FromArithmetic.rationalResidue π hπ
+      (occurrenceCoeff S C a Sh dirs N p o
+        (.inl (Sh.row (occurrenceRow Sh o)).anchor)) ≠ 0 := by
+  classical
+  letI : Fact π.Prime := ⟨hπ⟩
+  rcases hGlobal with ⟨⟨c, hcVal, hcPos, hcRatio, hcDiv⟩, hFacts, hMass, hLower, hLength⟩
+  let T := Sh.row (occurrenceRow Sh o)
+  have hanchorMem : T.anchor ∈ T.support := Finset.max'_mem T.support T.support_nonempty
+  have hentrySome : (T.entry T.anchor).isSome := by
+    simpa [RowTemplate.support] using hanchorMem
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hentrySome
+  have hscale : chainScale S.core.parameters C a N T.anchor = (c T.anchor : ℚ) :=
+    (hcVal T.anchor).symm
+  have hcposQ : 0 < (c T.anchor : ℚ) := by exact_mod_cast hcPos T.anchor
+  have hcne : chainScale S.core.parameters C a N T.anchor ≠ 0 := by
+    rw [hscale]
+    exact ne_of_gt hcposQ
+  have hcoeff : occurrenceCoeff S C a Sh dirs N p o (.inl T.anchor) = T.value p T.anchor := by
+    change rowTemplateCoefficient (chainScale S.core.parameters C a N) T p T.anchor = _
+    unfold rowTemplateCoefficient
+    rw [div_self hcne, one_mul]
+  have hval : T.value p T.anchor =
+      ((∏ i : Fin q, (p i : ℤ) ^ e i : ℤ) : ℚ) := by
+    simp [RowTemplate.value, T, he]
+  have hpiNZ : ∀ i : Fin q, (p i : ZMod π) ≠ 0 := by
+    intro i hz
+    have hdvd : π ∣ p i := (ZMod.natCast_eq_zero_iff (p i) π).mp hz
+    have hprime := (hGood.1 i).2.2
+    have hlt : π < p i := by
+      have hpool : (S.primeStage.pool N C.gap).lower ≤ p i := (hGood.1 i).1
+      have hbound : masterScaleV S.core.parameters N C.gap + 1 <
+          (S.primeStage.pool N C.gap).lower := hLower
+      omega
+    have heq : π = p i := (Nat.prime_dvd_prime_iff_eq hπ hprime).mp hdvd
+    omega
+  have hprodNZ : (∏ i : Fin q, (p i : ZMod π) ^ e i) ≠ 0 := by
+    apply Finset.prod_ne_zero_iff.mpr
+    intro i hi
+    exact pow_ne_zero _ (hpiNZ i)
+  rw [hcoeff, hval, pkgElim_rationalResidue_intCast]
+  simpa using hprodNZ
+
 theorem pkgElim_occurrenceCoeff_integer {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
