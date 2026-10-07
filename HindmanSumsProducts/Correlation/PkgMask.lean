@@ -9618,4 +9618,175 @@ theorem pkgMask_gapPivot_freshPair_reindex {K s m q : ℕ} {Aset : Finset ℚ}
         ring
       rw [hmass]
 
+noncomputable def pkgMask_invariantRowWeight {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (I : Fin r → Prop) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
+  ∏ i : Fin r, if hi : I i then
+    1 + chainWeight S.core.parameters C N (st.shape.row i).anchor
+      (rowForm (chainScale S.core.parameters C a N) (st.shape.row i) p
+        (fun k => (z k : ℚ))).num else 1
+
+theorem pkgMask_invariantRowWeight_pos {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (I : Fin r → Prop) (p : Fin q → ℕ) (z : Fin m → ℤ) :
+    0 < pkgMask_invariantRowWeight st S C a N I p z := by
+  classical
+  unfold pkgMask_invariantRowWeight
+  apply Finset.prod_pos
+  intro i hi
+  by_cases hI : I i
+  · simp only [dif_pos hI]
+    have hnonneg := chainWeight_nonneg S C N (st.shape.row i).anchor
+      (rowForm (chainScale S.core.parameters C a N) (st.shape.row i) p
+        (fun k => (z k : ℚ))).num
+    linarith
+  · simp [hI]
+
+theorem pkgMask_outsideDoubleBranch_integrand_identity
+    {K s m q r r' : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (U : Finset (Fin m)) (u : Fin m)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBranchP u).Parallel
+        ((st.shape.row i).scaleBranchQ u)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBranchP u)
+      (fun i => (st.shape.row i).scaleBranchQ u) x.val.1 x.val.2)
+    (I : Fin r → Prop)
+    (hI : ∀ i, I i ↔ ((st.shape.row i).scaleBranchP u).Parallel
+      ((st.shape.row i).scaleBranchQ u))
+    (hc : chainScale S.core.parameters C a N u ≠ 0)
+    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+      (S.primeStage.pool N C.gap).lower)
+    (hdenOld : ∀ (p : Fin q → ℕ) (z : Fin m → ℤ) (i : Fin r),
+      (rowForm (chainScale S.core.parameters C a N) (st.shape.row i) p
+        (fun k => (z k : ℚ))).den = 1)
+    (hdenNew : ∀ (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ)
+      (T : RowTemplate m (q + 2)),
+      (rowForm (chainScale S.core.parameters C a N) T p
+        (fun k => (z k : ℚ))).den = 1)
+    (pOld : Fin q → ℕ) (z : Fin m → ℤ) (p₁ p₀ : ℕ)
+    (hfull : extendPrimeTuple (extendPrimeTuple pOld p₁) p₀ ∈
+      independentPrimePoolSupport
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper)) :
+    pkgMask_invariantRowWeight st S C a N I pOld z *
+      (MaskRemovalState.pkgMask_outsideStepAverageFunction
+        st S C a N U u (fun x => pkgMask_invariantRowWeight st S C a N I x.1 x.2) (pOld, z) p₁) *
+      MaskRemovalState.pkgMask_outsideStepAverageFunction
+        st S C a N U u (fun x => pkgMask_invariantRowWeight st S C a N I x.1 x.2) (pOld, z) p₀ =
+      MaskRemovalState.pkgMask_stateIntegrand
+        (outsideBranchMaskRemovalState S C N st U u Sh' e) S C a N
+        (extendPrimeTuple (extendPrimeTuple pOld p₁) p₀) z := by
+  classical
+  let c := chainScale S.core.parameters C a N
+  let p := extendPrimeTuple (extendPrimeTuple pOld p₁) p₀
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchQ u
+  have hp1 : p 1 = p₁ := by dsimp [p]; rfl
+  have hp0 : p 0 = p₀ := by dsimp [p]; rfl
+  have hSlots := (independentPrimePoolSupport_mem_iff
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper) p).mp (by simpa [p] using hfull)
+  have hslot (j : Fin (q + 2)) :
+      (S.primeStage.pool N C.gap).lower ≤ p j ∧
+        p j < (S.primeStage.pool N C.gap).upper ∧ (p j).Prime := by
+    rcases Finset.mem_filter.mp (hSlots j) with ⟨hIco, hpj⟩
+    rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+    exact ⟨hlo, hhi, hpj⟩
+  have hp : ∀ j, p j ≠ 0 := fun j => Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
+  have hV₁ : masterScaleV S.core.parameters N C.gap < p 1 :=
+    lt_of_lt_of_le hpoolLower (hslot 1).1
+  have hdenL (i : Fin r) : (rowForm c (L i) p (fun k => (z k : ℚ))).den = 1 :=
+    hdenNew p z (L i)
+  have hdenR (i : Fin r) : (rowForm c (R i) p (fun k => (z k : ℚ))).den = 1 :=
+    hdenNew p z (R i)
+  have hscaleDen (i : Fin r) (hi : I i) :
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hI i |>.mp hi) p *
+        ((rowForm c (L i) p (fun k => (z k : ℚ))).num : ℚ)).den = 1 := by
+    have hPnum : ((rowForm c (L i) p (fun k => (z k : ℚ))).num : ℚ) =
+        rowForm c (L i) p (fun k => (z k : ℚ)) :=
+      (Rat.den_eq_one_iff _).mp (hdenL i)
+    have hform := RowTemplate.rowForm_eq_monomial_scale_of_parallel c
+      (L i) (R i) ((hI i).mp hi) p hp (fun k => (z k : ℚ))
+    have hval : RowTemplate.parallelScaleFactor (L i) (R i) ((hI i).mp hi) p *
+        ((rowForm c (L i) p (fun k => (z k : ℚ))).num : ℚ) =
+        rowForm c (R i) p (fun k => (z k : ℚ)) := by
+      rw [hPnum]
+      simpa [RowTemplate.parallelScaleFactor] using hform.symm
+    rw [hval]
+    exact hdenR i
+  have hscaleDen' (i : Fin r) (hi : (L i).Parallel (R i)) :
+      (RowTemplate.parallelScaleFactor (L i) (R i) hi p *
+        ((rowForm c (L i) p (fun k => (z k : ℚ))).num : ℚ)).den = 1 := by
+    simpa using hscaleDen i ((hI i).mpr hi)
+  have hdenOld' (i : Fin r) :
+      (rowForm c (st.shape.row i) (dropPrimeTuple2 p)
+        (fun k => (z k : ℚ))).den = 1 := by
+    simpa [p, dropPrimeTuple2_extend] using hdenOld pOld z i
+  have hweight := pkgMask_invariantBranchWeightProduct_eq_old S C N a
+    (st.shape.row) u p z I hI hc (hslot 1).2.2 hV₁ hdenL hdenOld'
+  have hweight' :
+      (∏ i : Fin r, if hi : I i then
+        1 + chainWeight S.core.parameters C N (st.shape.row i).anchor
+          (rowForm c (L i) p (fun k => (z k : ℚ))).num else 1) =
+        pkgMask_invariantRowWeight st S C a N I pOld z := by
+    simpa [pkgMask_invariantRowWeight, p, dropPrimeTuple2_extend, c] using hweight
+  have hbranch := pkgMask_outsideBranchStateIntegrand_identity S C a N st U u
+    Sh' e hrow p (by simpa [p] using hfull) z hp hdenL hscaleDen'
+  let B (t : ℕ) : ℝ :=
+    ((∏ V ∈ st.masks.erase U,
+        st.maskFunction V pOld
+          (∏ k ∈ V, Function.update z u ((t : ℤ) * z u) k)) *
+      ∏ R₀, atQ (st.rowFunction R₀ pOld)
+        (rowForm c (st.shape.row R₀) pOld
+          (Function.update (fun k => (z k : ℚ)) u ((t : ℚ) * (z u : ℚ)))))
+  have hbranch' :
+      (∏ i : Fin r, if hi : I i then
+        1 + chainWeight S.core.parameters C N (st.shape.row i).anchor
+          (rowForm c (L i) p (fun k => (z k : ℚ))).num else 1) *
+        MaskRemovalState.pkgMask_stateIntegrand
+          (outsideBranchMaskRemovalState S C N st U u Sh' e) S C a N p z =
+        B p₁ * B p₀ := by
+    have hbranchI := hbranch
+    simp_rw [← hI] at hbranchI
+    simpa [B, p, L, R, c, dropPrimeTuple2_extend, hp0, hp1] using hbranchI
+  have hresidual (t : ℕ) :
+      MaskRemovalState.pkgMask_outsideStepAverageFunction
+        st S C a N U u (fun x => pkgMask_invariantRowWeight st S C a N I x.1 x.2) (pOld, z) t =
+      B t / pkgMask_invariantRowWeight st S C a N I pOld z := by
+    rfl
+  have hΩpos := pkgMask_invariantRowWeight_pos st S C a N I pOld z
+  have hΩne : pkgMask_invariantRowWeight st S C a N I pOld z ≠ 0 := ne_of_gt hΩpos
+  have hbranchΩ :
+      pkgMask_invariantRowWeight st S C a N I pOld z *
+        MaskRemovalState.pkgMask_stateIntegrand
+          (outsideBranchMaskRemovalState S C N st U u Sh' e) S C a N p z =
+        B p₁ * B p₀ := by
+    rw [hweight'] at hbranch'
+    exact hbranch'
+  calc
+    pkgMask_invariantRowWeight st S C a N I pOld z *
+        (MaskRemovalState.pkgMask_outsideStepAverageFunction
+          st S C a N U u (fun x => pkgMask_invariantRowWeight st S C a N I x.1 x.2) (pOld, z) p₁) *
+        MaskRemovalState.pkgMask_outsideStepAverageFunction
+          st S C a N U u (fun x => pkgMask_invariantRowWeight st S C a N I x.1 x.2) (pOld, z) p₀ =
+        pkgMask_invariantRowWeight st S C a N I pOld z *
+          ((B p₁ / pkgMask_invariantRowWeight st S C a N I pOld z) *
+            (B p₀ / pkgMask_invariantRowWeight st S C a N I pOld z)) := by
+              rw [hresidual p₁, hresidual p₀]
+              ring
+    _ = (B p₁ * B p₀) / pkgMask_invariantRowWeight st S C a N I pOld z := by
+      field_simp [hΩne]
+    _ = MaskRemovalState.pkgMask_stateIntegrand
+          (outsideBranchMaskRemovalState S C N st U u Sh' e) S C a N p z := by
+      field_simp [hΩne]
+      nlinarith [hbranchΩ]
+
 end HindmanSumsProducts
