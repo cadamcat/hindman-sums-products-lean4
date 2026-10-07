@@ -4456,6 +4456,14 @@ theorem pkgElim_momentCRTError_superpolynomial {K m q r s : ℕ}
     simp [pkgElim_momentCRTError, hN, δ, lo, hi, e, V]
   exact (tendsto_congr' heq).2 (hscaled c hc)
 
+theorem pkgElim_evalIntegerPolynomial_rename {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (P : IntegerPolynomial q) (p' : Fin s → ℕ) :
+    evalIntegerPolynomial (MvPolynomial.rename ι P) (fun j => (p' j : ℤ)) =
+      evalIntegerPolynomial P (fun i => (p' (ι i) : ℤ)) := by
+  change MvPolynomial.eval (fun j => (p' j : ℤ)) (MvPolynomial.rename ι P) = _
+  rw [MvPolynomial.eval_rename]
+  rfl
+
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -4690,6 +4698,122 @@ theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset �
           congr 1
     _ ≤ ∑ i : Fin d, ε i := hprodTV
     _ = pkgElim_momentBaseError S C Sh J0 B N := hsumError
+
+noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (hlisted : TestsListed Dm ι tests) (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
+    (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
+    (F : Finset (Occurrence Sh))
+    (hGlobalEvent : ∀ᶠ N in atTop,
+      pkgElim_momentGlobalData S C a Sh dirs tests J0 B N) :
+    FromArithmetic.WeightedLinearFormsData (q := h) (d := d) (b := K) S := by
+  classical
+  refine
+    { gap := fun _ => C.gap
+      rowCoeff := rowCoeff S ι C a Sh dirs eO eX
+      divisor := pkgElim_momentDivisorTemplate C Sh eO F
+      V := fun N => masterScaleV S.core.parameters N C.gap
+      epsilonBase := pkgElim_momentBaseError S C Sh J0 B
+      epsilonCRT := pkgElim_momentCRTError S C a Sh dirs tests J0 B
+      baseMass := fun N p' x => coordinateProductLaw S C Sh dirs J0 N
+        (fun i => p' (ι i)) eX x
+      goodDomain := fun N p' =>
+        pkgElim_momentGlobalData S C a Sh dirs tests J0 B N ∧
+          GoodTuple S C.gap N tests dirs.poly (fun i => p' (ι i))
+      V_lower := ?_
+      V_tendsto := ?_
+      slot_gap_bound := ?_
+      base_nonnegative := ?_
+      base_normalized := ?_
+      divisor_positive := ?_
+      divisor_bounded := ?_
+      base_residue_uniform := ?_
+      row_integer_on_support := ?_
+      row_denominators_are_units := ?_
+      row_primitive := ?_
+      pairwise_row_tests := ?_
+      crt_error_bound := ?_
+      epsilonBase_superpolynomial := ?_
+      epsilonCRT_superpolynomial := ?_ }
+  · intro N
+    exact pkgElim_masterScaleV_ge_modulus S.core.parameters N C.gap
+  · exact (tendsto_natCast_atTop_iff).mp
+      (pkgElim_masterScaleV_tendsto S.core.parameters C.gap)
+  · intro N i
+    rfl
+  · intro N p' x
+    exact pkgElim_coordinateProductLaw_nonneg S C Sh dirs J0 N
+      (fun i => p' (ι i)) eX x
+  · intro N p'
+    simpa using pkgElim_coordinateProductLaw_tsum_one S C Sh dirs J0 N
+      (fun i => p' (ι i)) eX
+  · intro N u σ hσ
+    exact (pkgElim_momentDivisorTemplate_support S C Sh eO F N u σ hσ).1
+  · intro N u σ hσ
+    exact (pkgElim_momentDivisorTemplate_support S C Sh eO F N u σ hσ).2.1
+  · intro N p' σ hgood hdiv hσ
+    rcases hgood with ⟨hGlobal, hLocal⟩
+    exact pkgElim_momentBaseResidueUniform S ι C a Sh dirs tests J0 B N hJ0
+      eO eX F p' hGlobal hLocal σ hdiv
+  · intro N p' x hgood hbase u
+    rcases hgood with ⟨hGlobal, hLocal⟩
+    obtain ⟨z, hz⟩ := pkgElim_linearRowValue_integer S ι C a Sh dirs eO eX
+      N p' u x J0 B tests hGlobal hLocal
+    rw [hz]
+    simp
+  · intro N p' hgood π hπ hN hV u j
+    rcases hgood with ⟨hGlobal, hLocal⟩
+    obtain ⟨z, hz⟩ := pkgElim_occurrenceCoeff_integer S C a Sh dirs tests N
+      (fun i => p' (ι i)) (eO.symm u) (eX.symm j) J0 B hGlobal hLocal
+    have hden :
+        (rowCoeff S ι C a Sh dirs eO eX N p' u j).den = 1 := by
+      change (occurrenceCoeff S C a Sh dirs N (fun i => p' (ι i))
+        (eO.symm u) (eX.symm j)).den = 1
+      rw [hz]
+      simp
+    simp [hden]
+  · intro N p' hgood π hπ hN hV u
+    rcases hgood with ⟨hGlobal, hLocal⟩
+    refine ⟨eX (.inl (Sh.row (occurrenceRow Sh (eO.symm u))).anchor), ?_⟩
+    simpa [rowCoeff] using pkgElim_occurrenceAnchor_residue_ne_zero S C a Sh dirs
+      tests N (fun i => p' (ι i)) (eO.symm u) J0 B hGlobal hLocal π hπ hN hV
+  · intro N p' hgood π hπ hN hV hAvoid u u' hne
+    rcases hgood with ⟨hGlobal, hLocal⟩
+    have hAvoidLocal : ∀ P ∈ tests,
+        ¬ ((π : ℤ) ∣ evalIntegerPolynomial P (fun i => (p' (ι i) : ℤ))) := by
+      intro P hP hdiv
+      have hren := hlisted P hP
+      have heval := pkgElim_evalIntegerPolynomial_rename ι P p'
+      have hdivRen : (π : ℤ) ∣
+          evalIntegerPolynomial (MvPolynomial.rename ι P) (fun j => (p' j : ℤ)) := by
+        simpa [heval] using hdiv
+      exact hAvoid (MvPolynomial.rename ι P) hren hdivRen
+    obtain ⟨v, w, hpair⟩ := pkgElim_occurrencePairwise_row_tests S C a Sh dirs
+      tests N (fun i => p' (ι i)) J0 B hGlobal hLocal π hπ hN hV hAvoidLocal
+      (eO.symm u) (eO.symm u') (by
+        intro heq
+        apply hne
+        exact eO.symm.injective heq)
+    exact ⟨eX v, eX w, by simpa [rowCoeff] using hpair⟩
+  · intro N
+    classical
+    by_cases hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N
+    · have hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper := hGlobal.2.2.1
+      have he : 0 < S.primeStage.e0 N :=
+        Nat.lt_of_lt_of_le Nat.zero_lt_one (S.primeStage.e0_pos N)
+      have hcrt := primeTupleCRTLaw_finiteL1_le (s := s) (w := N + 1)
+        (e := S.primeStage.e0 N) (V := masterScaleV S.core.parameters N C.gap)
+        (lo := (S.primeStage.pool N C.gap).lower)
+        (hi := (S.primeStage.pool N C.gap).upper) he hMass
+      simpa [pkgElim_momentCRTError, hGlobal] using hcrt
+    · simp [pkgElim_momentCRTError, hGlobal]
+  · exact pkgElim_momentBaseError_superpolynomial S C Sh J0 B hJ0
+  · exact pkgElim_momentCRTError_superpolynomial S C a Sh dirs tests J0 B hGlobalEvent
+
 
 end AdditiveMoment
 
