@@ -4674,7 +4674,7 @@ private theorem harmonicLaw_zero_of_not_mem_support (X W : ℕ) (z : ℤ)
   exact hmem
 
 theorem pkgMask_poolAverage_tsum_pivot_interchange {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (l : Fin K) (N X W : ℕ)
     (F : ℕ → ℤ → ℝ) :
     poolAverage S l N (fun p =>
@@ -4754,7 +4754,7 @@ theorem pkgMask_poolAverage_tsum_pivot_interchange {K s : ℕ} {Aset : Finset �
       rw [hpoolEq y]
 
 theorem pkgMask_poolAverage_const_mul {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (l : Fin K) (N : ℕ) (c : ℝ) (F : ℕ → ℝ) :
     poolAverage S l N (fun p => c * F p) = c * poolAverage S l N F := by
   unfold poolAverage
@@ -8007,7 +8007,7 @@ theorem gapPivotMass_tsum_one {K s m q : ℕ} {Aset : Finset ℚ}
     _ = 1 := hfinite
 
 theorem pkgMask_gapPivotTsum_fubini {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ)
     (F : (Fin q → ℕ) × (Fin m → ℤ) → ℝ) :
     ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
@@ -8312,7 +8312,7 @@ noncomputable def pkgMask_stateCoordinatePrimeInsertion {m q r K s : ℕ}
 
 theorem pkgMask_stateCoordinatePrimeInsertion_joint {m q r K s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (u : Fin m) :
     pkgMask_stateCoordinatePrimeInsertion st S C a N u =
       ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
@@ -8427,7 +8427,7 @@ theorem pkgMask_stateCoordinatePrimeInsertion_joint {m q r K s : ℕ}
 
 noncomputable def pkgMask_outsideStepAverageFunction {m q r K s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (U : Finset (Fin m)) (u : Fin m) (Ω :
       (Fin q → ℕ) × (Fin m → ℤ) → ℝ)
@@ -8494,7 +8494,7 @@ theorem pkgMask_stateCoordinateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset
 
 theorem pkgMask_stateIntegrand_outsideFactor {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (U : Finset (Fin m)) (u : Fin m) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (prime : ℕ) (Ω : ℝ)
     (hU : U ∈ st.masks) (hu : u ∉ U) (hΩ : Ω ≠ 0) :
@@ -8530,7 +8530,7 @@ theorem pkgMask_stateIntegrand_outsideFactor {m q r K s : ℕ} {Aset : Finset �
 
 theorem pkgMask_stateIntegrand_selectedMask_factor {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (U : Finset (Fin m)) (u : Fin m) (p : Fin q → ℕ)
     (z : Fin m → ℤ) (prime : ℕ) (hU : U ∈ st.masks) (hu : u ∉ U) :
     pkgMask_stateIntegrand st S C a N p
@@ -8548,7 +8548,7 @@ theorem pkgMask_stateIntegrand_selectedMask_factor {m q r K s : ℕ} {Aset : Fin
 
 theorem pkgMask_stateCoordinatePrimeInsertion_outside_factor {m q r K s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (U : Finset (Fin m)) (u : Fin m) (hU : U ∈ st.masks) (hu : u ∉ U)
     (Ω : (Fin q → ℕ) × (Fin m → ℤ) → ℝ) (hΩ : ∀ x, Ω x ≠ 0) :
@@ -9409,7 +9409,7 @@ theorem gapPivot_weighted_cauchy_schwarz {K s m q : ℕ} {Aset : Finset ℚ}
   · exact gapPivotMass_mul_summable S C N (fun x => Ω x * H₁ x ^ 2)
 
 theorem pkgMask_poolAverage_mul {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (l : Fin K) (N : ℕ) (F G : ℕ → ℝ) :
     poolAverage S l N F * poolAverage S l N G =
       ∑' pq : ℕ × ℕ,
@@ -9463,7 +9463,7 @@ theorem pkgMask_poolAverage_mul {K s : ℕ} {Aset : Finset ℚ}
       exact tsum_eq_sum (s := P ×ˢ P) hpairzero
 theorem MaskRemovalState.pkgMask_stateCoordinatePrimeInsertion_weightedCS
     {m q r K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
     (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
@@ -9523,7 +9523,7 @@ def pkgMask_oldFreshPairEquiv {m q : ℕ} :
     · rfl
 
 theorem pkgMask_gapPivot_freshPair_reindex {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ)
     (F : (((Fin q → ℕ) × (Fin m → ℤ)) × (ℕ × ℕ)) → ℝ) :
     ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
@@ -9617,7 +9617,7 @@ theorem pkgMask_gapPivot_freshPair_reindex {K s m q : ℕ} {Aset : Finset ℚ}
 
 noncomputable def pkgMask_invariantRowWeight {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (I : Fin r → Prop) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
   ∏ i : Fin r, if hi : I i then
@@ -9627,7 +9627,7 @@ noncomputable def pkgMask_invariantRowWeight {m q r K s : ℕ} {Aset : Finset �
 
 theorem pkgMask_invariantRowWeight_pos {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (I : Fin r → Prop) (p : Fin q → ℕ) (z : Fin m → ℤ) :
     0 < pkgMask_invariantRowWeight st S C a N I p z := by
@@ -9645,7 +9645,7 @@ theorem pkgMask_invariantRowWeight_pos {m q r K s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgMask_outsideDoubleBranch_integrand_identity
     {K s m q r r' : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (U : Finset (Fin m)) (u : Fin m)
     (Sh' : RowShape m (q + 2) r')
@@ -9659,7 +9659,7 @@ theorem pkgMask_outsideDoubleBranch_integrand_identity
     (hI : ∀ i, I i ↔ ((st.shape.row i).scaleBranchP u).Parallel
       ((st.shape.row i).scaleBranchQ u))
     (hc : chainScale S.core.parameters C a N u ≠ 0)
-    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+    (hpoolLower : FromArithmetic.masterScaleV S.core.parameters N C.gap <
       (S.primeStage.pool N C.gap).lower)
     (hdenOld : ∀ (p : Fin q → ℕ) (z : Fin m → ℤ) (i : Fin r),
       (rowForm (chainScale S.core.parameters C a N) (st.shape.row i) p
@@ -9698,7 +9698,7 @@ theorem pkgMask_outsideDoubleBranch_integrand_identity
     rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
     exact ⟨hlo, hhi, hpj⟩
   have hp : ∀ j, p j ≠ 0 := fun j => Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
-  have hV₁ : masterScaleV S.core.parameters N C.gap < p 1 :=
+  have hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 1 :=
     lt_of_lt_of_le hpoolLower (hslot 1).1
   have hdenL (i : Fin r) : (rowForm c (L i) p (fun k => (z k : ℚ))).den = 1 :=
     hdenNew p z (L i)
@@ -9788,7 +9788,7 @@ theorem pkgMask_outsideDoubleBranch_integrand_identity
 
 theorem MaskRemovalState.pkgMask_outsideWeightedSquare_eq_correlation
     {K s m q r r' : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (U : Finset (Fin m)) (u : Fin m)
     (Sh' : RowShape m (q + 2) r')
@@ -9802,7 +9802,7 @@ theorem MaskRemovalState.pkgMask_outsideWeightedSquare_eq_correlation
     (hI : ∀ i, I i ↔ ((st.shape.row i).scaleBranchP u).Parallel
       ((st.shape.row i).scaleBranchQ u))
     (hc : chainScale S.core.parameters C a N u ≠ 0)
-    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+    (hpoolLower : FromArithmetic.masterScaleV S.core.parameters N C.gap <
       (S.primeStage.pool N C.gap).lower)
     (hdenOld : ∀ (p : Fin q → ℕ) (z : Fin m → ℤ) (i : Fin r),
       (rowForm (chainScale S.core.parameters C a N) (st.shape.row i) p
