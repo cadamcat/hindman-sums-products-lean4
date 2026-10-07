@@ -4812,6 +4812,96 @@ private theorem localKernel_exceptionalExcess_bound {p A q d : ℕ}
         rw [← htermVal]
         nlinarith [htermLE]
 
+private theorem uniformBaseKernelCount_eq_normalizedKernelCount {K q d : ℕ}
+    (hK : 0 < K) (σ : Fin q → ℕ) (hσ : ∀ u, 0 < σ u)
+    (hKprod : ∏ u, σ u = K) (hdiv : ∀ u, σ u ∣ K)
+    (coeff : Fin q → Fin d → ZMod K) :
+    (∑ r : Fin d → Fin K,
+      uniformBaseResidueLaw K d r *
+        (if globalDivisibilityAddHom σ hdiv coeff
+            (fun j => (ZMod.finEquiv K) (r j)) = 0 then (K : ℝ) else 0)) =
+      normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative := by
+  classical
+  letI : NeZero K := ⟨Nat.ne_of_gt hK⟩
+  letI (u : Fin q) : NeZero (σ u) := ⟨Nat.ne_of_gt (hσ u)⟩
+  let g := globalDivisibilityAddHom σ hdiv coeff
+  let f := g.toMultiplicative
+  let e0 : Fin K ≃ ZMod K := (@ZMod.finEquiv K ⟨Nat.ne_of_gt hK⟩).toEquiv
+  let e : (Fin d → Fin K) ≃ (Fin d → ZMod K) :=
+    Equiv.piCongrRight (fun _ : Fin d => e0)
+  let good : (Fin d → Fin K) → Prop := fun r => g (e r) = 0
+  let eKer : {r : Fin d → Fin K // good r} ≃ f.ker := {
+    toFun := fun (r : {r : Fin d → Fin K // good r}) =>
+      (⟨Multiplicative.ofAdd (e r.val), by
+      change Multiplicative.ofAdd (g (e r.val)) = 1
+      rw [r.property]
+      rfl⟩ : f.ker)
+    invFun := fun (y : f.ker) =>
+      (⟨e.symm y.val.toAdd, by
+      have hy : f y.val = 1 := y.property
+      have hzero : g y.val.toAdd = 0 := by
+        have h := congrArg Multiplicative.toAdd hy
+        simpa [f] using h
+      simpa [good, e] using hzero⟩ : {r : Fin d → Fin K // good r})
+    left_inv := by
+      intro r
+      apply Subtype.ext
+      simp [e]
+    right_inv := by
+      intro y
+      apply Subtype.ext
+      change Multiplicative.ofAdd (e (e.symm y.val.toAdd)) = y.val
+      simp [e]
+    }
+  have hcount :
+      (∑ r : Fin d → Fin K, if good r then (1 : ℝ) else 0) =
+        (Fintype.card f.ker : ℝ) := by
+    have hcard : Fintype.card {r : Fin d → Fin K // good r} = Fintype.card f.ker :=
+      Fintype.card_congr eKer
+    calc
+      (∑ r : Fin d → Fin K, if good r then (1 : ℝ) else 0) =
+          (Fintype.card {r : Fin d → Fin K // good r} : ℝ) := by
+            rw [Finset.sum_boole, Fintype.card_subtype]
+      _ = (Fintype.card f.ker : ℝ) := by exact_mod_cast hcard
+  have hcardH : (Fintype.card
+      (Multiplicative ((u : Fin q) → ZMod (σ u))) : ℝ) = (K : ℝ) := by
+    calc
+      _ = (Fintype.card ((u : Fin q) → ZMod (σ u)) : ℝ) := by
+        exact_mod_cast Fintype.card_congr Multiplicative.toAdd
+      _ = (∏ u, (Fintype.card (ZMod (σ u)) : ℝ)) := by
+        exact_mod_cast (Fintype.card_pi :
+          Fintype.card ((u : Fin q) → ZMod (σ u)) = ∏ u, Fintype.card (ZMod (σ u)))
+      _ = ∏ u, (σ u : ℝ) := by simp [ZMod.card]
+      _ = K := by exact_mod_cast hKprod
+  have hcardG : (Fintype.card
+      (Multiplicative (Fin d → ZMod K)) : ℝ) = (K : ℝ) ^ d := by
+    calc
+      _ = (Fintype.card (Fin d → ZMod K) : ℝ) := by
+        exact_mod_cast Fintype.card_congr Multiplicative.toAdd
+      _ = (K : ℝ) ^ d := by
+        simp [Fintype.card_pi, ZMod.card]
+  calc
+    (∑ r : Fin d → Fin K,
+      uniformBaseResidueLaw K d r *
+        (if good r then (K : ℝ) else 0)) =
+      (1 / (K : ℝ) ^ d) * (K : ℝ) *
+        (∑ r : Fin d → Fin K, if good r then (1 : ℝ) else 0) := by
+          unfold uniformBaseResidueLaw
+          calc
+            _ = ∑ r : Fin d → Fin K,
+                (1 / (K : ℝ) ^ d) * (K : ℝ) * (if good r then (1 : ℝ) else 0) := by
+                  apply Finset.sum_congr rfl
+                  intro r hr
+                  by_cases hgood : good r <;> simp [hgood] <;> ring
+            _ = _ := by rw [← Finset.mul_sum]; ring
+    _ = (Fintype.card (Multiplicative ((u : Fin q) → ZMod (σ u))) : ℝ) *
+          ((Fintype.card f.ker : ℝ) / (Fintype.card
+            (Multiplicative (Fin d → ZMod K)) : ℝ)) := by
+          rw [hcount, hcardH, hcardG]
+          ring
+    _ = normalizedKernelCount f := rfl
+
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
