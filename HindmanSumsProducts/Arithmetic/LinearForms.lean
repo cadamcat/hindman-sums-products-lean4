@@ -6745,6 +6745,223 @@ theorem finite_fiber_product_bound {α ι : Type*} [Fintype α] [Fintype ι]
 
 end LinearFormsAux
 
+set_option maxHeartbeats 2000000 in
+private theorem linearForms_jointLocalBeta_moment {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ)
+    (hlog : ∀ i : Fin n,
+      4 * (primorial (N + 1) : ℝ) ≤
+        Real.log (S.core.parameters.X N i : ℝ))
+    (T : Finset ℕ) (hT : T ⊆ linearFormsPrimeSet D N)
+    (H C₁ : ℝ) (hH : 0 ≤ H) (hC₁ : 0 ≤ C₁)
+    (hlocal : ∀ p : ℕ, p.Prime → ∀ L : ℕ,
+      (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (L + 1)),
+        comparisonPrimeValuationWeight (b := b) p a * averagedLocalBeta H p a) ≤
+          C₁ / (p : ℝ) ^ 2) :
+    (∑ σ ∈ linearFormsDivisorTupleSupport D N,
+      linearFormsDivisorTupleMass D N σ *
+        ∏ p ∈ T, averagedLocalBeta H p (linearFormsValVector σ p)) ≤
+      (6 : ℝ) ^ (b * q) * ∏ p ∈ T, C₁ / (p : ℝ) ^ 2 := by
+  classical
+  let support := linearFormsDivisorTupleSupport D N
+  let W : ℕ := primorial (N + 1)
+  let PrimeIndex := {p : ℕ // p ∈ T}
+  let Box : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun _ : Fin q => Finset.range (D.V N + 1))
+  let Gamma := {a : Fin q → ℕ // a ∈ Box}
+  let Alpha := {σ : Fin q → ℕ // σ ∈ support}
+  letI : Fintype PrimeIndex := Finset.fintypeCoeSort T
+  letI : Fintype Gamma := Finset.fintypeCoeSort Box
+  letI : DecidableEq Gamma := Classical.decEq Gamma
+  letI : Fintype Alpha := Finset.fintypeCoeSort support
+  let mass : Alpha → ℝ := fun x => linearFormsDivisorTupleMass D N x.val
+  let v : Alpha → (∀ p : PrimeIndex, Gamma) := fun x p =>
+    ⟨linearFormsValVector x.val p.val, Fintype.mem_piFinset.mpr (by
+      intro u
+      apply Finset.mem_range.mpr
+      have hσ := (linearFormsDivisorTuple_support_facts D N).2.2.2 x.val x.property u
+      have hexp := Nat.factorization_lt p.val (Nat.ne_of_gt hσ.1)
+      have hbound : Nat.factorization (x.val u) p.val ≤ D.V N := by omega
+      exact Nat.lt_succ_of_le hbound)⟩
+  let weight : ∀ p : PrimeIndex, Gamma → ℝ := fun p a =>
+    comparisonPrimeValuationWeight (b := b) p.val a.val
+  let factor : ∀ p : PrimeIndex, Gamma → ℝ := fun p a =>
+    averagedLocalBeta H p.val a.val
+  have hprime : ∀ p ∈ T, p.Prime := by
+    intro p hp
+    exact (Finset.mem_filter.mp (hT hp)).2
+  have hcop : ∀ p ∈ T, Nat.Coprime p W := by
+    intro p hp
+    have hpIoc := Finset.mem_Ioc.mp (Finset.mem_filter.mp (hT hp)).1
+    have hpp := hprime p hp
+    apply hpp.coprime_iff_not_dvd.mpr
+    intro hdiv
+    have hpSmall : p ≤ N + 1 := by
+      apply hpp.dvd_primorial_iff.mp
+      simpa [W] using hdiv
+    omega
+  have hscaleX (i : Fin n) : 4 * W ≤ S.core.parameters.X N i :=
+    S.gapStage.valid_raw_cutoffs N i
+  have hlogW (i : Fin n) :
+      4 * (W : ℝ) ≤ Real.log (S.core.parameters.X N i : ℝ) := by
+    simpa [W] using hlog i
+  have hfactorNonneg (p : PrimeIndex) (a : Gamma) : 0 ≤ factor p a := by
+    have hp := hprime p.val p.property
+    have hreg := regularPrimeLocalExcess_nonneg p.val hp a.val
+    have hex := exceptionalPrimeLocalExcess_nonneg p.val hp a.val
+    dsimp [factor, averagedLocalBeta]
+    exact add_nonneg hreg (mul_nonneg (div_nonneg hH (Nat.cast_nonneg _)) hex)
+  have hweightNonneg (p : PrimeIndex) (a : Gamma) : 0 ≤ weight p a := by
+    dsimp [weight, comparisonPrimeValuationWeight]
+    apply Finset.prod_nonneg
+    intro u hu
+    positivity
+  have hlocalGamma (p : PrimeIndex) :
+      (∑ a : Gamma, weight p a * factor p a) ≤ C₁ / (p.val : ℝ) ^ 2 := by
+    have hp := hprime p.val p.property
+    have hlocal' := hlocal p.val hp (D.V N)
+    have heq :
+      (∑ a : Gamma, weight p a * factor p a) =
+          ∑ a ∈ Box, comparisonPrimeValuationWeight (b := b) p.val a *
+            averagedLocalBeta H p.val a := by
+      simpa [weight, factor, Gamma, Box, comparisonPrimeValuationWeight] using
+        (Finset.sum_subtype (F := (inferInstance : Fintype Gamma)) Box (fun a => Iff.rfl)
+          (fun a => comparisonPrimeValuationWeight (b := b) p.val a *
+            averagedLocalBeta H p.val a)).symm
+    rw [heq]
+    exact hlocal'
+  let aNat (a : ∀ p : PrimeIndex, Gamma) : ℕ → Fin q → ℕ := fun p u =>
+    if hp : p ∈ T then (a ⟨p, hp⟩).val u else 0
+  have hvEq (x : Alpha) (a : ∀ p : PrimeIndex, Gamma) :
+      (v x = a) ↔ ∀ u, ∀ p ∈ T,
+        Nat.factorization (x.val u) p = aNat a p u := by
+    constructor
+    · intro heq u p hp
+      let p' : PrimeIndex := ⟨p, hp⟩
+      have h := congrArg (fun z : Gamma => z.val u) (congrFun heq p')
+      have hval : Nat.factorization (x.val u) p = (a p').val u := by
+        simpa [v, linearFormsValVector] using h
+      have hindex : aNat a p u = (a p').val u := by
+        simp [aNat, hp, p']
+      rw [hindex]
+      exact hval
+    · intro heq
+      funext p
+      apply Subtype.ext
+      funext u
+      simpa [v, aNat, linearFormsValVector] using heq u p.val p.property
+  have hfiberEq (a : ∀ p : PrimeIndex, Gamma) :
+      (∑ x : Alpha, mass x * (if v x = a then 1 else 0)) =
+        ∑ σ ∈ support, linearFormsDivisorTupleMass D N σ *
+          (if ∀ u, ∀ p ∈ T, Nat.factorization (σ u) p = aNat a p u then 1 else 0) := by
+    let g : (Fin q → ℕ) → ℝ := fun σ =>
+      linearFormsDivisorTupleMass D N σ *
+        (if ∀ u, ∀ p ∈ T, Nat.factorization (σ u) p = aNat a p u then 1 else 0)
+    calc
+      (∑ x : Alpha, mass x * (if v x = a then 1 else 0)) =
+          ∑ x : Alpha, g x.val := by
+            apply Finset.sum_congr rfl
+            intro x hx
+            dsimp [g, mass]
+            rw [if_congr (hvEq x a)]
+            all_goals rfl
+      _ = ∑ σ ∈ support, g σ := by
+            change (∑ x ∈ support.attach, g x) = ∑ σ ∈ support, g σ
+            exact (Finset.sum_subtype support (fun σ => Iff.rfl) g).symm
+      _ = _ := by rfl
+  have hzeroFiber (a : ∀ p : PrimeIndex, Gamma) (σ : Fin q → ℕ)
+      (hσ : σ ∉ support) :
+      linearFormsDivisorTupleMass D N σ *
+        (if ∀ u, ∀ p ∈ T, Nat.factorization (σ u) p = aNat a p u then 1 else 0) = 0 := by
+    rw [(linearFormsDivisorTuple_support_facts D N).2.2.1 σ hσ]
+    simp
+  have hsubProd (g : ℕ → ℝ) :
+      (∏ p : PrimeIndex, g p.val) = ∏ p ∈ T, g p := by
+    simpa [PrimeIndex] using
+      (Finset.prod_subtype (p := fun p : ℕ => p ∈ T)
+        (F := (inferInstance : Fintype PrimeIndex)) (s := T)
+        (h := fun p : ℕ => Iff.rfl) (f := g)).symm
+  have hfiberBound (a : ∀ p : PrimeIndex, Gamma) :
+      (∑ x : Alpha, mass x * (if v x = a then 1 else 0)) ≤
+        (6 : ℝ) ^ (b * q) * ∏ p : PrimeIndex, weight p (a p) := by
+    let term (p : ℕ) (u : Fin q) : ℝ :=
+      (((aNat a p u + 1 : ℕ) : ℝ) ^ b) / (p : ℝ) ^ (aNat a p u)
+    have hmassBound := divisorTuplePrimeVectorMass_le D N W
+      (by dsimp [W]; exact primorial_pos _) (by rfl) T hprime hcop hscaleX hlogW
+      (aNat a)
+    have hproduct :
+        (∏ u : Fin q, (6 : ℝ) ^ b * ∏ p ∈ T, term p u) =
+          (6 : ℝ) ^ (b * q) * ∏ p : PrimeIndex, weight p (a p) := by
+      calc
+        _ = (∏ u : Fin q, (6 : ℝ) ^ b) *
+              ∏ u : Fin q, ∏ p ∈ T, term p u := by rw [Finset.prod_mul_distrib]
+        _ = (6 : ℝ) ^ (b * q) * ∏ p ∈ T, ∏ u : Fin q, term p u := by
+              rw [Finset.prod_comm]
+              simp [Finset.prod_const, Fintype.card_fin, pow_mul]
+        _ = (6 : ℝ) ^ (b * q) * ∏ p : PrimeIndex, weight p (a p) := by
+              congr 1
+              rw [← hsubProd (fun p => ∏ u : Fin q, term p u)]
+              apply Finset.prod_congr rfl
+              intro p hp
+              change (∏ u : Fin q, term p u) =
+                comparisonPrimeValuationWeight (b := b) p.val (a p).val
+              simp [term, aNat, weight, comparisonPrimeValuationWeight, p.property]
+    calc
+      _ = ∑ σ ∈ support, linearFormsDivisorTupleMass D N σ *
+          (if ∀ u, ∀ p ∈ T, Nat.factorization (σ u) p = aNat a p u then 1 else 0) :=
+            hfiberEq a
+      _ = ∑' σ : Fin q → ℕ, linearFormsDivisorTupleMass D N σ *
+          (if ∀ u, ∀ p ∈ T, Nat.factorization (σ u) p = aNat a p u then 1 else 0) :=
+            (tsum_eq_sum (s := support) (hzeroFiber a)).symm
+      _ ≤ ∏ u : Fin q, (6 : ℝ) ^ b * ∏ p ∈ T, term p u := hmassBound
+      _ = (6 : ℝ) ^ (b * q) * ∏ p : PrimeIndex, weight p (a p) := hproduct
+  have hmoment := LinearFormsAux.finite_fiber_product_bound
+      (fun _ : PrimeIndex => Gamma) mass v weight factor ((6 : ℝ) ^ (b * q))
+      (by intro p a; exact hfactorNonneg p a) hfiberBound
+  have hlocalSumNonneg (p : PrimeIndex) :
+      0 ≤ ∑ a : Gamma, weight p a * factor p a := by
+    apply Finset.sum_nonneg
+    intro a ha
+    exact mul_nonneg (hweightNonneg p a) (hfactorNonneg p a)
+  have hprodBound :
+      (∏ p : PrimeIndex, ∑ a : Gamma, weight p a * factor p a) ≤
+        ∏ p : PrimeIndex, C₁ / (p.val : ℝ) ^ 2 := by
+    apply finset_prod_le_prod_of_nonneg Finset.univ
+    · intro p hp
+      exact hlocalSumNonneg p
+    · intro p hp
+      positivity
+    · intro p hp
+      exact hlocalGamma p
+  have hsumOuter :
+      (∑ σ ∈ support, linearFormsDivisorTupleMass D N σ *
+        ∏ p ∈ T, averagedLocalBeta H p (linearFormsValVector σ p)) =
+      ∑ x : Alpha, mass x * ∏ p : PrimeIndex, factor p (v x p) := by
+    calc
+      _ = ∑ σ ∈ support, linearFormsDivisorTupleMass D N σ *
+          ∏ p : PrimeIndex, averagedLocalBeta H p (linearFormsValVector σ p.val) := by
+            apply Finset.sum_congr rfl
+            intro σ hσ
+            congr 1
+            exact (hsubProd (fun p => averagedLocalBeta H p
+              (linearFormsValVector σ p))).symm
+      _ = ∑ x : Alpha, mass x * ∏ p : PrimeIndex, factor p (v x p) := by
+            exact (Finset.sum_subtype support (fun σ => Iff.rfl)
+              (fun σ => linearFormsDivisorTupleMass D N σ *
+                ∏ p : PrimeIndex, averagedLocalBeta H p.val
+                  (linearFormsValVector σ p.val)))
+  calc
+    _ = ∑ x : Alpha, mass x * ∏ p : PrimeIndex, factor p (v x p) := hsumOuter
+    _ ≤ (6 : ℝ) ^ (b * q) *
+        ∏ p : PrimeIndex, ∑ a : Gamma, weight p a * factor p a := hmoment
+    _ ≤ (6 : ℝ) ^ (b * q) * ∏ p : PrimeIndex, C₁ / (p.val : ℝ) ^ 2 :=
+      mul_le_mul_of_nonneg_left hprodBound (by positivity)
+    _ = (6 : ℝ) ^ (b * q) * ∏ p ∈ T, C₁ / (p : ℝ) ^ 2 := by
+      congr 1
+      exact hsubProd (fun p => C₁ / (p : ℝ) ^ 2)
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
