@@ -2931,6 +2931,82 @@ theorem RowTemplate.valueNat_cast_ne_zero_of_slot_not_dvd {m q : ℕ}
   intro hz
   exact hslot i ((ZMod.natCast_eq_zero_iff (p i) r).mp hz)
 
+theorem RowTemplate.value_eq_monomial_scale_of_parallel {m q : ℕ}
+    (T T' : RowTemplate m q) (hpar : T.Parallel T') (p : Fin q → ℕ)
+    (hp : ∀ i, p i ≠ 0) :
+    ∀ k,
+      T'.value p k =
+        (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * T.value p k := by
+  let δ := Classical.choose hpar.2
+  have hδ := Classical.choose_spec hpar.2
+  have hsupport := hpar.1
+  intro k
+  cases hT : T.entry k with
+  | none =>
+      have hT' : T'.entry k = none := by
+        by_contra hsome
+        cases h : T'.entry k with
+        | none => exact hsome h
+        | some e' =>
+            have hk : k ∈ T'.support := by simp [RowTemplate.support, h]
+            have : k ∈ T.support := by simpa [hsupport] using hk
+            simp [RowTemplate.support, hT] at this
+      simp [RowTemplate.value, hT, hT']
+  | some e =>
+      have hk : k ∈ T.support := by simp [RowTemplate.support, hT]
+      have hk' : k ∈ T'.support := by simpa [hsupport] using hk
+      obtain ⟨e', he'⟩ := T'.entry_exists_of_mem_support k hk'
+      have hfactor (i : Fin q) :
+          (p i : ℚ) ^ e' i = (p i : ℚ) ^ e i * (p i : ℚ) ^ δ i := by
+        have hpq : (p i : ℚ) ≠ 0 := by exact_mod_cast hp i
+        have hExp := hδ k e e' hT he' i
+        rw [← zpow_natCast, ← zpow_natCast]
+        rw [hExp, zpow_add₀ hpq]
+      simp only [RowTemplate.value, hT, he']
+      change (∏ i, (p i : ℚ) ^ e' i) =
+        (∏ i, (p i : ℚ) ^ δ i) * ∏ i, (p i : ℚ) ^ e i
+      calc
+        (∏ i, (p i : ℚ) ^ e' i) =
+            ∏ i, ((p i : ℚ) ^ e i * (p i : ℚ) ^ δ i) := by
+              apply Finset.prod_congr rfl
+              intro i hi
+              exact hfactor i
+        _ = (∏ i, (p i : ℚ) ^ e i) * ∏ i, (p i : ℚ) ^ δ i :=
+              Finset.prod_mul_distrib
+        _ = (∏ i, (p i : ℚ) ^ δ i) * ∏ i, (p i : ℚ) ^ e i := by ring
+
+theorem RowTemplate.rowForm_eq_monomial_scale_of_parallel {m q : ℕ}
+    (c : Fin m → ℚ) (T T' : RowTemplate m q) (hpar : T.Parallel T')
+    (p : Fin q → ℕ) (hp : ∀ i, p i ≠ 0) :
+    ∀ z : Fin m → ℚ,
+      rowForm c T' p z =
+        (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * rowForm c T p z := by
+  have hvalue := T.value_eq_monomial_scale_of_parallel T' hpar p hp
+  have hanchor : T'.anchor = T.anchor := by
+    apply le_antisymm
+    · apply Finset.max'_le
+      intro k hk
+      have hk' : k ∈ T.support := by simpa [hpar.1] using hk
+      exact Finset.le_max' T.support k hk'
+    · apply Finset.max'_le
+      intro k hk
+      have hk' : k ∈ T'.support := by simpa [hpar.1] using hk
+      exact Finset.le_max' T'.support k hk'
+  intro z
+  let scale : ℚ := ∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)
+  unfold rowForm
+  rw [hanchor]
+  calc
+    (∑ k, c k / c T.anchor * T'.value p k * z k) =
+        ∑ k, scale * (c k / c T.anchor * T.value p k * z k) := by
+          apply Finset.sum_congr rfl
+          intro k hk
+          rw [hvalue k]
+          simp only [scale]
+          ring
+    _ = scale * ∑ k, c k / c T.anchor * T.value p k * z k := by
+          rw [Finset.mul_sum]
+
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
     evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) = T.valueNat p k := by
