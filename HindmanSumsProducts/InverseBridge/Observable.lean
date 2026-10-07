@@ -370,6 +370,129 @@ private theorem realTranslationCoordinate_group_mul {L : Type*} [LieRing L]
   change realTranslationCoordinate F (lieBCH (2 * s) g.coord h.coord) = _
   exact realTranslationCoordinate_lieBCH F hs g.coord h.coord
 
+private theorem linearizedObservablePoint_factor {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s) (m : ℤ)
+    (X : (weightFiltration D.filtration hs).realification.Group)
+    (g₀ : (weightFiltration D.filtration hs).Group)
+    (hg₀r : rLin D.filtration g₀.coord = 0) (k : ℤ)
+    (hEval : ∀ n : ℤ,
+      (⟨evLin D.filtration n g₀.coord⟩ : D.filtration.Group) ∈ D.lattice) :
+    linearizedObservablePoint D hs (m + k)
+        (X * NilpotentLieBCHGroup.realificationHom g₀ *
+          linearizedShiftElement D.filtration hs k) =
+      linearizedObservablePoint D hs m X := by
+  let F := D.filtration
+  let γ₀ := NilpotentLieBCHGroup.realificationHom g₀
+  let shift := linearizedShiftElement F hs k
+  let r := realTranslationCoordinate F X.coord
+  let rY := realTranslationCoordinate F (X * γ₀ * shift).coord
+  let innerX := realTranslationElement F hs (-r) * X
+  let innerY := innerX * γ₀
+  let innerNew := realTranslationElement F hs (-rY) * (X * γ₀ * shift)
+  have hγ₀r : realTranslationCoordinate F γ₀.coord = 0 := by
+    simpa [γ₀, realTranslationCoordinate, rLinReal,
+      NilpotentLieBCHGroup.realificationHom_coord] using congrArg (fun q : ℚ => (q : ℝ)) hg₀r
+  have hshiftCoord : realTranslationCoordinate F shift.coord = k := by
+    change realTranslationCoordinate F (realTranslationElement F hs k).coord = k
+    exact realTranslationElement_coord F hs k
+  have hrY : rY = r + k := by
+    change realTranslationCoordinate F (X * γ₀ * shift).coord =
+      realTranslationCoordinate F X.coord + k
+    rw [realTranslationCoordinate_group_mul F hs (X * γ₀) shift,
+      realTranslationCoordinate_group_mul F hs X γ₀, hγ₀r, hshiftCoord]
+    ring
+  have hinnerX : realTranslationCoordinate F innerX.coord = 0 := by
+    change realTranslationCoordinate F
+      (realTranslationElement F hs (-r) * X).coord = 0
+    rw [realTranslationCoordinate_group_mul F hs (realTranslationElement F hs (-r)) X,
+      realTranslationElement_coord F hs (-r)]
+    ring
+  have hinnerY : realTranslationCoordinate F innerY.coord = 0 := by
+    change realTranslationCoordinate F (innerX * γ₀).coord = 0
+    rw [realTranslationCoordinate_group_mul F hs innerX γ₀, hinnerX, hγ₀r]
+    simp
+  have hTsum : realTranslationElement F hs (-(r + k)) =
+      realTranslationElement F hs (-k) * realTranslationElement F hs (-r) := by
+    calc
+      realTranslationElement F hs (-(r + k)) =
+          realTranslationElement F hs (-k + -r) := by congr 1 <;> ring
+      _ = realTranslationElement F hs (-k) * realTranslationElement F hs (-r) :=
+          (realTranslationElement_mul F hs (-k) (-r)).symm
+  have hinnerFactor : innerNew =
+      realTranslationElement F hs (-k) * innerY * realTranslationElement F hs k := by
+    dsimp [innerNew, innerY, innerX]
+    rw [hrY, hTsum]
+    rw [show shift = realTranslationElement F hs k by rfl]
+    group
+  let poly := realProjl F innerY.coord
+  have hpoly : realInl F poly = innerY.coord :=
+    realInl_eq_self_of_realTranslation_zero F innerY.coord hinnerY
+  have hpolyGroup : (⟨realInl F poly⟩ : (weightFiltration F hs).realification.Group) =
+      innerY := by
+    apply NilpotentLieBCHGroup.ext
+    exact hpoly
+  have hConjEval :
+      evLinReal F (m + k)
+          (realTranslationElement F hs (-k) * innerY *
+            realTranslationElement F hs k).coord =
+        evLinReal F m innerY.coord := by
+    calc
+      _ = VectorPolynomial.eval (fun _ : Unit => ((m + k : ℤ) : ℚ) + (-k : ℚ))
+            (F.realAdaptedPolynomialMap (fun _ : Unit => 1) poly) := by
+              rw [← hpolyGroup]
+              change evLinReal F (m + k) (lieBCH (2 * s)
+                (lieBCH (2 * s) ((-(k : ℝ)) • realDhat F) (realInl F poly))
+                ((k : ℝ) • realDhat F)) = _
+              simpa [Int.cast_neg, neg_smul] using
+                (evLinReal_conjugation_shift F hs (-k : ℚ) (m + k) poly)
+      _ = VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+            (F.realAdaptedPolynomialMap (fun _ : Unit => 1) poly) := by
+              rw [show (fun _ : Unit => ((m + k : ℤ) : ℚ) + (-k : ℚ)) =
+                (fun _ : Unit => (m : ℚ)) by
+                  funext _
+                  push_cast
+                  ring]
+      _ = evLinReal F m innerY.coord := by
+              rw [← hpoly]
+              exact (evLinReal_realInl_apply F m poly).symm
+  have hγ₀Eval :
+      (⟨evLinReal F m γ₀.coord⟩ : F.realification.Group) ∈ D.realLattice := by
+    have hcoord : (⟨evLinReal F m γ₀.coord⟩ : F.realification.Group) =
+        NilpotentLieBCHGroup.realificationHom
+          (⟨evLin F m g₀.coord⟩ : F.Group) := by
+      apply NilpotentLieBCHGroup.ext
+      rw [NilpotentLieBCHGroup.realificationHom_coord]
+      change (evLin F m).baseChange ℝ ((1 : ℝ) ⊗ₜ[ℚ] g₀.coord) =
+        (1 : ℝ) ⊗ₜ[ℚ] evLin F m g₀.coord
+      rw [LinearMap.baseChange_tmul]
+    rw [hcoord]
+    exact Subgroup.mem_map.mpr ⟨⟨evLin F m g₀.coord⟩, hEval m, rfl⟩
+  have hinnerEval : evLinReal F m innerY.coord =
+      lieBCH s (evLinReal F m innerX.coord) (evLinReal F m γ₀.coord) := by
+    change evLinReal F m (lieBCH (2 * s) innerX.coord γ₀.coord) = _
+    exact evLinReal_lieBCH_of_translation_zero F hs m
+      innerX.coord γ₀.coord hinnerX hγ₀r
+  let a : F.realification.Group := ⟨evLinReal F m innerX.coord⟩
+  let b : F.realification.Group := ⟨evLinReal F m γ₀.coord⟩
+  have hnewEval : evLinReal F (m + k) innerNew.coord = lieBCH s a.coord b.coord := by
+    calc
+      evLinReal F (m + k) innerNew.coord =
+          evLinReal F (m + k)
+            (realTranslationElement F hs (-k) * innerY *
+              realTranslationElement F hs k).coord := by rw [hinnerFactor]
+      _ = evLinReal F m innerY.coord := hConjEval
+      _ = lieBCH s a.coord b.coord := by
+          simpa [a, b] using hinnerEval
+  have hquot : (QuotientGroup.mk (a * b) : D.Space) = QuotientGroup.mk a := by
+    apply QuotientGroup.eq.2
+    change (a * b)⁻¹ * a ∈ D.realLattice
+    simpa [mul_inv_rev] using D.realLattice.inv_mem hγ₀Eval
+  change QuotientGroup.mk (⟨evLinReal F (m + k) innerNew.coord⟩ : F.realification.Group) = _
+  rw [hnewEval]
+  change QuotientGroup.mk (a * b) = QuotientGroup.mk a
+  exact hquot
+
 /-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
 theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
     (H : Y → ℝ) (x : X) :
