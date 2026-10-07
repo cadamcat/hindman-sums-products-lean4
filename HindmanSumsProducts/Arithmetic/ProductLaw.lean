@@ -665,6 +665,30 @@ private lemma parameterJointBlockProductMass_eq_localBlockMass_product {n r : �
       simp [localBlockMass, hd]
     rw [hlhs, hrhs]
 
+private lemma localBlockMass_eq_parameterBlockProductMass {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j) (z : ℤ) :
+    localBlockMass A N B z = parameterBlockProductMass A N B hX z := by
+  classical
+  let B1 : Fin 1 → OAI.SourceBlocks.Block n := fun _ => B
+  let z1 : Fin 1 → ℤ := fun _ => z
+  have hdisj1 : ∀ i j, i ≠ j → Disjoint (B1 i).set (B1 j).set := by
+    intro i j hij
+    have hEq : i = j := Subsingleton.elim _ _
+    exact (hij hEq).elim
+  have hfactor := parameterJointBlockProductMass_eq_localBlockMass_product
+    A N B1 hX hdisj1 z1
+  have hmassEq : parameterJointBlockProductMass A N B1 hX z1 =
+      parameterBlockProductMass A N B hX z := by
+    unfold parameterJointBlockProductMass parameterBlockProductMass
+    by_cases hz : 0 ≤ z <;> simp [B1, z1, hz]
+  calc
+    localBlockMass A N B z =
+        ∏ d : Fin 1, localBlockMass A N (B1 d) (z1 d) := by simp [B1, z1]
+    _ = parameterJointBlockProductMass A N B1 hX z1 := hfactor.symm
+    _ = parameterBlockProductMass A N B hX z := hmassEq
+
 private lemma parameterTailProductLaw_finset {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) :
