@@ -358,6 +358,8 @@ private theorem mderiv_crossDeriv (f g : G → ℂ) (h k : G) :
   rw [hadd]
   ring
 
+-- Adapted from OpenAI openai/math (Apache-2.0),
+-- OAI/Combinatorics/Progressions/Estimates/ComplexFiniteMeans.lean.
 private theorem norm_expect_mul_star_sq_le {Ω : Type*} [Fintype Ω]
     (f g : Ω → ℂ) :
     ‖𝔼 x, f x * star (g x)‖ ^ 2 ≤
@@ -367,6 +369,7 @@ private theorem norm_expect_mul_star_sq_le {Ω : Type*} [Fintype Ω]
       (RCLike.norm_expect_le (K := ℂ) (f := fun x => f x * star (g x)))
   exact (pow_le_pow_left₀ (norm_nonneg _) hnorm 2).trans
     (Finset.expect_mul_sq_le_sq_mul_sq Finset.univ (fun x => ‖f x‖) (fun x => ‖g x‖))
+-- End of code adapted from OpenAI
 
 private theorem expect_sqrt_mul_le {ι : Type*} [Fintype ι] (A B : ι → ℝ)
     (hA : ∀ i, 0 ≤ A i) (hB : ∀ i, 0 ≤ B i) :
@@ -476,6 +479,8 @@ private theorem boxMoment_cross_avg_le (Q : AddSubgroup G) (Qs : List (AddSubgro
       _ = Real.sqrt ((boxMoment (Q :: R :: Rs) f).re *
             (boxMoment (Q :: R :: Rs) g).re) := by rw [hAavg, hBavg]
 
+-- Adapted from OpenAI openai/math (Apache-2.0),
+-- OAI/Combinatorics/Progressions/Estimates/ComplexFiniteMeans.lean.
 private theorem prod_bool_tuple_succ {M : Type*} [CommMonoid M] {n : ℕ}
     (F : (Fin (n + 1) → Bool) → M) :
     (∏ ω, F ω) =
@@ -487,6 +492,7 @@ private theorem prod_bool_tuple_succ {M : Type*} [CommMonoid M] {n : ℕ}
       intro ω
       simp
     _ = _ := by rw [Fintype.prod_prod_type]; simp [mul_comm]
+-- End of code adapted from OpenAI
 
 -- Adapted from OpenAI openai/math (Apache-2.0),
 -- OAI/Combinatorics/Progressions/Estimates/BooleanCubeProduct.lean.
@@ -561,6 +567,7 @@ private theorem mixedCubeProduct_crossDerivative {n : ℕ}
   intro ω hω
   congr 3
   abel
+-- End of code adapted from OpenAI
 
 private def listToFin (hs : List G) : Fin hs.length → G := fun i => hs.get i
 
@@ -646,6 +653,8 @@ private theorem mixedCubeProductList_append (F : List Bool → G → ℂ)
       _ = mixedCubeProductList A (a :: ks) x :=
         (mixedCubeProductList_cons A a ks x).symm
 
+-- Adapted from OpenAI openai/math (Apache-2.0),
+-- OAI/Combinatorics/Progressions/Estimates/ComplexFiniteMeans.lean.
 private theorem expect_prod_boolean_pow_le {Ω : Type*} [Fintype Ω]
     (n : ℕ) (F : (Fin n → Bool) → Ω → ℝ) (hF : ∀ ω x, 0 ≤ F ω x) :
     (𝔼 x, ∏ ω, F ω x) ^ (2 ^ n) ≤ ∏ ω, 𝔼 x, F ω x ^ (2 ^ n) := by
@@ -677,6 +686,7 @@ private theorem expect_prod_boolean_pow_le {Ω : Type*} [Fintype Ω]
             (fun x _ => pow_nonneg (hF _ x) _))
       _ = ∏ ω, 𝔼 x, F ω x ^ (2 ^ (n + 1)) :=
         (prod_bool_tuple_succ (fun ω => 𝔼 x, F ω x ^ (2 ^ (n + 1)))).symm
+-- End of code adapted from OpenAI
 
 private noncomputable def boxNorm (Qs : List (AddSubgroup G)) (f : G → ℂ) : ℝ :=
   (boxMoment Qs f).re ^ (((2 ^ Qs.length : ℕ) : ℝ)⁻¹)
