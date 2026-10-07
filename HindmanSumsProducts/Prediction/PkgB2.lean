@@ -7194,6 +7194,194 @@ private theorem pkgB2_terminalStateInnerExpansion {K sl b : ℕ}
       intro M hM
       rw [← hmonomialSum P M]
 
+private theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (N : ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (hNonroot : Nonempty (pkgB2_Nonroot T)) :
+    pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+        Finset.univ N I =
+      ∑ P ∈ (pkgB2_nonrootOccurrenceSet (T := T) Finset.univ).powerset,
+        ∑ M ∈ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).powerset,
+          (-1 : ℝ) ^ (pkgB2_rootOccurrenceSet (T := T) Finset.univ).card *
+            (-1 : ℝ) ^ M.card *
+              pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) := by
+  classical
+  let lo : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).lower
+  let hi : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).upper
+  let PrimeSupport := pkgB2_primeTupleSupport lo hi
+  let Good := pkgB2_goodPrimeEvent MS gap T hT N
+  let Pgood := independentPrimePoolProbability lo hi Good
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
+  let coefficient (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)))) :=
+    (-1 : ℝ) ^ minus.card * (-1 : ℝ) ^ M.card
+  let innerState (p : Fin (b * sl) → ℕ) :=
+    ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+      pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction Finset.univ N I p x
+  let innerMonomial
+      (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ))))
+      (p : Fin (b * sl) → ℕ) :=
+    ∑' x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ,
+      pkgB2_baseMass MS B T J0 gap hT N p x *
+        ∏ o ∈ P ∪ M,
+          nu MS.core.parameters N B
+            (pkgB2_stateRowValue MS T hT J0 gap direction Finset.univ N p o x)
+  have hprimeZero (p : Fin (b * sl) → ℕ) (hp : p ∉ PrimeSupport) :
+      independentPrimePoolMass lo hi p = 0 :=
+    pkgB2_independentPrimePoolMass_zero_of_not_mem lo hi p (by simpa [PrimeSupport] using hp)
+  have hstateZero (p : Fin (b * sl) → ℕ) (hp : p ∉ PrimeSupport) :
+      independentPrimePoolMass lo hi p * (if Good p then innerState p else 0) = 0 := by
+    rw [hprimeZero p hp]
+    simp
+  have hmonomialZero
+      (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ))))
+      (p : Fin (b * sl) → ℕ) (hp : p ∉ PrimeSupport) :
+      independentPrimePoolMass lo hi p *
+        (if Good p then innerMonomial P M p else 0) = 0 := by
+    rw [hprimeZero p hp]
+    simp
+  have hmonomialPrimeSum
+      (P M : Finset (Fin (Fintype.card (pkgB2_Occurrence T Finset.univ)))) :
+      (∑' p : Fin (b * sl) → ℕ, independentPrimePoolMass lo hi p *
+        (if Good p then innerMonomial P M p else 0)) =
+        ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+          (if Good p then innerMonomial P M p else 0) :=
+    tsum_eq_sum (s := PrimeSupport) (hmonomialZero P M)
+  have hinnerExpansion (p : Fin (b * sl) → ℕ) :
+      (if Good p then innerState p else 0) =
+        ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M * (if Good p then innerMonomial P M p else 0) := by
+    by_cases hp : Good p
+    · simp only [if_pos hp]
+      simpa [innerState, innerMonomial, plus, minus, coefficient] using
+        (pkgB2_terminalStateInnerExpansion MS B gap T hT J0 direction N I hNonroot p)
+    · simp [hp]
+  have hfinitePrime :
+      (∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+        (if Good p then innerState p else 0)) =
+      ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+        coefficient P M *
+          ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+            (if Good p then innerMonomial P M p else 0) := by
+    calc
+      _ = ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+          ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M * (if Good p then innerMonomial P M p else 0) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              rw [hinnerExpansion p]
+      _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M *
+              ∑ p ∈ PrimeSupport, independentPrimePoolMass lo hi p *
+                (if Good p then innerMonomial P M p else 0) := by
+              calc
+                _ = ∑ p ∈ PrimeSupport, ∑ P ∈ plus.powerset,
+                    ∑ M ∈ minus.powerset,
+                      independentPrimePoolMass lo hi p *
+                        (coefficient P M * (if Good p then innerMonomial P M p else 0)) := by
+                          apply Finset.sum_congr rfl
+                          intro p hp
+                          rw [Finset.mul_sum]
+                          apply Finset.sum_congr rfl
+                          intro P hP
+                          rw [Finset.mul_sum]
+                _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+                    ∑ p ∈ PrimeSupport,
+                      independentPrimePoolMass lo hi p *
+                        (coefficient P M * (if Good p then innerMonomial P M p else 0)) := by
+                          rw [Finset.sum_comm]
+                          apply Finset.sum_congr rfl
+                          intro P hP
+                          rw [Finset.sum_comm]
+                _ = _ := by
+                          apply Finset.sum_congr rfl
+                          intro P hP
+                          apply Finset.sum_congr rfl
+                          intro M hM
+                          calc
+                            _ = ∑ p ∈ PrimeSupport,
+                                (independentPrimePoolMass lo hi p *
+                                  (if Good p then innerMonomial P M p else 0)) *
+                                  coefficient P M := by
+                                    apply Finset.sum_congr rfl
+                                    intro p hp
+                                    ring
+                            _ = (∑ p ∈ PrimeSupport,
+                                  independentPrimePoolMass lo hi p *
+                                    (if Good p then innerMonomial P M p else 0)) *
+                                  coefficient P M := by rw [Finset.sum_mul]
+                            _ = _ := by ring
+  have houter :
+      (∑' p : Fin (b * sl) → ℕ, independentPrimePoolMass lo hi p *
+        (if Good p then innerState p else 0)) =
+        ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M *
+            ∑' p : Fin (b * sl) → ℕ,
+              independentPrimePoolMass lo hi p *
+                (if Good p then innerMonomial P M p else 0) := by
+    calc
+      _ = ∑ p ∈ PrimeSupport,
+            independentPrimePoolMass lo hi p * (if Good p then innerState p else 0) :=
+              tsum_eq_sum (s := PrimeSupport) hstateZero
+      _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+            coefficient P M *
+              ∑ p ∈ PrimeSupport,
+                independentPrimePoolMass lo hi p *
+                  (if Good p then innerMonomial P M p else 0) := hfinitePrime
+      _ = _ := by
+            apply Finset.sum_congr rfl
+            intro P hP
+            apply Finset.sum_congr rfl
+            intro M hM
+            rw [← hmonomialPrimeSum P M]
+  calc
+    pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+        Finset.univ N I =
+      Pgood⁻¹ * (∑' p : Fin (b * sl) → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then innerState p else 0)) := by
+          unfold pkgB2_stateAverage
+          dsimp [pkgB2_goodPrimeEvent, Pgood, Good, lo, hi, innerState]
+          rfl
+    _ = Pgood⁻¹ *
+        (∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M *
+            ∑' p : Fin (b * sl) → ℕ,
+              independentPrimePoolMass lo hi p *
+                (if Good p then innerMonomial P M p else 0)) := by rw [houter]
+    _ = ∑ P ∈ plus.powerset, ∑ M ∈ minus.powerset,
+          coefficient P M * pkgB2_stateMonomialAverage MS B gap T J0 hT
+            Finset.univ direction N (P ∪ M) := by
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro P hP
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro M hM
+          calc
+            Pgood⁻¹ * (coefficient P M *
+                ∑' p : Fin (b * sl) → ℕ,
+                  independentPrimePoolMass lo hi p *
+                    (if Good p then innerMonomial P M p else 0)) =
+          coefficient P M * (Pgood⁻¹ *
+                ∑' p : Fin (b * sl) → ℕ,
+                  independentPrimePoolMass lo hi p *
+                    (if Good p then innerMonomial P M p else 0)) := by
+                  ring
+            _ = coefficient P M *
+                pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ
+                  direction N (P ∪ M) := by
+                    unfold pkgB2_stateMonomialAverage
+                    dsimp [Good, Pgood, lo, hi, innerMonomial, pkgB2_goodPrimeEvent]
+
 
 private theorem pkgB2_alternatingPowersetSum_zero {α : Type*} [DecidableEq α]
     (s : Finset α) (hs : s.Nonempty) :
