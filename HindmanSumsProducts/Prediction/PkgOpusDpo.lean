@@ -1966,6 +1966,235 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
     nlinarith
   exact (hN I).trans hCδ
 
+
+/-! ### Replica identity: the base-coordinate sum at a regular prime tuple -/
+
+/-- Structured coordinates: the pivot, the original shifts of each replica, and the translation
+coordinates. -/
+abbrev opus_dpo_Y {b : ℕ} (T : Fin b → CubeTemplate) :=
+  ℤ × ((k : Fin b) → Fin (T k).d → Fin 2 → ℤ) × (pkgB2_Nonroot T × Fin 2 → ℤ)
+
+def opus_dpo_coordY {b : ℕ} (T : Fin b → CubeTemplate) :
+    (pkgB2_Coord T → ℤ) ≃ opus_dpo_Y T where
+  toFun X := (X (.inl (.inl ())), fun k j s => X (.inl (.inr ⟨k, (j, s)⟩)),
+    fun tr => X (.inr tr))
+  invFun w c := match c with
+    | .inl (.inl _) => w.1
+    | .inl (.inr ⟨k, (j, s)⟩) => w.2.1 k j s
+    | .inr tr => w.2.2 tr
+  left_inv := by
+    intro X
+    funext c
+    rcases c with (⟨⟩ | ⟨k, j, s⟩) | tr <;> rfl
+  right_inv := by
+    intro w
+    rfl
+
+/-- The enumerated coordinate vectors in structured form. -/
+def opus_dpo_coordE {b : ℕ} (T : Fin b → CubeTemplate) :
+    (Fin (Fintype.card (pkgB2_Coord T)) → ℤ) ≃ opus_dpo_Y T :=
+  (Equiv.arrowCongr (pkgB2_coordEnum T) (Equiv.refl ℤ)).trans (opus_dpo_coordY T)
+
+theorem opus_dpo_coordE_symm_apply {b : ℕ} (T : Fin b → CubeTemplate) (w : opus_dpo_Y T)
+    (i : Fin (Fintype.card (pkgB2_Coord T))) :
+    (opus_dpo_coordE T).symm w i = (opus_dpo_coordY T).symm w (pkgB2_coordEnum T i) := by
+  simp [opus_dpo_coordE, Equiv.arrowCongr]
+
+theorem opus_dpo_prod_coord {b : ℕ} (T : Fin b → CubeTemplate) (f : pkgB2_Coord T → ℝ) :
+    ∏ c, f c = f (.inl (.inl ())) *
+      (∏ k : Fin b, ∏ j : Fin (T k).d, ∏ s : Fin 2, f (.inl (.inr ⟨k, (j, s)⟩))) *
+        ∏ tr : pkgB2_Nonroot T × Fin 2, f (.inr tr) := by
+  classical
+  have h1 : ∏ c, f c = (∏ old : pkgB2_OldCoord T, f (.inl old)) *
+      ∏ tr : pkgB2_Nonroot T × Fin 2, f (.inr tr) := by
+    rw [← Fintype.prod_sum_type]
+    exact Finset.prod_congr (by ext; simp) (fun c _ => by cases c <;> rfl)
+  rw [h1, Fintype.prod_sum_type, Fintype.prod_sigma]
+  simp only [Finset.univ_unique, Finset.prod_singleton, Fintype.prod_prod_type]
+
+theorem opus_dpo_prod_baseRow {b : ℕ} (T : Fin b → CubeTemplate) (F : pkgB2_BaseRow T → ℝ) :
+    ∏ t, F t = F (.inl ()) * ∏ r : pkgB2_Nonroot T, F (.inr r) := by
+  classical
+  have h : F (.inl ()) = ∏ u : Unit, F (.inl u) := by simp
+  rw [h, ← Fintype.prod_sum_type]
+  exact Finset.prod_congr (by ext; simp) (fun c _ => by cases c <;> rfl)
+
+theorem opus_dpo_prod_nonroot {b : ℕ} (T : Fin b → CubeTemplate) (F : pkgB2_Nonroot T → ℝ) :
+    ∏ r, F r = ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin (T k).d))).erase ∅,
+      (if h : ω.Nonempty then F ⟨k, ⟨ω, h⟩⟩ else 1) := by
+  classical
+  have h1 : ∏ r, F r = ∏ k : Fin b, ∏ ω : {ω : Finset (Fin (T k).d) // ω.Nonempty},
+      F ⟨k, ω⟩ := by
+    rw [← Fintype.prod_sigma]
+    exact Finset.prod_congr (by ext; simp) (fun _ _ => rfl)
+  rw [h1]
+  apply Finset.prod_congr rfl
+  intro k _
+  rw [Finset.prod_subtype ((Finset.univ : Finset (Finset (Fin (T k).d))).erase ∅)
+    (p := fun ω : Finset (Fin (T k).d) => ω.Nonempty)
+    (fun ω => by simp [Finset.nonempty_iff_ne_empty])]
+  apply Finset.prod_congr rfl
+  intro ω _
+  rw [dif_pos ω.2]
+
+/-- The stage-`∅` occurrences are the base rows. -/
+def opus_dpo_occEmptyEquiv {b : ℕ} (T : Fin b → CubeTemplate) :
+    pkgB2_Occurrence T ∅ ≃ pkgB2_BaseRow T where
+  toFun o := o.1
+  invFun t := ⟨t, fun j => (Finset.notMem_empty _ j.2.1).elim⟩
+  left_inv := by
+    intro o
+    rcases o with ⟨t, η⟩
+    have hη : (fun j : {j // j ∈ (∅ : Finset (pkgB2_Nonroot T)) ∧ pkgB2_activeRow T t j} =>
+        ((Finset.notMem_empty _ j.2.1).elim : Fin 2)) = η := by
+      funext j
+      exact (Finset.notMem_empty _ j.2.1).elim
+    simp only [hη]
+  right_inv := by
+    intro t
+    rfl
+
+theorem opus_dpo_prod_occEmpty {b : ℕ} (T : Fin b → CubeTemplate) (F : pkgB2_BaseRow T → ℝ) :
+    ∏ o : Fin (Fintype.card (pkgB2_Occurrence T ∅)), F (pkgB2_occurrenceEnum T ∅ o).1 =
+      ∏ t, F t := by
+  rw [(pkgB2_occurrenceEnum T ∅).prod_comp (fun o => F o.1)]
+  exact (opus_dpo_occEmptyEquiv T).prod_comp F
+
+theorem opus_dpo_oldSum_root {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℤ)
+    (X : pkgB2_OldCoord T → ℤ) :
+    ∑ old, pkgB2_oldCoefficient T M (.inl ()) old * X old = X (.inl ()) := by
+  rw [Fintype.sum_sum_type]
+  simp [pkgB2_oldCoefficient]
+
+theorem opus_dpo_oldSum_row {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℤ)
+    (s : pkgB2_Nonroot T) (X : pkgB2_OldCoord T → ℤ) :
+    ∑ old, pkgB2_oldCoefficient T M (.inr s) old * X old =
+      X (.inl ()) + M s.1 * ∑ j ∈ s.2.1,
+        (X (.inr ⟨s.1, (j, 1)⟩) - X (.inr ⟨s.1, (j, 0)⟩)) := by
+  classical
+  have h01 : (0 : Fin 2) ≠ 1 := by decide
+  have h1v : (1 : Fin 2).val ≠ 0 := by decide
+  rw [Fintype.sum_sum_type, Fintype.sum_sigma]
+  rw [Finset.sum_eq_single s.1 (fun k _ hk => by
+    apply Finset.sum_eq_zero
+    intro js _
+    rw [opus_dpo_oldCoeff_ne T _ s k hk js.1 js.2, zero_mul]) (by simp)]
+  congr 1
+  · simp [pkgB2_oldCoefficient]
+  · rw [Fintype.sum_prod_type]
+    simp only [Fin.sum_univ_two, opus_dpo_oldCoeff_same, Fin.val_zero, h1v, if_true, if_false]
+    rw [Finset.mul_sum, ← Finset.sum_filter_add_sum_filter_not Finset.univ
+      (fun j => j ∈ s.2.1)]
+    have hfil : Finset.univ.filter (fun j => j ∈ s.2.1) = s.2.1 := by ext; simp
+    rw [hfil, Finset.sum_eq_zero (s := Finset.univ.filter (fun j => ¬ j ∈ s.2.1))
+      (fun j hj => by simp [(Finset.mem_filter.mp hj).2]), add_zero]
+    apply Finset.sum_congr rfl
+    intro j hj
+    simp only [hj, if_true]
+    ring
+
+/-- The stage-`∅` row values with all translations zero. -/
+theorem opus_dpo_rowValue_zero {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k))
+    (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ)
+    (p : Fin (b * sl) → ℕ) (o : Fin (Fintype.card (pkgB2_Occurrence T ∅)))
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :
+    pkgB2_stateRowValue MS T hT J0 gap direction ∅ N p o (opus_dpo_zeroTranslations T x) =
+      ∑ old, pkgB2_oldCoefficient T
+        (fun k => ((T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k) : ℤ))
+        (pkgB2_occurrenceEnum T ∅ o).1 old * x ((pkgB2_coordEnum T).symm (.inl old)) := by
+  classical
+  set M : Fin b → ℕ := fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k)
+    with hM
+  set e := pkgB2_coordEnum T
+  set cI := pkgB2_occurrenceCoefficientInt T M direction ∅ (pkgB2_occurrenceEnum T ∅ o)
+  unfold pkgB2_stateRowValue
+  have hre (y : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :
+      (∑ j, ((cI (e j) : ℤ) : ℚ) * (y j : ℚ)) = ((∑ c, cI c * y (e.symm c) : ℤ) : ℚ) := by
+    rw [← e.sum_comp (fun c => cI c * y (e.symm c))]
+    push_cast
+    simp
+  have hlin : linearRowValue (pkgB2_rowCoefficientArray MS T hT J0 gap direction ∅) N p o
+      (opus_dpo_zeroTranslations T x) =
+      ((∑ c, cI c * opus_dpo_zeroTranslations T x (e.symm c) : ℤ) : ℚ) := by
+    unfold linearRowValue pkgB2_rowCoefficientArray pkgB2_occurrenceCoefficient
+    exact hre _
+  rw [hlin, Rat.num_intCast, opus_dpo_sum_coord]
+  have hcoeffO (old : pkgB2_OldCoord T) :
+      cI (.inl old) = pkgB2_oldCoefficient T (fun k => (M k : ℤ))
+        (pkgB2_occurrenceEnum T ∅ o).1 old := by
+    simp [cI, pkgB2_occurrenceCoefficientInt, pkgB2_copyCoeffInt]
+  have hz (tr : pkgB2_Nonroot T × Fin 2) :
+      opus_dpo_zeroTranslations T x (e.symm (.inr tr)) = 0 := by
+    simp [opus_dpo_zeroTranslations, e]
+  have hz' (old : pkgB2_OldCoord T) :
+      opus_dpo_zeroTranslations T x (e.symm (.inl old)) = x (e.symm (.inl old)) := by
+    simp [opus_dpo_zeroTranslations, e]
+  simp only [hz, mul_zero, Finset.sum_const_zero, add_zero, hz', hcoeffO]
+  rfl
+
+/-- The block function of replica `k`: the product of its nonroot inputs. -/
+def opus_dpo_block {K sl : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (N : ℕ)
+    (I : DualInput MS B T N) (q : Fin T.q → ℕ) (y : ℤ) (u : Fin T.d → Fin 2 → ℤ) : ℝ :=
+  ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+    I.g ω q (y + (T.modulus (corrScales MS) N q : ℤ) * ∑ j ∈ ω, (u j 1 - u j 0))
+
+/-- The stage-`∅` integrand with zero translations in structured coordinates. -/
+theorem opus_dpo_integrand_zero {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ) (w : opus_dpo_Y T) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+        (opus_dpo_zeroTranslations T ((opus_dpo_coordE T).symm w)) =
+      (∏ k, (I k).e (pkgB2_repPrimeProject hT p k)) *
+        ((nu MS.core.parameters N B w.1 - 1) *
+          ∏ k, opus_dpo_block MS B (T k) N (I k) (pkgB2_repPrimeProject hT p k) w.1 (w.2.1 k)) := by
+  classical
+  set M : Fin b → ℤ := fun k =>
+    ((T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k) : ℤ) with hM
+  let x := (opus_dpo_coordE T).symm w
+  have hxold (old : pkgB2_OldCoord T) :
+      x ((pkgB2_coordEnum T).symm (.inl old)) = (opus_dpo_coordY T).symm w (.inl old) := by
+    simp [x, opus_dpo_coordE_symm_apply]
+  let F : pkgB2_BaseRow T → ℝ := fun t => match t with
+    | .inl _ => nu MS.core.parameters N B w.1 - 1
+    | .inr r => (I r.1).g r.2.1 (pkgB2_repPrimeProject hT p r.1)
+        (w.1 + M r.1 * ∑ j ∈ r.2.1, (w.2.1 r.1 j 1 - w.2.1 r.1 j 0))
+  have hfactor (o : Fin (Fintype.card (pkgB2_Occurrence T ∅))) :
+      pkgB2_stateFactor MS B gap T hT J0 direction ∅ N I p (opus_dpo_zeroTranslations T x) o =
+        F (pkgB2_occurrenceEnum T ∅ o).1 := by
+    have hrv := opus_dpo_rowValue_zero MS T hT J0 gap direction N p o x
+    simp only [hxold] at hrv
+    simp only [pkgB2_stateFactor]
+    rcases ht : (pkgB2_occurrenceEnum T ∅ o).1 with u | r
+    · rw [ht] at hrv
+      rw [opus_dpo_oldSum_root] at hrv
+      simp only [F, hrv]
+      rfl
+    · rw [ht] at hrv
+      rw [opus_dpo_oldSum_row] at hrv
+      simp only [F, Finset.notMem_empty, if_false, hrv]
+      rfl
+  unfold pkgB2_stateIntegrand
+  simp only [if_true]
+  rw [Finset.prod_congr rfl (fun o _ => hfactor o)]
+  rw [opus_dpo_prod_occEmpty T F, opus_dpo_prod_baseRow, opus_dpo_prod_nonroot]
+  congr 2
+  apply Finset.prod_congr rfl
+  intro k _
+  unfold opus_dpo_block
+  apply Finset.prod_congr rfl
+  intro ω hω
+  have hne : ω.Nonempty := by
+    rw [Finset.nonempty_iff_ne_empty]
+    exact (Finset.mem_erase.mp hω).1
+  rw [dif_pos hne]
+
 end
 
 end Prediction
