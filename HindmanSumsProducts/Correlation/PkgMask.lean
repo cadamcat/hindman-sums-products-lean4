@@ -3763,6 +3763,93 @@ theorem samplingInput_le_masterScaleV_pow {n : ℕ}
       rw [← pow_add]
       congr 1 <;> omega
 
+theorem logPivot_dominates_samplingInput {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) (r : ℕ) :
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (A.X N i : ℝ))
+      (fun N => (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ)) := by
+  intro B hB
+  have hlarge := logPivot_dominates_masterScaleV A l i hli
+    (((r + 8 : ℕ) : ℝ) * B) (by positivity)
+  have hVpos (N : ℕ) : 0 < (masterScaleV A N l : ℝ) := by
+    have hV : 2 ≤ masterScaleV A N l := by unfold masterScaleV; omega
+    exact_mod_cast (show 0 < masterScaleV A N l by omega)
+  have hTpos (N : ℕ) :
+      0 < (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ) := by positivity
+  have hTbound (N : ℕ) :
+      (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ) ≤
+        (masterScaleV A N l : ℝ) ^ (r + 8 : ℕ) := by
+    exact_mod_cast samplingInput_le_masterScaleV_pow A l r N
+  have hTpow (N : ℕ) :
+      (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ) ^ B ≤
+        (masterScaleV A N l : ℝ) ^ (((r + 8 : ℕ) : ℝ) * B) := by
+    calc
+      _ ≤ ((masterScaleV A N l : ℝ) ^ (r + 8 : ℕ)) ^ B :=
+        Real.rpow_le_rpow (by positivity) (hTbound N) hB.le
+      _ = (masterScaleV A N l : ℝ) ^ (((r + 8 : ℕ) : ℝ) * B) := by
+        calc
+          ((masterScaleV A N l : ℝ) ^ (r + 8 : ℕ)) ^ B =
+              ((masterScaleV A N l : ℝ) ^ ((r + 8 : ℕ) : ℝ)) ^ B :=
+            congrArg (fun x : ℝ => x ^ B)
+              (Real.rpow_natCast (masterScaleV A N l : ℝ) (r + 8)).symm
+          _ = _ := (Real.rpow_mul (le_of_lt (hVpos N)) _ _).symm
+  apply tendsto_atTop_mono' atTop ?_ hlarge
+  filter_upwards with N
+  have hXpos : 0 < (A.X N i : ℝ) := by exact_mod_cast A.Xpos N i
+  have hlogNonneg : 0 ≤ Real.log (A.X N i : ℝ) :=
+    Real.log_nonneg (by exact_mod_cast (Nat.one_le_of_lt (A.Xpos N i)))
+  exact div_le_div_of_nonneg_left hlogNonneg
+    (Real.rpow_pos_of_pos (hTpos N) B) (hTpow N)
+
+theorem pivot_sampling_log_condition_eventually {n K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (i : Fin m) :
+    ∀ᶠ N in atTop,
+      Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+        (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1 := by
+  have hratio : Tendsto
+      (fun N => Real.log (S.core.parameters.X N (C.block i).1 : ℝ) /
+        (S.core.parameters.H N (C.block i).1 : ℝ)) atTop atTop := by
+    simpa only [Real.rpow_one] using
+      S.core.parameters.Xdom (C.block i).1 1 (by norm_num)
+  filter_upwards [hratio.eventually_gt_atTop 1] with N hratioN
+  have hHpos : 0 < (S.core.parameters.H N (C.block i).1 : ℝ) := by
+    exact_mod_cast S.core.parameters.Hpos N (C.block i).1
+  have hHle : (S.core.parameters.H N (C.block i).1 : ℝ) <
+      Real.log (S.core.parameters.X N (C.block i).1 : ℝ) :=
+    by simpa using (lt_div_iff₀ hHpos).mp hratioN
+  have hHone : 1 ≤ (S.core.parameters.H N (C.block i).1 : ℝ) := by
+    exact_mod_cast (Nat.one_le_of_lt
+      (S.core.parameters.Hpos N (C.block i).1))
+  have hXpos : 0 < (S.core.parameters.X N (C.block i).1 : ℝ) := by
+    exact_mod_cast S.core.parameters.Xpos N (C.block i).1
+  have hcut := S.gapStage.valid_raw_cutoffs N (C.block i).1
+  have hfrac : (primorial (N + 1) : ℝ) /
+      S.core.parameters.X N (C.block i).1 ≤ 1 / 4 := by
+    apply (div_le_iff₀ hXpos).2
+    have hcutR : 4 * (primorial (N + 1) : ℝ) ≤
+        (S.core.parameters.X N (C.block i).1 : ℝ) := by exact_mod_cast hcut
+    nlinarith
+  linarith
+
+theorem rawPivot_dominates_samplingInput {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) (r : ℕ) :
+    OAI.MicrocellScale.Dominates
+      (fun N => (A.X N i : ℝ))
+      (fun N => (2 + primorial (N + 1) + (masterScaleV A N l) ^ r +
+        1 + masterScaleV A N l : ℝ)) := by
+  intro B hB
+  have hlog := logPivot_dominates_samplingInput A l i hli r B hB
+  apply tendsto_atTop_mono' atTop ?_ hlog
+  filter_upwards with N
+  have hXpos : 0 ≤ (A.X N i : ℝ) := by positivity
+  exact div_le_div_of_nonneg_right
+    (Real.log_le_self hXpos) (by positivity)
+
 theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
