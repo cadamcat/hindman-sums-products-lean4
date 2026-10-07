@@ -2339,6 +2339,66 @@ theorem c_test2_cubeProduct_reindex_equiv {α : Type*} [Fintype α] [DecidableEq
       c_test2_bitsToSubset]
   rw [hs, Finset.sum_filter, ← hsum]
 
+theorem c_test2_targetVertex_decomposition {m q r : ℕ} (c : Fin m → ℚ)
+    (Sh : RowShape m q r) (p : Fin q → ℕ) (M : ℕ) (z : Fin m → ℤ)
+    (u : NonTarget Sh → Fin 2 → ℕ) (ω : NonTarget Sh → Fin 2)
+    (alpha : Fin m → ℕ) (aStar j : Fin m) (haj : aStar ≠ j)
+    (hcoeff : ∀ i, c i / c (Sh.row Sh.star).anchor *
+      (Sh.row Sh.star).value p i = (alpha i : ℚ))
+    (k b : ℕ) (hk : k = alpha aStar) (hb : b = alpha j) :
+    targetVertex c Sh p M (fun i => (z i : ℚ)) u ω =
+      ((k : ℤ) * z aStar + (b : ℤ) * z j +
+        ∑ i : CTest2OtherPivot aStar j, (alpha i.1 : ℤ) * z i.1 +
+        (M : ℤ) * ∑ R : NonTarget Sh, (u R 0 : ℤ) +
+        (M : ℤ) * (∑ R : NonTarget Sh,
+          (if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0)) : ℚ) := by
+  classical
+  let T := Sh.row Sh.star
+  have hrow := c_test2_rowForm_eq_coeff_sum c T p z alpha hcoeff
+  have hsum := c_test2_alphaWeightedSum_split aStar j haj alpha z
+  have hsumQ :
+      (∑ i : Fin m, (alpha i : ℚ) * (z i : ℚ)) =
+        ((∑ i : Fin m, (alpha i : ℤ) * z i : ℤ) : ℚ) := by
+    norm_cast
+  have hbits (R : NonTarget Sh) :
+      (u R (ω R) : ℤ) = (u R 0 : ℤ) +
+        (if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0) := by
+    generalize hω : ω R = v
+    fin_cases v <;> simp [hω]
+  have hsumBits :
+      (∑ R : NonTarget Sh, (u R (ω R) : ℤ)) =
+        (∑ R : NonTarget Sh, (u R 0 : ℤ)) +
+          ∑ R : NonTarget Sh,
+            (if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0) := by
+    calc
+      _ = ∑ R : NonTarget Sh,
+          ((u R 0 : ℤ) + (if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0)) := by
+            apply Finset.sum_congr rfl
+            intro R hR
+            exact hbits R
+      _ = _ := Finset.sum_add_distrib
+  have hshift :
+      (M : ℚ) * ∑ R : NonTarget Sh, (u R (ω R) : ℚ) =
+        (((M : ℤ) * ∑ R : NonTarget Sh, (u R 0 : ℤ) +
+          (M : ℤ) * ∑ R : NonTarget Sh,
+            (if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0) : ℤ) : ℚ) := by
+    have hsumBitsQ :
+        (∑ R : NonTarget Sh, (u R (ω R) : ℚ)) =
+          (∑ R : NonTarget Sh, (u R 0 : ℚ)) +
+            ∑ R : NonTarget Sh,
+              (if ω R = 1 then (u R 1 : ℚ) - u R 0 else 0) := by
+      exact_mod_cast hsumBits
+    calc
+      _ = (M : ℚ) *
+          ((∑ R : NonTarget Sh, (u R 0 : ℚ)) +
+            ∑ R : NonTarget Sh,
+              (if ω R = 1 then (u R 1 : ℚ) - u R 0 else 0)) := by rw [hsumBitsQ]
+      _ = _ := by push_cast; ring
+  unfold targetVertex
+  rw [hrow, hsumQ, hsum, hk, hb, hshift]
+  push_cast
+  ring
+
 theorem c_test2_weighted_tsum_error {α : Type*} (μ F G : α → ℝ) (δ : ℝ)
     (hμnonneg : ∀ x, 0 ≤ μ x) (hμsum : Summable μ)
     (hμone : ∑' x, μ x = 1) (hF : Summable (fun x => μ x * F x))
@@ -2364,6 +2424,122 @@ theorem c_test2_weighted_tsum_error {α : Type*} (μ F G : α → ℝ) (δ : ℝ
       simpa [Real.norm_eq_abs] using norm_tsum_le_tsum_norm hdiff.norm
     _ ≤ ∑' x, μ x * δ := hdiff.norm.tsum_le_tsum hterm hdom
     _ = δ := by rw [tsum_mul_right, hμone]; ring
+
+theorem c_test2_weighted_tsum_error_of_zero_or {α : Type*} (μ F G : α → ℝ) (δ : ℝ)
+    (hμnonneg : ∀ x, 0 ≤ μ x) (hμsum : Summable μ)
+    (hμone : ∑' x, μ x = 1) (hF : Summable (fun x => μ x * F x))
+    (hG : Summable (fun x => μ x * G x))
+    (hpoint : ∀ x, μ x = 0 ∨ |F x - G x| ≤ δ) (hδ : 0 ≤ δ) :
+    |(∑' x, μ x * F x) - ∑' x, μ x * G x| ≤ δ := by
+  have hpoint' : ∀ x, |μ x * (F x - G x)| ≤ μ x * δ := by
+    intro x
+    rcases hpoint x with hzero | hbound
+    · simp [hzero]
+    · rw [abs_mul, abs_of_nonneg (hμnonneg x)]
+      exact mul_le_mul_of_nonneg_left hbound (hμnonneg x)
+  have hdiff : Summable (fun x => μ x * (F x - G x)) := by
+    simpa only [mul_sub] using hF.sub hG
+  have hsum :
+      (∑' x, μ x * F x) - ∑' x, μ x * G x =
+        ∑' x, μ x * (F x - G x) := by
+    rw [← hF.tsum_sub hG]
+    exact tsum_congr fun x => by ring
+  have hdom : Summable (fun x => μ x * δ) := hμsum.mul_right δ
+  calc
+    |(∑' x, μ x * F x) - ∑' x, μ x * G x| =
+        |∑' x, μ x * (F x - G x)| := by rw [hsum]
+    _ ≤ ∑' x, ‖μ x * (F x - G x)‖ := by
+      simpa [Real.norm_eq_abs] using norm_tsum_le_tsum_norm hdiff.norm
+    _ ≤ ∑' x, μ x * δ := hdiff.norm.tsum_le_tsum (fun x => by
+      rw [Real.norm_eq_abs]
+      exact hpoint' x) hdom
+    _ = δ := by rw [tsum_mul_right, hμone]; ring
+
+theorem c_test2_pivotSampling_expectation_error {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (a j : Fin m) (haj : a ≠ j) (Xa Xj k b : ℕ)
+    (hXa : Xa = A.X N (C.block a).1) (hXj : Xj = A.X N (C.block j).1)
+    (Fbase : ℤ → ℝ) (Fwhole : (Fin m → ℤ) → ℝ)
+    (offset : (CTest2OtherPivot a j → ℤ) → ℤ)
+    (δ : ℝ) (hδ : 0 ≤ δ)
+    (hdecomp : ∀ r za zj,
+      Fwhole ((c_test2_pivotPairRestEquiv a j haj).symm ((za, zj), r)) =
+        Fbase ((k : ℤ) * za + (b : ℤ) * zj + offset r))
+    (hsample : ∀ r,
+      c_test2_restPivotMass A C N a j r = 0 ∨
+        |(∑' za : ℤ, ∑' zj : ℤ,
+            harmonicLaw Xa (primorial (N + 1)) za *
+              harmonicLaw Xj (primorial (N + 1)) zj *
+              Fbase ((k : ℤ) * za + (b : ℤ) * zj + offset r)) -
+          ∑' y : ℤ, harmonicLaw Xa (primorial (N + 1)) y * Fbase y| ≤ δ)
+    (hRestNonneg : ∀ r, 0 ≤ c_test2_restPivotMass A C N a j r)
+    (hRestSummable : Summable (c_test2_restPivotMass A C N a j))
+    (hRestOne : ∑' r, c_test2_restPivotMass A C N a j r = 1)
+    (hAvgSummable : Summable (fun r => c_test2_restPivotMass A C N a j r *
+      (∑' za : ℤ, ∑' zj : ℤ,
+        harmonicLaw Xa (primorial (N + 1)) za *
+          harmonicLaw Xj (primorial (N + 1)) zj *
+          Fbase ((k : ℤ) * za + (b : ℤ) * zj + offset r)))) :
+    |(∑' z : Fin m → ℤ, pivotMass A C N z * Fwhole z) -
+      ∑' y : ℤ, harmonicLaw Xa (primorial (N + 1)) y * Fbase y| ≤ δ := by
+  let μr := c_test2_restPivotMass A C N a j
+  let ref : ℝ := ∑' y : ℤ, harmonicLaw Xa (primorial (N + 1)) y * Fbase y
+  let pairAvg : (CTest2OtherPivot a j → ℤ) → ℝ := fun r =>
+    ∑' za : ℤ, ∑' zj : ℤ,
+      harmonicLaw Xa (primorial (N + 1)) za *
+        harmonicLaw Xj (primorial (N + 1)) zj *
+          Fbase ((k : ℤ) * za + (b : ℤ) * zj + offset r)
+  have hpair (r : CTest2OtherPivot a j → ℤ) :
+      (∑' za : ℤ, ∑' zj : ℤ,
+        harmonicLaw Xa (primorial (N + 1)) za *
+          harmonicLaw Xj (primorial (N + 1)) zj *
+            Fwhole ((c_test2_pivotPairRestEquiv a j haj).symm ((za, zj), r))) =
+      pairAvg r := by
+    calc
+      _ = ∑' za : ℤ, ∑' zj : ℤ,
+          harmonicLaw Xa (primorial (N + 1)) za *
+            harmonicLaw Xj (primorial (N + 1)) zj *
+              Fbase ((k : ℤ) * za + (b : ℤ) * zj + offset r) := by
+        apply tsum_congr
+        intro za
+        apply tsum_congr
+        intro zj
+        rw [hdecomp r za zj]
+      _ = pairAvg r := rfl
+  have hsplit := c_test2_pivotMass_tsum_split A C N a j haj Fwhole
+  have hleft :
+      (∑' z : Fin m → ℤ, pivotMass A C N z * Fwhole z) =
+        ∑' r, c_test2_restPivotMass A C N a j r * pairAvg r := by
+    calc
+      _ = ∑' r, c_test2_restPivotMass A C N a j r *
+            ∑' za : ℤ, ∑' zj : ℤ,
+              harmonicLaw Xa (primorial (N + 1)) za *
+                harmonicLaw Xj (primorial (N + 1)) zj *
+                  Fwhole ((c_test2_pivotPairRestEquiv a j haj).symm ((za, zj), r)) := by
+        simpa [hXa, hXj] using hsplit
+      _ = ∑' r, c_test2_restPivotMass A C N a j r * pairAvg r := by
+        apply tsum_congr
+        intro r
+        rw [hpair r]
+  have hRefSum : Summable (fun r => c_test2_restPivotMass A C N a j r * ref) :=
+    hRestSummable.mul_right _
+  have hRef : (∑' r, c_test2_restPivotMass A C N a j r * ref) = ref := by
+    rw [tsum_mul_right, hRestOne]
+    ring
+  have hpoint : ∀ r, c_test2_restPivotMass A C N a j r = 0 ∨
+      |pairAvg r - ref| ≤ δ := by
+    intro r
+    rcases hsample r with hz | hbound
+    · exact Or.inl hz
+    · exact Or.inr (by simpa [pairAvg, ref] using hbound)
+  have hweighted := c_test2_weighted_tsum_error_of_zero_or
+    (c_test2_restPivotMass A C N a j) pairAvg
+    (fun _ => ref) δ hRestNonneg hRestSummable hRestOne hAvgSummable hRefSum
+    hpoint hδ
+  rw [hleft]
+  change |∑' r, μr r * pairAvg r - ref| ≤ δ
+  rw [← hRef]
+  exact hweighted
 
 theorem c_test2_shiftAverage_error {ι : Type*} [Fintype ι] [DecidableEq ι]
     (L : ℕ) (F G : (ι → Fin 2 → ℕ) → ℝ) (δ : ℝ) (hL : 0 < L)
