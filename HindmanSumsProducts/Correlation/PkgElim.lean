@@ -3901,6 +3901,37 @@ theorem pkgElim_occurrenceCoeff_integer {K m q r s : ℕ} {Aset : Finset ℚ}
           exact ⟨z, by simpa [occurrenceCoeff, occurrenceRow, hj] using hz⟩
         · exact ⟨0, by simp [occurrenceCoeff, hj]⟩
 
+theorem pkgElim_linearRowValue_integer {K m q r s h d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (eO : Occurrence Sh ≃ Fin h)
+    (eX : Coordinate Sh ≃ Fin d) (N : ℕ) (p' : Fin s → ℕ)
+    (u : Fin h) (x : Fin d → ℤ) (J0 B : ℕ)
+    (tests : Finset (IntegerPolynomial q))
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly (fun i => p' (ι i))) :
+    ∃ z : ℤ,
+      FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX)
+        N p' u x = (z : ℚ) := by
+  classical
+  have hcoeff : ∀ j : Fin d, ∃ z : ℤ,
+      occurrenceCoeff S C a Sh dirs N (fun i => p' (ι i))
+        (eO.symm u) (eX.symm j) = (z : ℚ) := by
+    intro j
+    exact pkgElim_occurrenceCoeff_integer S C a Sh dirs tests N
+      (fun i => p' (ι i)) (eO.symm u) (eX.symm j) J0 B hGlobal hGood
+  choose z hz using hcoeff
+  refine ⟨∑ j : Fin d, z j * x j, ?_⟩
+  unfold FromArithmetic.linearRowValue rowCoeff
+  calc
+    _ = ∑ j : Fin d, ((z j * x j : ℤ) : ℚ) := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      rw [hz j]
+      simp
+    _ = ((∑ j : Fin d, z j * x j : ℤ) : ℚ) := by simp
+
 noncomputable def pkgElim_momentOldResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
