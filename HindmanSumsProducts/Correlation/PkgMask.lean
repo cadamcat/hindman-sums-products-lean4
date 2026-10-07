@@ -9506,4 +9506,116 @@ theorem MaskRemovalState.pkgMask_stateCoordinatePrimeInsertion_weightedCS
   rw [← hsum] at hCS
   exact hCS
 
+def pkgMask_oldFreshPairEquiv {m q : ℕ} :
+    (((Fin q → ℕ) × (Fin m → ℤ)) × (ℕ × ℕ)) ≃
+      ((Fin (q + 2) → ℕ) × (Fin m → ℤ)) where
+  toFun x :=
+    (extendPrimeTuple (extendPrimeTuple x.1.1 x.2.1) x.2.2, x.1.2)
+  invFun y := ((dropPrimeTuple2 y.1, y.2), (y.1 1, y.1 0))
+  left_inv := by
+    rintro ⟨⟨p, z⟩, p₁, p₀⟩
+    apply Prod.ext
+    · apply Prod.ext
+      · exact dropPrimeTuple2_extend p p₁ p₀
+      · rfl
+    · apply Prod.ext <;> rfl
+  right_inv := by
+    rintro ⟨p, z⟩
+    apply Prod.ext
+    · exact extendPrimeTuple2_drop p
+    · rfl
+
+theorem pkgMask_gapPivot_freshPair_reindex {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ)
+    (F : (((Fin q → ℕ) × (Fin m → ℤ)) × (ℕ × ℕ)) → ℝ) :
+    ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N x.1 x.2 *
+          ∑' pq : ℕ × ℕ,
+            (primePoolLaw (S.primeStage.pool N C.gap).lower
+              (S.primeStage.pool N C.gap).upper pq.1 *
+              primePoolLaw (S.primeStage.pool N C.gap).lower
+                (S.primeStage.pool N C.gap).upper pq.2) * F (x, pq) =
+      ∑' y : (Fin (q + 2) → ℕ) × (Fin m → ℤ),
+        gapPivotMass S C N y.1 y.2 * F ((pkgMask_oldFreshPairEquiv).symm y) := by
+  classical
+  let lo := (S.primeStage.pool N C.gap).lower
+  let hi := (S.primeStage.pool N C.gap).upper
+  let A := gapPivotSupport (q := q) S C N
+  let P := primePoolSupport lo hi
+  let B := P ×ˢ P
+  let pairMass : ℕ × ℕ → ℝ := fun pq =>
+    primePoolLaw lo hi pq.1 * primePoolLaw lo hi pq.2
+  have houterZero (x : (Fin q → ℕ) × (Fin m → ℤ)) (hx : x ∉ A) :
+      gapPivotMass S C N x.1 x.2 *
+        ∑' pq : ℕ × ℕ, pairMass pq * F (x, pq) = 0 := by
+    rw [gapPivotMass_zero_of_not_mem_support S C N x hx]
+    simp
+  have hpairZero (pq : ℕ × ℕ) (hpq : pq ∉ B) : pairMass pq = 0 := by
+    have hcoord : pq.1 ∉ P ∨ pq.2 ∉ P := by
+      by_contra h
+      push_neg at h
+      exact hpq (Finset.mem_product.mpr h)
+    rcases hcoord with hp | hq
+    · simp [pairMass, primePoolLaw_zero_of_not_mem_support lo hi pq.1 hp]
+    · simp [pairMass, primePoolLaw_zero_of_not_mem_support lo hi pq.2 hq]
+  have hprodZero (y : ((Fin q → ℕ) × (Fin m → ℤ)) × (ℕ × ℕ))
+      (hy : y ∉ A ×ˢ B) :
+      (gapPivotMass S C N y.1.1 y.1.2 * pairMass y.2) * F y = 0 := by
+    have hcoord : y.1 ∉ A ∨ y.2 ∉ B := by
+      by_contra h
+      push_neg at h
+      exact hy (Finset.mem_product.mpr h)
+    rcases hcoord with hx | hpq
+    · simp [gapPivotMass_zero_of_not_mem_support S C N y.1 hx]
+    · simp [hpairZero y.2 hpq]
+  calc
+    _ = ∑ x ∈ A, gapPivotMass S C N x.1 x.2 *
+          ∑ pq ∈ B, pairMass pq * F (x, pq) := by
+      rw [tsum_eq_sum (s := A) houterZero]
+      apply Finset.sum_congr rfl
+      intro x hx
+      rw [tsum_eq_sum (s := B) (fun pq hpq => by simp [hpairZero pq hpq])]
+    _ = ∑ x ∈ A, ∑ pq ∈ B,
+          (gapPivotMass S C N x.1 x.2 * pairMass pq) * F (x, pq) := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro pq hpq
+      ring
+    _ = ∑ y ∈ A ×ˢ B,
+          (gapPivotMass S C N y.1.1 y.1.2 * pairMass y.2) * F y := by
+      symm
+      exact Finset.sum_product' A B
+        (fun x pq => (gapPivotMass S C N x.1 x.2 * pairMass pq) * F (x, pq))
+    _ = ∑' y : ((Fin q → ℕ) × (Fin m → ℤ)) × (ℕ × ℕ),
+          (gapPivotMass S C N y.1.1 y.1.2 * pairMass y.2) * F y := by
+      symm
+      exact tsum_eq_sum (s := A ×ˢ B) hprodZero
+    _ = ∑' y : (Fin (q + 2) → ℕ) × (Fin m → ℤ),
+          (gapPivotMass S C N (pkgMask_oldFreshPairEquiv.symm y).1.1
+            (pkgMask_oldFreshPairEquiv.symm y).1.2 *
+            pairMass (pkgMask_oldFreshPairEquiv.symm y).2) *
+              F (pkgMask_oldFreshPairEquiv.symm y) := by
+      exact pkgMask_oldFreshPairEquiv.tsum_eq (fun y =>
+        (gapPivotMass S C N (pkgMask_oldFreshPairEquiv.symm y).1.1
+          (pkgMask_oldFreshPairEquiv.symm y).1.2 *
+          pairMass (pkgMask_oldFreshPairEquiv.symm y).2) *
+            F (pkgMask_oldFreshPairEquiv.symm y))
+    _ = _ := by
+      apply tsum_congr
+      intro y
+      have hmass :
+          gapPivotMass S C N (pkgMask_oldFreshPairEquiv.symm y).1.1
+            (pkgMask_oldFreshPairEquiv.symm y).1.2 *
+            pairMass (pkgMask_oldFreshPairEquiv.symm y).2 =
+          gapPivotMass S C N y.1 y.2 := by
+        simp [pkgMask_oldFreshPairEquiv]
+        unfold gapPivotMass pairMass
+        conv_rhs => rw [← extendPrimeTuple2_drop y.1]
+        rw [pkgMask_gapSlotMass_extend2]
+        ring
+      rw [hmass]
+
 end HindmanSumsProducts
