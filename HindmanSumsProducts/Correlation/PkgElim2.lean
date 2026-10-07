@@ -2570,4 +2570,176 @@ theorem c_elim2_target_cube_product_abs_le_targetBound
   exact Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _)
     (fun ω _ => hfactor ω)
 
+theorem c_elim2_boxWeightRowFactor_le_boxRetainedProduct
+    {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α)
+    (hR : R ∉ E) (b : β) (v : α → Fin 2 → Fin (D.shiftLength b))
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (hu : ∀ c, u c = v c.val.1 c.val.2)
+    (hweight : ∀ (I : {i : α // i ∈ (Finset.univ : Finset α)})
+      (η : c_elim2_BoxRetainedBranch (Finset.univ : Finset α) I.1),
+      1 ≤ D.rowWeight I.1 b
+        (c_elim2_boxRowArgument D Finset.univ b I.1
+          (fun c : c_elim2_ShiftCoord (Finset.univ : Finset α) =>
+            v c.val.1 c.val.2)
+          (c_elim2_boxRetainedBranchFull (Finset.univ : Finset α) I.1 η))) :
+    c_elim2_boxWeightRowFactor D E R b u ≤
+      c_elim2_boxRetainedProduct D Finset.univ b
+        (fun c : c_elim2_ShiftCoord (Finset.univ : Finset α) => v c.val.1 c.val.2) := by
+  classical
+  let fullU : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b) :=
+    fun c => v c.val.1 c.val.2
+  let FullBranch := c_elim2_BoxRetainedBranch (Finset.univ : Finset α) R
+  let extend : c_elim2_BoxBranch E → FullBranch := fun ω => fun η =>
+    if hη : η.1 ∈ E then ω ⟨η.1, hη⟩ else 0
+  have hinj : Function.Injective extend := by
+    intro ω ω' h
+    funext i
+    have hiR : i.1 ≠ R := by
+      intro heq
+      exact hR (heq ▸ i.2)
+    let η : {j : α // j ∈ Finset.univ.erase R} :=
+      ⟨i.1, Finset.mem_erase.mpr ⟨hiR, Finset.mem_univ _⟩⟩
+    have hev := congrFun h η
+    have hmem : η.1 ∈ E := by simpa [η] using i.2
+    have hsub : (⟨η.1, hmem⟩ : {j : α // j ∈ E}) = i := by
+      apply Subtype.ext
+      rfl
+    simpa [extend, hmem, hsub] using hev
+  have harg (ω : c_elim2_BoxBranch E) :
+      c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω) =
+        c_elim2_boxRowArgument D Finset.univ b R fullU
+          (c_elim2_boxRetainedBranchFull Finset.univ R (extend ω)) := by
+    unfold c_elim2_boxRowArgument
+    congr 1
+    apply Finset.sum_congr rfl
+    intro i hi
+    have hiR : i ≠ R := (Finset.mem_erase.mp hi).1
+    by_cases hiE : i ∈ E
+    · let bit : Fin 2 := c_elim2_boxBranchFull E ω i
+      let cP : c_elim2_ShiftCoord E := ⟨(i, bit), Or.inr hiE⟩
+      let cF : c_elim2_ShiftCoord Finset.univ :=
+        ⟨(i, bit), Or.inr (Finset.mem_univ i)⟩
+      have hbit : bit = c_elim2_boxRetainedBranchFull Finset.univ R (extend ω) i := by
+        simp [bit, c_elim2_boxBranchFull, c_elim2_boxRetainedBranchFull,
+          extend, hiE, hiR]
+      have hcoord : u cP = fullU cF := by
+        have hu' := hu cP
+        simpa [cP, cF, fullU, hbit] using hu'
+      have hshiftP : c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i =
+          (u cP).val := by
+        simp [c_elim2_boxShiftValue, cP, bit, hiE]
+      have hshiftF : c_elim2_boxShiftValue Finset.univ fullU
+          (c_elim2_boxRetainedBranchFull Finset.univ R (extend ω)) i =
+          (fullU cF).val := by
+        simp [c_elim2_boxShiftValue, cF, bit, hbit]
+      rw [hshiftP, hshiftF, hcoord]
+    · have hbit : c_elim2_boxBranchFull E ω i = 0 := by
+        simp [c_elim2_boxBranchFull, hiE]
+      have hbitFull : c_elim2_boxRetainedBranchFull Finset.univ R (extend ω) i = 0 := by
+        simp [c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull, extend, hiE]
+      let cP : c_elim2_ShiftCoord E := ⟨(i, 0), Or.inl rfl⟩
+      let cF : c_elim2_ShiftCoord Finset.univ :=
+        ⟨(i, 0), Or.inr (Finset.mem_univ i)⟩
+      have hcoord : u cP = fullU cF := by
+        have hu' := hu cP
+        simpa [cP, cF, fullU] using hu'
+      have hshiftP : c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i =
+          (u cP).val := by
+        simp [c_elim2_boxShiftValue, cP, hiE]
+      have hshiftF : c_elim2_boxShiftValue Finset.univ fullU
+          (c_elim2_boxRetainedBranchFull Finset.univ R (extend ω)) i =
+          (fullU cF).val := by
+        simp [c_elim2_boxShiftValue, cF, hbitFull]
+      rw [hshiftP, hshiftF, hcoord]
+  let rowFactor : FullBranch → ℝ := fun η =>
+    D.rowWeight R b
+      (c_elim2_boxRowArgument D Finset.univ b R fullU
+        (c_elim2_boxRetainedBranchFull Finset.univ R η))
+  have hrowSub : c_elim2_boxWeightRowFactor D E R b u ≤
+      ∏ η : FullBranch, rowFactor η := by
+    unfold c_elim2_boxWeightRowFactor
+    exact Finset.prod_le_prod_of_injOn₀
+      (f := fun ω : c_elim2_BoxBranch E =>
+        D.rowWeight R b (c_elim2_boxRowArgument D E b R u
+          (c_elim2_boxBranchFull E ω)))
+      (g := rowFactor) (s := Finset.univ) (t := Finset.univ)
+      extend hinj.injOn
+      (by intro ω hω; exact Finset.mem_univ _)
+      (by
+        intro ω hω
+        rw [harg ω])
+      (by
+        intro ω hω
+        rw [harg ω]
+        exact le_trans (by positivity) (hweight ⟨R, Finset.mem_univ _⟩ (extend ω)))
+      (by
+        intro η hη hηnot
+        exact hweight ⟨R, Finset.mem_univ _⟩ η)
+  have hrowFactorLe : (∏ η : FullBranch, rowFactor η) ≤
+      c_elim2_boxRetainedProduct D Finset.univ b fullU := by
+    let Rows := {i : α // i ∈ (Finset.univ : Finset α)}
+    let rowFactorAll : Rows → ℝ := fun I =>
+      ∏ η : c_elim2_BoxRetainedBranch (Finset.univ : Finset α) I.1,
+        D.rowWeight I.1 b
+          (c_elim2_boxRowArgument D Finset.univ b I.1 fullU
+            (c_elim2_boxRetainedBranchFull Finset.univ I.1 η))
+    have hrowOne (I : Rows) : 1 ≤ rowFactorAll I := by
+      dsimp [rowFactorAll]
+      calc
+        1 = ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1, (1 : ℝ) := by simp
+        _ ≤ ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1,
+            D.rowWeight I.1 b
+              (c_elim2_boxRowArgument D Finset.univ b I.1 fullU
+                (c_elim2_boxRetainedBranchFull Finset.univ I.1 η)) := by
+          apply Finset.prod_le_prod₀
+          · intro η hη
+            norm_num
+          · intro η hη
+            exact hweight I η
+    let Rset : Finset Rows := Finset.univ.filter fun I => I.1 = R
+    have hRset : Rset = {⟨R, Finset.mem_univ R⟩} := by
+      ext I
+      constructor
+      · intro h
+        simp only [Finset.mem_singleton]
+        apply Subtype.ext
+        exact (Finset.mem_filter.mp h).2
+      · intro h
+        simp only [Finset.mem_singleton] at h
+        rw [h]
+        simp [Rset]
+    have hsubset : Rset ⊆ (Finset.univ : Finset Rows) := Finset.filter_subset _ _
+    have hprod : (∏ I ∈ Rset, rowFactorAll I) ≤ ∏ I, rowFactorAll I := by
+      apply Finset.prod_le_prod_of_subset_of_one_le₀ hsubset
+      · intro I hI
+        exact (zero_le_one.trans (hrowOne I))
+      · intro I hI hInot
+        exact hrowOne I
+    have hsingle : (∏ I ∈ Rset, rowFactorAll I) =
+        ∏ η : FullBranch, rowFactor η := by
+      rw [hRset]
+      simp only [Finset.prod_singleton]
+      change (∏ η : FullBranch, rowFactor η) = ∏ η : FullBranch, rowFactor η
+      rfl
+    have hwhole : (∏ I, rowFactorAll I) =
+        c_elim2_boxRetainedProduct D Finset.univ b fullU := by
+      unfold c_elim2_boxRetainedProduct
+      change (∏ I : Rows, rowFactorAll I) =
+        ∏ I : Rows, ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1,
+          D.rowWeight I.1 b
+            (c_elim2_boxRowArgument D Finset.univ b I.1 fullU
+              (c_elim2_boxRetainedBranchFull Finset.univ I.1 η))
+      apply Fintype.prod_congr
+      intro I
+      rfl
+    calc
+      (∏ η : FullBranch, rowFactor η) = ∏ I ∈ Rset, rowFactorAll I := hsingle.symm
+      _ ≤ ∏ I, rowFactorAll I := hprod
+      _ = c_elim2_boxRetainedProduct D Finset.univ b fullU := hwhole
+  calc
+    c_elim2_boxWeightRowFactor D E R b u ≤
+        ∏ η : FullBranch, rowFactor η := hrowSub
+    _ ≤ c_elim2_boxRetainedProduct D Finset.univ b fullU := hrowFactorLe
+
 end HindmanSumsProducts
