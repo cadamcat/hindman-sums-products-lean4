@@ -2320,6 +2320,104 @@ theorem primePoolCRTLaw_probability {w V Q lo hi : ℕ}
       _ = ∑ a : Fin Q, primePoolResidueLaw lo hi Q a := finitePushforward_sum f _
       _ = 1 := primePoolResidueLaw_sum_one hQ hmass
 
+theorem primeTupleCRTLaw_finiteL1_le {s w e V lo hi : ℕ}
+    (he : 0 < e) (hmass : 0 < primePoolMass lo hi) :
+    finiteL1
+      (FromArithmetic.primeTupleCRTLaw
+        (fun _ : Fin s => lo) (fun _ => hi) w V)
+      (FromArithmetic.uniformPrimeTupleCRTLaw w V) ≤
+      (s : ℝ) * finiteL1
+        (primePoolResidueLaw lo hi (FromArithmetic.masterCRTModulus w e V))
+        (uniformUnitResidueLaw (FromArithmetic.masterCRTModulus w e V)) := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  let f : Fin Q → FromArithmetic.CRTResidues w V :=
+    crtResidueProjection (w := w) (V := V) (Q := Q)
+  let μ₀ : FromArithmetic.CRTResidues w V → ℝ := fun r =>
+    ∑' n : ℕ, primePoolLaw lo hi n *
+      (if FromArithmetic.integerCRTResidues w V n = r then 1 else 0)
+  let ν₀ : FromArithmetic.CRTResidues w V → ℝ := fun r =>
+    finitePushforward f (uniformUnitResidueLaw Q) r
+  let μ : Fin s → FromArithmetic.CRTResidues w V → ℝ := fun _ => μ₀
+  let ν : Fin s → FromArithmetic.CRTResidues w V → ℝ := fun _ => ν₀
+  have hQ : 0 < Q := by dsimp [Q]; exact masterCRTModulus_pos
+  have hdiv : ∀ p : FromArithmetic.CRTPrimeRange w V, p.val ∣ Q := by
+    intro p
+    rcases Finset.mem_filter.mp p.property with ⟨hIoc, hp⟩
+    rcases Finset.mem_Ioc.mp hIoc with ⟨hwp, hpV⟩
+    exact masterCRTModulus_mediumPrime_dvd hp hwp hpV
+  have hprob := primePoolCRTLaw_probability hQ hdiv hmass
+  have hμnonneg : ∀ i r, 0 ≤ μ i r := by
+    intro i r
+    exact hprob.1 r
+  have hμnorm : ∀ i, ∑ r, μ i r = 1 := by
+    intro i
+    exact hprob.2
+  have hνnonneg : ∀ i r, 0 ≤ ν i r := by
+    intro i r
+    exact finitePushforward_nonneg f (uniformUnitResidueLaw Q)
+      (uniformUnitResidueLaw_nonneg hQ) r
+  have hνnorm : ∀ i, ∑ r, ν i r = 1 := by
+    intro i
+    calc
+      _ = ∑ r, finitePushforward f (uniformUnitResidueLaw Q) r := rfl
+      _ = ∑ a : Fin Q, uniformUnitResidueLaw Q a := finitePushforward_sum f _
+      _ = 1 := uniformUnitResidueLaw_sum_one hQ
+  have hνdirect : ν₀ = fun r =>
+      ∑ a : Fin Q, uniformUnitResidueLaw Q a * (if f a = r then 1 else 0) := by
+    funext r
+    unfold ν₀ finitePushforward
+    apply Finset.sum_congr rfl
+    intro a ha
+    by_cases h : f a = r <;> simp [h]
+  have hTVone : finiteL1 μ₀ ν₀ ≤
+      finiteL1 (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q) := by
+    have h := primePoolCRTLaw_projection_tv hQ hdiv hmass
+    simpa [μ₀, ν₀, f, hνdirect] using h
+  have hActual (r : Fin s → FromArithmetic.CRTResidues w V) :
+      FromArithmetic.primeTupleCRTLaw (fun _ : Fin s => lo) (fun _ => hi) w V r =
+        ∏ i, μ i (r i) := by
+    simpa [μ, μ₀] using
+      (primeTupleCRTLaw_eq_prod_marginals
+        (fun _ : Fin s => lo) (fun _ => hi) r)
+  have hNuProd (r : FromArithmetic.CRTResidues w V) :
+      ν₀ r = ∏ p : FromArithmetic.CRTPrimeRange w V,
+        if Nat.Coprime (r p).val p.val then 1 / ((p.val - 1 : ℕ) : ℝ) else 0 := by
+    unfold ν₀ finitePushforward
+    have hsumEq :
+        (∑ a : Fin Q, if f a = r then uniformUnitResidueLaw Q a else 0) =
+          (∑ a : Fin Q, uniformUnitResidueLaw Q a * (if f a = r then 1 else 0)) := by
+      apply Finset.sum_congr rfl
+      intro a ha
+      by_cases h : f a = r <;> simp [h]
+    rw [hsumEq]
+    exact uniformUnitResidueLaw_crtProjection (w := w) (e := e) (V := V) he r
+  have hUniform (r : Fin s → FromArithmetic.CRTResidues w V) :
+      FromArithmetic.uniformPrimeTupleCRTLaw w V r = ∏ i, ν i (r i) := by
+    unfold FromArithmetic.uniformPrimeTupleCRTLaw
+    apply Finset.prod_congr rfl
+    intro i hi
+    exact (hNuProd (r i)).symm
+  have hProduct := finiteL1_product_probability_le
+    (μ := μ) (ν := ν) hμnonneg hνnonneg hμnorm hνnorm
+  have hCoordTV : ∀ i : Fin s,
+      finiteL1 (μ i) (ν i) ≤
+        finiteL1 (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q) := by
+    intro i
+    exact hTVone
+  calc
+    _ = finiteL1 (fun x : Fin s → FromArithmetic.CRTResidues w V => ∏ i, μ i (x i))
+        (fun x => ∏ i, ν i (x i)) := by
+      rw [funext hActual, funext hUniform]
+    _ ≤ ∑ i, finiteL1 (μ i) (ν i) := hProduct
+    _ ≤ ∑ i : Fin s,
+          finiteL1 (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q) := by
+      apply Finset.sum_le_sum
+      intro i hi
+      exact hCoordTV i
+    _ = (s : ℝ) * finiteL1
+          (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q) := by simp
+
 theorem independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
     (hmass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
     ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
