@@ -682,6 +682,53 @@ theorem c_test2_rowValue_eq_cast {m q : ℕ} (T : RowTemplate m q) (p : Fin q �
   cases he : T.entry k <;>
     simp [RowTemplate.value, c_test2_rowValueNat, he, map_prod, Nat.cast_pow]
 
+private lemma c_test2_rowTemplate_value_eq_eval_poly {m q : ℕ} (T : RowTemplate m q)
+    (k : Fin m) (p : Fin q → ℕ) :
+    (evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) : ℚ) = T.value p k := by
+  cases h : T.entry k with
+  | none => simp [RowTemplate.poly, RowTemplate.value, h, evalIntegerPolynomial]
+  | some e =>
+      simp only [RowTemplate.poly, RowTemplate.value, h]
+      change (MvPolynomial.eval (fun i => (p i : ℤ))
+        (MvPolynomial.monomial (Finsupp.equivFunOnFinite.symm e) 1) : ℚ) =
+          ∏ i, (p i : ℚ) ^ e i
+      have he : ∀ i, (Finsupp.equivFunOnFinite.symm e) i = e i := by
+        intro i
+        exact congrFun (Finsupp.coe_equivFunOnFinite_symm e) i
+      rw [MvPolynomial.eval_monomial]
+      simp [Finsupp.prod_fintype, he]
+
+theorem c_test2_rowTemplate_poly_eval_nat {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (k : Fin m) :
+    evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) =
+      (c_test2_rowValueNat T p k : ℤ) := by
+  have hq := c_test2_rowTemplate_value_eq_eval_poly T k p
+  rw [c_test2_rowValue_eq_cast T p k] at hq
+  exact_mod_cast hq
+
+theorem c_test2_rowTemplate_minor_eval {m q : ℕ} (T U : RowTemplate m q)
+    (p : Fin q → ℕ) (i j : Fin m) :
+    evalIntegerPolynomial (T.poly i * U.poly j - T.poly j * U.poly i)
+      (fun k => (p k : ℤ)) =
+      (c_test2_rowValueNat T p i * c_test2_rowValueNat U p j -
+        c_test2_rowValueNat T p j * c_test2_rowValueNat U p i : ℤ) := by
+  change MvPolynomial.eval (fun k => (p k : ℤ))
+      (T.poly i * U.poly j - T.poly j * U.poly i) = _
+  simp only [map_sub, map_mul]
+  have hTi : MvPolynomial.eval (fun k => (p k : ℤ)) (T.poly i) =
+      (c_test2_rowValueNat T p i : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat T p i
+  have hUj : MvPolynomial.eval (fun k => (p k : ℤ)) (U.poly j) =
+      (c_test2_rowValueNat U p j : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat U p j
+  have hTj : MvPolynomial.eval (fun k => (p k : ℤ)) (T.poly j) =
+      (c_test2_rowValueNat T p j : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat T p j
+  have hUi : MvPolynomial.eval (fun k => (p k : ℤ)) (U.poly i) =
+      (c_test2_rowValueNat U p i : ℤ) := by
+    simpa [evalIntegerPolynomial] using c_test2_rowTemplate_poly_eval_nat U p i
+  rw [hTi, hUj, hTj, hUi]
+
 theorem c_test2_rowValueNat_le {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (size : ℕ) (hsize : 0 < size) (hp : ∀ i, p i ≤ size) (k : Fin m) :
     c_test2_rowValueNat T p k ≤ size ^ c_test2_rowExponent T := by
@@ -835,6 +882,251 @@ private theorem c_test2_scaleRatioNat {K s m : ℕ}
   have hρMInt : (ρ : ℤ) ∣ (S.core.parameters.M N : ℤ) := hρci.trans hciM
   have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
   exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
+
+theorem c_test2_scaleRatioNat_public {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (c : Fin m → ℤ)
+    (hpos : ∀ d, 0 < c d)
+    (hratio : ∀ u d, u < d → ∃ t : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (t : ℤ) * c d)
+    (hmod : ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))
+    (i d : Fin m) (hid : i < d) :
+    ∃ ρ : ℕ, 0 < ρ ∧ (ρ : ℚ) = (c i : ℚ) / (c d : ℚ) ∧
+      primorial (N + 1) ∣ ρ ∧ ρ ∣ S.core.parameters.M N :=
+  c_test2_scaleRatioNat S N c hpos hratio hmod i d hid
+
+theorem c_test2_evalIntegerPolynomial_rename {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (P : IntegerPolynomial q) (p : Fin s → ℕ) :
+    evalIntegerPolynomial (MvPolynomial.rename ι P) (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial P (fun i => (p (ι i) : ℤ)) := by
+  change MvPolynomial.eval (fun i => (p i : ℤ)) (MvPolynomial.rename ι P) =
+    MvPolynomial.eval (fun i => (p (ι i) : ℤ)) P
+  rw [MvPolynomial.eval_rename]
+  rfl
+
+theorem c_test2_rationalResidue_natCast {r : ℕ} (hr : r.Prime) (n : ℕ) :
+    FromArithmetic.rationalResidue r hr (n : ℚ) = (n : ZMod r) := by
+  letI : Fact r.Prime := ⟨hr⟩
+  simp [FromArithmetic.rationalResidue]
+
+theorem c_test2_scaleRatio_rationalResidue_ne_zero {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (c : Fin m → ℤ)
+    (hpos : ∀ d, 0 < c d)
+    (hratio : ∀ u d, u < d → ∃ t : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (t : ℤ) * c d)
+    (hmod : ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))
+    (i d : Fin m) (hid : i < d) (r : ℕ) (hr : r.Prime)
+    (hlarge : N + 1 < r) :
+    FromArithmetic.rationalResidue r hr ((c i : ℚ) / (c d : ℚ)) ≠ 0 := by
+  obtain ⟨rho, hrhoPos, hrhoQ, hWrho, hrhoM⟩ :=
+    c_test2_scaleRatioNat_public S N c hpos hratio hmod i d hid
+  have hWnot : ¬ r ∣ primorial (N + 1) := by
+    intro hdiv
+    exact (Nat.not_le_of_gt hlarge) (hr.dvd_primorial_iff.mp hdiv)
+  have hMnot : ¬ r ∣ S.core.parameters.M N := by
+    intro hdiv
+    obtain ⟨e, he⟩ := S.core.modulus_power N
+    have hdivPow : r ∣ primorial (N + 1) ^ e := by
+      rw [he] at hdiv
+      exact hdiv
+    exact hWnot (hr.dvd_of_dvd_pow hdivPow)
+  have hrhoNot : ¬ r ∣ rho := by
+    intro hdiv
+    apply hMnot
+    exact Nat.dvd_trans hdiv hrhoM
+  have hcastNZ : (rho : ZMod r) ≠ 0 := by
+    intro hz
+    exact hrhoNot ((ZMod.natCast_eq_zero_iff rho r).mp hz)
+  have hres : FromArithmetic.rationalResidue r hr ((rho : ℕ) : ℚ) = (rho : ZMod r) :=
+    c_test2_rationalResidue_natCast hr rho
+  rw [hrhoQ] at hres
+  rw [hres]
+  exact hcastNZ
+
+-- Adapted from HindmanSumsProducts/Correlation/PkgRows.lean.
+private lemma c_test2_rowPoly_ne_zero_of_some {m q : ℕ} (T : RowTemplate m q)
+    (k : Fin m) (e : Fin q → ℕ) (he : T.entry k = some e) : T.poly k ≠ 0 := by
+  simp [RowTemplate.poly, he]
+
+private lemma c_test2_rowPoly_mul_entry {m q : ℕ} (T : RowTemplate m q)
+    (k : Fin m) (e : Fin q → ℕ) (he : T.entry k = some e) :
+    T.poly k = MvPolynomial.monomial (Finsupp.equivFunOnFinite.symm e) (1 : ℤ) := by
+  simp [RowTemplate.poly, he]
+
+private lemma c_test2_parallel_of_all_minors_zero {m q : ℕ} (T U : RowTemplate m q)
+    (hminor : ∀ j k, T.poly j * U.poly k - T.poly k * U.poly j = 0) :
+    T.Parallel U := by
+  classical
+  have hentry : ∀ k, (T.entry k).isSome ↔ (U.entry k).isSome := by
+    intro k
+    constructor
+    · intro hk
+      by_contra hkU
+      obtain ⟨e, he⟩ := (Option.isSome_iff_exists).mp hk
+      obtain ⟨j, hjmem⟩ := U.support_nonempty
+      have hj : (U.entry j).isSome := by simpa [RowTemplate.support] using hjmem
+      obtain ⟨f, hf⟩ := (Option.isSome_iff_exists).mp hj
+      have hprod : T.poly k * U.poly j ≠ 0 :=
+        mul_ne_zero (c_test2_rowPoly_ne_zero_of_some T k e he)
+          (c_test2_rowPoly_ne_zero_of_some U j f hf)
+      have hkU0 : U.poly k = 0 := by
+        cases h : U.entry k with
+        | none => simp [RowTemplate.poly, h]
+        | some f' => exact (hkU (by simp [h])).elim
+      have hz := hminor k j
+      exact hprod (by simpa [hkU0] using hz)
+    · intro hk
+      by_contra hkT
+      obtain ⟨e, he⟩ := (Option.isSome_iff_exists).mp hk
+      obtain ⟨j, hjmem⟩ := T.support_nonempty
+      have hj : (T.entry j).isSome := by simpa [RowTemplate.support] using hjmem
+      obtain ⟨f, hf⟩ := (Option.isSome_iff_exists).mp hj
+      have hprod : U.poly k * T.poly j ≠ 0 :=
+        mul_ne_zero (c_test2_rowPoly_ne_zero_of_some U k e he)
+          (c_test2_rowPoly_ne_zero_of_some T j f hf)
+      have hkT0 : T.poly k = 0 := by
+        cases h : T.entry k with
+        | none => simp [RowTemplate.poly, h]
+        | some f' => exact (hkT (by simp [h])).elim
+      have hz := hminor j k
+      exact hprod (by
+        have hz' : T.poly j * U.poly k = 0 := by simpa [hkT0] using hz
+        simpa [mul_comm] using hz')
+  have hsupport : T.support = U.support := by
+    ext k
+    simp [RowTemplate.support, hentry k]
+  have hdelta : ∃ δ : Fin q → ℤ, ∀ k e e', T.entry k = some e → U.entry k = some e' →
+      ∀ i, (e' i : ℤ) = e i + δ i := by
+    obtain ⟨k₀, hk₀mem⟩ := T.support_nonempty
+    have hk₀ : (T.entry k₀).isSome := by simpa [RowTemplate.support] using hk₀mem
+    obtain ⟨e₀, he₀⟩ := (Option.isSome_iff_exists).mp hk₀
+    have hu₀ : (U.entry k₀).isSome := by
+      have : k₀ ∈ U.support := by rw [← hsupport]; exact hk₀mem
+      simpa [RowTemplate.support] using this
+    obtain ⟨f₀, hf₀⟩ := (Option.isSome_iff_exists).mp hu₀
+    refine ⟨fun i => (f₀ i : ℤ) - e₀ i, ?_⟩
+    intro k e f he hf i
+    have hminor' := hminor k₀ k
+    have hmon : T.poly k₀ * U.poly k = T.poly k * U.poly k₀ := sub_eq_zero.mp hminor'
+    rw [c_test2_rowPoly_mul_entry T k₀ e₀ he₀, c_test2_rowPoly_mul_entry U k f hf,
+      c_test2_rowPoly_mul_entry T k e he, c_test2_rowPoly_mul_entry U k₀ f₀ hf₀] at hmon
+    have hexp : Finsupp.equivFunOnFinite.symm e₀ + Finsupp.equivFunOnFinite.symm f =
+        Finsupp.equivFunOnFinite.symm e + Finsupp.equivFunOnFinite.symm f₀ := by
+      rw [MvPolynomial.monomial_mul_monomial, MvPolynomial.monomial_mul_monomial] at hmon
+      exact (MvPolynomial.monomial_left_injective (one_ne_zero : (1 : ℤ) ≠ 0)) hmon
+    have hcoords := congrArg Finsupp.equivFunOnFinite hexp
+    have hcoords' : e₀ + f = e + f₀ := by
+      ext i
+      simpa [Finsupp.equivFunOnFinite] using congrFun hcoords i
+    have hcast : (e₀ i : ℤ) + f i = e i + f₀ i := by
+      exact_mod_cast congrFun hcoords' i
+    change (f i : ℤ) = (e i : ℤ) + ((f₀ i : ℤ) - e₀ i)
+    omega
+  exact ⟨hsupport, hdelta⟩
+
+private lemma c_test2_exists_separating_minor {m q : ℕ} (T U : RowTemplate m q)
+    (hpar : ¬ T.Parallel U) :
+    ∃ j k, U.poly j * T.poly k - U.poly k * T.poly j ≠ 0 := by
+  obtain ⟨j, k, h⟩ : ∃ j k, T.poly j * U.poly k - T.poly k * U.poly j ≠ 0 := by
+    by_contra h
+    apply hpar
+    apply c_test2_parallel_of_all_minors_zero T U
+    intro j k
+    by_contra hz
+    exact h ⟨j, k, hz⟩
+  refine ⟨j, k, ?_⟩
+  intro hz
+  apply h
+  calc
+    T.poly j * U.poly k - T.poly k * U.poly j =
+        -(U.poly j * T.poly k - U.poly k * T.poly j) := by ring
+    _ = 0 := by rw [hz]; simp
+
+private lemma c_test2_rowPoly_zero_of_not_mem_support {m q : ℕ}
+    (T : RowTemplate m q) (i : Fin m) (hi : i ∉ T.support) : T.poly i = 0 := by
+  cases he : T.entry i with
+  | none => simp [RowTemplate.poly, he]
+  | some e =>
+      have : i ∈ T.support := by simp [RowTemplate.support, he]
+      exact (hi this).elim
+
+theorem c_test2_nonparallel_minor_witness {m q : ℕ} (T U : RowTemplate m q)
+    (hpar : ¬ T.Parallel U) :
+    ∃ i j,
+      (i ∈ T.support ∧ i ∈ U.support ∧ j ∈ T.support ∧ j ∈ U.support ∧
+        T.poly i * U.poly j - T.poly j * U.poly i ≠ 0) ∨
+      (i ∈ T.support ∧ i ∉ U.support ∧ j ∈ U.support ∧
+        T.poly i * U.poly j - T.poly j * U.poly i ≠ 0) ∨
+      (i ∈ U.support ∧ i ∉ T.support ∧ j ∈ T.support ∧
+        T.poly i * U.poly j - T.poly j * U.poly i ≠ 0) := by
+  classical
+  by_cases hs : T.support = U.support
+  · obtain ⟨i, j, hminor⟩ := c_test2_exists_separating_minor T U hpar
+    have hminor' : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+      have hflip : T.poly i * U.poly j - T.poly j * U.poly i =
+          -(U.poly i * T.poly j - U.poly j * T.poly i) := by ring
+      rw [hflip]
+      exact neg_ne_zero.mpr hminor
+    have hiT : i ∈ T.support := by
+      by_contra hi
+      have hiU : i ∉ U.support := by simpa [hs] using hi
+      simp [c_test2_rowPoly_zero_of_not_mem_support T i hi,
+        c_test2_rowPoly_zero_of_not_mem_support U i hiU] at hminor
+    have hjT : j ∈ T.support := by
+      by_contra hj
+      have hjU : j ∉ U.support := by simpa [hs] using hj
+      simp [c_test2_rowPoly_zero_of_not_mem_support T j hj,
+        c_test2_rowPoly_zero_of_not_mem_support U j hjU] at hminor
+    exact ⟨i, j, Or.inl ⟨hiT, by simpa [hs] using hiT,
+      hjT, by simpa [hs] using hjT, hminor'⟩⟩
+  · have hdiff : T.support ≠ U.support := hs
+    have hne : ∃ i, (i ∈ T.support ∧ i ∉ U.support) ∨
+        (i ∈ U.support ∧ i ∉ T.support) := by
+      by_contra h
+      apply hdiff
+      ext i
+      constructor
+      · intro hi
+        by_cases hu : i ∈ U.support
+        · exact hu
+        · exact False.elim (h ⟨i, Or.inl ⟨hi, hu⟩⟩)
+      · intro hi
+        by_cases ht : i ∈ T.support
+        · exact ht
+        · exact False.elim (h ⟨i, Or.inr ⟨hi, ht⟩⟩)
+    obtain ⟨i, hi⟩ := hne
+    rcases hi with hi | hi
+    · obtain ⟨j, hj⟩ := U.support_nonempty
+      have hiSome : (T.entry i).isSome := by simpa [RowTemplate.support] using hi.1
+      obtain ⟨ei, hei⟩ := (Option.isSome_iff_exists).mp hiSome
+      have hpolyI : T.poly i ≠ 0 := c_test2_rowPoly_ne_zero_of_some T i ei hei
+      have hjSome : (U.entry j).isSome := by simpa [RowTemplate.support] using hj
+      obtain ⟨ej, hej⟩ := (Option.isSome_iff_exists).mp hjSome
+      have hpolyJ : U.poly j ≠ 0 := c_test2_rowPoly_ne_zero_of_some U j ej hej
+      have hzeroUi : U.poly i = 0 :=
+        c_test2_rowPoly_zero_of_not_mem_support U i hi.2
+      have hminor : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+        rw [hzeroUi, mul_zero, sub_zero]
+        exact mul_ne_zero hpolyI hpolyJ
+      exact ⟨i, j, Or.inr (Or.inl ⟨hi.1, hi.2, hj, hminor⟩)⟩
+    · obtain ⟨j, hj⟩ := T.support_nonempty
+      have hiSome : (U.entry i).isSome := by simpa [RowTemplate.support] using hi.1
+      obtain ⟨ei, hei⟩ := (Option.isSome_iff_exists).mp hiSome
+      have hpolyI : U.poly i ≠ 0 := c_test2_rowPoly_ne_zero_of_some U i ei hei
+      have hjSome : (T.entry j).isSome := by simpa [RowTemplate.support] using hj
+      obtain ⟨ej, hej⟩ := (Option.isSome_iff_exists).mp hjSome
+      have hpolyJ : T.poly j ≠ 0 := c_test2_rowPoly_ne_zero_of_some T j ej hej
+      have hzeroTi : T.poly i = 0 :=
+        c_test2_rowPoly_zero_of_not_mem_support T i hi.2
+      have hprod : T.poly j * U.poly i ≠ 0 := mul_ne_zero hpolyJ hpolyI
+      have hminor : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+        simpa [hzeroTi] using (neg_ne_zero.mpr hprod)
+      exact ⟨i, j, Or.inr (Or.inr ⟨hi.1, hi.2, hj, hminor⟩)⟩
 
 theorem c_test2_rowCoefficientRepresentation {K s m q : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
@@ -1762,6 +2054,84 @@ private theorem c_test2_harmonicNatLaw_support_upper (X W n : ℕ)
     exact hlt hcond.2.1
   exact h (by simp [harmonicNatLaw, hnot])
 
+theorem c_test2_harmonicNatLaw_support_lower (X W n : ℕ)
+    (h : harmonicNatLaw X W n ≠ 0) : X ≤ n := by
+  unfold harmonicNatLaw at h
+  by_cases hc : X ≤ n ∧ n < X ^ 2 ∧ Nat.Coprime n W
+  · exact hc.1
+  · simp [hc] at h
+
+theorem c_test2_harmonicNatLaw_coprime_of_nonzero (X W n : ℕ)
+    (h : harmonicNatLaw X W n ≠ 0) : Nat.Coprime n W := by
+  unfold harmonicNatLaw at h
+  split_ifs at h with hc
+  · exact hc.2.2
+  · simp at h
+
+theorem c_test2_parameterTailProductLaw_pos_of_nonzero {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) : 1 ≤ σ := by
+  classical
+  by_contra hnot
+  have hσlt : σ < 1 := Nat.lt_of_not_ge hnot
+  have hterm (t : Fin n → ℕ) :
+      (if (∏ j ∈ T, t j) = σ then (1 : ℝ) else 0) *
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    by_cases hp : (∏ j ∈ T, t j) = σ
+    · by_cases hall : ∀ j ∈ T,
+          harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) ≠ 0
+      · have hprod : 1 ≤ ∏ j ∈ T, t j := by
+          apply Finset.one_le_prod
+          intro j hj
+          have hNZ := hall j hj
+          have hXle := c_test2_harmonicNatLaw_support_lower
+            (A.X N j) (primorial (N + 1)) (t j) hNZ
+          exact Nat.one_le_of_lt (lt_of_lt_of_le (A.Xpos N j) hXle)
+        have : 1 ≤ σ := by rw [← hp]; exact hprod
+        exact False.elim ((not_le_of_gt hσlt) this)
+      · push_neg at hall
+        obtain ⟨j, hjT, hj0⟩ := hall
+        have hzero : ∏ k, harmonicNatLaw (A.X N k) (primorial (N + 1)) (t k) = 0 :=
+          Finset.prod_eq_zero (Finset.mem_univ j) hj0
+        simp [hp, hzero]
+    · simp [hp]
+  apply hσ
+  unfold FromArithmetic.parameterTailProductLaw
+  simp_rw [hterm]
+  simp
+
+theorem c_test2_parameterTailProductLaw_coprime_of_nonzero {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) :
+    Nat.Coprime σ (primorial (N + 1)) := by
+  classical
+  by_contra hcop
+  obtain ⟨p, hp, hpsigma, hpW⟩ := Nat.Prime.not_coprime_iff_dvd.mp hcop
+  have hterm (t : Fin n → ℕ) :
+      (if (∏ j ∈ T, t j) = σ then (1 : ℝ) else 0) *
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    by_cases hprod : (∏ j ∈ T, t j) = σ
+    · have hpProd : p ∣ ∏ j ∈ T, t j := by rw [hprod]; exact hpsigma
+      obtain ⟨j, hjT, hpj⟩ :=
+        (Prime.dvd_finsetProd_iff (p := p) hp.prime (fun j => t j)).mp hpProd
+      have hLawZero : harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+        by_contra hNZ
+        have hcoprime := c_test2_harmonicNatLaw_coprime_of_nonzero
+          (A.X N j) (primorial (N + 1)) (t j) hNZ
+        have hbad : ¬ Nat.Coprime (t j) (primorial (N + 1)) := by
+          apply Nat.Prime.not_coprime_iff_dvd.mpr
+          exact ⟨p, hp, hpj, hpW⟩
+        exact hbad hcoprime
+      have hMassZero :
+          (∏ k : Fin n, harmonicNatLaw (A.X N k) (primorial (N + 1)) (t k)) = 0 :=
+        Finset.prod_eq_zero (Finset.mem_univ j) hLawZero
+      simp [hprod, hMassZero]
+    · simp [hprod]
+  apply hσ
+  unfold FromArithmetic.parameterTailProductLaw
+  simp_rw [hterm]
+  simp
+
 theorem c_test2_parameterTailProductLaw_support_le {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
     (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) :
@@ -1849,6 +2219,22 @@ theorem c_test2_harmonicNormalizer_pos_of_cutoff (X W : ℕ) (hW : 0 < W)
   have hsum := Finset.single_le_sum (s := S) (f := fun n : ℕ => 1 / (n : ℝ))
     (fun n _ => one_div_nonneg.mpr (Nat.cast_nonneg n)) hn₀mem
   simpa [S] using lt_of_lt_of_le hterm hsum
+
+theorem c_test2_samplingDenominator_of_cutoff {X W : ℕ} (hW : 0 < W)
+    (hcut : 4 * W ≤ X) : Real.log X > (W : ℝ) / X := by
+  have hWone : 1 ≤ W := by omega
+  have hX : 4 ≤ X := by omega
+  have hXreal : (0 : ℝ) < (X : ℝ) := by exact_mod_cast (by omega : 0 < X)
+  have hdiv : (W : ℝ) / X ≤ (1 / 4 : ℝ) := by
+    apply (div_le_iff₀ hXreal).2
+    have hcutR : (4 : ℝ) * (W : ℝ) ≤ (X : ℝ) := by exact_mod_cast hcut
+    nlinarith
+  have hlog4 : (1 / 4 : ℝ) < Real.log 4 := by
+    have hlog2 := Real.log_two_gt_d9
+    rw [show (4 : ℝ) = 2 * 2 by norm_num, Real.log_mul (by norm_num) (by norm_num)]
+    nlinarith
+  have hlog : Real.log 4 ≤ Real.log X := Real.log_le_log (by norm_num) (by exact_mod_cast hX)
+  exact lt_of_le_of_lt hdiv (lt_of_lt_of_le hlog4 hlog)
 
 theorem c_test2_harmonicNatLaw_tsum_one_of_normalizer_pos (X W : ℕ)
     (hX : 0 < X) (hNorm : 0 < harmonicNormalizer X W) :
@@ -3181,6 +3567,55 @@ theorem c_test2_samplingResidueError_superpoly {K s m : ℕ}
       (Xsam N) (primorial (N + 1)) (Ksam N)) (fun N => (V N : ℝ))
   exact hsamp.1
 
+theorem c_test2_masterScaleV_tendsto {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) :
+    Tendsto (fun N => (FromArithmetic.masterScaleV A N l : ℝ)) atTop atTop := by
+  have hpow : Tendsto (fun N : ℕ => (2 : ℝ) ^ (N + 1)) atTop atTop := by
+    have hNplus : Tendsto (fun N : ℕ => N + 1) atTop atTop := by
+      apply Filter.tendsto_atTop_mono' atTop
+        (by filter_upwards [] with N; exact Nat.le_add_right N 1) tendsto_id
+    exact (tendsto_pow_atTop_atTop_of_one_lt (by norm_num : (1 : ℝ) < 2)).comp
+      hNplus
+  have hM : ∀ᶠ N in atTop, (2 : ℝ) ^ (N + 1) ≤ (A.M N : ℝ) := by
+    filter_upwards [eventually_ge_atTop 1] with N hN
+    have hW : 2 ≤ primorial (N + 1) := by
+      calc
+        2 = primorial 2 := by norm_num
+        _ ≤ primorial (N + 1) := primorial_mono (by omega)
+    have hpowNat : 2 ^ (N + 1) ≤ primorial (N + 1) ^ (N + 1) :=
+      Nat.pow_le_pow_left hW _
+    have hMdiv := A.Mdiv N
+    have hMle := Nat.le_of_dvd (A.Mpos N) hMdiv
+    exact_mod_cast hpowNat.trans hMle
+  have hV : ∀ᶠ N in atTop, (A.M N : ℝ) ≤
+      (FromArithmetic.masterScaleV A N l : ℝ) := by
+    filter_upwards [] with N
+    unfold FromArithmetic.masterScaleV
+    exact_mod_cast (by omega : A.M N ≤ 2 + A.M N + ∏ j ∈ Finset.univ.filter (fun j : Fin n => j < l), (A.X N j) ^ 2)
+  have hle : (fun N => (2 : ℝ) ^ (N + 1)) ≤ᶠ[atTop]
+      (fun N => (FromArithmetic.masterScaleV A N l : ℝ)) := by
+    filter_upwards [hM, hV] with N hMN hVN
+    exact hMN.trans hVN
+  exact Filter.tendsto_atTop_mono' atTop hle hpow
+
+theorem c_test2_superPolynomialSmall_finset_sum {ι : Type*} [Fintype ι]
+    (e : ι → ℕ → ℝ) (V : ℕ → ℝ)
+    (hsmall : ∀ i, SuperPolynomialSmall (e i) V) :
+    SuperPolynomialSmall (fun N => ∑ i, e i N) V := by
+  intro C hC
+  have hsum : Tendsto (fun N => ∑ i, e i N * V N ^ C) atTop
+      (𝓝 (∑ _i : ι, (0 : ℝ))) := by
+    apply tendsto_finsetSum Finset.univ
+    intro i hi
+    exact hsmall i C hC
+  have hrewrite (N : ℕ) :
+      (∑ i, e i N) * V N ^ C = ∑ i, e i N * V N ^ C := by
+    rw [Finset.sum_mul]
+  have hEq : (fun N => (∑ i, e i N) * V N ^ C) =
+      (fun N => ∑ i, e i N * V N ^ C) := funext hrewrite
+  rw [hEq]
+  simpa using hsum
+
 abbrev CTest2TailIndex {n : ℕ} (T : Finset (Fin n)) := {i : Fin n // i ∈ T}
 abbrev CTest2RestIndex {n : ℕ} (T : Finset (Fin n)) := {i : Fin n // i ∉ T}
 
@@ -3407,5 +3842,14 @@ theorem c_test2_parameterTailProductLaw_eq_harmonicProductLaw {n : ℕ}
           intro x
           exact htailSplit x
     _ = harmonicProductLaw W (fun i => A.X N ((Fintype.equivFin Tail).symm i).1) σ := htailLawReindex
+
+theorem c_test2_divisorTemplateLaw_eq_parameterTailProductLaw {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n))
+    (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1)))
+    (σ : ℕ) :
+    FromArithmetic.divisorTemplateLaw A N (c_test2_divisorTemplateOfTail T) σ =
+      FromArithmetic.parameterTailProductLaw A N T σ := by
+  rw [c_test2_parameterTailProductLaw_eq_harmonicProductLaw A N T hNorm σ]
+  rfl
 
 end HindmanSumsProducts
