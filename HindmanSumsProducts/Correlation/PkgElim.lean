@@ -1906,6 +1906,31 @@ theorem finiteSum_mul_singletonIndicator {α : Type*} [Fintype α] [DecidableEq 
     simp [hxa]
   · simp
 
+theorem pkgElim_sum_ne_subtype_eq_filter {α : Type*} [Fintype α] [DecidableEq α]
+    (I : α) (f : {x : α // x ≠ I} → ℝ) :
+    (∑ x : α, if h : x ≠ I then f ⟨x, h⟩ else 0) =
+      ∑ x : {x : α // x ≠ I}, f x := by
+  classical
+  let pred : α → Prop := fun x => x ≠ I
+  let g : α → ℝ := fun x => if h : pred x then f ⟨x, h⟩ else 0
+  have hS : (Finset.univ : Finset {x : α // pred x}) =
+      (Finset.univ : Finset α).subtype pred := by
+    ext x
+    simp [pred]
+  change (∑ x : α, g x) = ∑ x : {x : α // pred x}, f x
+  calc
+    _ = ∑ x ∈ (Finset.univ : Finset α).filter pred, g x := by
+      conv_rhs => rw [Finset.sum_filter]
+      apply Finset.sum_congr rfl
+      intro x hx
+      by_cases h : pred x <;> simp [g, pred, h]
+    _ = ∑ x : {x : α // pred x}, f x := by
+      rw [← Finset.sum_subtype_eq_sum_filter]
+      rw [hS]
+      apply Finset.sum_congr rfl
+      intro x hx
+      simp [g, pred, x.property]
+
 theorem uniformUnitResidueLaw_crtProjection {w e V : ℕ} (he : 0 < e)
     (r : FromArithmetic.CRTResidues w V) :
     (∑ a : Fin (FromArithmetic.masterCRTModulus w e V),
@@ -3250,12 +3275,158 @@ noncomputable def coordinateLaw {K m q r s : ℕ} {Aset : Finset ℚ}
   | .inr (.inr _) => FromArithmetic.uniformIntegerIntervalLaw 0
       (S.core.parameters.H N C.gap) z
 
+theorem pkgElim_coordinateLaw_nonneg {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ) :
+    0 ≤ coordinateLaw S C Sh dirs J0 N p v z := by
+  cases v with
+  | inl k =>
+    change 0 ≤ harmonicLaw
+      (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) z
+    have hW : 0 < primorial (N + 1) := primorial_pos _
+    have hX : 4 * primorial (N + 1) ≤ S.core.parameters.X N (C.block k).1 :=
+      S.gapStage.valid_raw_cutoffs N (C.block k).1
+    have hnormalizer : 0 < harmonicNormalizer
+        (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) := by
+      rw [harmonicNormalizer_eq_rawMass]
+      exact OAI.RawHarmonicProbability.mass_pos _ _ hW hX
+    unfold harmonicLaw
+    split_ifs with h
+    · have hz : 0 < (z.toNat : ℝ) := by
+        have hXpos : 0 < S.core.parameters.X N (C.block k).1 := by omega
+        exact_mod_cast lt_of_lt_of_le hXpos h.2.1
+      positivity
+    · positivity
+  | inr v =>
+    cases v with
+    | inl old =>
+      change 0 ≤ FromArithmetic.uniformIntegerIntervalLaw 0
+        (max 1 (shiftLength S C.gap J0 N dirs.poly p)) z
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      split_ifs <;> positivity
+    | inr root =>
+      change 0 ≤ FromArithmetic.uniformIntegerIntervalLaw 0
+        (S.core.parameters.H N C.gap) z
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      split_ifs <;> positivity
+
 noncomputable def coordinateProductLaw {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) : ℝ :=
-  ∏ v : Coordinate Sh, coordinateLaw S C Sh dirs J0 N p v (x (eX v))
+  ∏ i : Fin d, coordinateLaw S C Sh dirs J0 N p (eX.symm i) (x i)
+
+theorem pkgElim_coordinateProductLaw_nonneg {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) :
+    0 ≤ coordinateProductLaw S C Sh dirs J0 N p eX x := by
+  unfold coordinateProductLaw
+  apply Finset.prod_nonneg
+  intro i hi
+  exact pkgElim_coordinateLaw_nonneg S C Sh dirs J0 N p (eX.symm i) (x i)
+
+noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) : Finset ℤ :=
+  match v with
+  | .inl k => Finset.Ico (S.core.parameters.X N (C.block k).1 : ℤ)
+      ((S.core.parameters.X N (C.block k).1 ^ 2 : ℕ) : ℤ)
+  | .inr (.inl _) => Finset.Ico 0
+      ((max 1 (shiftLength S C.gap J0 N dirs.poly p) : ℕ) : ℤ)
+  | .inr (.inr _) => Finset.Ico 0 (S.core.parameters.H N C.gap : ℤ)
+
+theorem pkgElim_coordinateLaw_zero_of_not_mem {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ)
+    (hz : z ∉ pkgElim_coordinateSupport S C Sh dirs J0 N p v) :
+    coordinateLaw S C Sh dirs J0 N p v z = 0 := by
+  cases v with
+  | inl k =>
+    change harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) z = 0
+    change z ∉ Finset.Ico (S.core.parameters.X N (C.block k).1 : ℤ)
+      ((S.core.parameters.X N (C.block k).1 ^ 2 : ℕ) : ℤ) at hz
+    unfold harmonicLaw
+    rw [if_neg]
+    intro h
+    apply hz
+    have hcast : (z.toNat : ℤ) = z := Int.toNat_of_nonneg h.1
+    have hlow : (S.core.parameters.X N (C.block k).1 : ℤ) ≤ z := by
+      calc
+        _ ≤ (z.toNat : ℤ) := by exact_mod_cast h.2.1
+        _ = z := hcast
+    have hhigh : z <
+        ((S.core.parameters.X N (C.block k).1 ^ 2 : ℕ) : ℤ) := by
+      calc
+        z = (z.toNat : ℤ) := hcast.symm
+        _ < _ := by exact_mod_cast h.2.2.1
+    exact Finset.mem_Ico.mpr ⟨hlow, hhigh⟩
+  | inr v =>
+    cases v with
+    | inl old =>
+      change FromArithmetic.uniformIntegerIntervalLaw 0
+        (max 1 (shiftLength S C.gap J0 N dirs.poly p)) z = 0
+      change z ∉ Finset.Ico 0
+        ((max 1 (shiftLength S C.gap J0 N dirs.poly p) : ℕ) : ℤ) at hz
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      rw [if_neg]
+      intro h
+      apply hz
+      exact Finset.mem_Ico.mpr (by simpa using h)
+    | inr root =>
+      change FromArithmetic.uniformIntegerIntervalLaw 0
+        (S.core.parameters.H N C.gap) z = 0
+      change z ∉ Finset.Ico 0 (S.core.parameters.H N C.gap : ℤ) at hz
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      rw [if_neg]
+      intro h
+      apply hz
+      exact Finset.mem_Ico.mpr (by simpa using h)
+
+theorem pkgElim_coordinateLaw_tsum_one {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) :
+    ∑' z : ℤ, coordinateLaw S C Sh dirs J0 N p v z = 1 := by
+  cases v with
+  | inl k =>
+    simpa [coordinateLaw] using pkgElim_harmonicLaw_tsum_one (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block k).1)
+  | inr v =>
+    cases v with
+    | inl old =>
+      apply uniformIntegerIntervalLaw_tsum_one
+      exact lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left _ _)
+    | inr root =>
+      exact uniformIntegerIntervalLaw_tsum_one (S.core.parameters.Hpos N C.gap)
+
+theorem pkgElim_coordinateProductLaw_tsum_one {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) :
+    ∑' x : Fin d → ℤ, coordinateProductLaw S C Sh dirs J0 N p eX x = 1 := by
+  classical
+  let μ : Fin d → ℤ → ℝ := fun i => coordinateLaw S C Sh dirs J0 N p (eX.symm i)
+  let T : Fin d → Finset ℤ := fun i => pkgElim_coordinateSupport S C Sh dirs J0 N p (eX.symm i)
+  have hsupp : ∀ i z, z ∉ T i → μ i z = 0 := by
+    intro i z hz
+    exact pkgElim_coordinateLaw_zero_of_not_mem S C Sh dirs J0 N p (eX.symm i) z hz
+  have hnorm (i : Fin d) : ∑ z ∈ T i, μ i z = 1 := by
+    rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+      (f := μ i) (s := T i) (fun z hz => hsupp i z hz)]
+    exact pkgElim_coordinateLaw_tsum_one S C Sh dirs J0 N p (eX.symm i)
+  simpa [coordinateProductLaw, μ] using
+    (productLaw_tsum_one_of_finite_support μ T hsupp hnorm)
 
 noncomputable def occurrenceDivisorTemplate {K m q r : ℕ}
     (C : MasterChain K m) (Sh : RowShape m q r) (o : Occurrence Sh) :
@@ -3266,6 +3437,12 @@ def emptyDivisorTemplate (K : ℕ) : FromArithmetic.DivisorTemplate K K where
   arity := 0
   arity_le := Nat.zero_le K
   cutoff := Fin.elim0
+
+noncomputable def pkgElim_retainedChoice {m q r : ℕ} (Sh : RowShape m q r)
+    (I : NonTarget Sh) (η : {R : NonTarget Sh // R ≠ I} → Fin 2)
+    (R : NonTarget Sh) : Fin 2 := by
+  classical
+  exact if h : R ≠ I then η ⟨R, h⟩ else 0
 
 noncomputable def rowCoeff {K m q r s h d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
@@ -3309,8 +3486,123 @@ theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
         ∑ R : NonTarget Sh, (x (.inr (.inl (R, ω R)) : Coordinate Sh) : ℚ) := by
   classical
   simp [occurrenceValue, occurrenceCoeff, occurrenceRow, rowTemplateCoefficient,
-    rowForm, Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.sum_ite_eq']
+    rowForm, Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.sum_ite_eq',
+    Fin.sum_univ_two]
   rw [Finset.mul_sum]
+
+theorem pkgElim_occurrencePivotContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (o : Occurrence Sh) (x : Coordinate Sh → ℤ) :
+    (∑ k : Fin m, occurrenceCoeff S C a Sh dirs N p o (.inl k) *
+      (x (.inl k) : ℚ)) =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row (occurrenceRow Sh o)) p
+        (fun k => (x (.inl k) : ℚ)) := by
+  simp [occurrenceCoeff, occurrenceRow, rowTemplateCoefficient, rowForm]
+
+theorem pkgElim_occurrenceRootContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
+    (∑ j' : Fin 2,
+      occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+        (.inr (.inr j')) * (x (.inr (.inr j')) : ℚ)) =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (dirs.rootTranslation (chainScale S.core.parameters C a N)
+          (S.core.parameters.M N) p) * (x (.inr (.inr j) : Coordinate Sh) : ℚ) := by
+  classical
+  rw [Finset.sum_eq_single j]
+  · simp [occurrenceCoeff, occurrenceRow]
+  · intro j' hj' hj
+    simp [occurrenceCoeff, occurrenceRow, hj]
+  · simp
+
+theorem pkgElim_occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
+    (∑ R : NonTarget Sh, ∑ e : Fin 2,
+      occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+        (.inr (.inl (R, e))) * (x (.inr (.inl (R, e))) : ℚ)) =
+      ∑ R : NonTarget Sh, if R = I then 0 else
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1) *
+          (x (.inr (.inl (R, pkgElim_retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
+  classical
+  apply Finset.sum_congr rfl
+  intro R hR
+  by_cases h : R ≠ I
+  · let e₀ := η ⟨R, h⟩
+    have hcoeff (e : Fin 2) :
+        occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
+          (.inr (.inl (R, e))) =
+        if e = e₀ then
+          rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+            (dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1)
+        else 0 := by
+      simp [occurrenceCoeff, occurrenceRow, e₀, h]
+    calc
+      _ = ∑ e : Fin 2, if e = e₀ then
+            rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+              (dirs.translation (chainScale S.core.parameters C a N)
+                (directionModulus S N dirs.poly p) p R.1) *
+              (x (.inr (.inl (R, e)) : Coordinate Sh) : ℚ)
+          else 0 := by
+        apply Finset.sum_congr rfl
+        intro e he
+        rw [hcoeff e]
+        by_cases he₀ : e = e₀ <;> simp [he₀]
+      _ = rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+            (dirs.translation (chainScale S.core.parameters C a N)
+              (directionModulus S N dirs.poly p) p R.1) *
+          (x (.inr (.inl (R, e₀)) : Coordinate Sh) : ℚ) := by
+        rw [Finset.sum_eq_single e₀]
+        · simp
+        · intro e he he₀
+          simp [he₀]
+        · simp
+      _ = if R = I then 0 else
+            rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+              (dirs.translation (chainScale S.core.parameters C a N)
+                (directionModulus S N dirs.poly p) p R.1) *
+              (x (.inr (.inl (R, pkgElim_retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
+        have hchoice : pkgElim_retainedChoice Sh I η R = e₀ := by
+          simp [pkgElim_retainedChoice, e₀, h]
+        simp [h, hchoice]
+  · have hEq : R = I := by simpa using h
+    simp [occurrenceCoeff, occurrenceRow, pkgElim_retainedChoice, h, hEq]
+
+theorem pkgElim_occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (j : Fin 2) (I : NonTarget Sh)
+    (η : {R : NonTarget Sh // R ≠ I} → Fin 2) (x : Coordinate Sh → ℤ) :
+    occurrenceValue S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) x =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (fun k => (x (.inl k) : ℚ)) +
+      (∑ R : NonTarget Sh, if R = I then 0 else
+        rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+          (dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1) *
+          (x (.inr (.inl (R, pkgElim_retainedChoice Sh I η R)) : Coordinate Sh) : ℚ)) +
+      rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+        (dirs.rootTranslation (chainScale S.core.parameters C a N)
+          (S.core.parameters.M N) p) * (x (.inr (.inr j) : Coordinate Sh) : ℚ) := by
+  classical
+  unfold occurrenceValue
+  rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_prod_type]
+  rw [pkgElim_occurrencePivotContribution, pkgElim_occurrenceOldShiftContribution,
+    pkgElim_occurrenceRootContribution]
+  simp only [occurrenceRow]
+  ring
 
 end AdditiveMoment
 
