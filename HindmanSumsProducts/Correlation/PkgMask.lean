@@ -2665,6 +2665,61 @@ theorem chainWeight_div_eq_of_prime_gt {K s m : ℕ} {Aset : Finset ℚ}
     exact chainWeight_support S C N d σ hσ
   · exact hdiv
 
+theorem chainWeight_rat_div_mul_eq_of_prime_gt {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (p₀ p₁ : ℕ)
+    (hp₀ : p₀.Prime) (hp₁ : p₁.Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p₁)
+    (hne : p₀ ≠ p₁) (y : ℤ)
+    (hden : (((p₀ : ℚ) / (p₁ : ℚ)) * (y : ℚ)).den = 1) :
+    chainWeight S.core.parameters C N d
+        ((((p₀ : ℚ) / (p₁ : ℚ)) * (y : ℚ)).num) =
+      chainWeight S.core.parameters C N d y := by
+  let x : ℚ := ((p₀ : ℚ) / (p₁ : ℚ)) * (y : ℚ)
+  have hp₁cast : (p₁ : ℚ) ≠ 0 := by exact_mod_cast hp₁.pos.ne'
+  have hxnum : (x.num : ℚ) = x := (Rat.den_eq_one_iff x).mp (by simpa [x] using hden)
+  have hcross : (p₁ : ℚ) * (x.num : ℚ) = (p₀ : ℚ) * (y : ℚ) := by
+    rw [hxnum]
+    dsimp [x]
+    field_simp [hp₁cast]
+  have hcrossInt : (p₁ : ℤ) * x.num = (p₀ : ℤ) * y := by
+    exact_mod_cast hcross
+  have hnotdvd : ¬ p₁ ∣ p₀ := by
+    intro hdvd
+    have heq := (Nat.prime_dvd_prime_iff_eq hp₁ hp₀).mp hdvd
+    exact hne heq.symm
+  have hcop : Nat.Coprime p₁ p₀ := (hp₁.coprime_iff_not_dvd).2 hnotdvd
+  have hcopInt : Int.gcd (p₁ : ℤ) (p₀ : ℤ) = 1 := by
+    have hgcd := Nat.coprime_iff_gcd_eq_one.mp hcop
+    exact_mod_cast hgcd
+  have hdivProd : (p₁ : ℤ) ∣ (p₀ : ℤ) * y := by
+    refine ⟨x.num, ?_⟩
+    exact hcrossInt.symm
+  have hdiv : (p₁ : ℤ) ∣ y :=
+    Int.dvd_of_dvd_mul_right_of_gcd_one hdivProd hcopInt
+  let n : ℤ := (p₀ : ℤ) * (y / (p₁ : ℤ))
+  have hratEq : (n : ℚ) = x := by
+    calc
+      (n : ℚ) = (p₀ : ℚ) * ((y / (p₁ : ℤ) : ℤ) : ℚ) := by simp [n]
+      _ = (p₀ : ℚ) * ((y : ℚ) / (p₁ : ℚ)) := by
+        exact congrArg (fun t : ℚ => (p₀ : ℚ) * t) (Int.cast_div hdiv hp₁cast)
+      _ = x := by
+        dsimp [x]
+        field_simp [hp₁cast]
+  have hnum : x.num = n := by
+    have h := congrArg Rat.num hratEq
+    simpa only [Rat.num_intCast] using h.symm
+  rw [show (((p₀ : ℚ) / (p₁ : ℚ)) * (y : ℚ)).num = n by simpa [x] using hnum]
+  calc
+    chainWeight S.core.parameters C N d n =
+        chainWeight S.core.parameters C N d (y / (p₁ : ℤ)) := by
+          dsimp [n]
+          exact chainWeight_mul_eq_of_prime_gt S C N d p₀ hp₀ hV₀
+            (y / (p₁ : ℤ))
+    _ = chainWeight S.core.parameters C N d y :=
+          chainWeight_div_eq_of_prime_gt S C N d p₁ hp₁ hV₁ y hdiv
+
 theorem chainScale_ratio_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
@@ -3367,6 +3422,28 @@ theorem RowTemplate.scaleBranch_parallel_factor_eq {m q : ℕ}
       nlinarith [hcancel]
     simp [hsingle, hfactor]
 
+theorem chainWeight_scaleBranch_invariant {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) {q : ℕ}
+    (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
+    (hp : ∀ i, p i ≠ 0) (hp₀ : (p 0).Prime) (hp₁ : (p 1).Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p 0)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hne : p 0 ≠ p 1) (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u))
+    (y : ℤ)
+    (hden : ((∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * (y : ℚ)).den = 1) :
+    chainWeight S.core.parameters C N d
+      (((∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * (y : ℚ)).num) =
+        chainWeight S.core.parameters C N d y := by
+  have hfactor := T.scaleBranch_parallel_factor_eq u p hp hpar
+  rw [hfactor] at hden ⊢
+  by_cases hs : T.support = {u}
+  · simp only [if_pos hs] at hden ⊢
+    exact chainWeight_rat_div_mul_eq_of_prime_gt S C N d (p 0) (p 1)
+      hp₀ hp₁ hV₀ hV₁ hne y hden
+  · simp only [if_neg hs] at hden ⊢
+    simp
+
 theorem RowTemplate.scaleBalanced_parallel_factor_eq {m q : ℕ}
     (T : RowTemplate m q) (u v : Fin m) (huv : u ≠ v)
     (p : Fin (q + 2) → ℕ) (hp : ∀ i, p i ≠ 0)
@@ -3525,6 +3602,55 @@ theorem RowTemplate.scaleBalanced_parallel_factor_eq {m q : ℕ}
       have hvu : v = u := Finset.mem_singleton.mp hvMem
       exact huv hvu.symm
     simp [hsingleV, hnotU, hfactor, Ne.symm huv]
+
+theorem chainWeight_scaleBalanced_invariant {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) {q : ℕ}
+    (T : RowTemplate m q) (u v : Fin m) (huv : u ≠ v)
+    (p : Fin (q + 2) → ℕ) (hp : ∀ i, p i ≠ 0)
+    (hp₀ : (p 0).Prime) (hp₁ : (p 1).Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p 0)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hne : p 0 ≠ p 1)
+    (hpar : (T.scaleBalancedP u v).Parallel (T.scaleBalancedQ u v))
+    (y : ℤ)
+    (hden : ((∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * (y : ℚ)).den = 1) :
+    chainWeight S.core.parameters C N d
+      (((∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * (y : ℚ)).num) =
+        chainWeight S.core.parameters C N d y := by
+  have hfactor := T.scaleBalanced_parallel_factor_eq u v huv p hp hpar
+  rw [hfactor] at hden ⊢
+  rcases T.scaleBalancedBranches_parallel_support u v huv hpar with
+    hnone | hsingleU | hsingleV
+  · have hnotU : T.support ≠ {u} := by
+      intro heq
+      have hu : u ∈ T.support := by rw [heq]; simp
+      exact hnone.1 hu
+    have hnotV : T.support ≠ {v} := by
+      intro heq
+      have hv : v ∈ T.support := by rw [heq]; simp
+      exact hnone.2 hv
+    simp only [hnotU, hnotV] at hden ⊢
+    simp
+  · have hnotV : T.support ≠ {v} := by
+      intro heq
+      have hu : u ∈ T.support := by rw [hsingleU]; simp
+      rw [heq] at hu
+      have huv' : u = v := Finset.mem_singleton.mp hu
+      exact huv huv'
+    simp only [if_pos hsingleU] at hden ⊢
+    exact chainWeight_rat_div_mul_eq_of_prime_gt S C N d (p 1) (p 0)
+      hp₁ hp₀ hV₁ hV₀ (Ne.symm hne) y hden
+  · have hnotU : T.support ≠ {u} := by
+      intro heq
+      have hv : v ∈ T.support := by rw [hsingleV]; simp
+      rw [heq] at hv
+      have hvu : v = u := Finset.mem_singleton.mp hv
+      exact (Ne.symm huv) hvu
+    rw [if_neg hnotU] at hden ⊢
+    simp only [if_pos hsingleV] at hden ⊢
+    exact chainWeight_rat_div_mul_eq_of_prime_gt S C N d (p 0) (p 1)
+      hp₀ hp₁ hV₀ hV₁ hne y hden
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
