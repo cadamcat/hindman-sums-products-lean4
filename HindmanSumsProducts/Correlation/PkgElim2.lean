@@ -3804,4 +3804,79 @@ theorem c_elim2_eliminationAverage_eq_jointStateAverage
               rw [hshift p z]
     _ = c_elim2_jointStateAverage E μ L G := hjoint.symm
 
+noncomputable def c_elim2_univSubtypeEquiv {α : Type u} [Fintype α] [DecidableEq α] :
+    {i : α // i ∈ (Finset.univ : Finset α)} ≃ α :=
+  { toFun := Subtype.val
+    invFun := fun i => ⟨i, Finset.mem_univ i⟩
+    left_inv := by intro i; exact Subtype.ext rfl
+    right_inv := by intro i; rfl }
+
+noncomputable def c_elim2_univEraseSubtypeEquiv {α : Type u} [Fintype α] [DecidableEq α]
+    (I : α) :
+    {j : α // j ∈ (Finset.univ : Finset α).erase I} ≃ {j : α // j ≠ I} :=
+  { toFun := fun j => ⟨j.1, (Finset.mem_erase.mp j.2).1⟩
+    invFun := fun j => ⟨j.1, Finset.mem_erase.mpr ⟨j.2, Finset.mem_univ _⟩⟩
+    left_inv := by intro j; apply Subtype.ext; rfl
+    right_inv := by intro j; apply Subtype.ext; rfl }
+
+noncomputable def c_elim2_boxRetainedBranchEquiv {α : Type u} [Fintype α]
+    [DecidableEq α] (I : α) :
+    c_elim2_BoxRetainedBranch (Finset.univ : Finset α) I ≃
+      ({j : α // j ≠ I} → Fin 2) :=
+  Equiv.arrowCongr (c_elim2_univEraseSubtypeEquiv I) (Equiv.refl (Fin 2))
+
+theorem c_elim2_boxTargetProduct_univ_reindex {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (b : β)
+    (u : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b)) :
+    c_elim2_boxTargetProduct D Finset.univ b u =
+      ∏ ω : α → Fin 2,
+        D.targetFunction b (c_elim2_boxTargetArgument D Finset.univ b u
+          ((Equiv.arrowCongr (c_elim2_univSubtypeEquiv (α := α))
+            (Equiv.refl (Fin 2))).symm ω)) := by
+  classical
+  let e := Equiv.arrowCongr (c_elim2_univSubtypeEquiv (α := α)) (Equiv.refl (Fin 2))
+  unfold c_elim2_boxTargetProduct
+  exact Fintype.prod_equiv e
+    (fun ω => D.targetFunction b (c_elim2_boxTargetArgument D Finset.univ b u ω))
+    (fun ω => D.targetFunction b (c_elim2_boxTargetArgument D Finset.univ b u (e.symm ω)))
+    (by
+      intro ω
+      exact congrArg (fun η => D.targetFunction b
+        (c_elim2_boxTargetArgument D Finset.univ b u η)) (e.symm_apply_apply ω))
+
+theorem c_elim2_boxRetainedProduct_univ_reindex {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (b : β)
+    (u : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b)) :
+    c_elim2_boxRetainedProduct D Finset.univ b u =
+      ∏ I : α, ∏ η : {j : α // j ≠ I} → Fin 2,
+        D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+          (c_elim2_boxRetainedBranchFull Finset.univ I
+            ((c_elim2_boxRetainedBranchEquiv I).symm η))) := by
+  classical
+  let Rows := {i : α // i ∈ (Finset.univ : Finset α)}
+  let eI := c_elim2_univSubtypeEquiv (α := α)
+  let rowSub : Rows → ℝ := fun I =>
+    ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1,
+      D.rowWeight I.1 b (c_elim2_boxRowArgument D Finset.univ b I.1 u
+        (c_elim2_boxRetainedBranchFull Finset.univ I.1 η))
+  let rowFull : α → ℝ := fun I =>
+    ∏ η : {j : α // j ≠ I} → Fin 2,
+      D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+        (c_elim2_boxRetainedBranchFull Finset.univ I
+          ((c_elim2_boxRetainedBranchEquiv I).symm η)))
+  have hInner (I : α) : rowSub (eI.symm I) = rowFull I := by
+    dsimp [rowSub, rowFull]
+    exact Fintype.prod_equiv (c_elim2_boxRetainedBranchEquiv I)
+      (fun η : c_elim2_BoxRetainedBranch Finset.univ I =>
+        D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+          (c_elim2_boxRetainedBranchFull Finset.univ I η)))
+      (fun η : {j : α // j ≠ I} → Fin 2 =>
+        D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+          (c_elim2_boxRetainedBranchFull Finset.univ I
+            ((c_elim2_boxRetainedBranchEquiv I).symm η))))
+      (by intro η; simp)
+  have hOuter : (∏ I : Rows, rowSub I) = ∏ I : α, rowFull I :=
+    Fintype.prod_equiv eI rowSub rowFull (by intro I; exact hInner I)
+  simpa [c_elim2_boxRetainedProduct, Rows, rowSub, rowFull] using hOuter
+
 end HindmanSumsProducts
