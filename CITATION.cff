@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this formalization, please cite it using the metadata from this file."
+type: software
+title: "Hindman sums and products in Lean 4"
+abstract: >-
+  A Lean 4 formalization of the finite sums and products theorem for finite
+  colourings of the positive integers. For every number of colours and every
+  finite size, it produces a set of positive integers whose nonempty subset
+  sums and products all have one colour.
+authors:
+  - family-names: Xu
+    given-names: Yao
+    alias: cadamcat
+repository-code: "https://github.com/cadamcat/hindman-sums-products-lean4"
+url: "https://github.com/cadamcat/hindman-sums-products-lean4"
+license: Apache-2.0
+version: v1.0.0
+keywords:
+  - Lean 4
+  - formalization
+  - Hindman's theorem
+  - finite sums
+  - finite products
+  - combinatorics
+references:
+  - type: article
+    authors:
+      - name: OpenAI
+    title: "Monochromatic finite sums and products in the positive integers"
+    url: "https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf"
