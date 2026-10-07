@@ -4811,7 +4811,7 @@ theorem pkgMask_gapRestAverage_error_le {K s m q : ℕ} {Aset : Finset ℚ}
   · exact hE
 
 theorem pkgMask_gapRestTsum_fubini {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m)
     (F : (Fin q → ℕ) ×
       (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) → ℝ) :
@@ -4884,7 +4884,7 @@ theorem pkgMask_gapRestTsum_fubini {K s m q : ℕ} {Aset : Finset ℚ}
       exact tsum_eq_sum (s := D) hDzero
 
 theorem pkgMask_gapRestMass_mul_summable {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m)
     (F : (Fin q → ℕ) ×
       (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) → ℝ) :
@@ -7619,7 +7619,7 @@ noncomputable def correlation {m q r K s : ℕ} {Aset : Finset ℚ}
 
 def pkgMask_stateIntegrand {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
   (∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
     ∏ R, atQ (st.rowFunction R p)
@@ -7733,7 +7733,7 @@ theorem pkgMask_stateCorrelation_coordinate_split {m q r K s : ℕ} {Aset : Fins
 
 noncomputable def pkgMask_stateCoordinatePrimeInsertion {m q r K s : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (u : Fin m) : ℝ :=
   ∑' x : (Fin q → ℕ) ×
       (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
