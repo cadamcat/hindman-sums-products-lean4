@@ -2015,9 +2015,179 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
         _ = _ := by rfl
     rw [← hRefShiftReindex]
     exact hPivotErr
+  have hCubeComparison (δ : ℝ) (hδ : 0 < δ) :
+      ∀ᶠ N in atTop, ∀ J0 : ℕ, 0 < J0 → ∀ g : ℤ → ℝ,
+        (∀ y, |g y| ≤ 1 + chainWeight S.core.parameters C N aStar y) →
+        |additiveCube S C a N dirs testList J0 (fun _ => g) -
+          T.cubeTest S C.gap (C.block aStar).1 J0 N g| ≤ δ := by
+    have hMassEventually := c_test2_poolMass_positive_eventually S C.gap
+    filter_upwards [hScaleEventually, hPoolEventually, hSampleUniform δ hδ,
+      hsizeAnchor, hpreviousAnchor, hotherCutoffEventually,
+      hGoodProbabilityEventually, hMassEventually]
+      with N hscaleN hpoolN hSampleN hsizeN hpreviousN hotherN hGoodN hMassN
+    intro J0 hJ0 g hGbound
+    let Fcube (p : Fin q → ℕ) : ℝ :=
+      ∑' z : Fin m → ℤ, pivotMass A C N z *
+        shiftAverage (NonTarget Sh) (T.length S C.gap J0 N p) (fun u =>
+          ∏ ω : NonTarget Sh → Fin 2,
+            atQ g (targetVertex (chainScale A C a N) Sh p
+              (T.modulus S N p) (fun k => (z k : ℚ)) u ω))
+    let Gcube (p : Fin q → ℕ) : ℝ :=
+      ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y *
+        shiftAverage (Fin T.d) (T.length S C.gap J0 N p) (fun u =>
+          ∏ s : Finset (Fin T.d),
+            g (y + (T.modulus S N p : ℤ) *
+              ∑ k ∈ s, ((u k 1 : ℤ) - u k 0)))
+    have hpoint (p : Fin q → ℕ) (hp : GoodTuple S C.gap N testList dirs.poly p) :
+        |Fcube p - Gcube p| ≤ δ := by
+      simpa [Fcube, Gcube] using
+        hCubePerGoodTuple δ hδ N hscaleN hpoolN hSampleN hsizeN hpreviousN
+          hotherN J0 hJ0 p hp g hGbound
+    have havg := c_test2_goodSlotAverage_error S C.gap N
+      (GoodTuple S C.gap N testList dirs.poly) Fcube Gcube δ hMassN hGoodN
+      hpoint (le_of_lt hδ)
+    have hTgood : T.Good S C.gap N =
+        (fun p => GoodTuple S C.gap N testList dirs.poly p) := by
+      funext p
+      rfl
+    unfold additiveCube CubeTemplate.cubeTest
+    rw [hTgood]
+    simpa [Fcube, Gcube, T, Xa, CubeTemplate.length, CubeTemplate.modulus] using havg
   refine ⟨hrowFacts.2.1, hrowFacts.1, hmodBound, ?_⟩
   intro J0s hJ0s ε hε
-  sorry
+  let tau : ℝ := (ε / 2) ^ finalPow
+  have hDpos : 0 < addPow := by dsimp [addPow]; positivity
+  have htau : 0 < tau := by dsimp [tau]; positivity
+  have hcorrCoeff : 0 < corrCoeff := by dsimp [corrCoeff]; positivity
+  obtain ⟨eta, hEta, hEtaOne, hCombine⟩ :=
+    c_test2_error_tolerance maskPow addPow hDpos CmMask CmAdd tau
+      hCmMask hCmAdd htau
+  have hAddUniform : ∀ᶠ N in atTop, ∀ J0 ∈ J0s,
+      ∀ f : Fin completion.r' → (Fin q → ℕ) → ℤ → ℝ,
+        (∀ R p y, |f R p y| ≤
+          1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+        |goodRowCorrelation S C a N dirs testList f| ^ addPow ≤
+          CmAdd * |additiveCube S C a N dirs testList J0 (f Sh.star)| + eta := by
+    classical
+    have hBuild : ∀ s : Finset ℕ, (∀ J0 ∈ s, 0 < J0) →
+        ∀ᶠ N in atTop, ∀ J0 ∈ s,
+          ∀ f : Fin completion.r' → (Fin q → ℕ) → ℤ → ℝ,
+            (∀ R p y, |f R p y| ≤
+              1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+            |goodRowCorrelation S C a N dirs testList f| ^ addPow ≤
+              CmAdd * |additiveCube S C a N dirs testList J0 (f Sh.star)| + eta := by
+      intro s
+      induction s using Finset.induction_on with
+      | empty =>
+          intro _
+          exact Filter.Eventually.of_forall (by simp)
+      | @insert j s hj ih =>
+          intro hpos
+          have hjpos : 0 < j := hpos j (Finset.mem_insert_self j s)
+          have hspos : ∀ J0 ∈ s, 0 < J0 := by
+            intro J0 hJ0
+            exact hpos J0 (Finset.mem_insert_of_mem hJ0)
+          have hThis := hAddElim S ι hlistedAll C a ha j hjpos eta hEta
+          have hRest := ih hspos
+          filter_upwards [hThis, hRest] with N hThis hRest
+          intro J0 hJ0 f hf
+          rcases Finset.mem_insert.mp hJ0 with heq | hmem
+          · subst J0
+            exact hThis f hf
+          · exact hRest J0 hmem f hf
+    exact hBuild J0s hJ0s
+  have hMaskEventually := hMaskRemoval S ι hlistedMask C a ha eta hEta
+  have hRowDropEventually := c_test2_rowCorrelation_le_good_eventually
+    S C a ha Sh dirs ι testList hlistedAll hRowPrimitive hRowPairwise hrowFacts.1 eta hEta
+  have hCubeEventually := hCubeComparison eta hEta
+  filter_upwards [hMaskEventually, hRowDropEventually, hCubeEventually, hAddUniform]
+    with N hMaskN hRowDropN hCubeN hAddN
+  intro J0 hJ0 b g hValid
+  obtain ⟨f0, hf0Bound, hf0Star, hMaskBound⟩ := hMaskN b g hValid
+  let f : Fin completion.r' → (Fin q → ℕ) → ℤ → ℝ := completion.extend f0
+  have hfBound : ∀ R p y, |f R p y| ≤
+      1 + chainWeight S.core.parameters C N (Sh.row R).anchor y :=
+    completion.extend_bound S C N f0 hf0Bound
+  have hfStar (p : Fin q → ℕ) (y : ℤ) : f Sh.star p y = g Jstar y := by
+    dsimp [f]
+    rw [completion.star_eq, completion.extend_map]
+    exact congrFun (hf0Star p) y
+  have hrowEq : rowCorrelation S C a N Sh f = rowCorrelation S C a N Sh0 f0 :=
+    completion.rowCorrelation_eq S C a N f0
+  have hMaskBound' :
+      |maskedCorrelation S.core.parameters C a N b g| ^ maskPow ≤
+        CmMask * |rowCorrelation S C a N Sh f| + eta := by
+    rw [hrowEq]
+    exact hMaskBound
+  have hRowDrop : |rowCorrelation S C a N Sh f| ≤
+      |goodRowCorrelation S C a N dirs testList f| + eta := hRowDropN f hfBound
+  have hMaskPower :
+      |maskedCorrelation S.core.parameters C a N b g| ^ maskPow ≤
+        CmMask * (|goodRowCorrelation S C a N dirs testList f| + eta) + eta := by
+    calc
+      _ ≤ CmMask * |rowCorrelation S C a N Sh f| + eta := hMaskBound'
+      _ ≤ _ := by
+        nlinarith [mul_le_mul_of_nonneg_left hRowDrop hCmMask.le]
+  have hAddPower :
+      |goodRowCorrelation S C a N dirs testList f| ^ addPow ≤
+        CmAdd * (|T.cubeTest S C.gap (C.block aStar).1 J0 N (g Jstar)| + eta) + eta := by
+    have hAdd := hAddN J0 hJ0 f hfBound
+    have hfStarFun : f Sh.star = (fun _ : Fin q → ℕ => g Jstar) := by
+      funext p y
+      exact hfStar p y
+    have hAddCubeEq : additiveCube S C a N dirs testList J0 (f Sh.star) =
+        additiveCube S C a N dirs testList J0 (fun _ => g Jstar) := by
+      rw [hfStarFun]
+    have hgBound : ∀ y, |g Jstar y| ≤
+        1 + chainWeight S.core.parameters C N aStar y := by
+      intro y
+      simpa [hAnchor] using hValid.2 Jstar hJne y
+    have hJ0pos : 0 < J0 := hJ0s J0 hJ0
+    have hCube := hCubeN J0 hJ0pos (g Jstar) hgBound
+    have hCubeAbs :
+        |additiveCube S C a N dirs testList J0 (f Sh.star)| ≤
+          |T.cubeTest S C.gap (C.block aStar).1 J0 N (g Jstar)| + eta := by
+      rw [hAddCubeEq]
+      let U := additiveCube S C a N dirs testList J0 (fun _ => g Jstar)
+      let Vcube := T.cubeTest S C.gap (C.block aStar).1 J0 N (g Jstar)
+      have hidentity : (U - Vcube) + Vcube = U := sub_add_cancel U Vcube
+      calc
+        _ = |(U - Vcube) + Vcube| := by rw [hidentity]
+        _ ≤ |U - Vcube| + |Vcube| := abs_add_le _ _
+        _ ≤ _ := by nlinarith [hCube]
+    calc
+      _ ≤ CmAdd * |additiveCube S C a N dirs testList J0 (f Sh.star)| + eta := hAdd
+      _ ≤ _ := by
+        exact add_le_add
+          (mul_le_mul_of_nonneg_left hCubeAbs hCmAdd.le) le_rfl
+  have hCombined := hCombine
+    |maskedCorrelation S.core.parameters C a N b g|
+    |goodRowCorrelation S C a N dirs testList f|
+    |T.cubeTest S C.gap (C.block aStar).1 J0 N (g Jstar)|
+    (abs_nonneg _) (abs_nonneg _) (abs_nonneg _)
+    hMaskPower hAddPower
+  have hPow :
+      |maskedCorrelation S.core.parameters C a N b g| ^ finalPow ≤
+        corrCoeff * |T.cubeTest S C.gap (C.block aStar).1 J0 N (g Jstar)| + tau := by
+    simpa [finalPow, maskPow, addPow, corrCoeff] using hCombined
+  have hn : 0 < finalPow := by dsimp [finalPow, maskPow, addPow]; positivity
+  have hroot := c_test2_root_power_bound hn
+    |maskedCorrelation S.core.parameters C a N b g|
+    |T.cubeTest S C.gap (C.block aStar).1 J0 N (g Jstar)|
+    corrCoeff tau ε (abs_nonneg _) (abs_nonneg _) hcorrCoeff hε hPow (by
+      dsimp [tau]
+      rfl)
+  have hpowEq : finalPow = 2 ^ (maskCount m + T.d) := by
+    dsimp [finalPow, maskPow, addPow]
+    rw [← pow_add]
+  have hexp : (1 : ℝ) / (finalPow : ℝ) =
+      ((2 : ℝ) ^ (maskCount m + T.d))⁻¹ := by
+    rw [hpowEq]
+    norm_num
+  have hcoeff : (2 * corrCoeff) ^ (1 / (finalPow : ℝ)) = finalCm := by
+    rfl
+  rw [hcoeff, hexp] at hroot
+  exact hroot
 
 end
 end HindmanSumsProducts
