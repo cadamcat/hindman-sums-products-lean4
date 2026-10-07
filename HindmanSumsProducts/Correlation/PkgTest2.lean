@@ -4078,6 +4078,17 @@ noncomputable def c_test2_crtFactorEquiv (w e V : ℕ) :
         rfl
   exact e1.trans e2
 
+theorem c_test2_masterCRTModulus_factor (w e V : ℕ) :
+    FromArithmetic.masterCRTModulus w e V =
+      (primorial w) ^ e * ∏ p : FromArithmetic.CRTPrimeRange w V, p.1 := by
+  classical
+  let Pset := (Finset.Ioc w (V + 1)).filter Nat.Prime
+  have hsub : (∏ p : FromArithmetic.CRTPrimeRange w V, p.1) = ∏ p ∈ Pset, p := by
+    change (∏ p : {x : ℕ // x ∈ Pset}, p.1) = ∏ p ∈ Pset, p
+    exact (Finset.prod_subtype Pset (fun _ => Iff.rfl) fun x : ℕ => x).symm
+  unfold FromArithmetic.masterCRTModulus
+  rw [hsub.symm]
+
 @[simp] theorem c_test2_crtFactorEquiv_base_apply (w e V : ℕ)
     (a : Fin (FromArithmetic.masterCRTModulus w e V)) :
     ((c_test2_crtFactorEquiv w e V a).1).val = a.val % ((primorial w) ^ e) := by
@@ -4087,5 +4098,206 @@ noncomputable def c_test2_crtFactorEquiv (w e V : ℕ) :
     (a : Fin (FromArithmetic.masterCRTModulus w e V)) (p : FromArithmetic.CRTPrimeRange w V) :
     ((c_test2_crtFactorEquiv w e V a).2 p).val = a.val % p.1 := by
   simp [c_test2_crtFactorEquiv, c_test2_finsetCRTEquiv, c_test2_finCast_val]
+
+theorem c_test2_uniformUnitResidueLaw_sum (Q : ℕ) (hQ : 0 < Q) :
+    (∑ a : Fin Q, uniformUnitResidueLaw Q a) = 1 := by
+  classical
+  let U := Finset.univ.filter (fun a : Fin Q => Nat.Coprime a.val Q)
+  have hcard : U.card = Q.totient := by
+    have hcard' : U.card = ((Finset.range Q).filter
+        (fun n => Nat.Coprime Q n)).card := by
+      apply Finset.card_bij (fun (a : Fin Q) _ => a.val)
+      · intro a ha
+        have ha' := (Finset.mem_filter.mp ha).2
+        exact Finset.mem_filter.mpr ⟨Finset.mem_range.mpr a.isLt, ha'.symm⟩
+      · intro a ha b hb hab
+        exact Fin.ext hab
+      · intro n hn
+        have hn' := Finset.mem_filter.mp hn
+        refine ⟨⟨n, Finset.mem_range.mp hn'.1⟩, ?_, rfl⟩
+        simpa [U] using hn'.2.symm
+    calc
+      U.card = ((Finset.range Q).filter (fun n => Nat.Coprime Q n)).card := hcard'
+      _ = Q.totient := (Nat.totient_eq_card_coprime Q).symm
+  have hphi : 0 < (Q.totient : ℝ) := by
+    exact_mod_cast Nat.totient_pos.mpr hQ
+  unfold uniformUnitResidueLaw
+  calc
+    _ = (U.card : ℝ) * (1 / (Q.totient : ℝ)) := by
+      rw [← Finset.sum_filter]
+      simp [U, Finset.sum_const, nsmul_eq_mul]
+    _ = 1 := by rw [hcard]; field_simp [hphi.ne']
+
+theorem c_test2_uniformUnitCRT_projection (w e V : ℕ)
+    (r : FromArithmetic.CRTResidues w V) :
+    (∑ a : Fin (FromArithmetic.masterCRTModulus w e V),
+      uniformUnitResidueLaw (FromArithmetic.masterCRTModulus w e V) a *
+        if (c_test2_crtFactorEquiv w e V a).2 = r then 1 else 0) =
+      ∏ p : FromArithmetic.CRTPrimeRange w V,
+        if Nat.Coprime (r p).val p.1 then 1 / ((p.1 - 1 : ℕ) : ℝ) else 0 := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  let B := (primorial w) ^ e
+  let R := FromArithmetic.CRTPrimeRange w V
+  let crt := c_test2_crtFactorEquiv w e V
+  have hB : 0 < B := pow_pos (primorial_pos w) e
+  have hphiB : 0 < (Nat.totient B : ℝ) := by
+    exact_mod_cast Nat.totient_pos.mpr hB
+  have hprime (p : R) : p.1.Prime := (Finset.mem_filter.mp p.2).2
+  have hbaseCop (p : R) : Nat.Coprime B p.1 := by
+    have hw : w < p.1 := (Finset.mem_Ioc.mp (Finset.mem_filter.mp p.2).1).1
+    apply ((hprime p).coprime_iff_not_dvd.mpr ?_).symm
+    intro hdiv
+    have hprimorial : p.1 ≤ w := (hprime p).dvd_primorial_iff.mp
+      ((hprime p).dvd_of_dvd_pow hdiv)
+    exact (Nat.not_le_of_gt hw) hprimorial
+  have hbaseProd : Nat.Coprime B (∏ p : R, p.1) := by
+    rw [Nat.coprime_prod_right_iff]
+    intro p hp
+    exact hbaseCop p
+  have hprimePair (p q : R) (hpq : p ≠ q) : Nat.Coprime p.1 q.1 := by
+    apply (hprime p).coprime_iff_not_dvd.mpr
+    intro hdiv
+    have heq : p.1 = q.1 := (Nat.prime_dvd_prime_iff_eq (hprime p) (hprime q)).mp hdiv
+    exact hpq (Subtype.ext heq)
+  have hphiPrime : Nat.totient (∏ p : R, p.1) = ∏ p : R, (p.1 - 1) := by
+    simpa using c_test2_totient_prime_product (Finset.univ : Finset R)
+      (fun p => p.1) (by intro p hp; exact hprime p)
+      (by intro p hp q hq hpq; exact hprimePair p q hpq)
+  have hphiQ : Nat.totient Q = Nat.totient B * ∏ p : R, (p.1 - 1) := by
+    dsimp [Q, B]
+    rw [c_test2_masterCRTModulus_factor, Nat.totient_mul hbaseProd, hphiPrime]
+  have hQfactor : Q = B * ∏ p : R, p.1 := by
+    dsimp [Q, B]
+    exact c_test2_masterCRTModulus_factor w e V
+  have hunit (a : Fin Q) :
+      Nat.Coprime a.val Q ↔
+        Nat.Coprime (crt a).1.val B ∧ ∀ p : R, Nat.Coprime ((crt a).2 p).val p.1 := by
+    have hprod :
+        Nat.Coprime a.val (B * ∏ p : R, p.1) ↔
+          Nat.Coprime (crt a).1.val B ∧
+            ∀ p : R, Nat.Coprime ((crt a).2 p).val p.1 := by
+      rw [Nat.coprime_comm, Nat.coprime_mul_iff_left]
+      constructor
+      · rintro ⟨hbase, hprimes⟩
+        refine ⟨?_, ?_⟩
+        · have hmod := (ZMod.coprime_mod_iff_coprime a.val B).mpr hbase.symm
+          simpa only [crt, c_test2_crtFactorEquiv_base_apply] using hmod
+        · have hprimes' : ∀ p : R, Nat.Coprime p.1 a.val :=
+            (Nat.coprime_fintype_prod_left_iff).mp hprimes
+          intro p
+          have hmod := (ZMod.coprime_mod_iff_coprime a.val p.1).mpr (hprimes' p).symm
+          simpa only [crt, c_test2_crtFactorEquiv_prime_apply] using hmod
+      · rintro ⟨hbase, hprimes⟩
+        refine ⟨?_, ?_⟩
+        · have hmod := (ZMod.coprime_mod_iff_coprime a.val B).mp hbase
+          exact hmod.symm
+        · apply (Nat.coprime_fintype_prod_left_iff).mpr
+          intro p
+          have hmod := (ZMod.coprime_mod_iff_coprime a.val p.1).mp (hprimes p)
+          exact hmod.symm
+    constructor
+    · intro ha
+      apply hprod.mp
+      simpa [hQfactor] using ha
+    · intro ha
+      have h := hprod.mpr ha
+      simpa [hQfactor] using h
+  have hsumBase :
+      (∑ b : Fin B, if Nat.Coprime b.val B then 1 / (Nat.totient Q : ℝ) else 0) =
+        (Nat.totient B : ℝ) / (Nat.totient Q : ℝ) := by
+    calc
+      _ = ((Nat.totient B : ℝ) / (Nat.totient Q : ℝ)) *
+          ∑ b : Fin B, uniformUnitResidueLaw B b := by
+        rw [Finset.mul_sum]
+        apply Finset.sum_congr rfl
+        intro b hb
+        by_cases hb' : Nat.Coprime b.val B
+        · simp only [if_pos hb', uniformUnitResidueLaw]
+          field_simp [hphiB.ne']
+        · simp [hb', uniformUnitResidueLaw]
+      _ = (Nat.totient B : ℝ) / (Nat.totient Q : ℝ) := by
+        rw [c_test2_uniformUnitResidueLaw_sum B hB]
+        ring
+  have hunitProj (b : Fin B) :
+      uniformUnitResidueLaw Q (crt.symm (b, r)) =
+        if Nat.Coprime b.val B ∧ ∀ p : R, Nat.Coprime (r p).val p.1 then
+          1 / (Nat.totient Q : ℝ) else 0 := by
+    rw [uniformUnitResidueLaw]
+    have h := hunit (crt.symm (b, r))
+    have heq := congrArg (fun P : Prop => if P then (1 / (Nat.totient Q : ℝ)) else 0)
+      (propext h)
+    simpa [crt] using heq
+  have hsumCRT :
+      (∑ a : Fin Q, uniformUnitResidueLaw Q a *
+        if (crt a).2 = r then 1 else 0) =
+      ∑ b : Fin B, uniformUnitResidueLaw Q (crt.symm (b, r)) := by
+    calc
+      _ = ∑ x : Fin B × FromArithmetic.CRTResidues w V,
+            uniformUnitResidueLaw Q (crt.symm x) * if x.2 = r then 1 else 0 := by
+        apply Fintype.sum_equiv crt
+        intro a
+        simp [crt]
+      _ = ∑ b : Fin B, uniformUnitResidueLaw Q (crt.symm (b, r)) := by
+        rw [Fintype.sum_prod_type]
+        simp
+  by_cases hR : ∀ p : R, Nat.Coprime (r p).val p.1
+  · have hratio : (Nat.totient B : ℝ) / (Nat.totient Q : ℝ) =
+        1 / (∏ p : R, (p.1 - 1 : ℕ) : ℝ) := by
+      have hphiQR : (Nat.totient Q : ℝ) =
+          (Nat.totient B : ℝ) * ∏ p : R, ((p.1 - 1 : ℕ) : ℝ) := by
+        exact_mod_cast hphiQ
+      rw [hphiQR]
+      have hprodpos : 0 < (∏ p : R, (p.1 - 1 : ℕ) : ℝ) := by
+        apply Finset.prod_pos
+        intro p hp
+        have hp2 : 2 ≤ p.1 := (hprime p).two_le
+        exact_mod_cast Nat.sub_pos_of_lt hp2
+      have hphiB' : (Nat.totient B : ℝ) ≠ 0 := ne_of_gt hphiB
+      field_simp [hphiB', hprodpos.ne']
+    calc
+      _ = ∑ b : Fin B, uniformUnitResidueLaw Q (crt.symm (b, r)) := hsumCRT
+      _ = (Nat.totient B : ℝ) / (Nat.totient Q : ℝ) := by
+        have hsum :
+            (∑ b : Fin B, uniformUnitResidueLaw Q (crt.symm (b, r))) =
+              ∑ b : Fin B, if Nat.Coprime b.val B then
+                1 / (Nat.totient Q : ℝ) else 0 := by
+          apply Finset.sum_congr rfl
+          intro b hb
+          rw [hunitProj]
+          by_cases hb' : Nat.Coprime b.val B
+          · rw [if_pos ⟨hb', hR⟩, if_pos hb']
+          · rw [if_neg (fun hh => hb' hh.1), if_neg hb']
+        rw [hsum, hsumBase]
+      _ = ∏ p : R, 1 / ((p.1 - 1 : ℕ) : ℝ) := by
+        rw [hratio]
+        symm
+        simpa [one_div] using
+          (Finset.prod_inv_distrib (s := Finset.univ)
+            (f := fun p : R => ((p.1 - 1 : ℕ) : ℝ)))
+      _ = ∏ p : R, if Nat.Coprime (r p).val p.1 then
+            1 / ((p.1 - 1 : ℕ) : ℝ) else 0 := by
+        apply Finset.prod_congr rfl
+        intro p hp
+        simp [hR p]
+  · have hzero : ∃ p : R, ¬ Nat.Coprime (r p).val p.1 := by
+      by_contra h
+      apply hR
+      intro p
+      by_contra hp
+      exact h ⟨p, hp⟩
+    obtain ⟨p0, hp0⟩ := hzero
+    rw [hsumCRT]
+    have hnotAll : ¬ ∀ p : R, Nat.Coprime (r p).val p.1 :=
+      fun hall => hp0 (hall p0)
+    have hleft : (∑ b : Fin B, uniformUnitResidueLaw Q (crt.symm (b, r))) = 0 := by
+      apply Finset.sum_eq_zero
+      intro b hb
+      rw [hunitProj]
+      simp [hnotAll]
+    rw [hleft]
+    symm
+    apply Finset.prod_eq_zero (Finset.mem_univ p0)
+    simp [hp0]
 
 end HindmanSumsProducts
