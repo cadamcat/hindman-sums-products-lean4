@@ -1,0 +1,10 @@
+import HindmanSumsProducts.Arithmetic.RoughCoprimality
+
+#print axioms HindmanSumsProducts.Arithmetic.Outside.dyadic_harmonic_prime_mass_and_atom_bound
+#print axioms HindmanSumsProducts.Arithmetic.Outside.harmonic_prime_brun_titchmarsh
+#print axioms HindmanSumsProducts.polynomial_zero_product_grid_bound
+#print axioms HindmanSumsProducts.polynomial_zero_dyadic_prime_bound
+#print axioms HindmanSumsProducts.rough_coprimality_small_prime_divisors
+#print axioms HindmanSumsProducts.rough_coprimality_large_prime_divisors
+#print axioms HindmanSumsProducts.lem_rough_coprimality
+#print axioms HindmanSumsProducts.rough_coprimality_survives_high_probability_restrictions
