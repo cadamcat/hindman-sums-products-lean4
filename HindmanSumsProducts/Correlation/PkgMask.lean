@@ -2083,6 +2083,31 @@ theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
   rw [hsum]
   exact Rat.den_intCast _
 
+theorem rowShapeLinearCoefficients_den_one_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, ∀ p R k,
+      (rowShapeLinearCoefficients Sh ι
+        (chainScale S.core.parameters C a N) N p R k).den = 1 := by
+  filter_upwards [chainScale_ratio_den_one_eventually S C a ha] with N hratio
+  intro p R k
+  let T := Sh.row R
+  let c := chainScale S.core.parameters C a N
+  by_cases hk : k ∈ T.support
+  · have hden : (c k / c T.anchor).den = 1 :=
+      hratio T.support T.support_nonempty k hk
+    change ((c k / c T.anchor) * T.value (fun i => p (ι i)) k).den = 1
+    rw [T.value_eq_valueNat, Rat.mul_den, hden]
+    simp
+  · have hnone : T.entry k = none := by
+      cases h : T.entry k with
+      | none => rfl
+      | some e => exact (hk (by simp [RowTemplate.support, h])).elim
+    change (c k / c T.anchor * T.value (fun i => p (ι i)) k).den = 1
+    simp [RowTemplate.value, hnone]
+
 theorem rowProduct_integrand_bound_eventually {K s m q r : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ)
