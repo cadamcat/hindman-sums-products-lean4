@@ -59,6 +59,12 @@ theorem c_test2_singletonRow_support {m q : ℕ} (i : Fin m) :
   ext k
   simp [c_test2_singletonRow, RowTemplate.support]
 
+@[simp]
+theorem c_test2_singletonRow_anchor {m q : ℕ} (i : Fin m) :
+    (c_test2_singletonRow (q := q) i).anchor = i := by
+  unfold RowTemplate.anchor
+  simp [c_test2_singletonRow_support]
+
 /-- Add one harmless row to a one-row shape. -/
 def c_test2_padSingletonShape {m q : ℕ} (Sh : RowShape m q 1) (i : Fin m)
     (Jstar : Finset (Fin m)) (hJcard : 2 ≤ Jstar.card)
@@ -193,5 +199,149 @@ theorem c_test2_root_power_bound {n : ℕ} (hn : 0 < n)
       rw [Real.mul_rpow (by positivity) hz]
     rw [hleft, hright] at hroot
     exact le_trans hroot (by linarith)
+
+theorem c_test2_dominates_of_power_bound {f S T : ℕ → ℝ}
+    (hF : ∀ n, 0 ≤ f n) (hS : ∀ n, 0 < S n) (hT : ∀ n, 0 < T n)
+    (P : ℝ) (hP : 0 < P)
+    (hTS : ∀ᶠ n in atTop, T n ≤ (S n) ^ P)
+    (hDom : OAI.MicrocellScale.Dominates f S) :
+    OAI.MicrocellScale.Dominates f T := by
+  intro C hC
+  have hDom' := hDom (P * C) (mul_pos hP hC)
+  have hle : (fun n => f n / (S n) ^ (P * C)) ≤ᶠ[atTop]
+      (fun n => f n / (T n) ^ C) := by
+    filter_upwards [hTS] with n hn
+    rw [div_le_div_iff₀ (Real.rpow_pos_of_pos (hS n) (P * C))
+      (Real.rpow_pos_of_pos (hT n) C)]
+    have hp : (T n) ^ C ≤ ((S n) ^ P) ^ C :=
+      Real.rpow_le_rpow (le_of_lt (hT n)) hn hC.le
+    have hp' : (T n) ^ C ≤ (S n) ^ (P * C) := by
+      calc
+        (T n) ^ C ≤ ((S n) ^ P) ^ C := hp
+        _ = (S n) ^ (P * C) := (Real.rpow_mul (le_of_lt (hS n)) P C).symm
+    exact mul_le_mul_of_nonneg_left hp' (hF n)
+  exact Filter.tendsto_atTop_mono' atTop hle hDom'
+
+private theorem c_test2_harmonicNatLaw_nonneg (X W n : ℕ) :
+    0 ≤ harmonicNatLaw X W n := by
+  have hZ : 0 ≤ harmonicNormalizer X W := by
+    unfold harmonicNormalizer
+    apply Finset.sum_nonneg
+    intro x hx
+    exact div_nonneg (by positivity) (by positivity)
+  unfold harmonicNatLaw
+  split_ifs <;> positivity
+
+private theorem c_test2_parameterTailProductLaw_nonneg {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ) :
+    0 ≤ FromArithmetic.parameterTailProductLaw A N T σ := by
+  classical
+  unfold FromArithmetic.parameterTailProductLaw
+  apply tsum_nonneg
+  intro t
+  by_cases hprod : (∏ j ∈ T, t j) = σ
+  · simp [hprod]
+    apply Finset.prod_nonneg
+    intro j hj
+    exact c_test2_harmonicNatLaw_nonneg _ _ _
+  · simp [hprod]
+
+theorem c_test2_chainWeight_nonneg {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (d : Fin m) (y : ℤ) : 0 ≤ chainWeight A C N d y := by
+  change 0 ≤ nuB (FromArithmetic.parameterTailProductLaw A N (C.block d).2.val) y
+  unfold nuB
+  apply tsum_nonneg
+  intro σ
+  by_cases hdiv : (σ : ℤ) ∣ y
+  · simp [hdiv]
+    exact mul_nonneg
+      (c_test2_parameterTailProductLaw_nonneg A N (C.block d).2.val σ)
+      (Nat.cast_nonneg σ)
+  · simp [hdiv]
+
+structure CTest2RowCompletion {m q r : ℕ} (Sh : RowShape m q r)
+    (Jstar : Finset (Fin m)) (hJcard : 2 ≤ Jstar.card)
+    (hstar : (Sh.row Sh.star).support = Jstar) (hr : r ≤ maskRowBound m) where
+  r' : ℕ
+  shape : RowShape m q r'
+  map : Fin r → Fin r'
+  row_eq : ∀ R, shape.row (map R) = Sh.row R
+  star_eq : shape.star = map Sh.star
+  two_rows : 2 ≤ r'
+  row_bound : r' ≤ maskRowBound m
+  extend : (Fin r → (Fin q → ℕ) → ℤ → ℝ) → Fin r' → (Fin q → ℕ) → ℤ → ℝ
+  extend_map : ∀ f R, extend f (map R) = f R
+  extend_bound : ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ),
+    (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+    ∀ R' p y, |extend f R' p y| ≤
+      1 + chainWeight S.core.parameters C N (shape.row R').anchor y
+  rowCorrelation_eq : ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) (f : Fin r → (Fin q → ℕ) → ℤ → ℝ),
+    rowCorrelation S C a N shape (extend f) = rowCorrelation S C a N Sh f
+
+noncomputable def c_test2_completeRows {m q r : ℕ} (Sh : RowShape m q r)
+    (Jstar : Finset (Fin m)) (hJcard : 2 ≤ Jstar.card)
+    (hstar : (Sh.row Sh.star).support = Jstar) (hr : r ≤ maskRowBound m) :
+    CTest2RowCompletion Sh Jstar hJcard hstar hr := by
+  classical
+  by_cases hone : r = 1
+  · subst r
+    have hcard : Jstar.card ≤ m := by simpa using (Finset.card_le_univ Jstar)
+    have hm : 2 ≤ m := hJcard.trans hcard
+    let i : Fin m := ⟨0, by omega⟩
+    let Sh' := c_test2_padSingletonShape Sh i Jstar hJcard hstar
+    have hstarFin : Sh.star = 0 := Subsingleton.elim _ _
+    have hpow : 4 ≤ 2 ^ m := by
+      calc
+        4 = 2 ^ 2 := by norm_num
+        _ ≤ 2 ^ m := Nat.pow_le_pow_right (by norm_num) hm
+    have hmc : 3 ≤ maskCount m := by
+      unfold maskCount
+      omega
+    have hbound : 2 ≤ maskRowBound m := by
+      unfold maskRowBound
+      calc
+        2 ≤ maskCount m := by omega
+        _ ≤ maskCount m * 2 ^ maskCount m :=
+          Nat.le_mul_of_pos_right _ (Nat.pow_pos (by norm_num))
+    refine ⟨2, Sh', (fun _ => 0), ?_, ?_, by norm_num, hbound,
+      c_test2_padSingletonFunction, ?_, ?_, ?_⟩
+    · intro R
+      have hR : R = 0 := Subsingleton.elim _ _
+      subst R
+      simp [Sh', c_test2_padSingletonShape, hstarFin]
+    · simp [Sh', c_test2_padSingletonShape]
+    · intro f R
+      have hR : R = 0 := Subsingleton.elim _ _
+      subst R
+      simp [Sh', c_test2_padSingletonShape, c_test2_padSingletonFunction]
+    · intro K s Aset Dm S C N f hvalid R' p y
+      fin_cases R'
+      · have hrow : Sh'.row 0 = Sh.row Sh.star := by
+          simp [Sh', c_test2_padSingletonShape, hstarFin]
+        simpa [Sh', c_test2_padSingletonShape, c_test2_padSingletonFunction,
+          hstarFin, hrow] using hvalid 0 p y
+      · have hanchor : (Sh'.row 1).anchor = i := by
+          simpa [Sh', c_test2_padSingletonShape] using c_test2_singletonRow_anchor (q := q) i
+        have hν := c_test2_chainWeight_nonneg S.core.parameters C N i y
+        simp [Sh', c_test2_padSingletonFunction, hanchor]
+        linarith
+    · intro K s Aset Dm S C a N f
+      exact c_test2_rowCorrelation_padSingleton S C a N Sh Jstar hJcard hstar i f
+  · have hrne : r ≠ 0 := by
+      intro hz
+      subst r
+      exact Fin.elim0 Sh.star
+    have hrpos : 0 < r := Nat.pos_of_ne_zero hrne
+    have htwo : 2 ≤ r := by omega
+    refine ⟨r, Sh, id, (fun _ => rfl), rfl, htwo, hr, id, (fun _ _ => rfl), ?_, ?_⟩
+    · intro K s Aset Dm S C N f hvalid R' p y
+      exact hvalid R' p y
+    · intro K s Aset Dm S C a N f
+      rfl
 
 end HindmanSumsProducts
