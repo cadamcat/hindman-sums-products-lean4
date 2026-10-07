@@ -2429,6 +2429,63 @@ theorem evalIntegerPolynomial_rename {q s : ℕ} (ι : Fin q ↪ Fin s)
   unfold evalIntegerPolynomial
   exact MvPolynomial.eval_rename ι (fun i => (p i : ℤ)) P
 
+theorem evalIntegerPolynomial_zmod_ne_zero {s : ℕ} (P : IntegerPolynomial s)
+    (p : Fin s → ℕ) (v : ℕ) (hv : v.Prime)
+    (havoid : ¬ (v : ℤ) ∣ evalIntegerPolynomial P (fun i => (p i : ℤ))) :
+    (evalIntegerPolynomial P (fun i => (p i : ℤ)) : ZMod v) ≠ 0 := by
+  intro hzero
+  apply havoid
+  exact (ZMod.intCast_zmod_eq_zero_iff_dvd
+    (evalIntegerPolynomial P (fun i => (p i : ℤ))) v).mp hzero
+
+theorem rowTemplate_minor_eval_eq {m q : ℕ} (T U : RowTemplate m q)
+    (p : Fin q → ℕ) (j k : Fin m) :
+    evalIntegerPolynomial
+        (T.poly j * U.poly k - T.poly k * U.poly j)
+        (fun i => (p i : ℤ)) =
+      ((T.valueNat p j * U.valueNat p k : ℕ) : ℤ) -
+      ((T.valueNat p k * U.valueNat p j : ℕ) : ℤ) := by
+  calc
+    evalIntegerPolynomial (T.poly j * U.poly k - T.poly k * U.poly j)
+        (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial (T.poly j) (fun i => (p i : ℤ)) *
+          evalIntegerPolynomial (U.poly k) (fun i => (p i : ℤ)) -
+        evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) *
+          evalIntegerPolynomial (U.poly j) (fun i => (p i : ℤ)) := by
+            simp [evalIntegerPolynomial]
+    _ = ((T.valueNat p j : ℕ) : ℤ) * ((U.valueNat p k : ℕ) : ℤ) -
+        ((T.valueNat p k : ℕ) : ℤ) * ((U.valueNat p j : ℕ) : ℤ) := by
+          rw [T.poly_eval_eq_valueNat, U.poly_eval_eq_valueNat,
+            T.poly_eval_eq_valueNat, U.poly_eval_eq_valueNat]
+    _ = _ := by push_cast; ring
+
+theorem rowShape_minor_value_ne_zero_of_tests {m q r s : ℕ}
+    (Sh : RowShape m q r) (ι : Fin q ↪ Fin s)
+    (Dm : Finset (IntegerPolynomial s))
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm)
+    (p : Fin s → ℕ) (v : ℕ) (hv : v.Prime)
+    (havoid : ∀ Q ∈ Dm,
+      ¬ (v : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))
+    (R I : Fin r) (hRI : R ≠ I) :
+    ∃ j k,
+      (((Sh.row R).valueNat (fun i => p (ι i)) j : ℕ) : ZMod v) *
+          (((Sh.row I).valueNat (fun i => p (ι i)) k : ℕ) : ZMod v) -
+        (((Sh.row R).valueNat (fun i => p (ι i)) k : ℕ) : ZMod v) *
+          (((Sh.row I).valueNat (fun i => p (ι i)) j : ℕ) : ZMod v) ≠ 0 := by
+  obtain ⟨P, hP, j, k, hPform⟩ :=
+    Sh.nonparallel_minor_mem_templateMinors R I hRI
+  have hPlisted : MvPolynomial.rename ι P ∈ Dm := hlisted P hP
+  have hEval :=
+    evalIntegerPolynomial_zmod_ne_zero (MvPolynomial.rename ι P) p v hv
+      (havoid (MvPolynomial.rename ι P) hPlisted)
+  rw [evalIntegerPolynomial_rename ι P p] at hEval
+  have hminor := rowTemplate_minor_eval_eq (Sh.row R) (Sh.row I)
+    (fun i => p (ι i)) j k
+  rw [hPform] at hEval
+  rw [hminor] at hEval
+  exact ⟨j, k, by
+    simpa only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, Nat.cast_mul] using hEval⟩
+
 theorem rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
     {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
