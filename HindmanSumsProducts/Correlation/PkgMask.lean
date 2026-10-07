@@ -3554,6 +3554,54 @@ theorem rowForm_update_mul_singleton {m q : ℕ}
   simp [Function.update_self]
   ring
 
+theorem pkgMask_chainWeight_rowUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (u : Fin m) (p₀ : ℕ)
+    (z : Fin m → ℤ) (hcase : u ∉ T.support ∨ T.support = {u})
+    (hc : c u ≠ 0) (hp₀ : p₀.Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
+    (hdenOld : (rowForm c T p (fun k => (z k : ℚ))).den = 1)
+    (hdenNew : (rowForm c T p
+      (Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ)))).den = 1) :
+    chainWeight S.core.parameters C N d
+        ((rowForm c T p (Function.update (fun k => (z k : ℚ)) u
+          ((p₀ : ℚ) * (z u : ℚ)))).num) =
+      chainWeight S.core.parameters C N d
+        (rowForm c T p (fun k => (z k : ℚ))).num := by
+  let oldValue := rowForm c T p (fun k => (z k : ℚ))
+  let newValue := rowForm c T p
+    (Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ)))
+  have holdNum : (oldValue.num : ℚ) = oldValue :=
+    (Rat.den_eq_one_iff oldValue).mp (by simpa [oldValue] using hdenOld)
+  have hnewNum : (newValue.num : ℚ) = newValue :=
+    (Rat.den_eq_one_iff newValue).mp (by simpa [newValue] using hdenNew)
+  rcases hcase with hu | hsingle
+  · have hEq : newValue = oldValue := by
+      dsimp [newValue, oldValue]
+      exact rowForm_update_of_not_mem_support c T p (fun k => (z k : ℚ)) u
+        ((p₀ : ℚ) * (z u : ℚ)) hu
+    have hnumQ : (newValue.num : ℚ) = (oldValue.num : ℚ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = oldValue := hEq
+        _ = (oldValue.num : ℚ) := holdNum.symm
+    have hnum : newValue.num = oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+  · have hEq : newValue = (p₀ : ℚ) * oldValue := by
+      dsimp [newValue, oldValue]
+      exact rowForm_update_mul_singleton c T p (fun k => (z k : ℚ)) u
+        (p₀ : ℚ) hsingle hc
+    have hnumQ : (newValue.num : ℚ) = ((p₀ : ℤ) * oldValue.num : ℤ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = (p₀ : ℚ) * oldValue := hEq
+        _ = (p₀ : ℚ) * (oldValue.num : ℚ) := by rw [holdNum]
+        _ = ((p₀ : ℤ) * oldValue.num : ℤ) := by norm_cast
+    have hnum : newValue.num = (p₀ : ℤ) * oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+    exact chainWeight_mul_eq_of_prime_gt S C N d p₀ hp₀ hV₀ oldValue.num
+
 theorem pkgMask_chainWeight_scaleBranchP_eq {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
