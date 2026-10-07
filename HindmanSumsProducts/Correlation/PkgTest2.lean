@@ -4908,9 +4908,9 @@ def c_test2_rowWeightedGoodDomain {K s m q r : ℕ}
   c_test2_ScaleData S C a N ∧
     2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
       (S.primeStage.pool N C.gap).lower ∧
-    (∀ i, (S.primeStage.pool N C.gap).lower ≤ p i ∧
-      p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) ∧
-    GoodTuple S C.gap N tests dirs.poly (fun i => p (ι i))
+    ∀ i : Fin q,
+      (S.primeStage.pool N C.gap).lower ≤ p (ι i) ∧
+      p (ι i) < (S.primeStage.pool N C.gap).upper ∧ (p (ι i)).Prime
 
 def c_test2_rowWeightedCoeff {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
@@ -4935,7 +4935,7 @@ theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
   classical
   have hscale := hgood.1
   have hpool := hgood.2.1
-  have htuple := hgood.2.2.2
+  have hslots := hgood.2.2
   let T := Sh.row u
   let p' : Fin q → ℕ := fun i => p (ι i)
   have hentry : ∃ e, T.entry T.anchor = some e := by
@@ -4943,8 +4943,7 @@ theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
     have hs : T.anchor ∈ T.support := by simpa [RowTemplate.anchor] using hm
     exact Option.isSome_iff_exists.mp (by simpa [RowTemplate.support] using hs)
   have hslotAbove (i : Fin q) : r' < p' i := by
-    change r' < p (ι i)
-    have hlow := (htuple.1 i).1
+    have hlow := (hslots i).1
     have hlow' : (S.primeStage.pool N C.gap).lower ≤ p (ι i) := by
       simpa [p'] using hlow
     have hVone : 1 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
@@ -4964,7 +4963,7 @@ theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
     apply (hr.coprime_iff_not_dvd.mpr ?_).symm
     intro hdiv
     have heq : r' = p' i :=
-      (Nat.prime_dvd_prime_iff_eq hr (htuple.1 i).2.2).mp hdiv
+      (Nat.prime_dvd_prime_iff_eq hr (hslots i).2.2).mp hdiv
     exact (ne_of_gt (hslotAbove i)) heq.symm
   have hmonCoprime :
       Nat.Coprime (c_test2_rowValueNat T p' T.anchor) r' := by
@@ -5018,8 +5017,7 @@ theorem c_test2_rowWeighted_pairwise {K s m q r : ℕ}
   classical
   letI : Fact r'.Prime := ⟨hr⟩
   have hscale : c_test2_ScaleData S C a N := hgood.1
-  have htuple : GoodTuple S C.gap N tests dirs.poly
-      (fun i => p (ι i)) := hgood.2.2.2
+  have hslots := hgood.2.2
   let p' : Fin q → ℕ := fun i => p (ι i)
   let T := Sh.row u
   let U := Sh.row v
@@ -5302,6 +5300,7 @@ theorem c_test2_rowWeighted_pairwise {K s m q r : ℕ}
     apply sub_ne_zero.mp
     rw [hdetResidue]
     exact sub_ne_zero.mpr hdetNZ
+
   · rcases hexcl with ⟨hiT, hiNotU, hjU, hminor⟩
     have hdetEq :
         (alphaT i : ZMod r') * (alphaU j : ZMod r') -
@@ -5362,11 +5361,193 @@ theorem c_test2_rowWeighted_pairwise {K s m q r : ℕ}
     rw [hdetResidue]
     exact sub_ne_zero.mpr hdetNZ
 
+private def c_test2_constantPrimePoolSupport {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : ℕ) : Finset (α → ℕ) :=
+  Fintype.piFinset (fun _ : α => Finset.Ico lo hi)
+
+private noncomputable def c_test2_constantPrimePoolMass {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : ℕ) (p : α → ℕ) : ℝ :=
+  ∏ i, primePoolLaw lo hi (p i)
+
+private noncomputable def c_test2_constantPrimePoolAverage {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : ℕ) (F : (α → ℕ) → ℝ) : ℝ :=
+  ∑' p, c_test2_constantPrimePoolMass lo hi p * F p
+
+private lemma c_test2_constantPrimePoolMass_zero {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : ℕ) (p : α → ℕ)
+    (hp : p ∉ c_test2_constantPrimePoolSupport lo hi) :
+    c_test2_constantPrimePoolMass lo hi p = 0 := by
+  classical
+  have hnotall : ¬ ∀ i : α, p i ∈ Finset.Ico lo hi := by
+    intro hall
+    apply hp
+    simpa [c_test2_constantPrimePoolSupport] using hall
+  obtain ⟨i, hi⟩ := not_forall.mp hnotall
+  unfold c_test2_constantPrimePoolMass
+  apply Finset.prod_eq_zero (Finset.mem_univ i)
+  unfold primePoolLaw
+  split_ifs with h
+  · exact False.elim (hi (Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩))
+  · rfl
+
+private lemma c_test2_constantPrimePoolMass_tsum_one {α : Type*} [Fintype α]
+    [DecidableEq α] (lo hi : ℕ) (hpos : 0 < primePoolMass lo hi) :
+    ∑' p : α → ℕ, c_test2_constantPrimePoolMass lo hi p = 1 := by
+  let μ : α → ℕ → ℝ := fun _ n => primePoolLaw lo hi n
+  let support : α → Finset ℕ := fun _ => Finset.Ico lo hi
+  have hzero : ∀ i n, n ∉ support i → μ i n = 0 := by
+    intro i n hn
+    exact c_test2_primePoolLaw_zero_outside lo hi n (by simpa [support] using hn)
+  have hsum : ∀ i, ∑' n : ℕ, μ i n = 1 := by
+    intro i
+    exact c_test2_primePoolLaw_tsum_one lo hi hpos
+  simpa [c_test2_constantPrimePoolMass, μ] using
+    c_test2_productMass_tsum_one μ support hzero hsum
+
+theorem c_test2_constantPrimePoolAverage_cylinder {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (lo hi : ℕ)
+    (hpos : 0 < primePoolMass lo hi)
+    (F : (Fin q → ℕ) → ℝ) :
+    c_test2_constantPrimePoolAverage lo hi F =
+      c_test2_constantPrimePoolAverage lo hi (fun p => F (fun i => p (ι i))) := by
+  classical
+  let extra := {j : Fin s // j ∉ Set.range ι}
+  let eRange : Fin q ≃ {j : Fin s // j ∈ Set.range ι} :=
+    { toFun := fun i => ⟨ι i, ⟨i, rfl⟩⟩
+      invFun := fun j => Classical.choose j.2
+      left_inv := by
+        intro i
+        apply ι.injective
+        exact Classical.choose_spec (show ∃ k, ι k = ι i from ⟨i, rfl⟩)
+      right_inv := by
+        intro j
+        apply Subtype.ext
+        exact Classical.choose_spec j.2 }
+  let eIndex : Fin q ⊕ extra ≃ Fin s :=
+    (Equiv.sumCongr eRange (Equiv.refl extra)).trans
+      (Equiv.Set.sumCompl (Set.range (ι : Fin q → Fin s)))
+  let eTuple : (Fin q → ℕ) × (extra → ℕ) ≃ (Fin s → ℕ) :=
+    (Equiv.sumArrowEquivProdArrow (Fin q) extra ℕ).symm.trans
+      (Equiv.piCongrLeft (fun _ : Fin s => ℕ) eIndex)
+  have heIndexL (i : Fin q) : eIndex (Sum.inl i) = ι i := by
+    change Equiv.Set.sumCompl (Set.range (ι : Fin q → Fin s))
+      (Sum.inl (eRange i)) = ι i
+    exact Equiv.Set.sumCompl_apply_inl _ _
+  have heIndexR (j : extra) : eIndex (Sum.inr j) = j.1 := by
+    change Equiv.Set.sumCompl (Set.range (ι : Fin q → Fin s)) (Sum.inr j) = j.1
+    exact Equiv.Set.sumCompl_apply_inr _ _
+  have hcoordL (x : Fin q → ℕ) (y : extra → ℕ) (i : Fin q) :
+      eTuple (x, y) (ι i) = x i := by
+    have hi : eIndex.symm (ι i) = Sum.inl i := by
+      apply eIndex.injective
+      calc
+        eIndex (eIndex.symm (ι i)) = ι i := eIndex.apply_symm_apply _
+        _ = eIndex (Sum.inl i) := (heIndexL i).symm
+    simp [eTuple, Equiv.piCongrLeft, hi]
+  have hcoordR (x : Fin q → ℕ) (y : extra → ℕ) (j : extra) :
+      eTuple (x, y) j.1 = y j := by
+    have hj : eIndex.symm j.1 = Sum.inr j := by
+      apply eIndex.injective
+      calc
+        eIndex (eIndex.symm j.1) = j.1 := eIndex.apply_symm_apply _
+        _ = eIndex (Sum.inr j) := (heIndexR j).symm
+    simp [eTuple, Equiv.piCongrLeft, hj]
+  have hmass (x : Fin q → ℕ) (y : extra → ℕ) :
+      c_test2_constantPrimePoolMass lo hi (eTuple (x, y)) =
+        c_test2_constantPrimePoolMass lo hi x *
+          c_test2_constantPrimePoolMass lo hi y := by
+    unfold c_test2_constantPrimePoolMass
+    rw [← Fintype.prod_equiv eIndex
+      (fun k : Fin q ⊕ extra => primePoolLaw lo hi (eTuple (x, y) (eIndex k)))
+      (fun k : Fin s => primePoolLaw lo hi (eTuple (x, y) k)) (fun _ => rfl)]
+    rw [Fintype.prod_sum_type]
+    simp_rw [heIndexL, heIndexR, hcoordL, hcoordR]
+  have hextraTotal :
+      ∑' y : extra → ℕ, c_test2_constantPrimePoolMass lo hi y = 1 :=
+    c_test2_constantPrimePoolMass_tsum_one lo hi hpos
+  have hFsum : Summable (fun x : Fin q → ℕ =>
+      c_test2_constantPrimePoolMass lo hi x * F x) := by
+    apply summable_of_ne_finset_zero
+      (s := c_test2_constantPrimePoolSupport lo hi)
+    intro x hx
+    rw [c_test2_constantPrimePoolMass_zero lo hi x hx]
+    simp
+  have hextraSum : Summable (c_test2_constantPrimePoolMass lo hi :
+      (extra → ℕ) → ℝ) := by
+    apply summable_of_ne_finset_zero
+      (s := c_test2_constantPrimePoolSupport lo hi)
+    intro y hy
+    exact c_test2_constantPrimePoolMass_zero lo hi y hy
+  have hprodSum : Summable (fun z : (Fin q → ℕ) × (extra → ℕ) =>
+      c_test2_constantPrimePoolMass lo hi z.1 *
+        c_test2_constantPrimePoolMass lo hi z.2 * F z.1) := by
+    apply summable_of_ne_finset_zero
+      (s := (c_test2_constantPrimePoolSupport lo hi).product
+        (c_test2_constantPrimePoolSupport lo hi))
+    intro z hz
+    have hnot : z.1 ∉ c_test2_constantPrimePoolSupport lo hi ∨
+        z.2 ∉ c_test2_constantPrimePoolSupport lo hi := by
+      by_contra h
+      push_neg at h
+      exact hz (Finset.mem_product.mpr h)
+    rcases hnot with hx | hy
+    · rw [c_test2_constantPrimePoolMass_zero lo hi z.1 hx]
+      simp
+    · rw [c_test2_constantPrimePoolMass_zero lo hi z.2 hy]
+      simp
+  have hPair :
+      (∑' z : (Fin q → ℕ) × (extra → ℕ),
+        c_test2_constantPrimePoolMass lo hi z.1 *
+          c_test2_constantPrimePoolMass lo hi z.2 * F z.1) =
+        c_test2_constantPrimePoolAverage lo hi F := by
+    rw [hprodSum.tsum_prod]
+    have hinner (x : Fin q → ℕ) :
+        (∑' y : extra → ℕ,
+          c_test2_constantPrimePoolMass lo hi x *
+            c_test2_constantPrimePoolMass lo hi y * F x) =
+          (c_test2_constantPrimePoolMass lo hi x * F x) *
+            ∑' y : extra → ℕ, c_test2_constantPrimePoolMass lo hi y := by
+      calc
+        _ = ∑' y : extra → ℕ,
+            (c_test2_constantPrimePoolMass lo hi x * F x) *
+              c_test2_constantPrimePoolMass lo hi y := by
+                apply tsum_congr
+                intro y
+                ring
+        _ = _ := tsum_mul_left
+    rw [show (∑' x : Fin q → ℕ,
+          ∑' y : extra → ℕ,
+            c_test2_constantPrimePoolMass lo hi x *
+              c_test2_constantPrimePoolMass lo hi y * F x) =
+        ∑' x : Fin q → ℕ,
+          (c_test2_constantPrimePoolMass lo hi x * F x) *
+            ∑' y : extra → ℕ, c_test2_constantPrimePoolMass lo hi y by
+          apply tsum_congr
+          exact hinner]
+    rw [hextraTotal]
+    simp [c_test2_constantPrimePoolAverage]
+  have hFull :
+      c_test2_constantPrimePoolAverage lo hi (fun p => F (fun i => p (ι i))) =
+        ∑' z : (Fin q → ℕ) × (extra → ℕ),
+          c_test2_constantPrimePoolMass lo hi z.1 *
+            c_test2_constantPrimePoolMass lo hi z.2 * F z.1 := by
+    unfold c_test2_constantPrimePoolAverage
+    rw [← eTuple.symm.tsum_eq]
+    apply tsum_congr
+    intro z
+    have hz : eTuple ((eTuple.symm z).1, (eTuple.symm z).2) = z := by
+      simpa using eTuple.apply_symm_apply z
+    rw [← hz]
+    simp only [Equiv.symm_apply_apply]
+    rw [hmass]
+    simp [hcoordL]
+  exact hPair.symm.trans hFull.symm
 noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (ι : Fin q ↪ Fin s) (tests : Finset (IntegerPolynomial q))
+    (included : Finset (Fin r))
     (hlisted : TestsListed Dm ι tests)
     (hPrimitive : ∀ N p,
       c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
@@ -5400,8 +5581,10 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     c_test2_rowWeightedCoeff S C a ι Sh
   let tail : Fin r → Finset (Fin K) :=
     fun u => (C.block (Sh.row u).anchor).2.val
+  let selectedTail : Fin r → Finset (Fin K) :=
+    fun u => if u ∈ included then tail u else ∅
   let divisor : Fin r → FromArithmetic.DivisorTemplate K K :=
-    fun u => c_test2_divisorTemplateOfTail (tail u)
+    fun u => c_test2_divisorTemplateOfTail (selectedTail u)
   let epsilonBase : ℕ → ℝ := fun N =>
     ∑ i : Fin m, FromArithmetic.harmonicResidueUniformError
       (A.X N (C.block i).1) (primorial (N + 1)) (V N ^ r)
@@ -5421,11 +5604,14 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
       0 < harmonicNormalizer (A.X N i) (primorial (N + 1)) :=
     c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
       (S.gapStage.valid_raw_cutoffs N i)
+  have hVpos (N : ℕ) : 1 ≤ V N := by
+    dsimp [V, FromArithmetic.masterScaleV]
+    omega
   have htailLaw (N : ℕ) (u : Fin r) (σ : ℕ) :
       FromArithmetic.divisorTemplateLaw A N (divisor u) σ =
-        FromArithmetic.parameterTailProductLaw A N (tail u) σ := by
-    simpa [divisor, tail] using
-      c_test2_divisorTemplateLaw_eq_parameterTailProductLaw A N (tail u)
+        FromArithmetic.parameterTailProductLaw A N (selectedTail u) σ := by
+    simpa [divisor, selectedTail] using
+      c_test2_divisorTemplateLaw_eq_parameterTailProductLaw A N (selectedTail u)
         (fun i => hnormAll N i) σ
   refine
     { gap := fun _ => C.gap
@@ -5487,25 +5673,31 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
       (fun i : Fin m => A.X N (C.block i).1) (primorial (N + 1))
       (fun i => A.Xpos N (C.block i).1) (fun i => hnorm N i)
   · intro N u σ hσ
-    have htailNZ : FromArithmetic.parameterTailProductLaw A N (tail u) σ ≠ 0 := by
+    have htailNZ : FromArithmetic.parameterTailProductLaw A N (selectedTail u) σ ≠ 0 := by
       intro hz
       apply hσ
       rw [htailLaw N u σ, hz]
-    exact c_test2_parameterTailProductLaw_pos_of_nonzero A N (tail u) σ htailNZ
+    exact c_test2_parameterTailProductLaw_pos_of_nonzero A N (selectedTail u) σ htailNZ
   · intro N u σ hσ
-    have htailNZ : FromArithmetic.parameterTailProductLaw A N (tail u) σ ≠ 0 := by
+    have htailNZ : FromArithmetic.parameterTailProductLaw A N (selectedTail u) σ ≠ 0 := by
       intro hz
       apply hσ
       rw [htailLaw N u σ, hz]
-    exact c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor σ
-      htailNZ
+    by_cases hu : u ∈ included
+    · simpa [selectedTail, hu, tail] using
+        c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor σ
+          (by simpa [selectedTail, hu] using htailNZ)
+    · have hle := c_test2_parameterTailProductLaw_support_le A N ∅ σ
+        (by simpa [selectedTail, hu] using htailNZ)
+      have hleOne : σ ≤ 1 := by simpa using hle
+      exact hleOne.trans (hVpos N)
   · intro N p σ hgood hdivNZ hσ
     let Kprod : ℕ := ∏ u : Fin r, σ u
     have hK : 0 < Kprod := by
       dsimp [Kprod]
       exact Finset.prod_pos fun u _ => hσ u
     have htailNZ (u : Fin r) :
-        FromArithmetic.parameterTailProductLaw A N (tail u) (σ u) ≠ 0 := by
+        FromArithmetic.parameterTailProductLaw A N (selectedTail u) (σ u) ≠ 0 := by
       intro hz
       have heq := htailLaw N u (σ u)
       apply hdivNZ u
@@ -5515,10 +5707,16 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
       rw [Nat.coprime_fintype_prod_left_iff]
       intro u
       exact c_test2_parameterTailProductLaw_coprime_of_nonzero A N
-        (tail u) (σ u) (htailNZ u)
-    have hσle (u : Fin r) : σ u ≤ V N :=
-      c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor
-        (σ u) (htailNZ u)
+        (selectedTail u) (σ u) (htailNZ u)
+    have hσle (u : Fin r) : σ u ≤ V N := by
+      by_cases hu : u ∈ included
+      · simpa [selectedTail, hu, tail] using
+          c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor
+            (σ u) (by simpa [selectedTail, hu] using htailNZ u)
+      · have hle := c_test2_parameterTailProductLaw_support_le A N ∅ (σ u)
+          (by simpa [selectedTail, hu] using htailNZ u)
+        have hleOne : σ u ≤ 1 := by simpa using hle
+        exact hleOne.trans (hVpos N)
     have hKbound : Kprod ≤ V N ^ r := by
       calc
         _ ≤ ∏ _u : Fin r, V N := by
