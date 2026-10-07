@@ -155,6 +155,46 @@ theorem parameters_allRawCutoffs_eventually_eq {n : ℕ} (A : Parameters n) :
     exact hcutPlus N i
   · exact hXeq
 
+/-- An eventual denominator bound preserves domination. -/
+theorem dominates_of_eventually_le_denominator {f S T : ℕ → ℝ}
+    (h : OAI.MicrocellScale.Dominates f S)
+    (hf : ∀ᶠ N in atTop, 0 ≤ f N)
+    (hT : ∀ᶠ N in atTop, 0 < T N)
+    (hTS : ∀ᶠ N in atTop, T N ≤ S N) :
+    OAI.MicrocellScale.Dominates f T := by
+  intro C hC
+  have hlim := h C hC
+  apply Filter.tendsto_atTop.2
+  intro b
+  filter_upwards [hlim.eventually_gt_atTop b, hf, hT, hTS]
+    with N hN hfN hTN hle
+  have hp := Real.rpow_le_rpow (le_of_lt hTN) hle hC.le
+  exact (le_of_lt hN).trans
+    (div_le_div_of_nonneg_left hfN (Real.rpow_pos_of_pos hTN C) hp)
+
+/-- `rationalModelValue` is exactly `atQ` of the integer model. -/
+theorem rationalModelValue_eq_atQ {n r s : ℕ}
+    {A : OAI.SourceAdmissible.Parameters n} {vs : Finset ℚ}
+    {Fm : OAI.SourceChartedMenu.Menu s}
+    (S : OAI.SourceMenuLiteral.ModelsSystem A vs r Fm)
+    (N : ℕ) (B : FrameworkBlock n) (v : ℚ) (c : Fin r) (q : ℚ) :
+    rationalModelValue S N B v c q = atQ (fun y => S.model N B v c y) q := by
+  classical
+  by_cases hq : ∃ z : ℤ, (z : ℚ) = q
+  · have hden : q.den = 1 := by
+      obtain ⟨z, hz⟩ := hq
+      rw [← hz]
+      simp
+    have hqCast : (q.num : ℚ) = q := (Rat.den_eq_one_iff q).mp hden
+    have hnum : Classical.choose hq = q.num := by
+      exact Int.cast_injective ((Classical.choose_spec hq).trans hqCast.symm)
+    simp [rationalModelValue, atQ, hq, hden, hnum]
+  · have hden : q.den ≠ 1 := by
+      intro hd
+      apply hq
+      exact ⟨q.num, (Rat.den_eq_one_iff q).mp hd⟩
+    simp [rationalModelValue, atQ, hq, hden]
+
 /-- The raw harmonic weights are nonnegative, including when the interval is empty. -/
 theorem harmonicNatLaw_nonneg (X W n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
   have hnorm : 0 ≤ harmonicNormalizer X W := by
@@ -411,6 +451,78 @@ theorem integral_eq_tsum_map_real_singleton {α β : Type*} [MeasurableSpace α]
     _ = ∑' y, (Measure.map f μ).real {y} * g y := by
       rw [MeasureTheory.integral_countable hg]
       simp only [smul_eq_mul]
+
+/-- The joint block-product distribution has finite support under the raw parameter law. -/
+theorem parameterJointBlockProductMass_support_finite {n m : ℕ}
+    (A : Parameters n) (N : ℕ) (B : Fin m → FrameworkBlock n)
+    (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) :
+    {z : Fin m → ℤ | parameterJointBlockProductMass A N B hX z ≠ 0}.Finite := by
+  classical
+  let D := OAI.ProductExposureLaw.outsideDomain (A.X N) (primorial (N + 1))
+  let S := D.image (blockProductTuple B)
+  have hdom : ∀ᵐ t ∂A.law N hX, t ∈ D := by
+    simpa [D, OAI.SourceAdmissible.Parameters.law] using
+      OAI.ProductExposureLaw.outside_ae_domain (A.X N) (primorial (N + 1))
+        (primorial_pos _) hX
+  have hnull : (A.law N hX) {t | t ∉ D} = 0 := ae_iff.mp hdom
+  have hmeas : Measurable (blockProductTuple B) := measurable_of_countable _
+  have hzero (z : Fin m → ℤ) (hz : z ∉ S) :
+      parameterJointBlockProductMass A N B hX z = 0 := by
+    rw [parameterJointBlockProductMass_eq_map_real]
+    rw [measureReal_def, Measure.map_apply hmeas (measurableSet_singleton z)]
+    have hsub : blockProductTuple B ⁻¹' ({z} : Set (Fin m → ℤ)) ⊆ {t | t ∉ D} := by
+      intro t ht
+      intro htD
+      apply hz
+      apply Finset.mem_image.mpr
+      exact ⟨t, htD, by simpa [Set.mem_preimage, Set.mem_singleton_iff] using ht⟩
+    have hmass := measure_mono_null hsub hnull
+    simp [hmass]
+  apply (Finset.finite_toSet S).subset
+  intro z hz
+  by_contra hzS
+  exact hz (hzero z hzS)
+
+/-- A bounded test function changes its expectation by at most the total-mass `l1` distance. -/
+theorem abs_tsum_mul_sub_le_tsum_abs_diff {α : Type*} [DecidableEq α]
+    (μ ν f : α → ℝ)
+    (hμ : {x | μ x ≠ 0}.Finite) (hν : {x | ν x ≠ 0}.Finite)
+    (hf : ∀ x, |f x| ≤ 1) :
+    |(∑' x, μ x * f x) - ∑' x, ν x * f x| ≤ ∑' x, |μ x - ν x| := by
+  classical
+  let S : Finset α := hμ.toFinset ∪ hν.toFinset
+  have hμzero (x : α) (hx : x ∉ S) : μ x = 0 := by
+    by_contra hne
+    have hmem : x ∈ hμ.toFinset := (Set.Finite.mem_toFinset hμ).mpr hne
+    exact hx (Finset.mem_union_left _ hmem)
+  have hνzero (x : α) (hx : x ∉ S) : ν x = 0 := by
+    by_contra hne
+    have hmem : x ∈ hν.toFinset := (Set.Finite.mem_toFinset hν).mpr hne
+    exact hx (Finset.mem_union_right _ hmem)
+  have htermμ (x : α) (hx : x ∉ S) : μ x * f x = 0 := by simp [hμzero x hx]
+  have htermν (x : α) (hx : x ∉ S) : ν x * f x = 0 := by simp [hνzero x hx]
+  have hterm (x : α) (hx : x ∉ S) : |μ x - ν x| = 0 := by
+    simp [hμzero x hx, hνzero x hx]
+  rw [tsum_eq_sum (s := S) htermμ, tsum_eq_sum (s := S) htermν,
+    tsum_eq_sum (s := S) hterm]
+  have hsum :
+      (∑ x ∈ S, μ x * f x) - ∑ x ∈ S, ν x * f x =
+        ∑ x ∈ S, (μ x - ν x) * f x := by
+    rw [← Finset.sum_sub_distrib]
+    apply Finset.sum_congr rfl
+    intro x hx
+    ring
+  calc
+    |(∑ x ∈ S, μ x * f x) - ∑ x ∈ S, ν x * f x| =
+        |∑ x ∈ S, (μ x - ν x) * f x| := by rw [hsum]
+    _ ≤ ∑ x ∈ S, |(μ x - ν x) * f x| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ x ∈ S, |μ x - ν x| := by
+      apply Finset.sum_le_sum
+      intro x hx
+      calc
+        |(μ x - ν x) * f x| = |μ x - ν x| * |f x| := abs_mul _ _
+        _ ≤ |μ x - ν x| * 1 := mul_le_mul_of_nonneg_left (hf x) (abs_nonneg _)
+        _ = |μ x - ν x| := mul_one _
 
 /-- Projection of a finite product law onto an injective list of coordinates is the product law
 on that list. -/
@@ -1015,6 +1127,27 @@ theorem pivotMass_support_finite {n m : ℕ} (A : Parameters n) (C : MasterChain
     exact Finset.prod_eq_zero (Finset.mem_univ d) hzero
   exact hz hprod
 
+/-- A tuple of weighted pivot laws has finite support. -/
+theorem weightedPivotTupleMass_support_finite {n m : ℕ}
+    (A : Parameters n) (N : ℕ) (B : Fin m → FrameworkBlock n) :
+    {z : Fin m → ℤ | weightedPivotTupleMass A N B z ≠ 0}.Finite := by
+  classical
+  have hfinite : {z : Fin m → ℤ | ∀ d,
+      z d ∈ {y : ℤ | harmonicLaw (A.X N (B d).1) (primorial (N + 1)) y ≠ 0}}.Finite :=
+    Set.Finite.pi' fun d => harmonicLaw_support_finite _ _
+  apply hfinite.subset
+  intro z hz
+  simp only [Set.mem_setOf_eq]
+  intro d
+  by_contra hmem
+  have hzero : harmonicLaw (A.X N (B d).1) (primorial (N + 1)) (z d) = 0 := by
+    simpa only [Set.mem_setOf_eq] using hmem
+  have hprod : weightedPivotTupleMass A N B z = 0 := by
+    unfold weightedPivotTupleMass
+    refine Finset.prod_eq_zero (Finset.mem_univ d) ?_
+    simp [weightedPivotMass, hzero]
+  exact hz hprod
+
 /-- Multiplication by any real-valued function preserves the finite support of pivot mass. -/
 theorem summable_pivotMass_mul {n m : ℕ} (A : Parameters n) (C : MasterChain n m)
     (N : ℕ) (f : (Fin m → ℤ) → ℝ) :
@@ -1451,6 +1584,11 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.added_map_strictMono
 #print axioms HindmanSumsProducts.Prediction.height_map_embedding
 #print axioms HindmanSumsProducts.Prediction.parameters_allRawCutoffs_eventually_eq
+#print axioms HindmanSumsProducts.Prediction.dominates_of_eventually_le_denominator
+#print axioms HindmanSumsProducts.Prediction.rationalModelValue_eq_atQ
+#print axioms HindmanSumsProducts.Prediction.parameterJointBlockProductMass_support_finite
+#print axioms HindmanSumsProducts.Prediction.weightedPivotTupleMass_support_finite
+#print axioms HindmanSumsProducts.Prediction.abs_tsum_mul_sub_le_tsum_abs_diff
 #print axioms HindmanSumsProducts.Prediction.harmonicNatLaw_nonneg
 #print axioms HindmanSumsProducts.Prediction.parameterTailProductLaw_nonneg
 #print axioms HindmanSumsProducts.Prediction.nuB_nonneg_of_nonneg
