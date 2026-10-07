@@ -4169,6 +4169,13 @@ noncomputable def pkgMask_coordinateJoin {m : ℕ} (u : Fin m) (y : ℤ)
     (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) : Fin m → ℤ :=
   (pkgMask_coordinateSplit u).symm (y, w)
 
+noncomputable def pkgMask_pivotRestMass {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) : ℝ :=
+  ∏ i : finsetComplement ({u} : Finset (Fin m)),
+    harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (w i)
+
 theorem pkgMask_coordinateJoin_at {m : ℕ} (u : Fin m) (y : ℤ)
     (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) :
     pkgMask_coordinateJoin u y w u = y := by
@@ -4467,6 +4474,27 @@ theorem pkgMask_pivotTsum_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
           intro y hy
           ring
     _ = _ := hRight.symm
+
+theorem pkgMask_pivotRestMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m) :
+    ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+      pkgMask_pivotRestMass S C N u w = 1 := by
+  have hcoord :
+      ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+        (primorial (N + 1)) y = 1 := by
+    apply harmonicLaw_tsum_one_of_normalizer_pos
+    · exact S.core.parameters.Xpos N (C.block u).1
+    · exact harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+        (S.gapStage.valid_raw_cutoffs N (C.block u).1)
+  have hsplit :=
+    (pkgMask_pivotTsum_coordinate_split S C N u (fun _ => 1)).symm
+  calc
+    (∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+        pkgMask_pivotRestMass S C N u w) =
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z := by
+      simpa [pkgMask_pivotRestMass, hcoord] using hsplit
+    _ = 1 := pivotMass_tsum_one S C N
 
 theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
