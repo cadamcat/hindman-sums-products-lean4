@@ -384,6 +384,92 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
       rw [hfinite]
       exact hPsum
 
+theorem c_elim2_subtype_sum_filter {P : Type*} [DecidableEq P]
+    (s : Finset P) (G : P → Prop) [DecidablePred G] (f : P → ℝ) :
+    (∑ p : {p // p ∈ s}, if G p.1 then f p.1 else 0) =
+      ∑ p : {p // p ∈ s.filter G}, f p.1 := by
+  classical
+  calc
+    (∑ p : {p // p ∈ s}, if G p.1 then f p.1 else 0) =
+        ∑ p ∈ s, if G p then f p else 0 := by
+          simpa only [Finset.attach_eq_univ] using
+            (Finset.sum_attach s (fun p => if G p then f p else 0))
+    _ = ∑ p ∈ s.filter G, f p := by rw [Finset.sum_filter]
+    _ = ∑ p : {p // p ∈ s.filter G}, f p.1 := by
+          simpa only [Finset.attach_eq_univ] using
+            (Finset.sum_attach (s.filter G) f).symm
+
+noncomputable def c_elim2_goodPrimeSupport
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) : Finset (Fin q → ℕ) := by
+  classical
+  exact (c_elim2_independentPrimeSupport
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)).filter
+    (GoodTuple S C.gap N tests dirs.poly)
+
+theorem c_elim2_eliminationAverage_eq_finiteGoodSupport
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
+      eliminationAverage S C N dirs tests J0 F =
+      (gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
+        ∑ p : {p : Fin q → ℕ // p ∈
+            c_elim2_goodPrimeSupport S C N Sh dirs tests},
+          ∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+            gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+              shiftAverage (NonTarget Sh)
+                (shiftLength S C.gap J0 N dirs.poly p.1)
+                (F p.1 (fun k => (z.1 k : ℚ))) := by
+  classical
+  let Good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
+  let Psupport : Finset (Fin q → ℕ) := c_elim2_independentPrimeSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let Zsupport : Finset (Fin m → ℤ) := c_elim2_pivotSupport S.core.parameters C N
+  let PSub := {p : Fin q → ℕ // p ∈ Psupport}
+  let ZSub := {z : Fin m → ℤ // z ∈ Zsupport}
+  let PGood := {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests}
+  letI : DecidablePred Good := Classical.decPred Good
+  rw [c_elim2_eliminationAverage_eq_finiteOuterSupport]
+  congr 1
+  have hsumP :
+      (∑ p : PSub, ∑ z : ZSub,
+        gapSlotMass S C.gap N p.1 * c_elim2_goodIndicator S C N Sh dirs tests p.1 *
+          pivotMass S.core.parameters C N z.1 *
+          shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+            (F p.1 (fun k => (z.1 k : ℚ)))) =
+      ∑ p : PSub, if Good p.1 then
+        gapSlotMass S C.gap N p.1 *
+          ∑ z : ZSub, pivotMass S.core.parameters C N z.1 *
+            shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+              (F p.1 (fun k => (z.1 k : ℚ)) ) else 0 := by
+    apply Finset.sum_congr rfl
+    intro p hp
+    by_cases hgood : Good p.1
+    · simp [c_elim2_goodIndicator, Good, hgood]
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro z hz
+      ring
+    · simp [c_elim2_goodIndicator, Good, hgood]
+  have hfilter := c_elim2_subtype_sum_filter Psupport Good (fun p =>
+    gapSlotMass S C.gap N p *
+      ∑ z : ZSub, pivotMass S.core.parameters C N z.1 *
+        shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (F p (fun k => (z.1 k : ℚ))))
+  rw [hsumP, hfilter]
+  apply Finset.sum_congr rfl
+  intro p hp
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro z hz
+  ring
+
 noncomputable def c_elim2_shiftRangeEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (L : ℕ) :
     (α → Fin 2 → Fin L) ≃
@@ -2742,6 +2828,86 @@ theorem c_elim2_boxWeightRowFactor_le_boxRetainedProduct
         ∏ η : FullBranch, rowFactor η := hrowSub
     _ ≤ c_elim2_boxRetainedProduct D Finset.univ b fullU := hrowFactorLe
 
+theorem c_elim2_boxShiftValue_eq_fullAssignment
+    {α : Type u} [DecidableEq α] (E : Finset α) {L : ℕ}
+    (u : c_elim2_ShiftCoord E → Fin L) (v : α → Fin 2 → Fin L)
+    (ω : α → Fin 2) (i : α)
+    (hu : ∀ c, u c = v c.val.1 c.val.2)
+    (hω : i ∉ E → ω i = 0) :
+    c_elim2_boxShiftValue E u ω i = (v i (ω i)).val := by
+  by_cases hi : i ∈ E
+  · simp only [c_elim2_boxShiftValue, dif_pos hi]
+    exact congrArg Fin.val (hu ⟨(i, ω i), Or.inr hi⟩)
+  · have hω0 : ω i = 0 := hω hi
+    simp only [c_elim2_boxShiftValue, dif_neg hi]
+    rw [hω0]
+    exact congrArg Fin.val (hu ⟨(i, 0), Or.inl rfl⟩)
+
+theorem c_elim2_boxTargetArgument_eq_targetVertex
+    {m q r : ℕ} {Sh : RowShape m q r} {β : Type}
+    (D : c_elim2_AdditiveBoxData (NonTarget Sh) β)
+    (E : Finset (NonTarget Sh)) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (v : NonTarget Sh → Fin 2 → Fin (D.shiftLength b))
+    (ω : c_elim2_BoxBranch E) (c : Fin m → ℚ)
+    (p : Fin q → ℕ) (z : Fin m → ℚ) (Mp : ℕ)
+    (hbase : D.targetBase b = rowForm c (Sh.row Sh.star) p z)
+    (hcoef : ∀ i, (D.targetCoefficient b i : ℚ) = (Mp : ℚ))
+    (hu : ∀ c, u c = v c.val.1 c.val.2) :
+    c_elim2_boxTargetArgument D E b u ω =
+      targetVertex c Sh p Mp z
+        (fun i j => (v i j).val) (c_elim2_boxBranchFull E ω) := by
+  classical
+  unfold c_elim2_boxTargetArgument targetVertex
+  rw [hbase]
+  calc
+    rowForm c (Sh.row Sh.star) p z +
+        ∑ i, (D.targetCoefficient b i : ℚ) *
+          (c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i : ℚ) =
+      rowForm c (Sh.row Sh.star) p z +
+        ∑ i, (Mp : ℚ) * ((v i (c_elim2_boxBranchFull E ω i)).val : ℚ) := by
+          congr 1
+          apply Finset.sum_congr rfl
+          intro i hi
+          rw [hcoef i]
+          congr 1
+          exact congrArg (fun n : ℕ => (n : ℚ))
+            (c_elim2_boxShiftValue_eq_fullAssignment E u v
+              (c_elim2_boxBranchFull E ω) i hu
+              (by intro hi; simp [c_elim2_boxBranchFull, hi]))
+    _ = rowForm c (Sh.row Sh.star) p z +
+        (Mp : ℚ) * ∑ i, ((v i (c_elim2_boxBranchFull E ω i)).val : ℚ) := by
+          rw [Finset.mul_sum]
+    _ = _ := rfl
+
+theorem c_elim2_boxRowArgument_linear
+    {α β : Type u} [Fintype α] [DecidableEq α] {m q : ℕ}
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) (ω : α → Fin 2)
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (v : α → Fin m → ℚ)
+    (hbase : D.rowBase R b = rowForm c T p z)
+    (hcoef : ∀ i, i ≠ R → (D.rowCoefficient R i b : ℚ) = rowForm c T p (v i)) :
+    c_elim2_boxRowArgument D E b R u ω =
+      rowForm c T p (fun k => z k + ∑ i ∈ Finset.univ.erase R,
+        (c_elim2_boxShiftValue E u ω i : ℚ) * v i k) := by
+  classical
+  unfold c_elim2_boxRowArgument
+  rw [hbase]
+  have hsum :
+      (∑ i ∈ Finset.univ.erase R,
+        (D.rowCoefficient R i b : ℚ) *
+          (c_elim2_boxShiftValue E u ω i : ℚ)) =
+      ∑ i ∈ Finset.univ.erase R,
+        (c_elim2_boxShiftValue E u ω i : ℚ) * rowForm c T p (v i) := by
+    apply Finset.sum_congr rfl
+    intro i hi
+    rw [hcoef i (Finset.mem_erase.mp hi).1]
+    ring
+  rw [hsum]
+  exact (c_elim2_rowForm_finset_sum c T p z (Finset.univ.erase R)
+    (fun i => (c_elim2_boxShiftValue E u ω i : ℚ)) v).symm
+
 theorem c_elim2_iterate_box_cauchy {α : Type u} [Fintype α] [DecidableEq α]
     (F : Finset α → ℝ) (C : ℝ) (hC : 0 < C)
     (hstep : ∀ (E : Finset α), E ⊆ Finset.univ → ∀ R, R ∈ Finset.univ → R ∉ E →
@@ -2885,5 +3051,611 @@ theorem c_elim2_normalized_product_measure {P Z : Type*} [Fintype P] [Fintype Z]
           rw [← Finset.mul_sum]
         _ = _ := by ring
     _ = 1 := by rw [hP, hZ]; field_simp
+
+theorem c_elim2_arithmeticL1_product_le_sum
+    {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (μ ν : ι → ℤ → ℝ) (S : Finset ℤ)
+    (hμzero : ∀ i z, z ∉ S → μ i z = 0)
+    (hνzero : ∀ i z, z ∉ S → ν i z = 0)
+    (hμnonneg : ∀ i z, 0 ≤ μ i z) (hνnonneg : ∀ i z, 0 ≤ ν i z)
+    (hμmass : ∀ i, ∑' z : ℤ, μ i z = 1)
+    (hνmass : ∀ i, ∑' z : ℤ, ν i z = 1) :
+    arithmeticL1 (fun x : ι → ℤ => ∏ i, μ i (x i))
+      (fun x => ∏ i, ν i (x i)) ≤ ∑ i, arithmeticL1 (μ i) (ν i) := by
+  classical
+  let β := {z : ℤ // z ∈ S}
+  letI : Fintype β := Finset.Subtype.fintype S
+  let μ' : ι → β → ℝ := fun i z => μ i z.1
+  let ν' : ι → β → ℝ := fun i z => ν i z.1
+  have hμmass' (i : ι) : ∑ z : β, μ' i z = 1 := by
+    have hsum : ∑ z ∈ S, μ i z = 1 := by
+      rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+        (f := μ i) (s := S) (fun z hz => hμzero i z hz)]
+      exact hμmass i
+    change ∑ z ∈ S.attach, μ i z.1 = 1
+    rw [Finset.sum_attach]
+    exact hsum
+  have hνmass' (i : ι) : ∑ z : β, ν' i z = 1 := by
+    have hsum : ∑ z ∈ S, ν i z = 1 := by
+      rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+        (f := ν i) (s := S) (fun z hz => hνzero i z hz)]
+      exact hνmass i
+    change ∑ z ∈ S.attach, ν i z.1 = 1
+    rw [Finset.sum_attach]
+    exact hsum
+  have hμabs (i : ι) : ∑ z : β, |μ' i z| = 1 := by
+    calc
+      _ = ∑ z : β, μ' i z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        rw [abs_of_nonneg (hμnonneg i z.1)]
+      _ = 1 := hμmass' i
+  have hνabs (i : ι) : ∑ z : β, |ν' i z| = 1 := by
+    calc
+      _ = ∑ z : β, ν' i z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        rw [abs_of_nonneg (hνnonneg i z.1)]
+      _ = 1 := hνmass' i
+  let μProd : (ι → β) → ℝ := fun x => ∏ i, μ' i (x i)
+  let νProd : (ι → β) → ℝ := fun x => ∏ i, ν' i (x i)
+  let raw : (ι → β) → (ι → ℤ) := fun x i => (x i).1
+  have hrawInj : Function.Injective raw := by
+    intro x y h
+    funext i
+    exact Subtype.ext (congrFun h i)
+  let Sprod : Finset (ι → ℤ) := Fintype.piFinset fun _ : ι => S
+  have hμprodZero : ∀ x, x ∉ Sprod → (∏ i, μ i (x i)) = 0 := by
+    intro x hx
+    have hnotall : ¬ ∀ i : ι, x i ∈ S := by
+      intro hall
+      apply hx
+      change x ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hμzero i (x i) hi)
+  have hνprodZero : ∀ x, x ∉ Sprod → (∏ i, ν i (x i)) = 0 := by
+    intro x hx
+    have hnotall : ¬ ∀ i : ι, x i ∈ S := by
+      intro hall
+      apply hx
+      change x ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hνzero i (x i) hi)
+  have hL1tsum : arithmeticL1 (fun x : ι → ℤ => ∏ i, μ i (x i))
+      (fun x => ∏ i, ν i (x i)) =
+      ∑ x ∈ Sprod, |(∏ i, μ i (x i)) - ∏ i, ν i (x i)| := by
+    unfold arithmeticL1
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ))
+      (s := Sprod) (f := fun x : ι → ℤ =>
+        |(∏ i, μ i (x i)) - ∏ i, ν i (x i)|)
+      (by intro x hx; simp [hμprodZero x hx, hνprodZero x hx])]
+  have hImage : Finset.univ.image raw = Sprod := by
+    ext x
+    rw [Finset.mem_image]
+    simp only [Finset.mem_univ, true_and]
+    change (∃ y : ι → β, raw y = x) ↔
+      x ∈ Fintype.piFinset (fun _ : ι => S)
+    rw [Fintype.mem_piFinset]
+    constructor
+    · rintro ⟨y, rfl⟩
+      intro i
+      exact (y i).property
+    · intro hx
+      refine ⟨fun i => ⟨x i, hx i⟩, ?_⟩
+      funext i
+      rfl
+  have hL1finite :
+      (∑ x ∈ Sprod, |(∏ i, μ i (x i)) - ∏ i, ν i (x i)|) =
+        finiteL1 μProd νProd := by
+    rw [← hImage]
+    rw [Finset.sum_image (s := (Finset.univ : Finset (ι → β)))
+      (f := fun x : ι → ℤ => |(∏ i, μ i (x i)) - ∏ i, ν i (x i)|)
+      (g := raw)
+      hrawInj.injOn]
+    simp [finiteL1, μProd, νProd, μ', ν', raw]
+  have hprodTV := FromArithmetic.finite_product_l1_telescoping μ' ν'
+  calc
+    arithmeticL1 (fun x : ι → ℤ => ∏ i, μ i (x i))
+        (fun x => ∏ i, ν i (x i)) = finiteL1 μProd νProd := hL1tsum.trans hL1finite
+    _ ≤ ∑ i, finiteL1 (μ' i) (ν' i) *
+          ∏ j ∈ Finset.univ.erase i,
+            max (∑ z : β, |μ' j z|) (∑ z : β, |ν' j z|) := hprodTV
+    _ = ∑ i, finiteL1 (μ' i) (ν' i) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      simp [hμabs, hνabs]
+    _ = ∑ i, arithmeticL1 (μ i) (ν i) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      have hattach : (∑ z : β, |μ i z.1 - ν i z.1|) =
+          ∑ z ∈ S, |μ i z - ν i z| := by
+        simpa only [Finset.attach_eq_univ] using
+          (Finset.sum_attach S (fun z => |μ i z - ν i z|))
+      have htsum : arithmeticL1 (μ i) (ν i) =
+          ∑ z ∈ S, |μ i z - ν i z| := by
+        unfold arithmeticL1
+        rw [tsum_eq_sum (L := SummationFilter.unconditional ℤ)
+          (s := S) (f := fun z : ℤ => |μ i z - ν i z|)
+          (by intro z hz; simp [hμzero i z hz, hνzero i z hz])]
+      unfold finiteL1
+      exact hattach.trans htsum.symm
+
+theorem c_elim2_arithmeticL1_test_bound
+    {α : Type*} [DecidableEq α] (μ ν F : α → ℝ) (S : Finset α)
+    (B : ℝ) (hB : 0 ≤ B)
+    (hμzero : ∀ x, x ∉ S → μ x = 0)
+    (hνzero : ∀ x, x ∉ S → ν x = 0)
+    (hF : ∀ x, |F x| ≤ B) :
+    |∑' x, (μ x - ν x) * F x| ≤ B * arithmeticL1 μ ν := by
+  classical
+  have hexpect : ∑' x, (μ x - ν x) * F x =
+      ∑ x ∈ S, (μ x - ν x) * F x := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional α) (s := S)
+      (f := fun x => (μ x - ν x) * F x)
+      (by intro x hx; simp [hμzero x hx, hνzero x hx])]
+  have hL1 : arithmeticL1 μ ν = ∑ x ∈ S, |μ x - ν x| := by
+    unfold arithmeticL1
+    rw [tsum_eq_sum (L := SummationFilter.unconditional α) (s := S)
+      (f := fun x => |μ x - ν x|)
+      (by intro x hx; simp [hμzero x hx, hνzero x hx])]
+  rw [hexpect, hL1]
+  calc
+    |∑ x ∈ S, (μ x - ν x) * F x| ≤
+        ∑ x ∈ S, |(μ x - ν x) * F x| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ x ∈ S, B * |μ x - ν x| := by
+      apply Finset.sum_le_sum
+      intro x hx
+      rw [abs_mul]
+      calc
+        |μ x - ν x| * |F x| ≤ |μ x - ν x| * B :=
+          mul_le_mul_of_nonneg_left (hF x) (abs_nonneg _)
+        _ = B * |μ x - ν x| := mul_comm _ _
+    _ = B * ∑ x ∈ S, |μ x - ν x| := by rw [Finset.mul_sum]
+
+theorem c_elim2_productTranslation_expectation_bound
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (μ : ι → ℤ → ℝ)
+    (h : ι → ℤ) (S : Finset ℤ) (F : (ι → ℤ) → ℝ) (B ε : ℝ)
+    (hB : 0 ≤ B)
+    (hμzero : ∀ i z, z ∉ S → μ i z = 0)
+    (hνzero : ∀ i z, z ∉ S → translatedLaw (μ i) (h i) z = 0)
+    (hμnonneg : ∀ i z, 0 ≤ μ i z)
+    (hμmass : ∀ i, ∑' z : ℤ, μ i z = 1)
+    (hcoordL1 : ∀ i, arithmeticL1 (translatedLaw (μ i) (h i)) (μ i) ≤ ε)
+    (hF : ∀ z, |F z| ≤ B) :
+    |(∑' z : ι → ℤ, (∏ i, μ i (z i)) * F (fun i => z i + h i)) -
+      ∑' z, (∏ i, μ i (z i)) * F z| ≤ B * (Fintype.card ι : ℝ) * ε := by
+  classical
+  let ν : ι → ℤ → ℝ := fun i z => translatedLaw (μ i) (h i) z
+  let μProd : (ι → ℤ) → ℝ := fun z => ∏ i, μ i (z i)
+  let νProd : (ι → ℤ) → ℝ := fun z => ∏ i, ν i (z i)
+  let Sprod : Finset (ι → ℤ) := Fintype.piFinset fun _ : ι => S
+  have hνnonneg : ∀ i z, 0 ≤ ν i z := by
+    intro i z
+    exact hμnonneg i (z - h i)
+  have hνmass : ∀ i, ∑' z : ℤ, ν i z = 1 := by
+    intro i
+    calc
+      _ = ∑' z : ℤ, μ i (Equiv.addRight (-h i) z) := by
+        simp [ν, translatedLaw, Equiv.coe_addRight, sub_eq_add_neg]
+      _ = ∑' z : ℤ, μ i z := (Equiv.addRight (-h i)).tsum_eq (fun z => μ i z)
+      _ = 1 := hμmass i
+  have hμprodZero : ∀ z, z ∉ Sprod → μProd z = 0 := by
+    intro z hz
+    have hnotall : ¬ ∀ i : ι, z i ∈ S := by
+      intro hall
+      apply hz
+      change z ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hμzero i (z i) hi)
+  have hνprodZero : ∀ z, z ∉ Sprod → νProd z = 0 := by
+    intro z hz
+    have hnotall : ¬ ∀ i : ι, z i ∈ S := by
+      intro hall
+      apply hz
+      change z ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hνzero i (z i) hi)
+  have hchange :
+      (∑' z : ι → ℤ, μProd z * F (fun i => z i + h i)) =
+        ∑' z : ι → ℤ, νProd z * F z := by
+    calc
+      _ = ∑' z : ι → ℤ, νProd (fun i => z i + h i) *
+          F (fun i => z i + h i) := by
+        apply tsum_congr
+        intro z
+        simp [μProd, νProd, ν, translatedLaw, sub_add_cancel]
+      _ = _ := (Equiv.addRight h).tsum_eq (fun z => νProd z * F z)
+  have hprodTV := c_elim2_arithmeticL1_product_le_sum ν μ S
+    (by intro i z hz; exact hνzero i z hz)
+    hμzero hνnonneg hμnonneg hνmass hμmass
+  have hprodTVle : arithmeticL1 νProd μProd ≤ (Fintype.card ι : ℝ) * ε := by
+    calc
+      arithmeticL1 νProd μProd ≤ ∑ i, arithmeticL1 (ν i) (μ i) := hprodTV
+      _ ≤ ∑ _i : ι, ε := Finset.sum_le_sum (fun i hi => hcoordL1 i)
+      _ = (Fintype.card ι : ℝ) * ε := by simp
+  have htest := c_elim2_arithmeticL1_test_bound νProd μProd F Sprod B hB
+    hνprodZero hμprodZero hF
+  have hsumνF : ∑' z : ι → ℤ, νProd z * F z =
+      ∑ z ∈ Sprod, νProd z * F z := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ)) (s := Sprod)
+      (f := fun z => νProd z * F z)
+      (by intro z hz; simp [hνprodZero z hz])]
+  have hsumμF : ∑' z : ι → ℤ, μProd z * F z =
+      ∑ z ∈ Sprod, μProd z * F z := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ)) (s := Sprod)
+      (f := fun z => μProd z * F z)
+      (by intro z hz; simp [hμprodZero z hz])]
+  have hdiff :
+      (∑' z : ι → ℤ, νProd z * F z) - ∑' z, μProd z * F z =
+        ∑' z : ι → ℤ, (νProd z - μProd z) * F z := by
+    rw [hsumνF, hsumμF]
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ)) (s := Sprod)
+      (f := fun z => (νProd z - μProd z) * F z)
+      (by intro z hz; simp [hνprodZero z hz, hμprodZero z hz])]
+    calc
+      _ = ∑ z ∈ Sprod, (νProd z * F z - μProd z * F z) := by
+        rw [Finset.sum_sub_distrib]
+      _ = ∑ z ∈ Sprod, (νProd z - μProd z) * F z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        ring
+  calc
+    _ = |(∑' z : ι → ℤ, νProd z * F z) - ∑' z, μProd z * F z| := by rw [hchange]
+    _ = |∑' z : ι → ℤ, (νProd z - μProd z) * F z| := by rw [hdiff]
+    _ ≤ B * arithmeticL1 νProd μProd := htest
+    _ ≤ B * ((Fintype.card ι : ℝ) * ε) :=
+      mul_le_mul_of_nonneg_left hprodTVle hB
+    _ = B * (Fintype.card ι : ℝ) * ε := by ring
+
+theorem c_elim2_microcellDominates_mono {A B S : ℕ → ℝ}
+    (hle : ∀ᶠ n in atTop, A n ≤ B n)
+    (hS : ∀ᶠ n in atTop, 0 < S n)
+    (hA : OAI.MicrocellScale.Dominates A S) :
+    OAI.MicrocellScale.Dominates B S := by
+  intro C hC
+  apply tendsto_atTop_mono' atTop _ (hA C hC)
+  filter_upwards [hle, hS] with n hn hSn
+  exact div_le_div_of_nonneg_right hn
+    (le_of_lt (Real.rpow_pos_of_pos hSn C))
+
+theorem c_elim2_microcellDominates_trans {A B S : ℕ → ℝ}
+    (hAB : OAI.MicrocellScale.Dominates A B)
+    (hBS : OAI.MicrocellScale.Dominates B S)
+    (hS : ∀ᶠ n in atTop, 0 < S n) :
+    OAI.MicrocellScale.Dominates A S := by
+  intro C hC
+  have habT : Tendsto (fun n => A n / B n) atTop atTop := by
+    simpa [pow_one] using hAB 1 (by norm_num)
+  have hbsT := hBS C hC
+  apply tendsto_atTop_mono' atTop _ hbsT
+  filter_upwards [habT.eventually_ge_atTop (1 : ℝ),
+    hbsT.eventually_ge_atTop (1 : ℝ), hS] with n hab hbs hSn
+  have hpow : 0 < (S n) ^ C := Real.rpow_pos_of_pos hSn C
+  have hBpos : 0 < B n := by
+    have hmul : (S n) ^ C ≤ B n := by simpa using (le_div_iff₀ hpow).mp hbs
+    exact lt_of_lt_of_le hpow hmul
+  have hfactor : A n / (S n) ^ C = (A n / B n) * (B n / (S n) ^ C) := by
+    field_simp [ne_of_gt hBpos, ne_of_gt hpow]
+  rw [hfactor]
+  calc
+    B n / (S n) ^ C ≤ (A n / B n) * (B n / (S n) ^ C) := by
+      simpa using (mul_le_mul_of_nonneg_right hab
+        (le_of_lt (lt_of_lt_of_le zero_lt_one hbs)))
+    _ = _ := rfl
+
+theorem c_elim2_microcellDominates_of_le_denominator {A S T : ℕ → ℝ}
+    (hST : ∀ᶠ n in atTop, S n ≤ T n)
+    (hSpos : ∀ᶠ n in atTop, 0 < S n)
+    (hTpos : ∀ᶠ n in atTop, 0 < T n)
+    (hA : OAI.MicrocellScale.Dominates A T) :
+    OAI.MicrocellScale.Dominates A S := by
+  intro C hC
+  have hAt := hA C hC
+  apply tendsto_atTop_mono' atTop _ hAt
+  filter_upwards [hST, hSpos, hTpos, hAt.eventually_ge_atTop (1 : ℝ)]
+    with n hSTn hSn hTn hRatio
+  have hSpow : 0 < (S n : ℝ) ^ C := Real.rpow_pos_of_pos hSn C
+  have hTpow : 0 < (T n : ℝ) ^ C := Real.rpow_pos_of_pos hTn C
+  have hSleT : (S n : ℝ) ^ C ≤ (T n : ℝ) ^ C :=
+    Real.rpow_le_rpow (by linarith) (by exact_mod_cast hSTn) (by positivity)
+  have hApos : 0 ≤ A n := by
+    have hmul : (T n : ℝ) ^ C ≤ A n := by simpa using (le_div_iff₀ hTpow).mp hRatio
+    exact le_trans (le_of_lt hTpow) hmul
+  exact (div_le_div_iff₀ hTpow hSpow).2
+    (mul_le_mul_of_nonneg_left hSleT hApos)
+
+theorem c_elim2_microcellDominates_of_eventually_le_pow
+    {A T U : ℕ → ℝ} (q : ℕ)
+    (hA : OAI.MicrocellScale.Dominates A T)
+    (hT : ∀ᶠ n in atTop, 2 ≤ T n)
+    (hUpos : ∀ᶠ n in atTop, 0 < U n)
+    (hU : ∀ᶠ n in atTop, U n ≤ T n ^ (q + 3 : ℕ)) :
+    OAI.MicrocellScale.Dominates A U := by
+  intro C hC
+  let C' : ℝ := C * ((q + 3 : ℕ) : ℝ)
+  have hC' : 0 < C' := by dsimp [C']; positivity
+  have hAt := hA C' hC'
+  apply tendsto_atTop_mono' atTop _ hAt
+  filter_upwards [hAt.eventually_ge_atTop (1 : ℝ), hT, hUpos, hU]
+    with n hAdiv hTn hUnpos hUn
+  have hTpos : 0 < T n := by linarith
+  have hUreal : U n ≤ T n ^ ((q + 3 : ℕ) : ℝ) := by
+    rw [Real.rpow_natCast]
+    exact hUn
+  have hUto : (U n) ^ C ≤ (T n) ^ C' := by
+    calc
+      _ ≤ ((T n) ^ ((q + 3 : ℕ) : ℝ)) ^ C :=
+        Real.rpow_le_rpow (le_of_lt hUnpos) hUreal hC.le
+      _ = (T n) ^ C' := by
+        dsimp [C']
+        simpa [mul_comm] using
+          (Real.rpow_mul (le_of_lt hTpos) ((q + 3 : ℕ) : ℝ) C).symm
+  have hDen : 0 < (T n) ^ C' := Real.rpow_pos_of_pos hTpos C'
+  have hApos : 0 ≤ A n := by
+    have hmul : (T n) ^ C' ≤ A n := by simpa using (le_div_iff₀ hDen).mp hAdiv
+    exact le_trans (le_of_lt (Real.rpow_pos_of_pos hTpos C')) hmul
+  have hcomp : A n / (T n) ^ C' ≤ A n / (U n) ^ C := by
+    rw [div_eq_mul_inv, div_eq_mul_inv]
+    exact mul_le_mul_of_nonneg_left
+      ((inv_le_inv₀ hDen (Real.rpow_pos_of_pos hUnpos C)).2 hUto) hApos
+  exact hcomp
+
+theorem c_elim2_harmonicCutoffLogCondition {X W : ℕ}
+    (hW : 0 < W) (hX : 4 * W ≤ X) :
+    Real.log (X : ℝ) > (W : ℝ) / X := by
+  have hlog2 : (1 : ℝ) / 2 < Real.log 2 := by
+    have h := Real.self_sub_one_lt_mul_log (x := (2 : ℝ)) (by norm_num) (by norm_num)
+    norm_num at h ⊢ <;> nlinarith
+  have hlog4 : (1 : ℝ) < Real.log 4 := by
+    have hmul := Real.log_mul (by norm_num : (2 : ℝ) ≠ 0) (by norm_num : (2 : ℝ) ≠ 0)
+    norm_num at hmul ⊢
+    nlinarith [hmul, hlog2]
+  have hXfour : 4 ≤ X := by omega
+  have hlogX : 1 < Real.log (X : ℝ) := by
+    apply lt_of_lt_of_le hlog4
+    apply Real.log_le_log (by norm_num) (by exact_mod_cast hXfour)
+  have hXpos : (0 : ℝ) < X := by positivity
+  have hratio : (W : ℝ) / X ≤ 1 / 4 := by
+    rw [div_le_iff₀ hXpos]
+    have hcast : (4 : ℝ) * W ≤ X := by exact_mod_cast hX
+    nlinarith
+  linarith
+
+theorem c_elim2_masterScaleV_ge_primorial {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (l : Fin n) :
+    primorial (N + 1) ≤ FromArithmetic.masterScaleV A N l := by
+  have hW : primorial (N + 1) ≤ A.M N := A.Wle N
+  unfold FromArithmetic.masterScaleV
+  omega
+
+theorem c_elim2_logCutoff_dominates_gapScale {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (j : Fin m) :
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (S.core.parameters.X N (C.block j).1 : ℝ))
+      (fun N => (S.core.parameters.H N C.gap : ℝ)) := by
+  have hgapLe : ∀ N, (S.core.parameters.H N C.gap : ℝ) ≤
+      (S.core.parameters.H N (C.block j).1 : ℝ) := by
+    intro N
+    have hdiv := S.gapStage.earlier_gaps_divide N C.gap (C.block j).1
+      (C.pivots_after_gap j)
+    exact_mod_cast Nat.le_of_dvd (S.core.parameters.Hpos N (C.block j).1) hdiv
+  have hGpos : ∀ N, 0 < (S.core.parameters.H N C.gap : ℝ) := by
+    intro N
+    exact_mod_cast S.core.parameters.Hpos N C.gap
+  have hPivotPos : ∀ N, 0 < (S.core.parameters.H N (C.block j).1 : ℝ) := by
+    intro N
+    exact_mod_cast S.core.parameters.Hpos N (C.block j).1
+  exact c_elim2_microcellDominates_of_le_denominator
+    (Filter.Eventually.of_forall hgapLe)
+    (Filter.Eventually.of_forall hGpos)
+    (Filter.Eventually.of_forall hPivotPos)
+    (S.gapStage.raw_cutoff_log_dominates_gap (C.block j).1)
+
+theorem c_elim2_pivotTranslationError_superpolynomial
+    {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (j : Fin m) (d B : ℕ) :
+    SuperPolynomialSmall
+      (fun N => FromArithmetic.harmonicTranslationUniformError
+        (S.core.parameters.X N (C.block j).1) (primorial (N + 1))
+        ((d + 1) * (S.core.parameters.H N C.gap + 1) *
+          ((S.primeStage.pool N C.gap).upper +
+            FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B))
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
+  classical
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV S.core.parameters N C.gap
+  let T : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper + V N
+  let G : ℕ → ℕ := fun N => S.core.parameters.H N C.gap
+  let Hshift : ℕ → ℕ := fun N => (d + 1) * (G N + 1) * T N ^ B
+  let W : ℕ → ℕ := fun N => primorial (N + 1)
+  let Kseq : ℕ → ℕ := fun _ => 1
+  let X : ℕ → ℕ := fun N => S.core.parameters.X N (C.block j).1
+  let U : ℕ → ℕ := fun N => 2 + W N + Kseq N + Hshift N + V N
+  let Ulog : ℕ → ℕ := fun N => 2 + W N + Kseq N + V N
+  have hV : ∀ N, 2 ≤ V N := by
+    intro N
+    dsimp [V, FromArithmetic.masterScaleV]
+    omega
+  have hWleV : ∀ N, W N ≤ V N := by
+    intro N
+    exact c_elim2_masterScaleV_ge_primorial S.core.parameters N C.gap
+  have hT : ∀ N, 2 ≤ T N := by
+    intro N
+    have hVn := hV N
+    dsimp [T]
+    exact le_trans hVn
+      (Nat.le_add_left (V N) (S.primeStage.pool N C.gap).upper)
+  have hratio : Tendsto (fun N => (G N : ℝ) / (T N : ℝ)) atTop atTop := by
+    simpa [G, T, pow_one] using S.gapStage.gap_dominates_pool_and_bound C.gap
+      1 (by norm_num)
+  have hGlarge : ∀ᶠ N in atTop, max (d + 1) 2 ≤ G N := by
+    filter_upwards [hratio.eventually_ge_atTop (max (d + 1) 2 : ℝ)] with N hN
+    have hTpos : 0 < (T N : ℝ) := by exact_mod_cast (Nat.lt_of_lt_of_le (by norm_num) (hT N))
+    have hmul : (max (d + 1) 2 : ℝ) * (T N : ℝ) ≤ (G N : ℝ) :=
+      (le_div_iff₀ hTpos).mp hN
+    have hTlower : (1 : ℝ) ≤ (T N : ℝ) := by exact_mod_cast (Nat.le_trans (by norm_num) (hT N))
+    have hD : (max (d + 1) 2 : ℝ) ≤ (G N : ℝ) := by nlinarith
+    exact_mod_cast hD
+  have hGgeT : ∀ᶠ N in atTop, T N ≤ G N := by
+    filter_upwards [hratio.eventually_ge_atTop (1 : ℝ)] with N hN
+    have hTpos : 0 < (T N : ℝ) := by exact_mod_cast (Nat.lt_of_lt_of_le (by norm_num) (hT N))
+    have hmul : (1 : ℝ) * (T N : ℝ) ≤ (G N : ℝ) := (le_div_iff₀ hTpos).mp hN
+    have hmul' : (T N : ℝ) ≤ (G N : ℝ) := by simpa using hmul
+    exact_mod_cast hmul'
+  have hGge2 : ∀ᶠ N in atTop, 2 ≤ G N := by
+    filter_upwards [hGlarge] with N hN
+    exact le_trans (by omega) hN
+  have hGpos : ∀ᶠ N in atTop, 0 < (G N : ℝ) := by
+    filter_upwards [hGge2] with N hN
+    exact_mod_cast (by omega : 0 < G N)
+  have hlogDomG := c_elim2_logCutoff_dominates_gapScale S C j
+  have hlogleX : ∀ᶠ N in atTop, Real.log (X N : ℝ) ≤ (X N : ℝ) := by
+    filter_upwards [] with N
+    have hXpos : 0 < X N := by
+      dsimp [X]
+      have hcut := S.gapStage.valid_raw_cutoffs N (C.block j).1
+      have hWpos := primorial_pos (N + 1)
+      omega
+    exact Real.log_le_self (by exact_mod_cast hXpos.le)
+  have hXDomG : OAI.MicrocellScale.Dominates (fun N => (X N : ℝ))
+      (fun N => (G N : ℝ)) := by
+    exact c_elim2_microcellDominates_mono hlogleX hGpos hlogDomG
+  have hHshiftBound : ∀ᶠ N in atTop, Hshift N ≤ G N ^ (B + 3) := by
+    filter_upwards [hGlarge, hGgeT] with N hGN hGT
+    have hD : d + 1 ≤ G N := le_trans (le_max_left _ _) hGN
+    have hG1 : G N + 1 ≤ 2 * G N := by omega
+    have hG2 : 2 ≤ G N := le_trans (le_max_right _ _) hGN
+    have hTpow : T N ^ B ≤ G N ^ B := Nat.pow_le_pow_left hGT B
+    have hmult : (d + 1) * (G N + 1) * T N ^ B ≤
+        G N * (2 * G N) * G N ^ B := by
+      exact Nat.mul_le_mul (Nat.mul_le_mul hD hG1) hTpow
+    have hbase : G N * (2 * G N) * G N ^ B = 2 * G N ^ (B + 2) := by
+      rw [Nat.pow_add]
+      rw [Nat.pow_two]
+      ring
+    have hdouble : 2 * G N ^ (B + 2) ≤ G N ^ (B + 3) := by
+      rw [Nat.pow_succ]
+      calc
+        2 * G N ^ (B + 2) = G N ^ (B + 2) * 2 := by omega
+        _ ≤ G N ^ (B + 2) * G N := Nat.mul_le_mul_left _ hG2
+    exact le_trans (hmult.trans_eq hbase) hdouble
+  have hUle : ∀ᶠ N in atTop, (U N : ℝ) ≤ (G N : ℝ) ^ (B + 4 : ℕ) := by
+    filter_upwards [hGlarge, hGgeT, hHshiftBound] with N hGN hGT hHB
+    have hG : 2 ≤ G N := le_trans (by omega) hGN
+    have hGsq : 4 ≤ G N ^ 2 := by
+      calc 4 = 2 ^ 2 := by norm_num
+        _ ≤ G N ^ 2 := Nat.pow_le_pow_left hG 2
+    have hfour : 4 * G N ≤ G N ^ 3 := by
+      calc
+        4 * G N ≤ G N ^ 2 * G N := Nat.mul_le_mul_right _ hGsq
+        _ = G N ^ 3 := (Nat.pow_succ (G N) 2).symm
+    have hrest : 2 + W N + 1 + V N ≤ G N ^ 3 := by
+      have hVleT : V N ≤ T N := by
+        dsimp [T]
+        exact Nat.le_add_left (V N) (S.primeStage.pool N C.gap).upper
+      have hV' : V N ≤ G N := hVleT.trans hGT
+      have hW : W N ≤ G N := (hWleV N).trans hV'
+      have hsum : 2 + W N + 1 + V N ≤ 4 * G N := by omega
+      exact hsum.trans hfour
+    have hrestPow : 2 + W N + 1 + V N ≤ G N ^ (B + 3) := by
+      exact le_trans hrest (Nat.pow_le_pow_right (by omega) (by omega))
+    have hdouble : 2 * G N ^ (B + 3) ≤ G N ^ (B + 4) := by
+      rw [Nat.pow_succ]
+      calc
+        2 * G N ^ (B + 3) = G N ^ (B + 3) * 2 := by omega
+        _ ≤ G N ^ (B + 3) * G N := Nat.mul_le_mul_left _ hG
+    have hUnat : U N ≤ G N ^ (B + 4) := by
+      calc
+        U N = (2 + W N + 1 + V N) + Hshift N := by
+          dsimp [U, Kseq]
+          ring
+        _ ≤ G N ^ (B + 3) + G N ^ (B + 3) := Nat.add_le_add hrestPow hHB
+        _ = 2 * G N ^ (B + 3) := by ring
+        _ ≤ G N ^ (B + 4) := hdouble
+    exact_mod_cast hUnat
+  have hUlogle : ∀ᶠ N in atTop, (Ulog N : ℝ) ≤ (T N : ℝ) ^ (3 : ℕ) := by
+    filter_upwards [] with N
+    have hT2 := hT N
+    have hTsq : 4 ≤ T N ^ 2 := by
+      calc 4 = 2 ^ 2 := by norm_num
+        _ ≤ T N ^ 2 := Nat.pow_le_pow_left hT2 2
+    have hfour : 4 * T N ≤ T N ^ 3 := by
+      calc
+        4 * T N ≤ T N ^ 2 * T N := Nat.mul_le_mul_right _ hTsq
+        _ = T N ^ 3 := (Nat.pow_succ (T N) 2).symm
+    have hV' : V N ≤ T N := by
+      dsimp [T]
+      exact Nat.le_add_left (V N) (S.primeStage.pool N C.gap).upper
+    have hW : W N ≤ T N := (hWleV N).trans hV'
+    have hsum : 2 + W N + 1 + V N ≤ 4 * T N := by omega
+    have hUnat : Ulog N ≤ T N ^ 3 := by
+      dsimp [Ulog, Kseq]
+      exact hsum.trans hfour
+    exact_mod_cast hUnat
+  have hUpos : ∀ᶠ N in atTop, 0 < (U N : ℝ) := by
+    filter_upwards [] with N
+    dsimp [U]
+    positivity
+  have hUlogpos : ∀ᶠ N in atTop, 0 < (Ulog N : ℝ) := by
+    filter_upwards [] with N
+    dsimp [Ulog]
+    positivity
+  have hXDomU : OAI.MicrocellScale.Dominates (fun N => (X N : ℝ))
+      (fun N => (U N : ℝ)) :=
+    c_elim2_microcellDominates_of_eventually_le_pow (B + 1) hXDomG
+      (by filter_upwards [hGge2] with N hN; exact_mod_cast hN)
+      hUpos hUle
+  have hGgeTreal : ∀ᶠ N in atTop, (T N : ℝ) ≤ (G N : ℝ) := by
+    filter_upwards [hGgeT] with N hN
+    exact_mod_cast hN
+  have hTposreal : ∀ᶠ N in atTop, 0 < (T N : ℝ) := by
+    filter_upwards [] with N
+    exact_mod_cast (Nat.lt_of_lt_of_le (by norm_num) (hT N))
+  have hGdomT : OAI.MicrocellScale.Dominates (fun N => (G N : ℝ))
+      (fun N => (T N : ℝ)) := by
+    simpa [G, T] using S.gapStage.gap_dominates_pool_and_bound C.gap
+  have hlogDomT := c_elim2_microcellDominates_trans hlogDomG hGdomT hTposreal
+  have hlogDomUlog : OAI.MicrocellScale.Dominates (fun N => Real.log (X N : ℝ))
+      (fun N => (Ulog N : ℝ)) :=
+    c_elim2_microcellDominates_of_eventually_le_pow 0 hlogDomT
+      (Filter.Eventually.of_forall (fun N => by exact_mod_cast hT N))
+      hUlogpos hUlogle
+  let hSampleSeq : ℕ → ℕ := Hshift
+  have hK : ∀ N, 1 ≤ Kseq N := by intro N; simp [Kseq]
+  have hH : ∀ N, 1 ≤ hSampleSeq N := by
+    intro N
+    dsimp [hSampleSeq, Hshift]
+    have hTN := hT N
+    have hpow : 1 ≤ T N ^ B := Nat.one_le_pow B (T N) (by omega)
+    have hA : 1 ≤ d + 1 := by omega
+    have hG : 1 ≤ G N + 1 := by omega
+    calc
+      1 = 1 * 1 * 1 := by norm_num
+      _ ≤ (d + 1) * (G N + 1) * T N ^ B :=
+        Nat.mul_le_mul (Nat.mul_le_mul hA hG) hpow
+  have hVpos : ∀ N, 1 ≤ V N := by intro N; exact le_trans (by omega) (hV N)
+  have hW : ∀ N, W N = primorial (N + 1) := by intro N; rfl
+  have hX2 : ∀ᶠ N in atTop, 2 ≤ X N := by
+    filter_upwards [] with N
+    dsimp [X]
+    have hcut := S.gapStage.valid_raw_cutoffs N (C.block j).1
+    have hWpos := primorial_pos (N + 1)
+    omega
+  have hden : ∀ᶠ N in atTop, Real.log (X N : ℝ) > (W N : ℝ) / X N := by
+    filter_upwards [] with N
+    dsimp [X, W]
+    exact c_elim2_harmonicCutoffLogCondition (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block j).1)
+  have hSampling := FromArithmetic.sampling_asymptotics W Kseq hSampleSeq V X
+    hK hH hVpos hW hX2 hden
+    (by simpa [U, W, Kseq, hSampleSeq, Nat.cast_add, Nat.cast_one, add_assoc] using hXDomU)
+    (by simpa [Ulog, W, Kseq, Nat.cast_add, Nat.cast_one, add_assoc] using hlogDomUlog)
+  simpa [V, W, X, T, G, Hshift, hSampleSeq,
+    FromArithmetic.harmonicTranslationUniformError] using hSampling.2.1
 
 end HindmanSumsProducts
