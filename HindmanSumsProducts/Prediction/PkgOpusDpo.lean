@@ -837,6 +837,379 @@ theorem opus_dpo_stateIntegrand_shift {K sl b : ℕ} {As : Finset ℚ}
   simp only [pkgB2_stateFactor]
   rw [← opus_dpo_rowValue_shift MS T hT J0 gap direction N p o x]
 
+
+/-! ### Translation insertion: the inner bound at a regular prime tuple -/
+
+/-- Sum of the absolute values of the fixed direction integers. -/
+def opus_dpo_dirConst {b : ℕ} (T : Fin b → CubeTemplate)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) : ℕ :=
+  ∑ r : pkgB2_Nonroot T, ∑ m : Fin ((T r.1).d + 1), (direction r m).natAbs
+
+theorem opus_dpo_lift_abs_le {b : ℕ} (T : Fin b → CubeTemplate)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (r : pkgB2_Nonroot T)
+    (m : ℕ) :
+    |pkgB2_directionLift (T r.1).d (direction r) m| ≤ (opus_dpo_dirConst T direction : ℤ) := by
+  rw [Int.abs_eq_natAbs]
+  have h : (pkgB2_directionLift (T r.1).d (direction r) m).natAbs ≤
+      opus_dpo_dirConst T direction := by
+    unfold pkgB2_directionLift
+    split_ifs with hm
+    · calc
+        (direction r ⟨m, by omega⟩).natAbs ≤
+            ∑ m' : Fin ((T r.1).d + 1), (direction r m').natAbs :=
+          Finset.single_le_sum (f := fun m' => (direction r m').natAbs)
+            (fun _ _ => Nat.zero_le _) (Finset.mem_univ _)
+        _ ≤ opus_dpo_dirConst T direction :=
+          Finset.single_le_sum (f := fun r' : pkgB2_Nonroot T =>
+              ∑ m' : Fin ((T r'.1).d + 1), (direction r' m').natAbs)
+            (fun _ _ => Nat.zero_le _) (Finset.mem_univ r)
+    · simp
+  exact_mod_cast h
+
+/-- A prime-independent bound for the pivot displacement. -/
+def opus_dpo_harmBound {K sl b : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ) : ℕ :=
+  Fintype.card (pkgB2_Nonroot T) * opus_dpo_dirConst T direction *
+    (MS.core.parameters.H N B.1) ^ 2
+
+/-- A prime-independent bound for every coordinate translation error. -/
+def opus_dpo_eta {K sl b : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ) : ℝ :=
+  harmonicTranslationUniformError (MS.core.parameters.X N B.1) (primorial (N + 1))
+      (opus_dpo_harmBound MS B T direction N) +
+    ∑ k : Fin b, 2 * ((Fintype.card (pkgB2_Nonroot T) * opus_dpo_dirConst T direction : ℕ) : ℝ) /
+      max 1 (pkgB2_translationLength MS T J0 gap k N : ℝ)
+
+/-- The total insertion error bound. -/
+def opus_dpo_insertError {K sl b : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ) : ℝ :=
+  (1 + (pkgB2_blockScale MS.core.parameters B N : ℝ)) ^
+      Fintype.card (Fin (Fintype.card (pkgB2_Occurrence T ∅))) *
+    (Fintype.card (Fin (Fintype.card (pkgB2_Coord T))) * opus_dpo_eta MS B gap T J0 direction N)
+
+theorem opus_dpo_shiftS_congr {b : ℕ} (T : Fin b → CubeTemplate) (M : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (X X' : pkgB2_Coord T → ℤ) (h : ∀ r, X (.inr (r, 0)) = X' (.inr (r, 0))) :
+    opus_dpo_shiftS T M direction X = opus_dpo_shiftS T M direction X' := by
+  funext c
+  rcases c with (u | kjs) | rs <;> simp [opus_dpo_shiftS, h]
+
+/-- At a regular prime tuple, the untranslated and translated stage-`∅` inner integrals differ by
+at most `opus_dpo_insertError`. -/
+theorem opus_dpo_inner_translation {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (N : ℕ) (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (hreg : pkgB2_baseRegular MS B T J0 gap hT N p)
+    (hX2 : 2 ≤ MS.core.parameters.X N B.1)
+    (hlog : Real.log (MS.core.parameters.X N B.1 : ℝ) >
+      (primorial (N + 1) : ℝ) / (MS.core.parameters.X N B.1 : ℝ)) :
+    |(∑' x, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+          (opus_dpo_zeroTranslations T x)) -
+      ∑' x, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p x| ≤
+      opus_dpo_insertError MS B gap T J0 direction N := by
+  classical
+  set A := MS.core.parameters with hA
+  set e := pkgB2_coordEnum T with he
+  set M : Fin b → ℕ := fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k)
+    with hM
+  set W := primorial (N + 1) with hW
+  set Hi := A.H N B.1 with hHi
+  set cC : ℕ := Fintype.card (pkgB2_Nonroot T) * opus_dpo_dirConst T direction with hcC
+  set Cd : ℕ := opus_dpo_dirConst T direction with hCd
+  let law : Fin (Fintype.card (pkgB2_Coord T)) → ℤ → ℝ := fun i =>
+    pkgB2_baseCoordinateLaw MS B T J0 gap hT N p (e i)
+  let win : Fin (Fintype.card (pkgB2_Coord T)) → Finset ℤ := fun i =>
+    Sum.elim (fun _ => pkgB2_baseWindow MS B T J0 gap hT N p)
+      (fun rs => Finset.Ico (0 : ℤ) (pkgB2_translationLength MS T J0 gap rs.1.1 N : ℤ)) (e i)
+  let Tr : Finset (Fin (Fintype.card (pkgB2_Coord T))) :=
+    Finset.univ.filter fun i => (e i).isRight
+  let δ := opus_dpo_shift T M direction
+  let Φ := pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+  let G : (Fin (Fintype.card (pkgB2_Coord T)) → ℤ) → ℝ := fun w =>
+    Φ (opus_dpo_zeroTranslations T w)
+  set Bd : ℝ := (1 + (pkgB2_blockScale A B N : ℝ)) ^
+    Fintype.card (Fin (Fintype.card (pkgB2_Occurrence T ∅))) with hBd
+  set η := opus_dpo_eta MS B gap T J0 direction N with hη
+  -- regularity consequences
+  have hLpos (k : Fin b) : 0 < pkgB2_shiftLength MS T J0 gap hT N p k := hreg.2.1 k
+  have hApos (k : Fin b) : 0 < pkgB2_translationLength MS T J0 gap k N := hreg.2.2 k
+  have hLdef (k : Fin b) : pkgB2_shiftLength MS T J0 gap hT N p k =
+      A.H N (gap k) / (J0 k * M k) := rfl
+  have hGapLe (k : Fin b) : A.H N (gap k) ≤ Hi :=
+    Nat.le_of_dvd (A.Hpos N B.1) (MS.gapStage.earlier_gaps_divide N (gap k) B.1 (hgap k).2)
+  have hMle (k : Fin b) : M k ≤ Hi := by
+    have hJM : J0 k * M k ≤ A.H N (gap k) := by
+      by_contra hcon
+      have h0 : A.H N (gap k) / (J0 k * M k) = 0 := Nat.div_eq_of_lt (lt_of_not_ge hcon)
+      have := hLpos k
+      rw [hLdef k, h0] at this
+      exact lt_irrefl 0 this
+    have hMJ : M k ≤ J0 k * M k := Nat.le_mul_of_pos_left (M k) (hJ0 k)
+    exact hMJ.trans (hJM.trans (hGapLe k))
+  have hA2L (k : Fin b) :
+      pkgB2_translationLength MS T J0 gap k N ^ 2 ≤ pkgB2_shiftLength MS T J0 gap hT N p k := by
+    have h1 := pkgB2_shiftLengthFloor_le_actual MS T J0 gap hJ0 N
+      (fun k => pkgB2_repPrimeProject hT p k) hreg.1 k
+    have h2 : pkgB2_translationLength MS T J0 gap k N ^ 2 ≤ _ := Nat.sqrt_le' _
+    exact h2.trans h1
+  have hAle (k : Fin b) : pkgB2_translationLength MS T J0 gap k N ≤ Hi := by
+    have h1 : pkgB2_translationLength MS T J0 gap k N ≤
+        pkgB2_translationLength MS T J0 gap k N ^ 2 := by
+      rcases Nat.eq_zero_or_pos (pkgB2_translationLength MS T J0 gap k N) with h | h
+      · rw [h]; simp
+      · nlinarith
+    have h2 : pkgB2_shiftLength MS T J0 gap hT N p k ≤ A.H N (gap k) := by
+      rw [hLdef k]
+      exact Nat.div_le_self _ _
+    exact h1.trans ((hA2L k).trans (h2.trans (hGapLe k)))
+  have hWM (k : Fin b) : (W : ℤ) ∣ (M k : ℤ) := by
+    have : W ∣ M k := by
+      show primorial (N + 1) ∣ (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k)
+      unfold CubeTemplate.modulus directionModulus
+      exact Dvd.dvd.mul_right (MS.core.parameters.Wdiv N) _
+    exact_mod_cast this
+  -- the product law
+  have hbase : ∀ x, pkgB2_baseMass MS B T J0 gap hT N p x = ∏ i, law i (x i) := by
+    intro x
+    simp only [pkgB2_baseMass, dif_pos hreg]
+    rfl
+  have hzero : ∀ i z, z ∉ win i → law i z = 0 := by
+    intro i z hz
+    simp only [law]
+    simp only [win] at hz
+    rcases hc : e i with old | ⟨r, side⟩
+    · rw [hc] at hz
+      exact pkgB2_baseCoordinateLaw_zero_outside MS B T J0 gap hT N p (.inl old) z hz
+    · rw [hc] at hz
+      simp only [Sum.elim_inr, Finset.mem_Ico, not_and_or, not_le, not_lt] at hz
+      simp only [pkgB2_baseCoordinateLaw, FromArithmetic.uniformIntegerIntervalLaw]
+      rw [if_neg]
+      rintro ⟨h1, h2⟩
+      rcases hz with h | h <;> omega
+  have hnonneg : ∀ i z, 0 ≤ law i z := fun i z =>
+    pkgB2_baseCoordinateLaw_nonneg MS B T J0 gap hT N p (e i) z
+  have hsum : ∀ i, ∑ z ∈ win i, law i z = 1 := by
+    intro i
+    exact (tsum_eq_sum (s := win i) (fun z hz => hzero i z hz)).symm.trans
+      (pkgB2_baseCoordinateLaw_tsum_one MS B T J0 gap hT N p hreg (e i))
+  have hTr (r : pkgB2_Nonroot T) : e.symm (.inr (r, 0)) ∈ Tr := by
+    simp [Tr]
+  have hδTr : ∀ x i, i ∈ Tr → δ x i = 0 := by
+    intro x i hi
+    have hright : (e i).isRight := (Finset.mem_filter.mp hi).2
+    rcases hc : e i with old | rs
+    · rw [hc] at hright
+      simp at hright
+    · simp [δ, opus_dpo_shift, opus_dpo_shiftS, ← he, hc]
+  have hδdep : ∀ x x', (∀ i ∈ Tr, x i = x' i) → δ x = δ x' := by
+    intro x x' hxx
+    funext i
+    simp only [δ, opus_dpo_shift]
+    rw [opus_dpo_shiftS_congr T M direction _ (fun c => x' (e.symm c))
+      (fun r => hxx _ (hTr r))]
+  have hG : ∀ w, |G w| ≤ Bd := fun w =>
+    opus_dpo_stateIntegrand_abs_le MS B gap T hT J0 direction ∅ N I p _
+  -- nonnegativity of the error terms
+  have hXpos : (0 : ℝ) < (A.X N B.1 : ℝ) := by exact_mod_cast (A.Xpos N B.1)
+  have hD : 0 < (A.X N B.1 : ℝ) * (Real.log (A.X N B.1 : ℝ) - (W : ℝ) / (A.X N B.1 : ℝ)) :=
+    mul_pos hXpos (sub_pos.mpr hlog)
+  have hharm0 : 0 ≤ harmonicTranslationUniformError (A.X N B.1) W
+      (opus_dpo_harmBound MS B T direction N) := by
+    unfold harmonicTranslationUniformError
+    exact le_min (by norm_num) (div_nonneg (by positivity) hD.le)
+  have hterm0 (k : Fin b) : 0 ≤ 2 * ((cC : ℕ) : ℝ) /
+      max 1 (pkgB2_translationLength MS T J0 gap k N : ℝ) := by positivity
+  have hη0 : 0 ≤ η := by
+    simp only [hη, opus_dpo_eta]
+    exact add_nonneg hharm0 (Finset.sum_nonneg fun k _ => hterm0 k)
+  -- translation errors of single coordinates
+  have hcoord : ∀ x c, (∀ i ∈ Tr, x i ∈ win i) →
+      ∑' z, |law c (z - δ x c) - law c z| ≤ η := by
+    intro x c hx
+    have hXr (r : pkgB2_Nonroot T) : 0 ≤ x (e.symm (.inr (r, 0))) ∧
+        x (e.symm (.inr (r, 0))) < (pkgB2_translationLength MS T J0 gap r.1 N : ℤ) := by
+      have h := hx _ (hTr r)
+      simp only [win, Equiv.apply_symm_apply, Sum.elim_inr, Finset.mem_Ico] at h
+      exact h
+    rcases hc : e c with (u | ⟨k, ⟨j, side⟩⟩) | rs
+    · -- the pivot
+      have hδc : δ x c = ∑ r : pkgB2_Nonroot T,
+          pkgB2_directionLift (T r.1).d (direction r) 0 * (M r.1 : ℤ) *
+            x (e.symm (.inr (r, 0))) := by
+        simp [δ, opus_dpo_shift, opus_dpo_shiftS, ← he, hc]
+      have hlaw : law c = harmonicLaw (A.X N B.1) W := by
+        funext z
+        simp [law, hc, pkgB2_baseCoordinateLaw, hA, hW]
+      set h0 := δ x c with hh0
+      have hdiv : ∃ m : ℤ, h0 = (W : ℤ) * m := by
+        rw [hδc]
+        apply Finset.dvd_sum
+        intro r _
+        exact Dvd.dvd.mul_right (Dvd.dvd.mul_left (hWM r.1) _) _
+      have hbound : |h0| ≤ (opus_dpo_harmBound MS B T direction N : ℤ) := by
+        rw [hδc]
+        calc
+          _ ≤ ∑ r : pkgB2_Nonroot T, |pkgB2_directionLift (T r.1).d (direction r) 0 *
+              (M r.1 : ℤ) * x (e.symm (.inr (r, 0)))| := Finset.abs_sum_le_sum_abs _ _
+          _ ≤ ∑ _r : pkgB2_Nonroot T, (Cd : ℤ) * (Hi : ℤ) * (Hi : ℤ) := by
+            apply Finset.sum_le_sum
+            intro r _
+            rw [abs_mul, abs_mul]
+            have h1 := opus_dpo_lift_abs_le T direction r 0
+            have h2 : |(M r.1 : ℤ)| ≤ (Hi : ℤ) := by
+              rw [abs_of_nonneg (by positivity)]
+              exact_mod_cast hMle r.1
+            have h3 : |x (e.symm (.inr (r, 0)))| ≤ (Hi : ℤ) := by
+              rw [abs_of_nonneg (hXr r).1]
+              have := (hXr r).2
+              have h4 : (pkgB2_translationLength MS T J0 gap r.1 N : ℤ) ≤ Hi := by
+                exact_mod_cast hAle r.1
+              omega
+            exact mul_le_mul (mul_le_mul h1 h2 (abs_nonneg _) (by positivity)) h3
+              (abs_nonneg _) (by positivity)
+          _ = (opus_dpo_harmBound MS B T direction N : ℤ) := by
+            simp [opus_dpo_harmBound, Finset.sum_const, Finset.card_univ, hHi, hA]
+            ring
+      have hS := sampling_pointwise_claim (A.X N B.1) W (primorial_pos _) hX2 hlog
+      have htr := hS.translation hX2 hlog h0 hdiv
+      rw [hlaw]
+      have hbR : |(h0 : ℝ)| ≤ (opus_dpo_harmBound MS B T direction N : ℝ) := by
+        have := hbound
+        rw [← Int.cast_abs]
+        exact_mod_cast this
+      calc
+        _ = arithmeticL1 (translatedLaw (harmonicLaw (A.X N B.1) W) h0)
+            (harmonicLaw (A.X N B.1) W) := rfl
+        _ ≤ min 2 (2 * |(h0 : ℝ)| / ((A.X N B.1 : ℝ) *
+            (Real.log (A.X N B.1) - (W : ℝ) / (A.X N B.1)))) := htr
+        _ ≤ harmonicTranslationUniformError (A.X N B.1) W
+            (opus_dpo_harmBound MS B T direction N) := by
+          unfold harmonicTranslationUniformError
+          apply min_le_min_left
+          apply div_le_div_of_nonneg_right _ hD.le
+          linarith
+        _ ≤ η := by
+          simp only [hη, opus_dpo_eta]
+          linarith [Finset.sum_nonneg fun k (_ : k ∈ Finset.univ) => hterm0 k]
+    · -- an original shift coordinate
+      have hlaw : law c = FromArithmetic.uniformIntegerIntervalLaw 0
+          (pkgB2_shiftLength MS T J0 gap hT N p k) := by
+        funext z
+        simp [law, hc, pkgB2_baseCoordinateLaw]
+      have hδc : δ x c = if side = 1 then ∑ r : pkgB2_Nonroot T, (if r.1 = k then
+          pkgB2_directionLift (T r.1).d (direction r) (j.val + 1) else 0) *
+            x (e.symm (.inr (r, 0))) else 0 := by
+        simp [δ, opus_dpo_shift, opus_dpo_shiftS, ← he, hc]
+      set hk := δ x c with hhk
+      have hbound : |hk| ≤ (cC : ℤ) * (pkgB2_translationLength MS T J0 gap k N : ℤ) := by
+        rw [hδc]
+        split_ifs
+        · calc
+            _ ≤ ∑ r : pkgB2_Nonroot T, |(if r.1 = k then
+                pkgB2_directionLift (T r.1).d (direction r) (j.val + 1) else 0) *
+                  x (e.symm (.inr (r, 0)))| := Finset.abs_sum_le_sum_abs _ _
+            _ ≤ ∑ _r : pkgB2_Nonroot T,
+                (Cd : ℤ) * (pkgB2_translationLength MS T J0 gap k N : ℤ) := by
+              apply Finset.sum_le_sum
+              intro r _
+              by_cases hr : r.1 = k
+              · rw [if_pos hr, abs_mul]
+                have h1 := opus_dpo_lift_abs_le T direction r (j.val + 1)
+                have h3 : |x (e.symm (.inr (r, 0)))| ≤
+                    (pkgB2_translationLength MS T J0 gap k N : ℤ) := by
+                  rw [abs_of_nonneg (hXr r).1]
+                  have := (hXr r).2
+                  rw [hr] at this
+                  omega
+                exact mul_le_mul h1 h3 (abs_nonneg _) (by positivity)
+              · rw [if_neg hr, zero_mul, abs_zero]
+                positivity
+            _ = (cC : ℤ) * (pkgB2_translationLength MS T J0 gap k N : ℤ) := by
+              simp [Finset.sum_const, Finset.card_univ, hcC, hCd]
+              ring
+        · simp only [abs_zero]
+          positivity
+      have hL := hLpos k
+      have hint := FromArithmetic.uniform_interval_translation_bound 0 hk
+        (pkgB2_shiftLength MS T J0 gap hT N p k) hL
+      rw [hlaw]
+      have hAk := hApos k
+      have hAkR : (1 : ℝ) ≤ (pkgB2_translationLength MS T J0 gap k N : ℝ) := by
+        exact_mod_cast hAk
+      have hLR : (pkgB2_translationLength MS T J0 gap k N : ℝ) ^ 2 ≤
+          (pkgB2_shiftLength MS T J0 gap hT N p k : ℝ) := by exact_mod_cast hA2L k
+      have hbR : |(hk : ℝ)| ≤ (cC : ℝ) * (pkgB2_translationLength MS T J0 gap k N : ℝ) := by
+        rw [← Int.cast_abs]
+        exact_mod_cast hbound
+      have hmax : max 1 (pkgB2_translationLength MS T J0 gap k N : ℝ) =
+          (pkgB2_translationLength MS T J0 gap k N : ℝ) := max_eq_right hAkR
+      calc
+        _ = arithmeticL1 (translatedLaw (FromArithmetic.uniformIntegerIntervalLaw 0
+            (pkgB2_shiftLength MS T J0 gap hT N p k)) hk)
+            (FromArithmetic.uniformIntegerIntervalLaw 0
+              (pkgB2_shiftLength MS T J0 gap hT N p k)) := rfl
+        _ ≤ 2 * min 1 (|(hk : ℝ)| / (pkgB2_shiftLength MS T J0 gap hT N p k : ℝ)) := by
+          rw [Int.cast_abs] at hint
+          exact hint
+        _ ≤ 2 * (|(hk : ℝ)| / (pkgB2_shiftLength MS T J0 gap hT N p k : ℝ)) := by
+          gcongr
+          exact min_le_right _ _
+        _ ≤ 2 * ((cC : ℝ) * (pkgB2_translationLength MS T J0 gap k N : ℝ) /
+            (pkgB2_translationLength MS T J0 gap k N : ℝ) ^ 2) := by
+          gcongr
+          all_goals first | positivity | exact hbR
+        _ = 2 * ((cC : ℕ) : ℝ) / max 1 (pkgB2_translationLength MS T J0 gap k N : ℝ) := by
+          rw [hmax]
+          field_simp
+        _ ≤ ∑ k' : Fin b, 2 * ((cC : ℕ) : ℝ) /
+            max 1 (pkgB2_translationLength MS T J0 gap k' N : ℝ) :=
+          Finset.single_le_sum (f := fun k' : Fin b => 2 * ((cC : ℕ) : ℝ) /
+            max 1 (pkgB2_translationLength MS T J0 gap k' N : ℝ))
+            (fun k' _ => hterm0 k') (Finset.mem_univ k)
+        _ ≤ η := by
+          simp only [hη, opus_dpo_eta, ← hcC]
+          linarith
+    · -- a translation coordinate
+      have hδc : δ x c = 0 := hδTr x c (by simp [Tr, hc])
+      rw [hδc]
+      simp only [sub_zero, sub_self, abs_zero, tsum_zero]
+      exact hη0
+  -- apply the hybrid translation bound
+  have hhyb := opus_dpo_hybrid_translate law win hzero hnonneg hsum Tr δ hδTr hδdep G Bd hG
+    η hη0 hcoord
+  have hshiftEq : ∀ x, G (x + δ x) = Φ x := by
+    intro x
+    exact (opus_dpo_stateIntegrand_shift MS B gap T hT J0 direction N I p x).symm
+  simp only [hshiftEq] at hhyb
+  have hL : (∑' x, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+          (opus_dpo_zeroTranslations T x)) = ∑' x, (∏ i, law i (x i)) * G x := by
+    apply tsum_congr
+    intro x
+    rw [hbase]
+  have hR : (∑' x, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p x) =
+      ∑' x, (∏ i, law i (x i)) * Φ x := by
+    apply tsum_congr
+    intro x
+    rw [hbase]
+  rw [hL, hR, abs_sub_comm]
+  calc
+    _ ≤ Bd * (Fintype.card (Fin (Fintype.card (pkgB2_Coord T))) * η) := hhyb
+    _ = opus_dpo_insertError MS B gap T J0 direction N := by
+      simp only [opus_dpo_insertError, hBd, hη, hA]
+
 end
 
 end Prediction
