@@ -1784,6 +1784,52 @@ theorem c_elim2_boxRetainedProduct_insert_endpoint {α β : Type u}
     _ = _ := by
       congr 1
 
+theorem c_elim2_boxState_insert_endpoint {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β)
+    (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) :
+    c_elim2_boxStateIntegrand D (insert R E) b
+      (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁) =
+    c_elim2_boxWeightRowFactor D E R b
+      (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o t₀) *
+      ∏ bit : Fin 2, c_elim2_boxWithoutActiveRow D E R b
+        (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+          (c_elim2_boxEndpointChoice t₀ t₁ bit)) := by
+  classical
+  let oldState (bit : Fin 2) : c_elim2_ShiftCoord E → Fin (D.shiftLength b) :=
+    c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+      (c_elim2_boxEndpointChoice t₀ t₁ bit)
+  let T (bit : Fin 2) := c_elim2_boxTargetProduct D E b (oldState bit)
+  let A (bit : Fin 2) := c_elim2_boxOtherActiveProduct D E R b (oldState bit)
+  let Q (bit : Fin 2) := c_elim2_boxRetainedProduct D E b (oldState bit)
+  let Ω := c_elim2_boxWeightRowFactor D E R b
+    (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o t₀)
+  have hTA : (∏ bit : Fin 2, T bit) * (∏ bit : Fin 2, A bit) =
+      ∏ bit : Fin 2, T bit * A bit := by
+    exact (Finset.prod_mul_distrib (s := Finset.univ) (f := T) (g := A)).symm
+  have hAQ : (∏ bit : Fin 2, T bit * A bit) * (∏ bit : Fin 2, Q bit) =
+      ∏ bit : Fin 2, (T bit * A bit) * Q bit := by
+    exact (Finset.prod_mul_distrib (s := Finset.univ)
+      (f := fun bit => T bit * A bit) (g := Q)).symm
+  unfold c_elim2_boxStateIntegrand
+  rw [c_elim2_boxTargetProduct_insert_endpoint,
+    c_elim2_boxActiveProduct_insert_endpoint,
+    c_elim2_boxRetainedProduct_insert_endpoint]
+  calc
+    (∏ bit : Fin 2, T bit) * (∏ bit : Fin 2, A bit) *
+        (Ω * ∏ bit : Fin 2, Q bit) =
+      Ω * ((∏ bit : Fin 2, T bit) * (∏ bit : Fin 2, A bit) *
+        (∏ bit : Fin 2, Q bit)) := by ring
+    _ = Ω * ((∏ bit : Fin 2, T bit * A bit) *
+        (∏ bit : Fin 2, Q bit)) := by rw [hTA]
+    _ = Ω * ∏ bit : Fin 2, (T bit * A bit) * Q bit := by
+      rw [hAQ]
+    _ = Ω * ∏ bit : Fin 2, T bit * A bit * Q bit := by
+      congr 1
+    _ = Ω * ∏ bit : Fin 2, c_elim2_boxWithoutActiveRow D E R b (oldState bit) := by
+      congr 1
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
