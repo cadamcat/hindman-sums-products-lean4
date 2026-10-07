@@ -4417,6 +4417,70 @@ private theorem exceptionalPrimeLocalExcess_nonneg {q : ℕ} (p : ℕ) (hp : p.P
     linarith
   · norm_num
 
+set_option maxHeartbeats 1000000 in
+private theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
+    (coeff : Fin q → Fin d → ZMod (p ^ A))
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
+    (hsmall : ((Finset.univ : Finset (Fin q)).filter fun u => 0 < a u).card ≤ 1)
+    [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
+    normalizedKernelCount (localDivisibilityGroupHom a ha coeff).toMultiplicative = 1 := by
+  classical
+  letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
+  have hbase := local_linear_kernel_count_excess f
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  have hUle : U.card ≤ 1 := by simpa [U] using hsmall
+  by_cases hUempty : U = ∅
+  · have hzero (u : Fin q) : a u = 0 := by
+      by_contra hne
+      have hu : u ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
+      rw [hUempty] at hu
+      simp at hu
+    haveI (u : Fin q) : Subsingleton (ZMod (p ^ (a u))) := by
+      rw [hzero u]
+      infer_instance
+    haveI : Subsingleton ((u : Fin q) → ZMod (p ^ (a u))) := Pi.instSubsingleton
+    haveI : Subsingleton (Multiplicative ((u : Fin q) → ZMod (p ^ (a u)))) := inferInstance
+    have hsurj : Function.Surjective f := by
+      intro y
+      exact ⟨1, Subsingleton.elim _ _⟩
+    exact hbase.2 hsurj
+  · have hUne : U.Nonempty := Finset.nonempty_iff_ne_empty.mpr hUempty
+    have hUcard : U.card = 1 := by
+      have hpos : 0 < U.card := hUne.card_pos
+      omega
+    obtain ⟨u, hUeq⟩ := Finset.card_eq_one.mp hUcard
+    have huU : u ∈ U := by rw [hUeq]; simp
+    have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
+    have hzero (v : Fin q) (hvu : v ≠ u) : a v = 0 := by
+      by_contra hne
+      have hvU : v ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
+      have hvEq : v = u := by
+        rw [hUeq] at hvU
+        simpa using hvU
+      exact hvu hvEq
+    obtain ⟨j, hj⟩ := hrow u
+    have hupper := localKernel_upper_one_row hp a ha coeff u ⟨j, hj⟩
+    have hprod : (∏ v : Fin q, (p : ℝ) ^ (a v)) = (p : ℝ) ^ (a u) := by
+      simpa using (Finset.prod_eq_single_of_mem (s := Finset.univ) u
+        (Finset.mem_univ u) (by
+          intro v hv hvu
+          rw [hzero v hvu]
+          simp))
+    have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+    have hupperOne : normalizedKernelCount f ≤ 1 := by
+      calc
+        normalizedKernelCount f ≤
+            (∏ v, (p : ℝ) ^ (a v)) / (p : ℝ) ^ (a u) := by
+          change normalizedKernelCount
+              (localDivisibilityAddHom a ha coeff).toMultiplicative ≤ _
+          exact hupper
+        _ = 1 := by rw [hprod]; exact div_self (ne_of_gt (pow_pos hpR _))
+    exact le_antisymm hupperOne hbase.1
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
