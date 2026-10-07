@@ -253,6 +253,57 @@ theorem exists_canonical_lattice {L : Type*} [LieRing L] [LieAlgebra ℚ L]
       D.lattice D.grid D.grid_pos hheight D.inner_grid
   exact ⟨B, hB, hdiv, Λ, hcoords, hsub⟩
 
+/-- A canonical grid sublattice from one representative covers every equal-data
+instance lattice. This is the covering direction needed for the finite menu. -/
+theorem exists_canonical_cover {L M : Type*}
+    [LieRing L] [LieAlgebra ℚ L] [LieRing M] [LieAlgebra ℚ M]
+    {s d : ℕ} (D : RationalFilteredNilmanifold L s d)
+    (E : RationalFilteredNilmanifold M s d)
+    (hdata : baseData D = baseData E) :
+    ∃ φ : L ≃ₗ⁅ℚ⁆ M,
+      (∀ i, φ (D.basis i) = E.basis i) ∧
+      (∀ k a, a ∈ D.filtration.layer k ↔ φ a ∈ E.filtration.layer k) ∧
+      ∃ B : ℕ, 0 < B ∧ D.grid ∣ B ∧
+        ∃ Λ : Subgroup D.filtration.Group,
+          bchSubgroupCoordinates D.basis Λ = scaledIntegerGrid B ∧
+          Λ ≤ D.lattice ∧
+          Λ.map (NilpotentLieBCHGroup.mapOfSteps
+            (hL := D.filtration.lowerCentralSeries_eq_bot)
+            (hM := E.filtration.lowerCentralSeries_eq_bot) φ.toLieHom) ≤ E.lattice := by
+  obtain ⟨φ, hφbasis, hφlayer⟩ := exists_dataEquiv D E hdata
+  obtain ⟨B, hB, hdiv, Λ, hcoords, hΛ⟩ := exists_canonical_lattice D
+  have hgrid : D.grid = E.grid := congrArg BaseData.grid hdata
+  have hdivE : E.grid ∣ B := by simpa [hgrid] using hdiv
+  have hφcoordEq : φ.toLinearEquiv.trans E.basis.equivFun = D.basis.equivFun := by
+    apply D.basis.ext'
+    intro i
+    simp [hφbasis]
+  have hφcoord (x : L) : E.basis.equivFun (φ x) = D.basis.equivFun x := by
+    simpa using congrArg (fun e : L ≃ₗ[ℚ] (Fin d → ℚ) => e x) hφcoordEq
+  let f := NilpotentLieBCHGroup.mapOfSteps
+    (hL := D.filtration.lowerCentralSeries_eq_bot)
+    (hM := E.filtration.lowerCentralSeries_eq_bot) φ.toLieHom
+  have hfcoord (γ : D.filtration.Group) :
+      E.basis.equivFun (f γ).coord = D.basis.equivFun γ.coord := by
+    change E.basis.equivFun
+      (NilpotentLieBCHGroup.mapOfSteps
+        (hL := D.filtration.lowerCentralSeries_eq_bot)
+        (hM := E.filtration.lowerCentralSeries_eq_bot) φ.toLieHom γ).coord = _
+    rw [NilpotentLieBCHGroup.mapOfSteps_coord]
+    exact hφcoord γ.coord
+  refine ⟨φ, hφbasis, hφlayer, B, hB, hdiv, Λ, hcoords, hΛ, ?_⟩
+  intro z hz
+  rcases Subgroup.mem_map.mp hz with ⟨γ, hγ, rfl⟩
+  apply (bchSubgroupCoordinates_repr E.basis E.lattice (f γ)).mp
+  rw [hfcoord]
+  have hγcoord : D.basis.equivFun γ.coord ∈ scaledIntegerGrid B := by
+    rw [← hcoords]
+    exact (bchSubgroupCoordinates_repr D.basis Λ γ).mpr hγ
+  have hgridSubset : scaledIntegerGrid B ⊆
+      bchSubgroupCoordinates E.basis E.lattice := by
+    exact (scaledIntegerGrid_subset_of_dvd hdivE).trans E.inner_grid
+  exact hgridSubset hγcoord
+
 /-- Pull a bounded niltest back to a canonical finite-index coordinate model,
 rotate its observable, and take its real part.  The orbit identity is the
 interface consumed by the linearization and menu construction (IB.c4). -/
