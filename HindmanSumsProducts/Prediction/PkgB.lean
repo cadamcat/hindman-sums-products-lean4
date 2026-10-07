@@ -682,6 +682,30 @@ private theorem momentRowCoeffInt_shift_formula {K sl : ℕ} {As : Finset ℚ}
           simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hj]
       · simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hk, eq_comm]
 
+private theorem momentRowCoeffInt_shift_formula_one {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate)
+    (l : Fin K) (N : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (u : Fin (Fintype.card (MomentRowIndex b T.d))) (k : Fin b) (j : Fin T.d) :
+    momentRowCoeffInt MS b T l N p u
+      ((momentBaseEnum b T.d).symm (.inr (k, (j, (1 : Fin 2)))) ) =
+      if (k, j) ∈ momentRowSupport (momentRowEnum b T.d u) then
+        (momentModulus MS b T l N p k : ℤ) else 0 := by
+  classical
+  have hbase := (momentBaseEnum b T.d).apply_symm_apply
+    (.inr (k, (j, (1 : Fin 2))))
+  cases hrow : momentRowEnum b T.d u with
+  | inl _ =>
+      simp [momentRowCoeffInt, momentRowSupport, hbase, hrow]
+  | inr row =>
+      rcases row with ⟨k', ω⟩
+      by_cases hk : k = k'
+      · subst k'
+        by_cases hj : j ∈ ω.1 <;>
+          simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hj]
+      · simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hk, eq_comm]
+
 private theorem momentRowSupport_exists_symmetric_difference {b d : ℕ}
     {u v : MomentRowIndex b d} (huv : u ≠ v) :
     ∃ x, (x ∈ momentRowSupport u ∧ x ∉ momentRowSupport v) ∨
@@ -1156,6 +1180,100 @@ private theorem momentLinearRowValue_den_eq_one {K sl : ℕ} {As : Finset ℚ}
     (linearRowValue (momentRowCoeff MS b T l) N p u x).den = 1 := by
   rw [momentLinearRowValue_eq_castInt]
   simp only [Rat.den_intCast]
+
+private theorem momentLinearRowValue_baseEncode {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate) (l : Fin K)
+    (N : ℕ) (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (k : Fin b) (ω : Finset (Fin T.d)) (hω : ω.Nonempty)
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    linearRowValue (momentRowCoeff MS b T l) N p
+      ((momentRowEnum b T.d).symm (.inr (k, ⟨ω, hω⟩))) (momentBaseEncode y u) =
+      ((y + (momentModulus MS b T l N p k : ℤ) *
+        ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0)) : ℚ) := by
+  classical
+  let row := (momentRowEnum b T.d).symm (.inr (k, ⟨ω, hω⟩))
+  let root := (momentBaseEnum b T.d).symm (.inl ())
+  have hsum :
+      (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) =
+      ∑ v : MomentBaseIndex b T.d,
+        momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm v) := by
+    exact Fintype.sum_equiv (momentBaseEnum b T.d)
+      (fun i => momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i)
+      (fun v => momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm v)) (by intro i; simp)
+  have hrootCoeff : momentRowCoeffInt MS b T l N p row root = 1 := by
+    simp [row, root, momentRowCoeffInt]
+  have hcoord (k' : Fin b) (j' : Fin T.d) :
+      (∑ side : Fin 2,
+        momentRowCoeffInt MS b T l N p row
+            ((momentBaseEnum b T.d).symm (.inr (k', (j', side)))) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inr (k', (j', side))))) =
+      if (k', j') ∈ momentRowSupport (.inr (k, ⟨ω, hω⟩)) then
+        (momentModulus MS b T l N p k : ℤ) *
+          ((u k j' 1 : ℤ) - u k j' 0) else 0 := by
+    have h0 := momentRowCoeffInt_shift_formula MS b T l N p row k' j'
+    have h1 := momentRowCoeffInt_shift_formula_one MS b T l N p row k' j'
+    have hrow : momentRowEnum b T.d row = .inr (k, ⟨ω, hω⟩) := by simp [row]
+    rw [hrow] at h0 h1
+    by_cases hcond : k' = k ∧ j' ∈ ω
+    · rcases hcond with ⟨rfl, hj⟩
+      simp [Fin.sum_univ_succ, h0, h1, hj, momentBaseEncode_shift, momentRowSupport]
+      ring
+    · simp [Fin.sum_univ_succ, h0, h1, hcond, momentBaseEncode_shift, momentRowSupport]
+  rw [momentLinearRowValue_eq_castInt]
+  have hInt :
+    (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) =
+      y + (momentModulus MS b T l N p k : ℤ) *
+        ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0) := by
+    rw [hsum]
+    simp only [MomentBaseIndex, Fintype.sum_sum_type, Fintype.sum_prod_type]
+    have hrootEncode (a : Unit) :
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a)) = y := by
+      cases a
+      exact momentBaseEncode_root y u
+    have hrootIndex (a : Unit) : (momentBaseEnum b T.d).symm (.inl a) = root := by
+      cases a
+      rfl
+    have hrootCoeffAll (a : Unit) :
+        momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm (.inl a)) = 1 := by
+      rw [hrootIndex]
+      exact hrootCoeff
+    have hrootSum :
+        (∑ a : Unit,
+          momentRowCoeffInt MS b T l N p row
+            ((momentBaseEnum b T.d).symm (.inl a)) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a))) = y := by
+      simp [hrootCoeffAll, hrootEncode]
+    rw [hrootSum]
+    simp_rw [hcoord]
+    simp only [momentRowSupport, Finset.mem_filter, Finset.mem_univ, true_and]
+    have hsumShift :
+        (∑ k' : Fin b, ∑ j' : Fin T.d,
+          if k' = k ∧ j' ∈ ω then
+            (momentModulus MS b T l N p k : ℤ) *
+              ((u k j' 1 : ℤ) - u k j' 0) else 0) =
+        (momentModulus MS b T l N p k : ℤ) *
+          ∑ j' ∈ ω, ((u k j' 1 : ℤ) - u k j' 0) := by
+      rw [Finset.sum_comm]
+      calc
+        _ = ∑ j' : Fin T.d,
+            if j' ∈ ω then
+              (momentModulus MS b T l N p k : ℤ) *
+                ((u k j' 1 : ℤ) - u k j' 0) else 0 := by
+          apply Finset.sum_congr rfl
+          intro j' hj'
+          by_cases hj : j' ∈ ω <;> simp [hj]
+        _ = ∑ j' ∈ ω,
+            (momentModulus MS b T l N p k : ℤ) *
+              ((u k j' 1 : ℤ) - u k j' 0) := by
+          simp [Finset.sum_filter]
+        _ = _ := by rw [Finset.mul_sum]
+    rw [hsumShift]
+  exact_mod_cast hInt
 
 theorem clip_eq_self_of_abs_le (K x : ℝ) (hx : |x| ≤ K) :
     clip K x = x := by
