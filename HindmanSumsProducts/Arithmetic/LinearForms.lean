@@ -655,7 +655,7 @@ def integerResidue (K : ℕ) (hK : 0 < K) (z : ℤ) : Fin K := by
   exact Nat.cast_lt.mp (by rw [hcast]; exact hzlt)
 
 private theorem integerResidue_finEquiv {K : ℕ} (hK : 0 < K) (z : ℤ) :
-    ZMod.finEquiv K (integerResidue K hK z) = (z : ZMod K) := by
+    (@ZMod.finEquiv K ⟨Nat.ne_of_gt hK⟩) (integerResidue K hK z) = (z : ZMod K) := by
   classical
   cases K with
   | zero => omega
@@ -847,7 +847,10 @@ private theorem localClearedRows_fromData {n q d b m : ℕ} {Aset : Finset ℚ}
   have hdenP (u : Fin q) (j : Fin d) : Nat.Coprime (rows u j).den p := by
     exact D.row_denominators_are_units N slots hgood p hp hrough hpV u j
   have hdenPow (u : Fin q) (j : Fin d) : Nat.Coprime (rows u j).den (p ^ A) := by
-    exact (Nat.coprime_pow_right A (hdenP u j))
+    by_cases hA : A = 0
+    · simp [hA]
+    · rw [Nat.coprime_pow_right_iff (Nat.pos_of_ne_zero hA)]
+      exact hdenP u j
   let ratCoeff : Fin q → Fin d → ZMod (p ^ A) :=
     rationalRowsModPow (p := p) (A := A) rows hdenP
   let clearedCoeff : Fin q → Fin d → ZMod (p ^ A) := fun u j =>
@@ -4678,7 +4681,7 @@ theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
     (hsmall : ((Finset.univ : Finset (Fin q)).filter fun u => 0 < a u).card ≤ 1)
     [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
     [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
-    normalizedKernelCount (localDivisibilityGroupHom a ha coeff).toMultiplicative = 1 := by
+    normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative = 1 := by
   classical
   letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
   letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
@@ -4694,7 +4697,8 @@ theorem localKernel_eq_one_of_atMostOnePositive {p A q d : ℕ}
       simp at hu
     haveI (u : Fin q) : Subsingleton (ZMod (p ^ (a u))) := by
       rw [hzero u]
-      infer_instance
+      rw [pow_zero]
+      exact (ZMod.subsingleton_iff).2 rfl
     haveI : Subsingleton ((u : Fin q) → ZMod (p ^ (a u))) := Pi.instSubsingleton
     haveI : Subsingleton (Multiplicative ((u : Fin q) → ZMod (p ^ (a u)))) := inferInstance
     have hsurj : Function.Surjective f := by
@@ -4740,7 +4744,9 @@ private theorem localKernel_regularExcess_bound {p A q d : ℕ}
     (coeff : Fin q → Fin d → ZMod (p ^ A))
     (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
     (hminor : ∀ u v, u ≠ v → ∃ i j,
-      IsUnit (coeff u i * coeff v j - coeff u j * coeff v i)) :
+      IsUnit (coeff u i * coeff v j - coeff u j * coeff v i))
+    [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
     normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
       1 + regularPrimeLocalExcess p a := by
   classical
@@ -4812,16 +4818,19 @@ private theorem localKernel_regularExcess_bound {p A q d : ℕ}
       _ ≤ 1 + regularPrimeLocalExcess p a := by
         rw [← htermVal]
         nlinarith [htermLE]
-  · have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
-      simpa [U] using (Nat.le_of_not_ge hlarge))
+  · have hsmall : U.card ≤ 1 := by omega
+    have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
+      simpa [U] using hsmall)
     rw [hEq]
-    exact add_le_add_left (regularPrimeLocalExcess_nonneg p hp a) 1
+    linarith [regularPrimeLocalExcess_nonneg p hp a]
 
 set_option maxHeartbeats 1000000 in
 private theorem localKernel_exceptionalExcess_bound {p A q d : ℕ}
     (hp : p.Prime) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
     (coeff : Fin q → Fin d → ZMod (p ^ A))
-    (hrow : ∀ u, ∃ j, IsUnit (coeff u j)) :
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j))
+    [Fintype (Multiplicative (Fin d → ZMod (p ^ A)))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (p ^ (a u))))] :
     normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
       1 + exceptionalPrimeLocalExcess p a := by
   classical
@@ -4830,10 +4839,11 @@ private theorem localKernel_exceptionalExcess_bound {p A q d : ℕ}
   let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
   let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
   by_cases hUempty : U = ∅
-  · have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
-      simp [U, hUempty])
+  · have hsmall : U.card ≤ 1 := by simp [U, hUempty]
+    have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
+      simpa [U] using hsmall)
     rw [hEq]
-    exact add_le_add_left (exceptionalPrimeLocalExcess_nonneg p hp a) 1
+    linarith [exceptionalPrimeLocalExcess_nonneg p hp a]
   · have hUne : U.Nonempty := Finset.nonempty_iff_ne_empty.mpr hUempty
     obtain ⟨u, huU, huMax⟩ := Finset.exists_max_image U a hUne
     have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
@@ -5424,6 +5434,12 @@ private theorem uniformUnitTupleProbability_le_one {p m : ℕ} (hp : p.Prime)
       by_cases hE : E x <;> simp [hE, hmassNonneg x]
     _ = 1 := uniformUnitTupleMass_total p m hp.pos
 
+private theorem if_decidable_irrel (P : Prop) (d₁ d₂ : Decidable P) (a b : ℝ) :
+    @ite ℝ P d₁ a b = @ite ℝ P d₂ a b := by
+  have h : d₁ = d₂ := Subsingleton.elim _ _
+  cases h
+  rfl
+
 private theorem uniformUnitTuple_testBad_probability_bound {p m : ℕ}
     (hp : p.Prime) (tests : Finset (IntegerPolynomial m))
     (htests : ∀ Q ∈ tests, Q ≠ 0) (B : ℕ) (hB : 0 < B)
@@ -5500,8 +5516,14 @@ private theorem uniformUnitTuple_testBad_probability_bound {p m : ℕ}
                           (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x then
                           (1 : ℝ) else 0 := hsingle
                 · simp [h]
-              convert mul_le_mul_of_nonneg_left hindicator hmassNonneg using 1 <;>
-                exact Subsingleton.elim _ _
+              have hmul := mul_le_mul_of_nonneg_left hindicator hmassNonneg
+              let P : Prop := (fun y : Fin m → Fin p => ∃ Q ∈ tests,
+                (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (y i).val)) x
+              have hite : @ite ℝ P (inferInstance : Decidable P) 1 0 =
+                  @ite ℝ P (Classical.propDecidable P) 1 0 :=
+                if_decidable_irrel P _ _ _ _
+              rw [hite] at hmul
+              exact hmul
         _ = ∑ x : Fin m → Fin p, ∑ Q ∈ tests,
               uniformUnitTupleMass p m x *
                 (if (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val) then
@@ -5529,7 +5551,11 @@ private theorem uniformUnitTuple_testBad_probability_bound {p m : ℕ}
               intro Q hQ
               apply Finset.sum_congr rfl
               intro x hx
-              convert rfl using 1 <;> exact Subsingleton.elim _ _
+              let P : Prop := (p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (x i).val)
+              have hite : @ite ℝ P (inferInstance : Decidable P) 1 0 =
+                  @ite ℝ P (Classical.propDecidable P) 1 0 :=
+                if_decidable_irrel P _ _ _ _
+              rw [hite]
     have hdegreeSum :
         (∑ Q ∈ tests, (Q.totalDegree : ℝ)) ≤
           ((tests.card : ℝ) * (B : ℝ)) := by
@@ -5715,6 +5741,85 @@ private theorem uniformCRTTestBad_probability_bound {m w V : ℕ}
       simpa [E, Function.comp_apply] using hmarg
     _ ≤ 2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / (p.val : ℝ) :=
       uniformUnitTuple_testBad_probability_bound hp tests htests B hB hsize
+
+private def comparisonPrimeValuationWeight {q b : ℕ} (p : ℕ)
+    (a : Fin q → ℕ) : ℝ :=
+  ∏ u, (((a u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a u))
+
+private theorem comparisonPrimeValuation_regularTerm_le {p q b : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (u v : Fin q) (huv : u ≠ v)
+    (hcond : 1 ≤ a v ∧ a v ≤ a u ∧ ∀ w, w ≠ u → a w ≤ a v) :
+    comparisonPrimeValuationWeight (b := b) p a *
+        ((p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1) ≤
+      ((a u + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (a u + a v) := by
+  classical
+  let total : ℕ := ∑ w, a w
+  have hpairSum : a u + a v ≤ total := rowValuationPair_le_sum a u v huv
+  have hpowExponent : (∑ w, a w) - a u - a v = total - (a u + a v) := by
+    dsimp [total]
+    omega
+  have htop (w : Fin q) : a w ≤ a u := by
+    by_cases hwu : w = u
+    · subst w
+      exact le_rfl
+    · exact (hcond.2.2 w hwu).trans hcond.2.1
+  have hpoly :
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) ≤
+        ((a u + 1 : ℕ) : ℝ) ^ (b * q) := by
+    calc
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) ≤
+          ∏ _w : Fin q, ((a u + 1 : ℕ) : ℝ) ^ b := by
+            exact finset_prod_le_prod_of_nonneg Finset.univ
+              (fun w => ((a w + 1 : ℕ) : ℝ) ^ b)
+              (fun _ => ((a u + 1 : ℕ) : ℝ) ^ b)
+              (by intro w hw; positivity)
+              (by intro w hw; positivity)
+              (by
+                intro w hw
+                gcongr
+                exact htop w)
+      _ = ((a u + 1 : ℕ) : ℝ) ^ (b * q) := by
+            simp [Finset.prod_const, Fintype.card_fin, pow_mul]
+  have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+  have hpowPos : 0 < (p : ℝ) ^ (total - (a u + a v)) := by positivity
+  have hpowOne : (1 : ℝ) ≤ (p : ℝ) ^ (total - (a u + a v)) :=
+    one_le_pow₀ (by exact_mod_cast hp.one_le)
+  have hpowFactor : (p : ℝ) ^ total =
+      (p : ℝ) ^ (a u + a v) * (p : ℝ) ^ (total - (a u + a v)) := by
+    have hexp : a u + a v + (total - (a u + a v)) = total := by omega
+    calc
+      (p : ℝ) ^ total = (p : ℝ) ^ (a u + a v + (total - (a u + a v))) := by rw [hexp]
+      _ = (p : ℝ) ^ (a u + a v) * (p : ℝ) ^ (total - (a u + a v)) := by rw [pow_add]
+  have hweight : comparisonPrimeValuationWeight (b := b) p a =
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) / (p : ℝ) ^ total := by
+    unfold comparisonPrimeValuationWeight
+    rw [Finset.prod_div_distrib, Finset.prod_pow_eq_pow_sum]
+  have hcancel :
+      ((p : ℝ) ^ (total - (a u + a v)) - 1) / (p : ℝ) ^ total =
+        (1 - ((p : ℝ) ^ (total - (a u + a v)))⁻¹) /
+          (p : ℝ) ^ (a u + a v) := by
+    rw [hpowFactor]
+    field_simp [ne_of_gt hpR, ne_of_gt hpowPos]
+  have hfactorBound :
+      ((p : ℝ) ^ (total - (a u + a v)) - 1) / (p : ℝ) ^ total ≤
+        1 / (p : ℝ) ^ (a u + a v) := by
+    rw [hcancel]
+    have hnonneg : 0 ≤ ((p : ℝ) ^ (total - (a u + a v)))⁻¹ := by positivity
+    have hle : 1 - ((p : ℝ) ^ (total - (a u + a v)))⁻¹ ≤ 1 := by linarith
+    exact mul_le_mul_of_nonneg_right hle (by positivity)
+  calc
+    comparisonPrimeValuationWeight p a *
+        ((p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1) =
+        (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) *
+          (((p : ℝ) ^ (total - (a u + a v)) - 1) / (p : ℝ) ^ total) := by
+          rw [hweight, hpowExponent]
+          ring
+    _ ≤ ((a u + 1 : ℕ) : ℝ) ^ (b * q) /
+          (p : ℝ) ^ (a u + a v) := by
+          exact (mul_le_mul hpoly hfactorBound (by positivity) (by positivity)).trans_eq
+            (by ring)
+    _ = ((a u + 1 : ℕ) : ℝ) ^ (b * q) /
+          (p : ℝ) ^ (a u + a v) := rfl
 
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
