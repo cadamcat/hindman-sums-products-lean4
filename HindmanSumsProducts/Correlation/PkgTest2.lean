@@ -4921,6 +4921,20 @@ def c_test2_rowWeightedCoeff {K s m q r : ℕ}
       chainScale S.core.parameters C a N (Sh.row u).anchor *
     (Sh.row u).value (fun i => p (ι i)) j
 
+theorem c_test2_rowWeighted_linearRowValue_eq {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ι : Fin q ↪ Fin s) (Sh : RowShape m q r)
+    (N : ℕ) (p : Fin s → ℕ) (u : Fin r) (x : Fin m → ℤ) :
+    FromArithmetic.linearRowValue
+      (c_test2_rowWeightedCoeff S C a ι Sh) N p u x =
+    rowForm (chainScale S.core.parameters C a N) (Sh.row u)
+      (fun i => p (ι i)) (fun k => (x k : ℚ)) := by
+  unfold FromArithmetic.linearRowValue rowForm c_test2_rowWeightedCoeff
+  apply Finset.sum_congr rfl
+  intro k hk
+  ring
+
 theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
@@ -5542,6 +5556,99 @@ theorem c_test2_constantPrimePoolAverage_cylinder {q s : ℕ}
     rw [hmass]
     simp [hcoordL]
   exact hPair.symm.trans hFull.symm
+
+theorem c_test2_gapSlotAverage_cylinder {K s q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ)
+    (ι : Fin q ↪ Fin s)
+    (hpos : 0 < primePoolMass (S.primeStage.pool N l).lower
+      (S.primeStage.pool N l).upper)
+    (F : (Fin q → ℕ) → ℝ) :
+    gapSlotAverage S l N F =
+    ∑' p : Fin s → ℕ,
+        independentPrimePoolMass
+          (fun _ : Fin s => (S.primeStage.pool N l).lower)
+          (fun _ => (S.primeStage.pool N l).upper) p *
+          F (fun i => p (ι i)) := by
+  change c_test2_constantPrimePoolAverage
+      (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper F =
+    c_test2_constantPrimePoolAverage
+      (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper
+        (fun p => F (fun i => p (ι i)))
+  exact c_test2_constantPrimePoolAverage_cylinder ι
+    (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper hpos F
+
+theorem c_test2_gapSlotProbability_cylinder {K s q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ)
+    (ι : Fin q ↪ Fin s)
+    (hpos : 0 < primePoolMass (S.primeStage.pool N l).lower
+      (S.primeStage.pool N l).upper)
+    (E : (Fin q → ℕ) → Prop) :
+    gapSlotProbability S l N E =
+    independentPrimePoolProbability
+        (fun _ : Fin s => (S.primeStage.pool N l).lower)
+        (fun _ => (S.primeStage.pool N l).upper)
+        (fun p => E (fun i => p (ι i))) := by
+  calc
+    gapSlotProbability S l N E =
+        gapSlotAverage S l N (fun p => if E p then 1 else 0) := by
+          rfl
+    _ = ∑' p : Fin s → ℕ,
+          independentPrimePoolMass
+            (fun _ : Fin s => (S.primeStage.pool N l).lower)
+            (fun _ => (S.primeStage.pool N l).upper) p *
+            (if E (fun i => p (ι i)) then 1 else 0) :=
+      c_test2_gapSlotAverage_cylinder S l N ι hpos
+        (fun p => if E p then 1 else 0)
+    _ = _ := by
+      rfl
+
+theorem c_test2_parameterTailProductLaw_empty {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N σ : ℕ)
+    (hNorm : ∀ i, 0 < harmonicNormalizer (A.X N i) (primorial (N + 1))) :
+    FromArithmetic.parameterTailProductLaw A N ∅ σ =
+      if σ = 1 then 1 else 0 := by
+  classical
+  let μ : Fin n → ℕ → ℝ := fun i t =>
+    harmonicNatLaw (A.X N i) (primorial (N + 1)) t
+  let support : Fin n → Finset ℕ := fun i => Finset.Ico (A.X N i) ((A.X N i) ^ 2)
+  have hzero : ∀ i t, t ∉ support i → μ i t = 0 := by
+    intro i t ht
+    by_contra hne
+    have hcond : A.X N i ≤ t ∧ t < (A.X N i) ^ 2 ∧
+        Nat.Coprime t (primorial (N + 1)) := by
+      by_contra h
+      have hz : harmonicNatLaw (A.X N i) (primorial (N + 1)) t = 0 := by
+        simp [harmonicNatLaw, h]
+      exact hne (by simpa [μ] using hz)
+    apply ht
+    exact Finset.mem_Ico.mpr ⟨hcond.1, hcond.2.1⟩
+  have hsum : ∀ i, ∑' t : ℕ, μ i t = 1 := by
+    intro i
+    exact c_test2_harmonicNatLaw_tsum_one_of_normalizer_pos
+      (A.X N i) (primorial (N + 1)) (A.Xpos N i) (hNorm i)
+  have hmass : ∑' t : Fin n → ℕ, ∏ i, μ i (t i) = 1 :=
+    c_test2_productMass_tsum_one μ support hzero hsum
+  unfold FromArithmetic.parameterTailProductLaw
+  by_cases hσ : σ = 1
+  · subst σ
+    simpa [Finset.prod_empty, μ] using hmass
+  · have hne : 1 ≠ σ := fun h => hσ h.symm
+    simp [Finset.prod_empty, hne, hσ]
+
+theorem c_test2_nuB_parameterTailProductLaw_empty {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (hNorm : ∀ i, 0 < harmonicNormalizer (A.X N i) (primorial (N + 1)))
+    (y : ℤ) :
+    nuB (FromArithmetic.parameterTailProductLaw A N ∅) y = 1 := by
+  classical
+  unfold nuB
+  simp_rw [c_test2_parameterTailProductLaw_empty A N _ hNorm]
+  rw [tsum_eq_single 1]
+  · simp [Int.one_dvd]
+  · intro σ hσ
+    simp [hσ, eq_comm]
 noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
@@ -5796,5 +5903,1036 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
         (fun i => c_test2_samplingResidueError_superpoly S C i r)
     simpa [epsilonBase, V] using hsmall
   · simpa [epsilonCRT, V] using c_test2_masterCRT_error_superpoly S C.gap
+
+noncomputable def c_test2_subsetRowEventAverage {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (I : Finset (Fin r))
+    (N : ℕ) (E : (Fin q → ℕ) → Prop) : ℝ :=
+  gapSlotAverage S C.gap N fun p => if E p then
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+      ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+          (fun k => (z k : ℚ))) else 0
+
+theorem c_test2_weightedSubsetEventIdentity {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (ι : Fin q ↪ Fin s) (tests : Finset (IntegerPolynomial q))
+    (included : Finset (Fin r))
+    (hlisted : TestsListed Dm ι tests)
+    (hPrimitive : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        ∀ u, ∃ j,
+          FromArithmetic.rationalResidue r' hr
+            (c_test2_rowWeightedCoeff S C a ι Sh N p u j) ≠ 0)
+    (hPairwise : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        (∀ Q ∈ Dm, ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+        ∀ u v, u ≠ v → ∃ i j,
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v j) ≠
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v i))
+    (N : ℕ) (hScale : c_test2_ScaleData S C a N)
+    (hPool : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+      (S.primeStage.pool N C.gap).lower)
+    (hMass : 0 < primePoolMass
+      (S.primeStage.pool N C.gap).lower (S.primeStage.pool N C.gap).upper)
+    (E : (Fin q → ℕ) → Prop) :
+    FromArithmetic.weightedLinearFormsAverage
+      (c_test2_weightedRowData (Sh := Sh) S C a dirs ι tests included hlisted
+          hPrimitive hPairwise)
+        N
+        (fun p => c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p ∧
+          E (fun i => p (ι i))) =
+      c_test2_subsetRowEventAverage S C a Sh included N E := by
+  classical
+  let D := c_test2_weightedRowData (Sh := Sh) S C a dirs ι tests included hlisted
+    hPrimitive hPairwise
+  let tail : Fin r → Finset (Fin K) :=
+    fun R => (C.block (Sh.row R).anchor).2.val
+  let inner (p : Fin q → ℕ) : ℝ :=
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+      ∏ R ∈ included, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+          (fun k => (z k : ℚ)))
+  let innerFull (p : Fin s → ℕ) : ℝ :=
+    ∑' z : Fin m → ℤ, D.baseMass N p z *
+      ∏ R, nuB
+        (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R))
+        (FromArithmetic.linearRowValue D.rowCoeff N p R z).num
+  have hnormAll (i : Fin K) :
+      0 < harmonicNormalizer (S.core.parameters.X N i) (primorial (N + 1)) :=
+    c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N i)
+  have hDivisor (R : Fin r) :
+      D.divisor R =
+        c_test2_divisorTemplateOfTail (if R ∈ included then tail R else ∅) := by
+    rfl
+  have hdivLaw (R : Fin r) :
+      FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R) =
+        fun σ => if R ∈ included then
+          FromArithmetic.parameterTailProductLaw S.core.parameters N (tail R) σ
+        else FromArithmetic.parameterTailProductLaw S.core.parameters N ∅ σ := by
+    funext σ
+    by_cases hR : R ∈ included
+    · simpa [hDivisor R, hR] using
+        c_test2_divisorTemplateLaw_eq_parameterTailProductLaw
+          S.core.parameters N (tail R) hnormAll σ
+    · simpa [hDivisor R, hR] using
+        c_test2_divisorTemplateLaw_eq_parameterTailProductLaw
+          S.core.parameters N ∅ hnormAll σ
+  have hrow (p : Fin s → ℕ) (R : Fin r) (z : Fin m → ℤ) :
+      FromArithmetic.linearRowValue D.rowCoeff N p R z =
+        rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+          (fun i => p (ι i)) (fun k => (z k : ℚ)) := by
+    simpa [D, c_test2_weightedRowData] using
+      c_test2_rowWeighted_linearRowValue_eq S C a ι Sh N p R z
+  let Efull : (Fin s → ℕ) → Prop := fun p =>
+    D.goodDomain N p ∧ E (fun i => p (ι i))
+  have hweight (p : Fin s → ℕ) (z : Fin m → ℤ)
+      (hgood : D.goodDomain N p) (hz : D.baseMass N p z ≠ 0) (R : Fin r) :
+      nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R))
+          (FromArithmetic.linearRowValue D.rowCoeff N p R z).num =
+        if R ∈ included then
+          atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ)))
+        else 1 := by
+    have hden : (FromArithmetic.linearRowValue D.rowCoeff N p R z).den = 1 :=
+      D.row_integer_on_support N p z hgood hz R
+    have hrowDen :
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+          (fun i => p (ι i)) (fun k => (z k : ℚ))).den = 1 := by
+      rw [← hrow p R z]
+      exact hden
+    have hnum :
+        ((FromArithmetic.linearRowValue D.rowCoeff N p R z).num : ℚ) =
+          rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i)) (fun k => (z k : ℚ)) := by
+      calc
+        _ = FromArithmetic.linearRowValue D.rowCoeff N p R z :=
+          Rat.coe_int_num_of_den_eq_one hden
+        _ = _ := hrow p R z
+    by_cases hR : R ∈ included
+    · rw [hdivLaw R]
+      simp only [if_pos hR]
+      have hnumCast :
+          ((FromArithmetic.linearRowValue D.rowCoeff N p R z).num : ℚ) =
+            ((rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))).num : ℚ) := by
+        calc
+          ((FromArithmetic.linearRowValue D.rowCoeff N p R z).num : ℚ) =
+              FromArithmetic.linearRowValue D.rowCoeff N p R z :=
+            Rat.coe_int_num_of_den_eq_one hden
+          _ = rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ)) := hrow p R z
+          _ = ((rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))).num : ℚ) :=
+            (Rat.coe_int_num_of_den_eq_one hrowDen).symm
+      have hnumEq :
+          (FromArithmetic.linearRowValue D.rowCoeff N p R z).num =
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))).num := by
+        exact_mod_cast hnumCast
+      rw [hnumEq]
+      have htail : tail R = (C.block (Sh.row R).anchor).2.val := rfl
+      rw [htail, chainWeight]
+      simp [atQ, hrowDen]
+    · rw [hdivLaw R]
+      simp only [if_neg hR]
+      rw [c_test2_nuB_parameterTailProductLaw_empty
+        S.core.parameters N hnormAll (FromArithmetic.linearRowValue D.rowCoeff N p R z).num]
+  have hinnerFull (p : Fin s → ℕ) (hgood : D.goodDomain N p) :
+      innerFull p = inner (fun i => p (ι i)) := by
+    unfold innerFull inner
+    apply tsum_congr
+    intro z
+    have hbase : D.baseMass N p z = pivotMass S.core.parameters C N z := by rfl
+    by_cases hz : pivotMass S.core.parameters C N z = 0
+    · simp [hbase, hz]
+    · rw [hbase]
+      simp_rw [hweight p z hgood (by simpa [hbase] using hz)]
+      simp
+  have houter :
+      FromArithmetic.weightedLinearFormsAverage D N Efull =
+        ∑' p : Fin s → ℕ,
+          independentPrimePoolMass
+            (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+            (fun _ => (S.primeStage.pool N C.gap).upper) p *
+          (if E (fun i => p (ι i)) then inner (fun i => p (ι i)) else 0) := by
+    unfold FromArithmetic.weightedLinearFormsAverage Efull
+    apply tsum_congr
+    intro p
+    have hmassEq :
+        independentPrimePoolMass
+          (fun i => (S.primeStage.pool N (D.gap i)).lower)
+          (fun i => (S.primeStage.pool N (D.gap i)).upper) p =
+        independentPrimePoolMass
+          (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+          (fun _ => (S.primeStage.pool N C.gap).upper) p := by
+      rfl
+    rw [hmassEq]
+    let mass := independentPrimePoolMass
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ => (S.primeStage.pool N C.gap).upper) p
+    by_cases hmass : mass = 0
+    · simp [mass, hmass]
+    · have hslots (i : Fin s) :
+        (S.primeStage.pool N C.gap).lower ≤ p i ∧
+          p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime := by
+        have hfactor : primePoolLaw (S.primeStage.pool N C.gap).lower
+            (S.primeStage.pool N C.gap).upper (p i) ≠ 0 := by
+          apply (Finset.prod_ne_zero_iff.mp ?_) i (Finset.mem_univ i)
+          simpa [mass, independentPrimePoolMass] using hmass
+        unfold primePoolLaw at hfactor
+        split_ifs at hfactor with hh
+        · exact hh
+        · simp at hfactor
+      have hgood : D.goodDomain N p := by
+        change c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p
+        exact ⟨hScale, hPool, fun i => hslots (ι i)⟩
+      by_cases hE : E (fun i => p (ι i))
+      · rw [if_pos (show D.goodDomain N p ∧ E (fun i => p (ι i)) from ⟨hgood, hE⟩),
+          if_pos hE]
+        have hinnerFull' :
+            (∑' z : Fin m → ℤ, D.baseMass N p z *
+              ∏ R, nuB
+                (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R))
+                (FromArithmetic.linearRowValue D.rowCoeff N p R z).num) =
+              inner (fun i => p (ι i)) := by
+          simpa only [innerFull] using hinnerFull p hgood
+        rw [hinnerFull']
+        simp
+      ·
+        have hnot : ¬ (D.goodDomain N p ∧ E (fun i => p (ι i))) :=
+          fun h => hE h.2
+        rw [if_neg hnot, if_neg hE]
+        simp
+  calc
+    _ = FromArithmetic.weightedLinearFormsAverage D N Efull := rfl
+    _ = ∑' p : Fin s → ℕ,
+          independentPrimePoolMass
+            (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+            (fun _ => (S.primeStage.pool N C.gap).upper) p *
+          (if E (fun i => p (ι i)) then inner (fun i => p (ι i)) else 0) := houter
+    _ = c_test2_subsetRowEventAverage S C a Sh included N E := by
+      symm
+      simpa [c_test2_subsetRowEventAverage, inner] using
+        c_test2_gapSlotAverage_cylinder S C.gap N ι hMass
+          (fun p => if E p then inner p else 0)
+
+theorem c_test2_weightedLinearFormsError_tendsto_zero
+    {K q d b m : ℕ} {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : FromArithmetic.MasterScales K Aset m tests}
+    (D : FromArithmetic.WeightedLinearFormsData (q := q) (d := d) (b := b) S) :
+    Tendsto (fun N : ℕ => 1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ q *
+      (D.epsilonBase N + D.epsilonCRT N)) atTop (𝓝 0) := by
+  have hVreal : Tendsto (fun N : ℕ => (D.V N : ℝ)) atTop atTop :=
+    tendsto_natCast_atTop_atTop.comp D.V_tendsto
+  have hinvV : Tendsto (fun N : ℕ => (D.V N : ℝ)⁻¹) atTop (𝓝 0) :=
+    tendsto_inv_atTop_zero.comp hVreal
+  have hVpos : ∀ᶠ N : ℕ in atTop, 0 < (D.V N : ℝ) :=
+    hVreal.eventually (eventually_gt_atTop 0)
+  have hweighted (e : ℕ → ℝ)
+      (he : SuperPolynomialSmall e (fun N => (D.V N : ℝ))) :
+      Tendsto (fun N => (D.V N : ℝ) ^ q * e N) atTop (𝓝 0) := by
+    have hs := he ((q : ℝ) + 1) (by positivity)
+    have hpow (N : ℕ) : (D.V N : ℝ) ^ ((q : ℝ) + 1) =
+        (D.V N : ℝ) ^ q * (D.V N : ℝ) := by
+      have hexp : (q : ℝ) + 1 = ((q + 1 : ℕ) : ℝ) := by norm_num
+      rw [hexp, Real.rpow_natCast]
+      simp [pow_succ]
+    have hbase : Tendsto
+        (fun N => e N * ((D.V N : ℝ) ^ q * (D.V N : ℝ))) atTop (𝓝 0) := by
+      exact hs.congr fun N => by rw [hpow]
+    have heq : (fun N => e N * ((D.V N : ℝ) ^ q * (D.V N : ℝ)) *
+        (D.V N : ℝ)⁻¹) =ᶠ[atTop]
+        (fun N => (D.V N : ℝ) ^ q * e N) := by
+      filter_upwards [hVpos] with N hN
+      field_simp [ne_of_gt hN]
+    have hprod : Tendsto
+        (fun N => e N * ((D.V N : ℝ) ^ q * (D.V N : ℝ)) *
+          (D.V N : ℝ)⁻¹) atTop (𝓝 0) := by
+      simpa using hbase.mul hinvV
+    exact hprod.congr' heq
+  have hbase := hweighted D.epsilonBase D.epsilonBase_superpolynomial
+  have hcrt := hweighted D.epsilonCRT D.epsilonCRT_superpolynomial
+  have hweightedSum : Tendsto
+      (fun N => (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N))
+      atTop (𝓝 0) := by
+    have hsum : Tendsto
+        (fun N => (D.V N : ℝ) ^ q * D.epsilonBase N +
+          (D.V N : ℝ) ^ q * D.epsilonCRT N) atTop (𝓝 0) := by
+      simpa using hbase.add hcrt
+    apply hsum.congr'
+    filter_upwards with N
+    ring
+  have hNplus : Tendsto (fun N : ℕ => (N + 1 : ℝ)) atTop atTop := by
+    apply Filter.tendsto_atTop.2
+    intro x
+    filter_upwards [tendsto_natCast_atTop_atTop.eventually (eventually_ge_atTop x)] with N hN
+    exact le_trans hN (by norm_num)
+  have hinvN : Tendsto (fun N : ℕ => (N + 1 : ℝ)⁻¹) atTop (𝓝 0) :=
+    tendsto_inv_atTop_zero.comp hNplus
+  simpa [one_div] using hinvN.add hweightedSum
+
+theorem c_test2_weightedSubsetEventAverage_tendsto_zero
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (ι : Fin q ↪ Fin s)
+    (tests : Finset (IntegerPolynomial q)) (included : Finset (Fin r))
+    (hlisted : TestsListed Dm ι tests)
+    (hPrimitive : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        ∀ u, ∃ j,
+          FromArithmetic.rationalResidue r' hr
+            (c_test2_rowWeightedCoeff S C a ι Sh N p u j) ≠ 0)
+    (hPairwise : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        (∀ Q ∈ Dm, ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+        ∀ u v, u ≠ v → ∃ i j,
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v j) ≠
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v i))
+    (hScaleEventually : ∀ᶠ N in atTop, c_test2_ScaleData S C a N)
+    (hPoolEventually : ∀ᶠ N in atTop,
+      2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+        (S.primeStage.pool N C.gap).lower)
+    (hMassEventually : ∀ᶠ N in atTop,
+      0 < primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper)
+    (E : ℕ → (Fin q → ℕ) → Prop)
+    (hprob : Tendsto (fun N => gapSlotProbability S C.gap N (E N)) atTop (𝓝 0)) :
+    Tendsto (fun N => c_test2_subsetRowEventAverage S C a Sh included N (E N))
+      atTop (𝓝 0) := by
+  classical
+  let D : FromArithmetic.WeightedLinearFormsData (q := r) (d := m) (b := K) S :=
+    c_test2_weightedRowData (Sh := Sh) S C a dirs ι tests included hlisted
+      hPrimitive hPairwise
+  let Efull (N : ℕ) (p : Fin s → ℕ) : Prop :=
+    D.goodDomain N p ∧ E N (fun i => p (ι i))
+  let lo (N : ℕ) : Fin s → ℕ := fun _ => (S.primeStage.pool N C.gap).lower
+  let hi (N : ℕ) : Fin s → ℕ := fun _ => (S.primeStage.pool N C.gap).upper
+  have herror := c_test2_weightedLinearFormsError_tendsto_zero D
+  obtain ⟨Cerr, hCerr, hbound⟩ := FromArithmetic.prop_linear_forms D
+  let err (N : ℕ) : ℝ :=
+    1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ r * (D.epsilonBase N + D.epsilonCRT N)
+  have hupper : Tendsto (fun N => Cerr * err N) atTop (𝓝 0) := by
+    simpa [err, mul_comm] using herror.const_mul Cerr
+  let average (N : ℕ) : ℝ :=
+    FromArithmetic.weightedLinearFormsAverage D N (Efull N)
+  let probability (N : ℕ) : ℝ :=
+    FromArithmetic.weightedLinearFormsEventProbability D N (Efull N)
+  have haverageProbability : Tendsto (fun N => |average N - probability N|)
+      atTop (𝓝 0) := by
+    apply tendsto_of_tendsto_of_tendsto_of_le_of_le'
+      tendsto_const_nhds hupper
+    · exact Filter.Eventually.of_forall (fun _ => abs_nonneg _)
+    · filter_upwards with N
+      exact hbound N (Efull N) (fun p hp => hp.1)
+  have hdiff : Tendsto (fun N => average N - probability N) atTop (𝓝 0) := by
+    apply tendsto_of_tendsto_of_tendsto_of_le_of_le'
+      (by simpa using haverageProbability.neg) haverageProbability
+    · filter_upwards with N
+      exact neg_abs_le _
+    · filter_upwards with N
+      exact le_abs_self _
+  have hprobEq : ∀ᶠ N in atTop, probability N = gapSlotProbability S C.gap N (E N) := by
+    filter_upwards [hScaleEventually, hPoolEventually, hMassEventually] with N hScaleN hPoolN hMassN
+    calc
+      probability N = independentPrimePoolProbability (lo N) (hi N)
+          (fun p => E N (fun i => p (ι i))) := by
+        unfold probability FromArithmetic.weightedLinearFormsEventProbability
+          independentPrimePoolProbability
+        apply tsum_congr
+        intro p
+        have hmassEq :
+            independentPrimePoolMass
+              (fun i => (S.primeStage.pool N (D.gap i)).lower)
+              (fun i => (S.primeStage.pool N (D.gap i)).upper) p =
+            independentPrimePoolMass (lo N) (hi N) p := by rfl
+        rw [hmassEq]
+        let mass := independentPrimePoolMass (lo N) (hi N) p
+        by_cases hmass : mass = 0
+        · simp [mass, hmass]
+        · have hslot (i : Fin s) :
+              (S.primeStage.pool N C.gap).lower ≤ p i ∧
+                p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime := by
+            have hfactor : primePoolLaw (lo N i) (hi N i) (p i) ≠ 0 := by
+              apply (Finset.prod_ne_zero_iff.mp ?_) i (Finset.mem_univ i)
+              simpa [mass, independentPrimePoolMass] using hmass
+            unfold primePoolLaw at hfactor
+            split_ifs at hfactor with hsupp
+            · exact hsupp
+            · simp at hfactor
+          have hgood : D.goodDomain N p := by
+            change c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p
+            exact ⟨hScaleN, hPoolN, fun i => hslot (ι i)⟩
+          by_cases hE : E N (fun i => p (ι i))
+          · simp [mass, Efull, hgood, hE]
+          · simp [mass, Efull, hgood, hE]
+      _ = gapSlotProbability S C.gap N (E N) := by
+        symm
+        exact c_test2_gapSlotProbability_cylinder S C.gap N ι hMassN (E N)
+  have hprobEq' : (fun N => gapSlotProbability S C.gap N (E N)) =ᶠ[atTop] probability :=
+    hprobEq.mono fun N hN => hN.symm
+  have hprobD : Tendsto probability atTop (𝓝 0) := hprob.congr' hprobEq'
+  have haverage : Tendsto average atTop (𝓝 0) := by
+    have hsum := hdiff.add hprobD
+    simpa [average, probability, sub_add_cancel] using hsum
+  have hidentity : ∀ᶠ N in atTop,
+      c_test2_subsetRowEventAverage S C a Sh included N (E N) = average N := by
+    filter_upwards [hScaleEventually, hPoolEventually, hMassEventually]
+      with N hScaleN hPoolN hMassN
+    exact (c_test2_weightedSubsetEventIdentity S C a Sh dirs ι tests included
+      hlisted hPrimitive hPairwise N hScaleN hPoolN hMassN (E N)).symm
+  have hidentity' : (fun N => average N) =ᶠ[atTop]
+      (fun N => c_test2_subsetRowEventAverage S C a Sh included N (E N)) :=
+    hidentity.mono fun N hN => hN.symm
+  exact haverage.congr' hidentity'
+
+noncomputable def c_test2_rowEnvelope {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (N : ℕ)
+    (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
+  ∏ R, (1 + atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+    (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+      (fun k => (z k : ℚ))))
+
+noncomputable def c_test2_rowEnvelopeEventAverage {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (N : ℕ)
+    (E : (Fin q → ℕ) → Prop) : ℝ :=
+  gapSlotAverage S C.gap N fun p => if E p then
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+      c_test2_rowEnvelope S C a Sh N p z else 0
+
+theorem c_test2_rowEnvelopeEventAverage_eq_powersetSum
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (ι : Fin q ↪ Fin s)
+    (N : ℕ) (E : (Fin q → ℕ) → Prop)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper) :
+    c_test2_rowEnvelopeEventAverage S C a Sh N E =
+      ∑ I ∈ (Finset.univ : Finset (Fin r)).powerset,
+        c_test2_subsetRowEventAverage S C a Sh I N E := by
+  classical
+  let pivotSupport : Finset (Fin m → ℤ) := Fintype.piFinset fun i : Fin m =>
+    Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+      ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ)
+  have hPivotZero (z : Fin m → ℤ) (hz : z ∉ pivotSupport) :
+      pivotMass S.core.parameters C N z = 0 := by
+    have hnot : ¬ ∀ i : Fin m, z i ∈
+        Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+          ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ) := by
+      intro hall
+      exact hz (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hLaw : harmonicLaw (S.core.parameters.X N (C.block i).1)
+        (primorial (N + 1)) (z i) = 0 := by
+      by_contra hne
+      have hs := c_test2_harmonicLaw_support hne
+      have hmem : z i ∈ Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+          ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ) := by
+        simp [Finset.mem_Ico]
+        exact ⟨hs.2.1, hs.2.2⟩
+      exact hi hmem
+    unfold pivotMass
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+  let slotSupport : Finset (Fin s → ℕ) := Fintype.piFinset fun _ : Fin s =>
+    Finset.Ico (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper
+  have hSlotZero (p : Fin s → ℕ) (hp : p ∉ slotSupport) :
+      independentPrimePoolMass
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ => (S.primeStage.pool N C.gap).upper) p = 0 := by
+    apply c_test2_independentPrimePoolMass_zero_outside
+    simpa [slotSupport] using hp
+  have hPivotExpand (p : Fin q → ℕ) :
+      (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+        c_test2_rowEnvelope S C a Sh N p z) =
+      ∑ I ∈ (Finset.univ : Finset (Fin r)).powerset,
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+          ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+              (fun k => (z k : ℚ))) := by
+    let subsets := (Finset.univ : Finset (Fin r)).powerset
+    let factor (I : Finset (Fin r)) (z : Fin m → ℤ) : ℝ :=
+      ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+        (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+          (fun k => (z k : ℚ)))
+    have hsum (z : Fin m → ℤ) :
+        c_test2_rowEnvelope S C a Sh N p z = ∑ I ∈ subsets, factor I z := by
+      unfold c_test2_rowEnvelope
+      simpa [subsets, factor] using
+        (Finset.prod_one_add (s := (Finset.univ : Finset (Fin r)))
+          (f := fun R => atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+              (fun k => (z k : ℚ)))))
+    have hswap :
+        (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+          ∑ I ∈ subsets, factor I z) =
+        ∑ I ∈ subsets, ∑' z : Fin m → ℤ,
+          pivotMass S.core.parameters C N z * factor I z := by
+      calc
+        _ = ∑ z ∈ pivotSupport, pivotMass S.core.parameters C N z *
+              ∑ I ∈ subsets, factor I z := by
+            apply tsum_eq_sum
+            intro z hz
+            rw [hPivotZero z hz]
+            simp
+        _ = ∑ I ∈ subsets, ∑ z ∈ pivotSupport,
+              pivotMass S.core.parameters C N z * factor I z := by
+            simp_rw [Finset.mul_sum]
+            exact Finset.sum_comm
+        _ = ∑ I ∈ subsets, ∑' z : Fin m → ℤ,
+              pivotMass S.core.parameters C N z * factor I z := by
+            apply Finset.sum_congr rfl
+            intro I hI
+            symm
+            apply tsum_eq_sum
+            intro z hz
+            rw [hPivotZero z hz]
+            simp
+    rw [show (∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+        c_test2_rowEnvelope S C a Sh N p z) =
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+          ∑ I ∈ subsets, factor I z by
+          apply tsum_congr
+          intro z
+          rw [hsum z]]
+    simpa [factor, subsets] using hswap
+  have hpoint (p : Fin s → ℕ) :
+      (if E (fun i => p (ι i)) then
+        ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+          c_test2_rowEnvelope S C a Sh N (fun i => p (ι i)) z else 0) =
+      ∑ I ∈ (Finset.univ : Finset (Fin r)).powerset,
+        if E (fun i => p (ι i)) then
+          ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+            ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+              (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0 := by
+    by_cases hE : E (fun i => p (ι i))
+    · simp only [if_pos hE]
+      rw [hPivotExpand]
+    · simp only [if_neg hE]
+      simp
+  unfold c_test2_rowEnvelopeEventAverage
+  let lo : Fin s → ℕ := fun _ => (S.primeStage.pool N C.gap).lower
+  let hi : Fin s → ℕ := fun _ => (S.primeStage.pool N C.gap).upper
+  let subsetSet := (Finset.univ : Finset (Fin r)).powerset
+  calc
+    _ = ∑' p : Fin s → ℕ,
+        independentPrimePoolMass lo hi p *
+          (if E (fun i => p (ι i)) then
+            ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+              c_test2_rowEnvelope S C a Sh N (fun i => p (ι i)) z else 0) := by
+          rw [c_test2_gapSlotAverage_cylinder S C.gap N ι hMass
+            (fun p => if E p then
+              ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                c_test2_rowEnvelope S C a Sh N p z else 0)]
+    _ = ∑' p : Fin s → ℕ,
+        independentPrimePoolMass lo hi p *
+          ∑ I ∈ subsetSet,
+            (if E (fun i => p (ι i)) then
+              ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                  (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                    (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) := by
+          apply tsum_congr
+          intro p
+          rw [hpoint]
+    _ = ∑ I ∈ subsetSet, ∑' p : Fin s → ℕ,
+          independentPrimePoolMass lo hi p *
+            (if E (fun i => p (ι i)) then
+              ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                  (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                    (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) := by
+          have hleft : ∀ p, p ∉ slotSupport →
+              independentPrimePoolMass lo hi p *
+                ∑ I ∈ subsetSet,
+                  (if E (fun i => p (ι i)) then
+                    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                      ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                        (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                          (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) = 0 := by
+            intro p hp
+            rw [hSlotZero p hp]
+            simp
+          have hright (I : Finset (Fin r)) (p : Fin s → ℕ) (hp : p ∉ slotSupport) :
+              independentPrimePoolMass lo hi p *
+                (if E (fun i => p (ι i)) then
+                  ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                    ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                      (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                        (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) = 0 := by
+            rw [hSlotZero p hp]
+            simp
+          calc
+            _ = ∑ p ∈ slotSupport, independentPrimePoolMass lo hi p *
+                  ∑ I ∈ subsetSet,
+                    (if E (fun i => p (ι i)) then
+                      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                        ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                            (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) := by
+              apply tsum_eq_sum
+              exact hleft
+            _ = ∑ I ∈ subsetSet, ∑ p ∈ slotSupport,
+                  independentPrimePoolMass lo hi p *
+                    (if E (fun i => p (ι i)) then
+                      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                        ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                            (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) := by
+              simp_rw [Finset.mul_sum]
+              exact Finset.sum_comm
+            _ = ∑ I ∈ subsetSet, ∑' p : Fin s → ℕ,
+                  independentPrimePoolMass lo hi p *
+                    (if E (fun i => p (ι i)) then
+                      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+                        ∏ R ∈ I, atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+                          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                            (fun i => p (ι i)) (fun k => (z k : ℚ))) else 0) := by
+              apply Finset.sum_congr rfl
+              intro I hI
+              symm
+              apply tsum_eq_sum
+              exact fun p hp => hright I p hp
+    _ = ∑ I ∈ (Finset.univ : Finset (Fin r)).powerset,
+          c_test2_subsetRowEventAverage S C a Sh I N E := by
+          apply Finset.sum_congr rfl
+          intro I hI
+          rw [c_test2_subsetRowEventAverage]
+          rw [c_test2_gapSlotAverage_cylinder S C.gap N ι hMass]
+
+theorem c_test2_rowEnvelopeEventAverage_tendsto_zero
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (ι : Fin q ↪ Fin s)
+    (tests : Finset (IntegerPolynomial q))
+    (hlisted : TestsListed Dm ι tests)
+    (hPrimitive : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        ∀ u, ∃ j,
+          FromArithmetic.rationalResidue r' hr
+            (c_test2_rowWeightedCoeff S C a ι Sh N p u j) ≠ 0)
+    (hPairwise : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        (∀ Q ∈ Dm, ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+        ∀ u v, u ≠ v → ∃ i j,
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v j) ≠
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v i))
+    (hScaleEventually : ∀ᶠ N in atTop, c_test2_ScaleData S C a N)
+    (hPoolEventually : ∀ᶠ N in atTop,
+      2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+        (S.primeStage.pool N C.gap).lower)
+    (hMassEventually : ∀ᶠ N in atTop,
+      0 < primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper)
+    (E : ℕ → (Fin q → ℕ) → Prop)
+    (hprob : Tendsto (fun N => gapSlotProbability S C.gap N (E N)) atTop (𝓝 0)) :
+    Tendsto (fun N => c_test2_rowEnvelopeEventAverage S C a Sh N (E N))
+      atTop (𝓝 0) := by
+  let subsetSet := (Finset.univ : Finset (Fin r)).powerset
+  have hsum : Tendsto (fun N =>
+      ∑ I ∈ subsetSet, c_test2_subsetRowEventAverage S C a Sh I N (E N))
+      atTop (𝓝 (∑ I ∈ subsetSet, (0 : ℝ))) := by
+    apply tendsto_finsetSum subsetSet
+    intro I hI
+    exact c_test2_weightedSubsetEventAverage_tendsto_zero S C a ha Sh dirs ι tests I
+      hlisted hPrimitive hPairwise hScaleEventually hPoolEventually hMassEventually E hprob
+  have hMassEventually' : ∀ᶠ N in atTop,
+      0 < primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper := hMassEventually
+  have hEq : ∀ᶠ N in atTop,
+      c_test2_rowEnvelopeEventAverage S C a Sh N (E N) =
+        ∑ I ∈ (Finset.univ : Finset (Fin r)).powerset,
+          c_test2_subsetRowEventAverage S C a Sh I N (E N) := by
+    filter_upwards [hMassEventually'] with N hMassN
+    exact c_test2_rowEnvelopeEventAverage_eq_powersetSum S C a Sh ι N (E N) hMassN
+  have hEq' : (fun N =>
+      ∑ I ∈ subsetSet, c_test2_subsetRowEventAverage S C a Sh I N (E N)) =ᶠ[atTop]
+      (fun N => c_test2_rowEnvelopeEventAverage S C a Sh N (E N)) :=
+    hEq.mono fun N hN => hN.symm
+  have hsum' : Tendsto (fun N =>
+      ∑ I ∈ subsetSet, c_test2_subsetRowEventAverage S C a Sh I N (E N))
+      atTop (𝓝 0) := by simpa using hsum
+  exact hsum'.congr' hEq'
+
+theorem c_test2_weightedTsum_abs_le {α : Type*} (μ F G : α → ℝ)
+    (hμnonneg : ∀ x, 0 ≤ μ x)
+    (hF : Summable (fun x => μ x * F x))
+    (hG : Summable (fun x => μ x * G x))
+    (hpoint : ∀ x, |F x| ≤ G x) :
+    |∑' x, μ x * F x| ≤ ∑' x, μ x * G x := by
+  have hAbs : Summable (fun x => μ x * |F x|) := by
+    apply hF.norm.congr
+    intro x
+    simp [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hμnonneg x)]
+  calc
+    |∑' x, μ x * F x| = ‖∑' x, μ x * F x‖ := by rw [Real.norm_eq_abs]
+    _ ≤ ∑' x, ‖μ x * F x‖ := norm_tsum_le_tsum_norm hF.norm
+    _ = ∑' x, μ x * |F x| := by
+      apply tsum_congr
+      intro x
+      simp [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hμnonneg x)]
+    _ ≤ ∑' x, μ x * G x := hAbs.tsum_le_tsum (fun x =>
+      mul_le_mul_of_nonneg_left (hpoint x) (hμnonneg x)) hG
+
+theorem c_test2_pivotMass_zero_outside_support
+    {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (z : Fin m → ℤ)
+    (hz : z ∉ Fintype.piFinset (fun i : Fin m =>
+      Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+        ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ))) :
+    pivotMass S.core.parameters C N z = 0 := by
+  have hnot : ¬ ∀ i : Fin m, z i ∈
+      Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+        ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ) := by
+    intro hall
+    exact hz (Fintype.mem_piFinset.mpr hall)
+  obtain ⟨i, hi⟩ := not_forall.mp hnot
+  have hLaw : harmonicLaw (S.core.parameters.X N (C.block i).1)
+      (primorial (N + 1)) (z i) = 0 := by
+    by_contra hne
+    have hs := c_test2_harmonicLaw_support hne
+    have hmem : z i ∈ Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+        ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ) := by
+      simp [Finset.mem_Ico]
+      exact ⟨hs.2.1, hs.2.2⟩
+    exact hi hmem
+  unfold pivotMass
+  exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+
+noncomputable def c_test2_rowPivotAverage {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (N : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (p : Fin q → ℕ) : ℝ :=
+  ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+    ∏ R, atQ (f R p)
+      (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+        (fun k => (z k : ℚ)))
+
+theorem c_test2_rowPivotAverage_abs_le_envelope
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (N : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hNorm : ∀ i : Fin m, 0 < harmonicNormalizer
+      (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+    (hF : ∀ R p y, |f R p y| ≤
+      1 + chainWeight S.core.parameters C N (Sh.row R).anchor y)
+    (p : Fin q → ℕ) :
+    |c_test2_rowPivotAverage S C a Sh N f p| ≤
+      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+        c_test2_rowEnvelope S C a Sh N p z := by
+  classical
+  let support : Finset (Fin m → ℤ) := Fintype.piFinset fun i : Fin m =>
+    Finset.Ico (S.core.parameters.X N (C.block i).1 : ℤ)
+      ((S.core.parameters.X N (C.block i).1) ^ 2 : ℤ)
+  let F (z : Fin m → ℤ) : ℝ :=
+    ∏ R, atQ (f R p)
+      (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+        (fun k => (z k : ℚ)))
+  let G (z : Fin m → ℤ) : ℝ := c_test2_rowEnvelope S C a Sh N p z
+  have hμnonneg (z : Fin m → ℤ) : 0 ≤ pivotMass S.core.parameters C N z := by
+    unfold pivotMass
+    apply Finset.prod_nonneg
+    intro i _
+    exact c_test2_harmonicLaw_nonneg_of_normalizer_pos (hNorm i) (z i)
+  have hpoint (z : Fin m → ℤ) : |F z| ≤ G z := by
+    have hfactor (R : Fin r) :
+        |atQ (f R p)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+              (fun k => (z k : ℚ)))| ≤
+          1 + atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+              (fun k => (z k : ℚ))) := by
+      let x := rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+        (fun k => (z k : ℚ))
+      by_cases hx : x.den = 1
+      · simpa [x, atQ, hx] using hF R p x.num
+      · simp [x, atQ, hx]
+    unfold F G c_test2_rowEnvelope
+    calc
+      |∏ R, atQ (f R p)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+            (fun k => (z k : ℚ)))| =
+        ∏ R, |atQ (f R p)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+            (fun k => (z k : ℚ)))| := by
+          rw [Finset.abs_prod]
+      _ ≤ ∏ R, (1 + atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
+            (fun k => (z k : ℚ)))) := by
+          apply Finset.prod_le_prod₀
+          · intro R hR
+            exact abs_nonneg _
+          · intro R hR
+            exact hfactor R
+  have hFsum : Summable (fun z : Fin m → ℤ => pivotMass S.core.parameters C N z * F z) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro z hz
+    rw [c_test2_pivotMass_zero_outside_support S C N z (by simpa [support] using hz)]
+    simp
+  have hGsum : Summable (fun z : Fin m → ℤ => pivotMass S.core.parameters C N z * G z) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro z hz
+    rw [c_test2_pivotMass_zero_outside_support S C N z (by simpa [support] using hz)]
+    simp
+  simpa [c_test2_rowPivotAverage, F, G] using
+    c_test2_weightedTsum_abs_le (pivotMass S.core.parameters C N) F G
+      hμnonneg hFsum hGsum hpoint
+
+theorem c_test2_rowBadAverage_abs_le_envelope
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (N : ℕ)
+    (good : (Fin q → ℕ) → Prop)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hNorm : ∀ i : Fin m, 0 < harmonicNormalizer
+      (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper)
+    (hF : ∀ R p y, |f R p y| ≤
+      1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) :
+    |gapSlotAverage S C.gap N (fun p =>
+        if good p then 0 else c_test2_rowPivotAverage S C a Sh N f p)| ≤
+      c_test2_rowEnvelopeEventAverage S C a Sh N (fun p => ¬ good p) := by
+  classical
+  let lo : Fin q → ℕ := fun _ => (S.primeStage.pool N C.gap).lower
+  let hi : Fin q → ℕ := fun _ => (S.primeStage.pool N C.gap).upper
+  let μ (p : Fin q → ℕ) : ℝ := independentPrimePoolMass lo hi p
+  let F (p : Fin q → ℕ) : ℝ :=
+    if good p then 0 else c_test2_rowPivotAverage S C a Sh N f p
+  let G (p : Fin q → ℕ) : ℝ :=
+    if ¬ good p then
+      ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+        c_test2_rowEnvelope S C a Sh N (fun i => p i) z
+    else 0
+  have hμnonneg (p : Fin q → ℕ) : 0 ≤ μ p := by
+    apply c_test2_independentPrimePoolMass_nonneg lo hi (fun _ => hMass)
+  let support : Finset (Fin q → ℕ) := Fintype.piFinset fun _ : Fin q =>
+    Finset.Ico (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper
+  have hμzero (p : Fin q → ℕ) (hp : p ∉ support) : μ p = 0 := by
+    exact c_test2_independentPrimePoolMass_zero_outside lo hi p
+      (by simpa [support, lo, hi] using hp)
+  have hFsum : Summable (fun p => μ p * F p) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    rw [hμzero p hp]
+    simp
+  have hGsum : Summable (fun p => μ p * G p) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    rw [hμzero p hp]
+    simp
+  have hpoint (p : Fin q → ℕ) : |F p| ≤ G p := by
+    by_cases hp : good p
+    · simp [F, G, hp]
+    · simpa [F, G, hp] using
+        c_test2_rowPivotAverage_abs_le_envelope S C a Sh N f hNorm hF p
+  have hweighted := c_test2_weightedTsum_abs_le μ F G hμnonneg hFsum hGsum hpoint
+  change |∑' p : Fin q → ℕ, μ p * F p| ≤
+    ∑' p : Fin q → ℕ, μ p * G p at hweighted
+  simpa [gapSlotAverage, gapSlotMass, c_test2_rowEnvelopeEventAverage, μ, F, G] using hweighted
+
+theorem c_test2_rowCorrelation_decompose
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (N : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hGoodProb : 0 < gapSlotProbability S C.gap N
+      (fun p => GoodTuple S C.gap N tests dirs.poly p)) :
+    rowCorrelation S C a N Sh f =
+      gapSlotProbability S C.gap N (fun p => GoodTuple S C.gap N tests dirs.poly p) *
+        goodRowCorrelation S C a N dirs tests f +
+      gapSlotAverage S C.gap N (fun p =>
+        if GoodTuple S C.gap N tests dirs.poly p then 0
+        else c_test2_rowPivotAverage S C a Sh N f p) := by
+  classical
+  let good : (Fin q → ℕ) → Prop := fun p => GoodTuple S C.gap N tests dirs.poly p
+  let μ : (Fin q → ℕ) → ℝ := gapSlotMass S C.gap N
+  let F : (Fin q → ℕ) → ℝ := c_test2_rowPivotAverage S C a Sh N f
+  let support : Finset (Fin q → ℕ) := Fintype.piFinset fun _ : Fin q =>
+    Finset.Ico (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper
+  have hμzero (p : Fin q → ℕ) (hp : p ∉ support) : μ p = 0 := by
+    apply c_test2_independentPrimePoolMass_zero_outside
+    simpa [support, μ, gapSlotMass] using hp
+  have hrawSummable : Summable (fun p => μ p * F p) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    rw [hμzero p hp]
+    simp
+  have hgoodSummable : Summable (fun p => μ p * if good p then F p else 0) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    rw [hμzero p hp]
+    simp
+  have hbadSummable : Summable (fun p => μ p * if good p then 0 else F p) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    rw [hμzero p hp]
+    simp
+  have hsplit :
+      (∑' p : Fin q → ℕ, μ p * F p) =
+        (∑' p, μ p * (if good p then F p else 0)) +
+          ∑' p, μ p * (if good p then 0 else F p) := by
+    calc
+      _ = ∑' p : Fin q → ℕ,
+          (μ p * (if good p then F p else 0) +
+            μ p * (if good p then 0 else F p)) := by
+          apply tsum_congr
+          intro p
+          by_cases hp : good p <;> simp [hp]
+      _ = _ := hgoodSummable.tsum_add hbadSummable
+  have hnorm :
+      gapSlotProbability S C.gap N good * goodRowCorrelation S C a N dirs tests f =
+        ∑' p : Fin q → ℕ, μ p * (if good p then F p else 0) := by
+    unfold goodRowCorrelation goodSlotAverage
+    dsimp [good, μ, F]
+    field_simp [ne_of_gt hGoodProb]
+    simp [c_test2_rowPivotAverage]
+  calc
+    rowCorrelation S C a N Sh f = ∑' p : Fin q → ℕ, μ p * F p := by
+      rfl
+    _ = _ := by rw [hsplit, ← hnorm]; rfl
+
+theorem c_test2_rowCorrelation_le_good_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (ι : Fin q ↪ Fin s)
+    (tests : Finset (IntegerPolynomial q)) (hlisted : TestsListed Dm ι tests)
+    (hPrimitive : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        ∀ u, ∃ j,
+          FromArithmetic.rationalResidue r' hr
+            (c_test2_rowWeightedCoeff S C a ι Sh N p u j) ≠ 0)
+    (hPairwise : ∀ N p,
+      c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
+      ∀ r' (hr : r'.Prime), N + 1 < r' →
+        r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
+        (∀ Q ∈ Dm, ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+        ∀ u v, u ≠ v → ∃ i j,
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v j) ≠
+          FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+            FromArithmetic.rationalResidue r' hr
+              (c_test2_rowWeightedCoeff S C a ι Sh N p v i))
+    (hbad : Tendsto (fun N => gapSlotProbability S C.gap N
+      (fun p => ¬ GoodTuple S C.gap N tests dirs.poly p)) atTop (𝓝 0)) :
+    ∀ η : ℝ, 0 < η → ∀ᶠ N in atTop,
+      ∀ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
+        (∀ R p y, |f R p y| ≤
+          1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+        |rowCorrelation S C a N Sh f| ≤
+          |goodRowCorrelation S C a N dirs tests f| + η := by
+  have hScaleEventually := c_test2_chainCoefficientData_eventually S C a ha
+  have hPoolEventually := c_test2_poolLower_ge_twiceMasterV_eventually S C.gap
+  have hMassEventually := c_test2_poolMass_positive_eventually S C.gap
+  have hGoodEventually := c_test2_goodSlotProbability_pos_eventually S C.gap
+    tests dirs.poly hbad
+  have hEnvelope := c_test2_rowEnvelopeEventAverage_tendsto_zero S C a ha Sh dirs ι
+    tests hlisted hPrimitive hPairwise hScaleEventually hPoolEventually hMassEventually
+    (fun N p => ¬ GoodTuple S C.gap N tests dirs.poly p) hbad
+  intro η hη
+  have hEnvLT : ∀ᶠ N in atTop,
+      c_test2_rowEnvelopeEventAverage S C a Sh N
+        (fun p => ¬ GoodTuple S C.gap N tests dirs.poly p) < η :=
+    hEnvelope.eventually (Iio_mem_nhds hη)
+  filter_upwards [hEnvLT, hGoodEventually, hMassEventually] with N hEnvN hGoodN hMassN
+  intro f hf
+  have hNorm (i : Fin m) : 0 < harmonicNormalizer
+      (S.core.parameters.X N (C.block i).1) (primorial (N + 1)) :=
+    c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block i).1)
+  let good : (Fin q → ℕ) → Prop :=
+    fun p => GoodTuple S C.gap N tests dirs.poly p
+  let P : ℝ := gapSlotProbability S C.gap N good
+  let badAverage : ℝ := gapSlotAverage S C.gap N (fun p =>
+    if good p then 0 else c_test2_rowPivotAverage S C a Sh N f p)
+  have hprobSplit : P + gapSlotProbability S C.gap N (fun p => ¬ good p) = 1 := by
+    have h := c_test2_independentProbability_add_compl
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ => (S.primeStage.pool N C.gap).upper) (fun _ => hMassN) good
+    simpa [P, good, gapSlotProbability] using h
+  have hbadNonneg : 0 ≤ gapSlotProbability S C.gap N (fun p => ¬ good p) :=
+    c_test2_independentPrimePoolProbability_nonneg
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ => (S.primeStage.pool N C.gap).upper) (fun p => ¬ good p)
+  have hPle : P ≤ 1 := by linarith
+  have hbadBound : |badAverage| ≤
+      c_test2_rowEnvelopeEventAverage S C a Sh N (fun p => ¬ good p) :=
+    c_test2_rowBadAverage_abs_le_envelope S C a Sh N good f hNorm hMassN hf
+  rw [c_test2_rowCorrelation_decompose S C a Sh dirs tests N f hGoodN]
+  calc
+    |P * goodRowCorrelation S C a N dirs tests f + badAverage| ≤
+        |P * goodRowCorrelation S C a N dirs tests f| + |badAverage| := abs_add_le _ _
+    _ = P * |goodRowCorrelation S C a N dirs tests f| + |badAverage| := by
+      rw [abs_mul, abs_of_nonneg (le_of_lt hGoodN)]
+    _ ≤ |goodRowCorrelation S C a N dirs tests f| + η := by
+      calc
+        _ ≤ P * |goodRowCorrelation S C a N dirs tests f| +
+            c_test2_rowEnvelopeEventAverage S C a Sh N (fun p => ¬ good p) :=
+          add_le_add le_rfl hbadBound
+        _ ≤ |goodRowCorrelation S C a N dirs tests f| + η := by
+          calc
+            _ ≤ 1 * |goodRowCorrelation S C a N dirs tests f| +
+                c_test2_rowEnvelopeEventAverage S C a Sh N (fun p => ¬ good p) :=
+              by
+                nlinarith [mul_le_mul_of_nonneg_right hPle (abs_nonneg
+                  (goodRowCorrelation S C a N dirs tests f))]
+            _ = |goodRowCorrelation S C a N dirs tests f| +
+                c_test2_rowEnvelopeEventAverage S C a Sh N (fun p => ¬ good p) := by ring
+            _ ≤ |goodRowCorrelation S C a N dirs tests f| + η := by
+              nlinarith [hEnvN]
 
 end HindmanSumsProducts
