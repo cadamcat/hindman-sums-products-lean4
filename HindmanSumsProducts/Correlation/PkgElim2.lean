@@ -370,6 +370,257 @@ theorem c_elim2_shiftStateAverage_insert {α : Type*} [Fintype α]
   rw [hsum, hcard]
   exact c_elim2_uniformFintypeAverage_prod (fun p => F (e.symm p))
 
+abbrev c_elim2_ShiftOutside {α : Type u} (E : Finset α) (R : α) (L : ℕ) :=
+  c_elim2_ShiftCoordExcept E R → Fin L
+
+noncomputable def c_elim2_jointStateAverage {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (μ : β → ℝ)
+    (L : β → ℕ) (F : ∀ b, (c_elim2_ShiftCoord E → Fin (L b)) → ℝ) : ℝ :=
+  ∑ b, μ b * c_elim2_shiftStateAverage E (L b) (F b)
+
+theorem c_elim2_sigma_weighted_uniform_sum {β : Type*} [Fintype β]
+    (O : β → Type*) [∀ b, Fintype (O b)] (μ : β → ℝ)
+    (F : ∀ b, O b → ℝ) :
+    ∑' x : Σ b, O b,
+        μ x.1 * (Fintype.card (O x.1) : ℝ)⁻¹ * F x.1 x.2 =
+      ∑ b, μ b * c_elim2_uniformFintypeAverage (F b) := by
+  classical
+  simp only [tsum_fintype, Fintype.sum_sigma]
+  apply Finset.sum_congr rfl
+  intro b hb
+  have hs :
+      (∑ o : O b, μ b * (Fintype.card (O b) : ℝ)⁻¹ * F b o) =
+        μ b * ((Fintype.card (O b) : ℝ)⁻¹ * ∑ o, F b o) := by
+    calc
+      _ = μ b * (Fintype.card (O b) : ℝ)⁻¹ * ∑ o, F b o := by
+        rw [← Finset.mul_sum]
+      _ = μ b * ((Fintype.card (O b) : ℝ)⁻¹ * ∑ o, F b o) := by ring
+  rw [hs]
+  unfold c_elim2_uniformFintypeAverage
+  rfl
+
+noncomputable def c_elim2_csCurrentIntegrand {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (L : β → ℕ)
+    (H₀ : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (L b) → Fin (L b) → ℝ)
+    (b : β) (u : c_elim2_ShiftCoord E → Fin (L b)) : ℝ :=
+  let e := c_elim2_shiftCoordAssignmentSplitEquiv E R (L b)
+  H₀ b (e u).1 * c_elim2_uniformFintypeAverage (H b (e u).1)
+
+noncomputable def c_elim2_csWeightIntegrand {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (L : β → ℕ)
+    (Ω : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (b : β) (u : c_elim2_ShiftCoord E → Fin (L b)) : ℝ :=
+  Ω b ((c_elim2_shiftCoordAssignmentSplitEquiv E R (L b) u).1)
+
+noncomputable def c_elim2_csNextIntegrand {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
+    (L : β → ℕ) (Ω : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (L b) → Fin (L b) → ℝ)
+    (b : β) (u : c_elim2_ShiftCoord (insert R E) → Fin (L b)) : ℝ := by
+  classical
+  let (v, t₁) := c_elim2_shiftStateInsertEquiv E R hR (L b) u
+  let (o, t₀) := c_elim2_shiftCoordAssignmentSplitEquiv E R (L b) v
+  exact Ω b o * H b o t₀ * H b o t₁
+
+theorem c_elim2_weightedShiftStateStep {α β : Type u} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
+    (μ : β → ℝ) (L : β → ℕ) (hL : ∀ b, 0 < L b)
+    (H₀ : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (Ω : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (L b) → Fin (L b) → ℝ)
+    (hμ : ∀ b, 0 ≤ μ b) (hΩ : ∀ b o, 0 ≤ Ω b o)
+    (h₀ : ∀ b o, |H₀ b o| ≤ Ω b o)
+    (hCS : ∀ {γ : Type u} (μ Ω H₀ H₁ : γ → ℝ)
+      (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+      (h₀ : ∀ x, |H₀ x| ≤ Ω x)
+      (hΩs : Summable (fun x => μ x * Ω x))
+      (h₁s : Summable (fun x => μ x * (Ω x * H₁ x ^ 2))),
+      |∑' x, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+        (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2)) :
+    |c_elim2_jointStateAverage E μ L
+        (c_elim2_csCurrentIntegrand E R L H₀ H)| ^ 2 ≤
+      c_elim2_jointStateAverage E μ L (c_elim2_csWeightIntegrand E R L Ω) *
+        c_elim2_jointStateAverage (insert R E) μ L
+          (c_elim2_csNextIntegrand E R hR L Ω H) := by
+  classical
+  let Outside : β → Type _ := fun b => c_elim2_ShiftOutside (α := α) E R (L b)
+  let γ := Σ b, Outside b
+  letI : ∀ b, Fintype (Outside b) := fun b => by
+    dsimp [Outside, c_elim2_ShiftOutside]
+    infer_instance
+  letI : Fintype γ := by
+    dsimp [γ]
+    infer_instance
+  let μ' : γ → ℝ := fun x => μ x.1 * (Fintype.card (Outside x.1) : ℝ)⁻¹
+  let Ω' : γ → ℝ := fun x => Ω x.1 x.2
+  let H₀' : γ → ℝ := fun x => H₀ x.1 x.2
+  let H₁' : γ → ℝ := fun x =>
+    c_elim2_uniformFintypeAverage (H x.1 x.2)
+  have hμ' : ∀ x, 0 ≤ μ' x := by
+    intro x
+    exact mul_nonneg (hμ x.1) (inv_nonneg.mpr (Nat.cast_nonneg _))
+  have hΩ' : ∀ x, 0 ≤ Ω' x := by
+    intro x
+    exact hΩ x.1 x.2
+  have h₀' : ∀ x, |H₀' x| ≤ Ω' x := by
+    intro x
+    exact h₀ x.1 x.2
+  have hΩs : Summable (fun x => μ' x * Ω' x) := by
+    exact Summable.of_finite
+  have h₁s : Summable (fun x => μ' x * (Ω' x * H₁' x ^ 2)) := by
+    exact Summable.of_finite
+  have hcs := hCS (γ := γ) μ' Ω' H₀' H₁' hμ' hΩ' h₀' hΩs h₁s
+  have hcurrent (b : β) :
+      c_elim2_shiftStateAverage E (L b)
+        (c_elim2_csCurrentIntegrand E R L H₀ H b) =
+      c_elim2_uniformFintypeAverage (fun o : Outside b =>
+        H₀ b o * c_elim2_uniformFintypeAverage (H b o)) := by
+    letI : Nonempty (Fin (L b)) := ⟨⟨0, hL b⟩⟩
+    rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L b)]
+    simp only [c_elim2_csCurrentIntegrand, Equiv.apply_symm_apply]
+    apply congrArg (fun f : Outside b → ℝ => c_elim2_uniformFintypeAverage f)
+    funext o
+    exact c_elim2_uniformFintypeAverage_const
+      (H₀ b o * c_elim2_uniformFintypeAverage (H b o))
+  have hweight (b : β) :
+      c_elim2_shiftStateAverage E (L b)
+        (c_elim2_csWeightIntegrand E R L Ω b) =
+      c_elim2_uniformFintypeAverage (Ω b) := by
+    letI : Nonempty (Fin (L b)) := ⟨⟨0, hL b⟩⟩
+    rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L b)]
+    simp only [c_elim2_csWeightIntegrand, Equiv.apply_symm_apply]
+    apply congrArg (fun f : Outside b → ℝ => c_elim2_uniformFintypeAverage f)
+    funext o
+    exact c_elim2_uniformFintypeAverage_const (Ω b o)
+  have hnext (b : β) :
+      c_elim2_shiftStateAverage (insert R E) (L b)
+        (c_elim2_csNextIntegrand E R hR L Ω H b) =
+      c_elim2_uniformFintypeAverage (fun o : Outside b =>
+        c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+          c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+            Ω b o * H b o t₀ * H b o t₁))) := by
+    letI : Nonempty (Fin (L b)) := ⟨⟨0, hL b⟩⟩
+    let eIns := c_elim2_shiftStateInsertEquiv E R hR (L b)
+    let eSplit := c_elim2_shiftCoordAssignmentSplitEquiv E R (L b)
+    have hEval (o : Outside b) (t₀ t₁ : Fin (L b)) :
+        c_elim2_csNextIntegrand E R hR L Ω H b
+          ((c_elim2_shiftStateInsertEquiv E R hR (L b)).symm
+            ((c_elim2_shiftCoordAssignmentSplitEquiv E R (L b)).symm (o, t₀), t₁)) =
+            Ω b o * H b o t₀ * H b o t₁ := by
+      simp [c_elim2_csNextIntegrand]
+    rw [c_elim2_shiftStateAverage_insert (E := E) (R := R) (hR := hR) (L := L b)]
+    rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L b)]
+    change c_elim2_uniformFintypeAverage (fun o : Outside b =>
+      c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+        c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+          c_elim2_csNextIntegrand E R hR L Ω H b
+            (eIns.symm (eSplit.symm (o, t₀), t₁))))) = _
+    apply congrArg (fun f : Outside b → ℝ => c_elim2_uniformFintypeAverage f)
+    funext o
+    apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+    funext t₀
+    apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+    funext t₁
+    exact hEval o t₀ t₁
+  have hleft :
+      (∑' x : γ, μ' x * (H₀' x * H₁' x)) =
+        c_elim2_jointStateAverage E μ L
+          (c_elim2_csCurrentIntegrand E R L H₀ H) := by
+    have hsum := c_elim2_sigma_weighted_uniform_sum (O := Outside) μ
+      (fun b o => H₀ b o * c_elim2_uniformFintypeAverage (H b o))
+    have houter :
+        (∑' x : γ, μ' x * (H₀' x * H₁' x)) =
+          ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            H₀ b o * c_elim2_uniformFintypeAverage (H b o)) := by
+      simpa [μ', H₀', H₁', Outside, mul_assoc] using hsum
+    calc
+      _ = ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            H₀ b o * c_elim2_uniformFintypeAverage (H b o)) := houter
+      _ = _ := by
+        unfold c_elim2_jointStateAverage
+        apply Finset.sum_congr rfl
+        intro b hb
+        rw [← hcurrent b]
+  have hfirst :
+      (∑' x : γ, μ' x * Ω' x) =
+        c_elim2_jointStateAverage E μ L (c_elim2_csWeightIntegrand E R L Ω) := by
+    have hsum := c_elim2_sigma_weighted_uniform_sum (O := Outside) μ
+      (fun b o => Ω b o)
+    have houter : (∑' x : γ, μ' x * Ω' x) =
+        ∑ b, μ b * c_elim2_uniformFintypeAverage (Ω b) := by
+      simpa [μ', Ω', Outside] using hsum
+    calc
+      _ = ∑ b, μ b * c_elim2_uniformFintypeAverage (Ω b) := houter
+      _ = _ := by
+        unfold c_elim2_jointStateAverage
+        apply Finset.sum_congr rfl
+        intro b hb
+        rw [← hweight b]
+  have hpair (b : β) (o : Outside b) :
+      c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+        c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+          Ω b o * H b o t₀ * H b o t₁)) =
+    Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2 := by
+    calc
+      _ = c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+          (Ω b o * H b o t₀) * c_elim2_uniformFintypeAverage (H b o)) := by
+        apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+        funext t₀
+        simpa [mul_assoc] using
+          (c_elim2_uniformFintypeAverage_const_mul
+            (Ω b o * H b o t₀) (H b o))
+      _ = c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+          (Ω b o * c_elim2_uniformFintypeAverage (H b o)) * H b o t₀) := by
+        apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+        funext t₀
+        ring
+      _ = (Ω b o * c_elim2_uniformFintypeAverage (H b o)) *
+          c_elim2_uniformFintypeAverage (H b o) :=
+        c_elim2_uniformFintypeAverage_const_mul
+          (Ω b o * c_elim2_uniformFintypeAverage (H b o)) (H b o)
+      _ = _ := by ring
+  have hnextReduce (b : β) :
+      c_elim2_uniformFintypeAverage (fun o : Outside b =>
+        Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2) =
+      c_elim2_shiftStateAverage (insert R E) (L b)
+        (c_elim2_csNextIntegrand E R hR L Ω H b) := by
+    calc
+      _ = c_elim2_uniformFintypeAverage (fun o : Outside b =>
+          c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+            c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+              Ω b o * H b o t₀ * H b o t₁))) := by
+        congr 1
+        funext o
+        exact (hpair b o).symm
+      _ = _ := (hnext b).symm
+  have hsecond :
+      (∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2)) =
+        c_elim2_jointStateAverage (insert R E) μ L
+          (c_elim2_csNextIntegrand E R hR L Ω H) := by
+    have hsum := c_elim2_sigma_weighted_uniform_sum (O := Outside) μ
+      (fun b o => Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2)
+    have houter :
+        (∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2)) =
+          ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2) := by
+      simpa [μ', Ω', H₁', Outside, mul_assoc] using hsum
+    calc
+      _ = ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2) := houter
+      _ = _ := by
+        unfold c_elim2_jointStateAverage
+        apply Finset.sum_congr rfl
+        intro b hb
+        rw [← hnextReduce b]
+  calc
+    |c_elim2_jointStateAverage E μ L
+        (c_elim2_csCurrentIntegrand E R L H₀ H)| ^ 2 =
+        |∑' x : γ, μ' x * (H₀' x * H₁' x)| ^ 2 := by rw [hleft]
+    _ ≤ (∑' x : γ, μ' x * Ω' x) *
+        ∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2) := hcs
+    _ = _ := by rw [hfirst, hsecond]
+
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
