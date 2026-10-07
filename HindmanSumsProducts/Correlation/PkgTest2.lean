@@ -2911,8 +2911,8 @@ theorem c_test2_samplingResidueError_superpoly {K s m : ℕ}
   let Ksam : ℕ → ℕ := fun N => V N ^ R
   let Hsam : ℕ → ℕ := fun _ => 1
   let Xsam : ℕ → ℕ := fun N => A.X N (C.block i).1
-  let target : ℕ → ℕ := fun N => 2 + primorial (N + 1) + Ksam N + Hsam N + V N
   let logTarget : ℕ → ℕ := fun N => 2 + primorial (N + 1) + Ksam N + V N
+  let target : ℕ → ℕ := fun N => 2 + primorial (N + 1) + Ksam N + Hsam N + V N
   have hV4 : ∀ᶠ N in atTop, 4 ≤ V N := by
     filter_upwards [eventually_ge_atTop 1] with N hN
     have hW2 : 2 ≤ primorial (N + 1) := by
@@ -2934,7 +2934,7 @@ theorem c_test2_samplingResidueError_superpoly {K s m : ℕ}
     c_test2_masterSize_le_pivotGap_eventually S C i (C.pivots_after_gap i)
   have htarget : ∀ᶠ N in atTop, target N ≤ V N ^ (R + 4) := by
     filter_upwards [hV4] with N hV
-    dsimp [target, Ksam, Hsam]
+    dsimp [target, logTarget, Ksam, Hsam]
     have hV1 := hVpos N
     have hW := hWleV N
     have hWplus : primorial (N + 1) + 1 ≤ V N := by
@@ -3114,7 +3114,7 @@ theorem c_test2_samplingResidueError_superpoly {K s m : ℕ}
   have hW : ∀ N, (fun n => primorial (n + 1)) N = primorial (N + 1) := by intro N; rfl
   have hsamp := FromArithmetic.sampling_asymptotics
     (fun N => primorial (N + 1)) Ksam Hsam V Xsam hK hH hV hW hXevent hden
-    (by simpa [target, Ksam, Hsam] using hDomX)
+    (by simpa [target, logTarget, Ksam, Hsam] using hDomX)
     (by simpa [logTarget, Ksam] using hlogTarget)
   change SuperPolynomialSmall
     (fun N => FromArithmetic.harmonicResidueUniformError
@@ -3251,6 +3251,11 @@ theorem c_test2_parameterTailProductLaw_eq_harmonicProductLaw {n : ℕ}
       apply Fintype.prod_equiv eFin
       intro j
       simp [law, ePi, Equiv.arrowCongr, eFin]
+    have hprodCoord (y : Fin (Fintype.card Tail) → ℕ) :
+        (∏ j : Tail, ePi.symm y j) = ∏ i : Fin (Fintype.card Tail), y i := by
+      apply Fintype.prod_equiv eFin
+      intro j
+      simp [ePi, Equiv.arrowCongr]
     have hprodCoord (y : Fin (Fintype.card Tail) → ℕ) :
         (∏ j : Tail, ePi.symm y j) = ∏ i : Fin (Fintype.card Tail), y i := by
       apply Fintype.prod_equiv eFin
