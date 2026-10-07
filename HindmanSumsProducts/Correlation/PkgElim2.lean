@@ -1714,6 +1714,76 @@ theorem c_elim2_boxRetainedInsertedRowFactor_endpoint {α β : Type u}
       simp [c_elim2_boxEndpointChoice]
     _ = _ := rfl
 
+theorem c_elim2_boxRetainedProduct_insert_endpoint {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β)
+    (E : Finset α) (R : α) (hR : R ∉ E) (b : β)
+    (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) :
+    c_elim2_boxRetainedProduct D (insert R E) b
+      (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁) =
+    c_elim2_boxWeightRowFactor D E R b
+      (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o t₀) *
+      ∏ bit : Fin 2, c_elim2_boxRetainedProduct D E b
+        (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+          (c_elim2_boxEndpointChoice t₀ t₁ bit)) := by
+  classical
+  let eI := c_elim2_finsetSubtypeInsertEquiv E R hR
+  let newFactor (I : {i : α // i ∈ insert R E}) : ℝ :=
+    ∏ η : c_elim2_BoxRetainedBranch (insert R E) I.1,
+      D.rowWeight I.1 b
+        (c_elim2_boxRowArgument D (insert R E) b I.1
+          (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+          (c_elim2_boxRetainedBranchFull (insert R E) I.1 η))
+  let oldFactor (I : {i : α // i ∈ E}) (bit : Fin 2) : ℝ :=
+    ∏ η : c_elim2_BoxRetainedBranch E I.1,
+      D.rowWeight I.1 b
+        (c_elim2_boxRowArgument D E b I.1
+          (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+            (c_elim2_boxEndpointChoice t₀ t₁ bit))
+          (c_elim2_boxRetainedBranchFull E I.1 η))
+  have hsplit :
+      (∏ I : {i : α // i ∈ insert R E}, newFactor I) =
+        (∏ I : {i : α // i ∈ E}, newFactor (eI.symm (Sum.inl I))) *
+          newFactor (eI.symm (Sum.inr PUnit.unit)) := by
+    calc
+      _ = ∏ x : {i : α // i ∈ E} ⊕ PUnit.{u + 1}, newFactor (eI.symm x) := by
+        exact Fintype.prod_equiv eI _ _ (by intro I; simp [eI])
+      _ = _ := by rw [Fintype.prod_sum_type]; simp
+  have hOld (I : {i : α // i ∈ E}) :
+      newFactor (eI.symm (Sum.inl I)) = ∏ bit : Fin 2, oldFactor I bit := by
+    simpa [newFactor, oldFactor, eI, c_elim2_finsetSubtypeInsertEquiv] using
+      c_elim2_boxRetainedRowFactor_insert_endpoint
+        D E R I.val hR I.property b o t₀ t₁
+  have hNew : newFactor (eI.symm (Sum.inr PUnit.unit)) =
+      c_elim2_boxWeightRowFactor D E R b
+        (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o t₀) := by
+    simpa [newFactor, eI, c_elim2_finsetSubtypeInsertEquiv] using
+      c_elim2_boxRetainedInsertedRowFactor_endpoint D E R hR b o t₀ t₁
+  have holdprod :
+      (∏ I : {i : α // i ∈ E}, newFactor (eI.symm (Sum.inl I))) =
+        ∏ I : {i : α // i ∈ E}, ∏ bit : Fin 2, oldFactor I bit := by
+    apply Fintype.prod_congr
+    intro I
+    exact hOld I
+  calc
+    c_elim2_boxRetainedProduct D (insert R E) b
+        (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁) =
+      (∏ I : {i : α // i ∈ E}, newFactor (eI.symm (Sum.inl I))) *
+        newFactor (eI.symm (Sum.inr PUnit.unit)) := by
+          unfold c_elim2_boxRetainedProduct
+          exact hsplit
+    _ = (∏ I : {i : α // i ∈ E}, ∏ bit : Fin 2, oldFactor I bit) *
+        c_elim2_boxWeightRowFactor D E R b
+          (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o t₀) := by
+          rw [holdprod, hNew]
+    _ = c_elim2_boxWeightRowFactor D E R b
+          (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o t₀) *
+        ∏ bit : Fin 2, ∏ I : {i : α // i ∈ E}, oldFactor I bit := by
+          rw [c_elim2_fintype_prod_comm (fun I bit => oldFactor I bit)]
+          ring
+    _ = _ := by
+      congr 1
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
