@@ -202,6 +202,19 @@ private lemma smallestPrimeEndpoint_ge_two {k : ℕ} (Y : Fin k → ℕ)
     exact hY j
   · exact False.elim (h ⟨Y i, Finset.mem_image.mpr ⟨i, Finset.mem_univ i, rfl⟩⟩)
 
+private lemma lower_le_smallestPrimeEndpoint {k : ℕ} (Y : Fin k → ℕ)
+    (L : ℕ) (hk : 0 < k) (hY : ∀ i, L ≤ Y i) :
+    L ≤ smallestPrimeEndpoint Y := by
+  classical
+  unfold smallestPrimeEndpoint
+  split_ifs with hS
+  · rw [Finset.le_min'_iff]
+    intro a ha
+    rcases Finset.mem_image.mp ha with ⟨i, _, rfl⟩
+    exact hY i
+  · exact False.elim (hS ⟨Y ⟨0, hk⟩,
+      Finset.mem_image.mpr ⟨⟨0, hk⟩, Finset.mem_univ _, rfl⟩⟩)
+
 private lemma roughSmallestEndpoint_le_left {kF kG : ℕ}
     (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) (i : Fin kF) :
     roughSmallestEndpoint YF YG ≤ YF i := by
@@ -382,6 +395,45 @@ theorem polynomial_zero_dyadic_prime_bound {k : ℕ}
     simpa [independentPrimePoolProbability, independentPrimePoolMass, α, L] using
       hgrid.trans hbound''
 
+private lemma polynomial_zero_dyadic_prime_bound_sqrt {k : ℕ}
+    (F : IntegerPolynomial k) (hF : F ≠ 0) (hk : 0 < k) :
+    ∃ C : ℝ, 0 < C ∧
+      ∀ (Y : Fin k → ℕ) (L : ℕ), 2 ≤ L → (∀ i, L ≤ Y i) →
+        independentPrimePoolProbability Y (fun i => 2 * Y i)
+          (fun p => evalIntegerPolynomial F (fun i => (p i : ℤ)) = 0) ≤
+          C * (Real.log (L : ℝ) / Real.sqrt (L : ℝ)) := by
+  obtain ⟨C₀, hC₀, hzero⟩ := polynomial_zero_dyadic_prime_bound F hF
+  refine ⟨2 * C₀, by positivity, ?_⟩
+  intro Y L hL hY
+  have hYtwo : ∀ i, 2 ≤ Y i := fun i => le_trans hL (hY i)
+  have hzero' := hzero Y hYtwo
+  have hmin : L ≤ smallestPrimeEndpoint Y :=
+    lower_le_smallestPrimeEndpoint Y L hk hY
+  have hratio := dyadic_log_ratio_le_two hL hmin
+  have hlogL : 0 ≤ Real.log (L : ℝ) :=
+    Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ L))
+  have hsqrtLpos : 0 < Real.sqrt (L : ℝ) := by
+    apply Real.sqrt_pos.2
+    exact_mod_cast (by omega : 0 < L)
+  have hLpos : (0 : ℝ) < L := by exact_mod_cast (by omega : 0 < L)
+  have hsqrtLe : Real.sqrt (L : ℝ) ≤ (L : ℝ) := by
+    rw [Real.sqrt_le_left hLpos.le]
+    exact_mod_cast (by nlinarith [hL] : L ≤ L ^ 2)
+  have hratio' : Real.log (L : ℝ) / L ≤
+      Real.log (L : ℝ) / Real.sqrt (L : ℝ) :=
+    div_le_div_of_nonneg_left hlogL hsqrtLpos hsqrtLe
+  calc
+    _ ≤ C₀ * Real.log (smallestPrimeEndpoint Y : ℝ) /
+          smallestPrimeEndpoint Y := hzero'
+    _ = C₀ * (Real.log (smallestPrimeEndpoint Y : ℝ) /
+          smallestPrimeEndpoint Y) := by ring
+    _ ≤ C₀ * (2 * (Real.log (L : ℝ) / L)) :=
+          mul_le_mul_of_nonneg_left hratio hC₀.le
+    _ = 2 * C₀ * (Real.log (L : ℝ) / L) := by ring
+    _ ≤ 2 * C₀ * (Real.log (L : ℝ) / Real.sqrt (L : ℝ)) :=
+          mul_le_mul_of_nonneg_left hratio' (by positivity)
+    _ = _ := by ring
+
 private def primeTupleSupport {m : ℕ} (lo hi : Fin m → ℕ) :
     Finset (Fin m → ℕ) :=
   Fintype.piFinset (fun i => Finset.Ico (lo i) (hi i))
@@ -435,6 +487,49 @@ private lemma independentPrimePairOuter_summable {kF kG : ℕ}
   intro x hx
   rw [independentPrimePoolMass_zero_of_not_mem_support loF hiF x hx]
   simp
+
+private lemma independentPrimePairProbability_eq_sum_support {kF kG : ℕ}
+    (loF hiF : Fin kF → ℕ) (loG hiG : Fin kG → ℕ)
+    (E : (Fin kF → ℕ) → (Fin kG → ℕ) → Prop) [DecidableRel E] :
+    independentPrimePairProbability loF hiF loG hiG E =
+      ∑ x ∈ primeTupleSupport loF hiF,
+        ∑ y ∈ primeTupleSupport loG hiG,
+          independentPrimePoolMass loF hiF x *
+            independentPrimePoolMass loG hiG y * (if E x y then 1 else 0) := by
+  classical
+  letI : DecidableRel E := fun x y => Classical.propDecidable (E x y)
+  let Sx := primeTupleSupport loF hiF
+  let Sy := primeTupleSupport loG hiG
+  unfold independentPrimePairProbability
+  rw [tsum_eq_sum (s := Sx)]
+  · apply Finset.sum_congr rfl
+    intro x hx
+    rw [tsum_eq_sum (s := Sy)]
+    · rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro y hy
+      ring
+    · intro y hy
+      rw [independentPrimePoolMass_zero_of_not_mem_support loG hiG y hy]
+      simp
+  · intro x hx
+    rw [independentPrimePoolMass_zero_of_not_mem_support loF hiF x hx]
+    simp
+
+private lemma independentPrimePairProbability_swap {kF kG : ℕ}
+    (loF hiF : Fin kF → ℕ) (loG hiG : Fin kG → ℕ)
+    (E : (Fin kF → ℕ) → (Fin kG → ℕ) → Prop) [DecidableRel E] :
+    independentPrimePairProbability loF hiF loG hiG E =
+      independentPrimePairProbability loG hiG loF hiF (fun y x => E x y) := by
+  classical
+  rw [independentPrimePairProbability_eq_sum_support loF hiF loG hiG E,
+    independentPrimePairProbability_eq_sum_support loG hiG loF hiF (fun y x => E x y)]
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro y hy
+  apply Finset.sum_congr rfl
+  intro x hx
+  ring
 
 private lemma independentPrimePairProbability_product {kF kG : ℕ}
     (loF hiF : Fin kF → ℕ) (loG hiG : Fin kG → ℕ)
@@ -583,6 +678,14 @@ private lemma independentPrimePairProbability_reindex_both {kF kG : ℕ}
           (fun x y => E x (roughTupleReindex eG y))
     _ = independentPrimePairProbability loF hiF loG hiG E :=
         independentPrimePairProbability_reindex_right eG loF hiF loG hiG E
+
+private lemma totalDegree_rename_perm {m : ℕ} (e : Equiv.Perm (Fin m))
+    (P : IntegerPolynomial m) :
+    (MvPolynomial.rename e P).totalDegree = P.totalDegree := by
+  apply le_antisymm
+  · exact MvPolynomial.totalDegree_rename_le e P
+  · have h := MvPolynomial.totalDegree_rename_le e.symm (MvPolynomial.rename e P)
+    simpa [MvPolynomial.rename_rename] using h
 
 private lemma evalIntegerPolynomial_roughTupleReindex {m : ℕ}
     (e : Equiv.Perm (Fin m)) (P : IntegerPolynomial m) (x : Fin m → ℕ) :
@@ -3124,13 +3227,24 @@ private def roughLargePrimeDivisorEvent {kF kG : ℕ}
     (p : ℤ) ∣ evalIntegerPolynomial F (fun i => (x i : ℤ)) ∧
     (p : ℤ) ∣ evalIntegerPolynomial G (fun j => (y j : ℤ))
 
-private def roughLargePrimeDivisorBound {kF kG : ℕ}
-    (F : IntegerPolynomial kF) (G : IntegerPolynomial kG) : Prop :=
-  ∃ C : ℝ, 0 < C ∧ ∀ (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) (L : ℕ),
+private def roughLargePrimeDivisorBoundConstant {kF kG : ℕ}
+    (F : IntegerPolynomial kF) (G : IntegerPolynomial kG) (C : ℝ) : Prop :=
+  ∀ (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) (L : ℕ),
     (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) → 2 ≤ L →
     independentPrimePairProbability YF (fun i => 2 * YF i)
       YG (fun j => 2 * YG j) (roughLargePrimeDivisorEvent F G L) ≤
         C * Real.log L / Real.sqrt L
+
+private def roughZeroPrimeDivisorBoundConstant {k : ℕ}
+    (F : IntegerPolynomial k) (C : ℝ) : Prop :=
+  ∀ (Y : Fin k → ℕ) (L : ℕ), 2 ≤ L → (∀ i, L ≤ Y i) →
+    independentPrimePoolProbability Y (fun i => 2 * Y i)
+      (fun p => evalIntegerPolynomial F (fun i => (p i : ℤ)) = 0) ≤
+      C * (Real.log (L : ℝ) / Real.sqrt (L : ℝ))
+
+private def roughLargePrimeDivisorBound {kF kG : ℕ}
+    (F : IntegerPolynomial kF) (G : IntegerPolynomial kG) : Prop :=
+  ∃ C : ℝ, 0 < C ∧ roughLargePrimeDivisorBoundConstant F G C
 
 private lemma roughLargePrimeDivisorBound_of_witnessBound {kF kG : ℕ}
     (F : IntegerPolynomial kF) (G : IntegerPolynomial kG)
@@ -3271,6 +3385,7 @@ private lemma roughLargePrimeDivisorEvent_reindex {kF kG : ℕ}
     YF (fun i => 2 * YF i) YG (fun j => 2 * YG j)
     (roughLargePrimeDivisorEvent F G L)
 
+set_option maxHeartbeats 1000000
 /-- Large common rough prime divisors, `p>√L`, contribute `O(log L/√L)` by testing
 the finitely many large prime factors of the polynomial with the smaller main endpoint
 (§3 lines 413–432), with the leading-coefficient induction of §3 lines 391–403 and the
@@ -3291,7 +3406,782 @@ theorem rough_coprimality_large_prime_divisors {kF kG : ℕ}
             (p : ℤ) ∣ evalIntegerPolynomial F (fun i => (x i : ℤ)) ∧
             (p : ℤ) ∣ evalIntegerPolynomial G (fun i => (y i : ℤ))) ≤
         C * Real.log L / Real.sqrt L := by
-  sorry
+  classical
+  have hInduction : ∀ d, ∀ kF kG (F : IntegerPolynomial kF)
+      (G : IntegerPolynomial kG), F ≠ 0 → G ≠ 0 →
+      F.totalDegree + G.totalDegree = d → roughLargePrimeDivisorBound F G := by
+    intro d
+    induction d using Nat.strong_induction_on with
+    | h d ih =>
+      intro kF kG F G hF hG hdeq
+      by_cases hFconst : F.totalDegree = 0
+      · exact roughLargePrimeDivisorBound_of_constant_left F G hF hG hFconst
+      · by_cases hGconst : G.totalDegree = 0
+        · exact roughLargePrimeDivisorBound_of_constant_right F G hF hG hGconst
+        · have hFdeg : 0 < F.totalDegree := Nat.pos_of_ne_zero hFconst
+          have hGdeg : 0 < G.totalDegree := Nat.pos_of_ne_zero hGconst
+          have hvarsF := mvPolynomial_vars_nonempty_of_totalDegree_pos F hFdeg
+          have hvarsG := mvPolynomial_vars_nonempty_of_totalDegree_pos G hGdeg
+          have hkF : 0 < kF := by
+            rcases hvarsF with ⟨i, _⟩
+            have hi := i.isLt
+            omega
+          have hkG : 0 < kG := by
+            rcases hvarsG with ⟨j, _⟩
+            have hj := j.isLt
+            omega
+          obtain ⟨nF, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : kF ≠ 0)
+          obtain ⟨nG, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : kG ≠ 0)
+          let zeroF : Fin (nF + 1) := ⟨0, by omega⟩
+          let zeroG : Fin (nG + 1) := ⟨0, by omega⟩
+          let moveF : Fin (nF + 1) → IntegerPolynomial (nF + 1) := fun i =>
+            MvPolynomial.rename (roughMoveMainPerm zeroF i).symm F
+          let moveG : Fin (nG + 1) → IntegerPolynomial (nG + 1) := fun j =>
+            MvPolynomial.rename (roughMoveMainPerm zeroG j).symm G
+          let leadF : Fin (nF + 1) → IntegerPolynomial (nF + 1) := fun i =>
+            roughMainCoefficient (moveF i)
+          let leadG : Fin (nG + 1) → IntegerPolynomial (nG + 1) := fun j =>
+            roughMainCoefficient (moveG j)
+          let complexityF : Fin (nF + 1) → ℕ := fun i =>
+            roughCoefficientMass (moveF i) * 2 ^ (moveF i).totalDegree +
+              (roughCoefficientMass (roughMainCoefficientTail (moveF i)) + 1) ^ 2
+          let complexityG : Fin (nG + 1) → ℕ := fun j =>
+            roughCoefficientMass (moveG j) * 2 ^ (moveG j).totalDegree +
+              (roughCoefficientMass (roughMainCoefficientTail (moveG j)) + 1) ^ 2
+          let sumComplexityF : ℕ := ∑ i : Fin (nF + 1), complexityF i
+          let sumComplexityG : ℕ := ∑ j : Fin (nG + 1), complexityG j
+          have hcomplexF : ∀ i, complexityF i ≤ sumComplexityF := by
+            intro i
+            dsimp [sumComplexityF]
+            exact Finset.single_le_sum (f := complexityF)
+              (fun i hi => Nat.zero_le _) (Finset.mem_univ i)
+          have hcomplexG : ∀ j, complexityG j ≤ sumComplexityG := by
+            intro j
+            dsimp [sumComplexityG]
+            exact Finset.single_le_sum (f := complexityG)
+              (fun j hj => Nat.zero_le _) (Finset.mem_univ j)
+          obtain ⟨Cbt, hCbt, hBTevent⟩ :=
+            HindmanSumsProducts.Arithmetic.Outside.harmonic_prime_brun_titchmarsh
+          obtain ⟨Ybt, hYbtEvent⟩ := Filter.eventually_atTop.1 hBTevent
+          have hBTall : ∀ Y, Ybt ≤ Y → ∀ p, p.Prime → p ^ 2 ≤ Y →
+              ∀ a : Fin p, 0 < a.val →
+                (∑ q ∈ (Finset.Ico Y (2 * Y)).filter Nat.Prime,
+                  if q % p = a.val then primePoolLaw Y (2 * Y) q else 0) ≤ Cbt / p := by
+            intro Y hY p hp hpY a ha
+            exact hYbtEvent Y hY p hp hpY a ha
+          obtain ⟨Aatom, hAatom, hAtom⟩ := dyadicPrimePoolLaw_global_atom_bound
+          have hlog2 : 0 < Real.log (2 : ℝ) := Real.log_pos (by norm_num)
+          let T : ℕ := 9 + Ybt + sumComplexityF + sumComplexityG
+          have hT9 : 9 ≤ T := by dsimp [T]; omega
+          have hTYbt : Ybt ≤ T := by dsimp [T]; omega
+          have hTSF : sumComplexityF ≤ T := by dsimp [T]; omega
+          have hTSG : sumComplexityG ≤ T := by dsimp [T]; omega
+          let Csmall : ℝ := Real.sqrt (T : ℝ) / Real.log 2
+          let Cmed : ℝ := (F.totalDegree : ℝ) * (G.totalDegree : ℝ) *
+            Cbt ^ 2 * (2 / Real.log 2)
+          let CexpF : ℝ := (2 * (F.totalDegree + 1) : ℝ) *
+            (G.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom)
+          let CexpG : ℝ := (2 * (G.totalDegree + 1) : ℝ) *
+            (F.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom)
+          let ActivePair :=
+            { ij : Fin (nF + 1) × Fin (nG + 1) // ij.1 ∈ F.vars ∧ ij.2 ∈ G.vars }
+          have hActivePairNonempty : Nonempty ActivePair := by
+            rcases hvarsF with ⟨i, hi⟩
+            rcases hvarsG with ⟨j, hj⟩
+            exact ⟨⟨(i, j), ⟨hi, hj⟩⟩⟩
+          have hdata : ∀ z : ActivePair,
+              ∃ q : ℝ × (ℝ × (ℝ × ℝ)),
+                0 < q.1 ∧ 0 < q.2.1 ∧ 0 < q.2.2.1 ∧ 0 < q.2.2.2 ∧
+                roughLargePrimeDivisorBoundConstant
+                  (leadF z.1.1) (moveG z.1.2) q.1 ∧
+                roughLargePrimeDivisorBoundConstant
+                  (moveF z.1.1) (leadG z.1.2) q.2.1 ∧
+                roughZeroPrimeDivisorBoundConstant (leadF z.1.1) q.2.2.1 ∧
+                roughZeroPrimeDivisorBoundConstant (leadG z.1.2) q.2.2.2 := by
+            intro z
+            let i := z.1.1
+            let j := z.1.2
+            let eF := roughMoveMainPerm zeroF i
+            let eG := roughMoveMainPerm zeroG j
+            let Fm := moveF i
+            let Gm := moveG j
+            let A := leadF i
+            let B := leadG j
+            have hFm : Fm ≠ 0 := by
+              intro hz
+              apply hF
+              have hz' := congrArg (MvPolynomial.rename eF) hz
+              simpa [Fm, moveF, eF, MvPolynomial.rename_rename] using hz'
+            have hGm : Gm ≠ 0 := by
+              intro hz
+              apply hG
+              have hz' := congrArg (MvPolynomial.rename eG) hz
+              simpa [Gm, moveG, eG, MvPolynomial.rename_rename] using hz'
+            have hMovedF := roughMoveMain_active_endpoint F (fun _ => 0)
+              zeroF i z.2.1 (by intro a ha; omega)
+            have hMovedG := roughMoveMain_active_endpoint G (fun _ => 0)
+              zeroG j z.2.2 (by intro a ha; omega)
+            have hactiveF : zeroF ∈ Fm.vars := by
+              simpa [Fm, moveF, eF] using hMovedF.1
+            have hactiveG : zeroG ∈ Gm.vars := by
+              simpa [Gm, moveG, eG] using hMovedG.1
+            have hmainF : 0 < Fm.degreeOf zeroF := by
+              have hnz := (MvPolynomial.mem_vars_iff_degreeOf_ne_zero).1 hactiveF
+              omega
+            have hmainG : 0 < Gm.degreeOf zeroG := by
+              have hnz := (MvPolynomial.mem_vars_iff_degreeOf_ne_zero).1 hactiveG
+              omega
+            have hA : A ≠ 0 := by
+              exact roughMainCoefficient_ne_zero Fm hFm
+            have hB : B ≠ 0 := by
+              exact roughMainCoefficient_ne_zero Gm hGm
+            have hFmDegree : Fm.totalDegree = F.totalDegree := by
+              simpa [Fm, moveF, eF] using
+                totalDegree_rename_perm eF.symm F
+            have hGmDegree : Gm.totalDegree = G.totalDegree := by
+              simpa [Gm, moveG, eG] using
+                totalDegree_rename_perm eG.symm G
+            have hAdegree : A.totalDegree < F.totalDegree := by
+              have h := roughMainCoefficient_totalDegree_lt Fm hFm hmainF
+              simpa [A, Fm, hFmDegree] using h
+            have hBdegree : B.totalDegree < G.totalDegree := by
+              have h := roughMainCoefficient_totalDegree_lt Gm hGm hmainG
+              simpa [B, Gm, hGmDegree] using h
+            have hsumA : A.totalDegree + Gm.totalDegree < d := by
+              omega
+            have hsumB : Fm.totalDegree + B.totalDegree < d := by
+              omega
+            have hRecA := ih (A.totalDegree + Gm.totalDegree) hsumA
+              (nF + 1) (nG + 1) A Gm hA hGm rfl
+            have hRecB := ih (Fm.totalDegree + B.totalDegree) hsumB
+              (nF + 1) (nG + 1) Fm B hFm hB rfl
+            rcases hRecA with ⟨cA, hcA, hboundA⟩
+            rcases hRecB with ⟨cB, hcB, hboundB⟩
+            obtain ⟨cZA, hcZA, hboundZA⟩ :=
+              polynomial_zero_dyadic_prime_bound_sqrt A hA (by omega)
+            obtain ⟨cZB, hcZB, hboundZB⟩ :=
+              polynomial_zero_dyadic_prime_bound_sqrt B hB (by omega)
+            refine ⟨(cA, (cB, (cZA, cZB))), ?_⟩
+            exact ⟨hcA, hcB, hcZA, hcZB, hboundA, hboundB, hboundZA, hboundZB⟩
+          let choices : ActivePair → ℝ × (ℝ × (ℝ × ℝ)) := fun z =>
+            Classical.choose (hdata z)
+          have hchoices (z : ActivePair) :
+              0 < (choices z).1 ∧ 0 < (choices z).2.1 ∧
+              0 < (choices z).2.2.1 ∧ 0 < (choices z).2.2.2 ∧
+              roughLargePrimeDivisorBoundConstant
+                (leadF z.1.1) (moveG z.1.2) (choices z).1 ∧
+              roughLargePrimeDivisorBoundConstant
+                (moveF z.1.1) (leadG z.1.2) (choices z).2.1 ∧
+              roughZeroPrimeDivisorBoundConstant
+                (leadF z.1.1) (choices z).2.2.1 ∧
+              roughZeroPrimeDivisorBoundConstant
+                (leadG z.1.2) (choices z).2.2.2 :=
+            Classical.choose_spec (hdata z)
+          let cRecA : ActivePair → ℝ := fun z => (choices z).1
+          let cRecB : ActivePair → ℝ := fun z => (choices z).2.1
+          let cZeroA : ActivePair → ℝ := fun z => (choices z).2.2.1
+          let cZeroB : ActivePair → ℝ := fun z => (choices z).2.2.2
+          have hcRecA : ∀ z, 0 < cRecA z := fun z => (hchoices z).1
+          have hcRecB : ∀ z, 0 < cRecB z := fun z => (hchoices z).2.1
+          have hcZeroA : ∀ z, 0 < cZeroA z := fun z => (hchoices z).2.2.1
+          have hcZeroB : ∀ z, 0 < cZeroB z := fun z => (hchoices z).2.2.2.1
+          let CRec : ℝ := ∑ z : ActivePair,
+            (cRecA z + cRecB z + cZeroA z + cZeroB z + 1)
+          have hCRecNonneg : 0 ≤ CRec := by
+            dsimp [CRec]
+            apply Finset.sum_nonneg
+            intro z hz
+            have hA : 0 ≤ cRecA z := (hcRecA z).le
+            have hB : 0 ≤ cRecB z := (hcRecB z).le
+            have hZA : 0 ≤ cZeroA z := (hcZeroA z).le
+            have hZB : 0 ≤ cZeroB z := (hcZeroB z).le
+            positivity
+          let C : ℝ := Csmall + Cmed + CexpF + CexpG + CRec
+          have hCsmallPos : 0 < Csmall := by
+            dsimp [Csmall]
+            exact div_pos (Real.sqrt_pos.2
+              (by exact_mod_cast (by omega : 0 < T))) hlog2
+          have hCbaseNonneg : 0 ≤ Cmed + CexpF + CexpG := by
+            dsimp [Cmed, CexpF, CexpG]
+            positivity
+          have hCpos : 0 < C := by
+            dsimp [C]
+            linarith [hCsmallPos, hCbaseNonneg, hCRecNonneg]
+          refine ⟨C, hCpos, ?_⟩
+          intro YF YG L hYF hYG hL
+          have hMassF : ∀ i, 0 < primePoolMass (YF i) (2 * YF i) := by
+            intro i
+            exact dyadicPrimePoolMass_pos (YF i)
+              ((by omega : 2 ≤ L).trans (hYF i))
+          have hMassG : ∀ j, 0 < primePoolMass (YG j) (2 * YG j) := by
+            intro j
+            exact dyadicPrimePoolMass_pos (YG j)
+              ((by omega : 2 ≤ L).trans (hYG j))
+          have hprobOne := independentPrimePairProbability_le_one
+            YF (fun i => 2 * YF i) YG (fun j => 2 * YG j) hMassF hMassG
+            (roughLargePrimeDivisorEvent F G L)
+          by_cases hsmall : L < T
+          · have hlog2le : Real.log 2 ≤ Real.log (L : ℝ) :=
+              Real.log_le_log (by norm_num)
+                (by exact_mod_cast (by omega : 2 ≤ L))
+            have hTpos : (0 : ℝ) < T := by exact_mod_cast (by omega : 0 < T)
+            have hsqrtTpos : 0 < Real.sqrt (T : ℝ) := Real.sqrt_pos.2 hTpos
+            have hsqrtLpos : 0 < Real.sqrt (L : ℝ) :=
+              Real.sqrt_pos.2 (by exact_mod_cast (by omega : 0 < L))
+            have hsqrtLE : Real.sqrt (L : ℝ) ≤ Real.sqrt (T : ℝ) := by
+              apply Real.sqrt_le_sqrt
+              exact_mod_cast (Nat.le_of_lt hsmall)
+            have hprod : Real.log 2 * Real.sqrt (L : ℝ) ≤
+                Real.log (L : ℝ) * Real.sqrt (T : ℝ) := by
+              calc
+                _ ≤ Real.log 2 * Real.sqrt (T : ℝ) :=
+                  mul_le_mul_of_nonneg_left hsqrtLE (Real.log_pos (by norm_num)).le
+                _ ≤ Real.log (L : ℝ) * Real.sqrt (T : ℝ) :=
+                  mul_le_mul_of_nonneg_right hlog2le hsqrtTpos.le
+            have hcover : 1 ≤ Csmall *
+                (Real.log (L : ℝ) / Real.sqrt (L : ℝ)) := by
+              dsimp [Csmall]
+              field_simp [hlog2.ne', hsqrtLpos.ne']
+              nlinarith
+            have hCsmall : Csmall ≤ C := by
+              dsimp [C]
+              nlinarith [hCbaseNonneg, hCRecNonneg]
+            have hratioNonneg : 0 ≤ Real.log (L : ℝ) / Real.sqrt (L : ℝ) :=
+              div_nonneg (Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ L)))
+                (Real.sqrt_nonneg _)
+            have hcoverCratio : 1 ≤ C * (Real.log (L : ℝ) / Real.sqrt (L : ℝ)) := by
+              exact hcover.trans
+                (mul_le_mul_of_nonneg_right hCsmall hratioNonneg)
+            have hcoverC : 1 ≤ C * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := by
+              calc
+                _ ≤ C * (Real.log (L : ℝ) / Real.sqrt (L : ℝ)) := hcoverCratio
+                _ = C * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := by ring
+            exact hprobOne.trans hcoverC
+          · have hTL : T ≤ L := Nat.le_of_not_gt hsmall
+            have hLlarge : 9 ≤ L := le_trans hT9 hTL
+            have hYbtL : Ybt ≤ L := le_trans hTYbt hTL
+            have hYFsmall : ∀ i, L ≤ YF i := hYF
+            have hYGsmall : ∀ j, L ≤ YG j := hYG
+            obtain ⟨iF, hiF, hmaxF⟩ := exists_max_active_endpoint F YF hvarsF
+            obtain ⟨iG, hiG, hmaxG⟩ := exists_max_active_endpoint G YG hvarsG
+            let eF := roughMoveMainPerm zeroF iF
+            let eG := roughMoveMainPerm zeroG iG
+            let Fm := moveF iF
+            let Gm := moveG iG
+            let A := leadF iF
+            let B := leadG iG
+            have hFm : Fm ≠ 0 := by
+              intro hz
+              apply hF
+              have hz' := congrArg (MvPolynomial.rename eF) hz
+              simpa [Fm, moveF, eF, MvPolynomial.rename_rename] using hz'
+            have hGm : Gm ≠ 0 := by
+              intro hz
+              apply hG
+              have hz' := congrArg (MvPolynomial.rename eG) hz
+              simpa [Gm, moveG, eG, MvPolynomial.rename_rename] using hz'
+            let YF0 : Fin (nF + 1) → ℕ := fun a => YF (eF a)
+            let YG0 : Fin (nG + 1) → ℕ := fun b => YG (eG b)
+            have hYF0 : ∀ a, L ≤ YF0 a := fun a => hYF (eF a)
+            have hYG0 : ∀ b, L ≤ YG0 b := fun b => hYG (eG b)
+            have heFzero : eF zeroF = iF := by
+              simp [eF, roughMoveMainPerm, zeroF]
+            have heGzero : eG zeroG = iG := by
+              simp [eG, roughMoveMainPerm, zeroG]
+            have hMoveF := roughMoveMain_active_endpoint F YF zeroF iF hiF hmaxF
+            have hMoveG := roughMoveMain_active_endpoint G YG zeroG iG hiG hmaxG
+            have hActiveMaxF : ∀ a ∈ Fm.vars, YF0 a ≤ YF0 zeroF := by
+              intro a ha
+              have h := hMoveF.2 a (by simpa [Fm, moveF, eF] using ha)
+              change YF (eF a) ≤ YF (eF zeroF)
+              rw [heFzero]
+              exact h
+            have hActiveMaxG : ∀ b ∈ Gm.vars, YG0 b ≤ YG0 zeroG := by
+              intro b hb
+              have h := hMoveG.2 b (by simpa [Gm, moveG, eG] using hb)
+              change YG (eG b) ≤ YG (eG zeroG)
+              rw [heGzero]
+              exact h
+            let Y0 : ℕ := min (YF0 zeroF) (YG0 zeroG)
+            have hLY0 : L ≤ Y0 := by
+              dsimp [Y0]
+              exact Nat.le_min.mpr ⟨hYF0 zeroF, hYG0 zeroG⟩
+            have hY0F : Y0 ≤ YF0 zeroF := by dsimp [Y0]; exact Nat.min_le_left _ _
+            have hY0G : Y0 ≤ YG0 zeroG := by dsimp [Y0]; exact Nat.min_le_right _ _
+            have hY0large : 9 ≤ Y0 := le_trans hLlarge hLY0
+            have hYbtY0 : Ybt ≤ Y0 := le_trans hYbtL hLY0
+            have hcoeffF :
+                (roughCoefficientMass (roughMainCoefficientTail Fm) + 1) ^ 2 ≤ L := by
+              have hcomp := hcomplexF iF
+              dsimp [complexityF] at hcomp
+              have htoL : sumComplexityF ≤ L := le_trans hTSF hTL
+              exact (Nat.le_add_left _ _).trans (hcomp.trans htoL)
+            have hcoeffG :
+                (roughCoefficientMass (roughMainCoefficientTail Gm) + 1) ^ 2 ≤ L := by
+              have hcomp := hcomplexG iG
+              dsimp [complexityG] at hcomp
+              have htoL : sumComplexityG ≤ L := le_trans hTSG hTL
+              exact (Nat.le_add_left _ _).trans (hcomp.trans htoL)
+            have hEvalCutF : roughCoefficientMass Fm * 2 ^ Fm.totalDegree ≤ Y0 := by
+              have hcomp := hcomplexF iF
+              dsimp [complexityF] at hcomp
+              have htoY : sumComplexityF ≤ Y0 := le_trans hTSF (le_trans hTL hLY0)
+              exact (Nat.le_add_right _ _).trans (hcomp.trans htoY)
+            have hEvalCutG : roughCoefficientMass Gm * 2 ^ Gm.totalDegree ≤ Y0 := by
+              have hcomp := hcomplexG iG
+              dsimp [complexityG] at hcomp
+              have htoY : sumComplexityG ≤ Y0 := le_trans hTSG (le_trans hTL hLY0)
+              exact (Nat.le_add_right _ _).trans (hcomp.trans htoY)
+            let q : ℝ := Real.log (L : ℝ) / Real.sqrt (L : ℝ)
+            have hqnonneg : 0 ≤ q := by
+              dsimp [q]
+              exact div_nonneg (Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ L)))
+                (Real.sqrt_nonneg _)
+            have hFdegreeMoved : Fm.totalDegree = F.totalDegree := by
+              simpa [Fm, moveF, eF] using totalDegree_rename_perm eF.symm F
+            have hGdegreeMoved : Gm.totalDegree = G.totalDegree := by
+              simpa [Gm, moveG, eG] using totalDegree_rename_perm eG.symm G
+            have hmed := roughMainMediumPrimeProbability_bound Fm Gm hFm hGm
+              YF0 YG0 hYF0 hYG0 hLlarge hLY0 hY0F hY0G hcoeffF hcoeffG
+              Cbt hCbt Ybt hYbtL hBTall
+            have hmed' :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b)
+                  (fun x y => ∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧
+                    p ^ 2 ≤ Y0 ∧
+                    ((p : ℤ) ∣ evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ∧
+                      ¬ (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))) ∧
+                    ((p : ℤ) ∣ evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ∧
+                      ¬ (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ)))) ≤
+                Cmed * q := by
+              convert hmed using 1 <;>
+                simp [A, B, leadF, leadG, moveF, moveG, Fm, Gm, eF, eG,
+                  Cmed, q, hFdegreeMoved, hGdegreeMoved] <;> ring
+            have hMassF0 : ∀ a, 0 < primePoolMass (YF0 a) (2 * YF0 a) := by
+              intro a
+              exact dyadicPrimePoolMass_pos (YF0 a)
+                ((by omega : 2 ≤ L).trans (hYF0 a))
+            have hMassG0 : ∀ b, 0 < primePoolMass (YG0 b) (2 * YG0 b) := by
+              intro b
+              exact dyadicPrimePoolMass_pos (YG0 b)
+                ((by omega : 2 ≤ L).trans (hYG0 b))
+            let EzeroA : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop :=
+              fun x y => evalIntegerPolynomial A (fun a => (x a : ℤ)) = 0
+            let EzeroB : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop :=
+              fun x y => evalIntegerPolynomial B (fun b => (y b : ℤ)) = 0
+            let ErecA := fun x y => roughLargePrimeDivisorEvent A Gm L x y
+            let ErecB := fun x y => roughLargePrimeDivisorEvent Fm B L x y
+            let Eunit : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop := fun x y =>
+              evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ≠ 0 ∧
+              evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ≠ 0 ∧
+              ∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧
+                ((p : ℤ) ∣ evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ∧
+                  ¬ (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))) ∧
+                ((p : ℤ) ∣ evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ∧
+                  ¬ (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ)))
+            let EunitMed : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop := fun x y =>
+              evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ≠ 0 ∧
+              evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ≠ 0 ∧
+              ∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧ p ^ 2 ≤ Y0 ∧
+                ((p : ℤ) ∣ evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ∧
+                  ¬ (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))) ∧
+                ((p : ℤ) ∣ evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ∧
+                  ¬ (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ)))
+            let EunitHigh : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop := fun x y =>
+              evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ≠ 0 ∧
+              evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ≠ 0 ∧
+              ∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧ Y0 < p ^ 2 ∧
+                ((p : ℤ) ∣ evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ∧
+                  ¬ (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))) ∧
+                ((p : ℤ) ∣ evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ∧
+                  ¬ (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ)))
+            let Efirst : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop :=
+              fun x y => EzeroA x y ∨ EzeroB x y
+            let Esecond : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop :=
+              fun x y => ErecA x y ∨ ErecB x y
+            let Ecombined : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop :=
+              fun x y => Efirst x y ∨ Esecond x y
+            let Edecomp : (Fin (nF + 1) → ℕ) → (Fin (nG + 1) → ℕ) → Prop :=
+              fun x y => Ecombined x y ∨ Eunit x y
+            let Etarget := roughLargePrimeDivisorEvent Fm Gm L
+            have hsubset : ∀ x y, Etarget x y → Edecomp x y := by
+              intro x y h
+              rcases h with ⟨hFx, hGy, p, hp, hsqrt, hdivF, hdivG⟩
+              change ((EzeroA x y ∨ EzeroB x y) ∨
+                (ErecA x y ∨ ErecB x y)) ∨ Eunit x y
+              by_cases hAz : evalIntegerPolynomial A (fun a => (x a : ℤ)) = 0
+              · exact Or.inl (Or.inl (Or.inl hAz))
+              · by_cases hAd : (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))
+                · exact Or.inl (Or.inr (Or.inl ⟨hAz, hGy, p, hp, hsqrt, hAd, hdivG⟩))
+                · by_cases hBz : evalIntegerPolynomial B (fun b => (y b : ℤ)) = 0
+                  · exact Or.inl (Or.inl (Or.inr hBz))
+                  · by_cases hBd : (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ))
+                    · exact Or.inl (Or.inr (Or.inr ⟨hFx, hBz, p, hp, hsqrt, hdivF, hBd⟩))
+                    · apply Or.inr
+                      exact ⟨hFx, hGy, p, hp, hsqrt,
+                        ⟨hdivF, hAd⟩, ⟨hdivG, hBd⟩⟩
+            have hmono := independentPrimePairProbability_mono
+              YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+              Etarget Edecomp hsubset
+            have hUfirst := independentPrimePairProbability_or_le
+              YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+              EzeroA EzeroB
+            have hUsecond := independentPrimePairProbability_or_le
+              YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+              ErecA ErecB
+            have hUcombined := independentPrimePairProbability_or_le
+              YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+              Efirst Esecond
+            have hUdecomp := independentPrimePairProbability_or_le
+              YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+              Ecombined Eunit
+            have hUnitMed :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) EunitMed ≤ Cmed * q := by
+              have hsubMed : ∀ x y, EunitMed x y →
+                  (∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧ p ^ 2 ≤ Y0 ∧
+                    ((p : ℤ) ∣ evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ∧
+                      ¬ (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))) ∧
+                    ((p : ℤ) ∣ evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ∧
+                      ¬ (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ)))) := by
+                intro x y hxy
+                rcases hxy with ⟨_, _, p, hp, hsqrt, hp2,
+                  ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+                exact ⟨p, hp, hsqrt, hp2, ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+              have hmonoMed := independentPrimePairProbability_mono
+                YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+                EunitMed
+                (fun x y => ∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧
+                  p ^ 2 ≤ Y0 ∧
+                  ((p : ℤ) ∣ evalIntegerPolynomial Fm (fun a => (x a : ℤ)) ∧
+                    ¬ (p : ℤ) ∣ evalIntegerPolynomial A (fun a => (x a : ℤ))) ∧
+                  ((p : ℤ) ∣ evalIntegerPolynomial Gm (fun b => (y b : ℤ)) ∧
+                    ¬ (p : ℤ) ∣ evalIntegerPolynomial B (fun b => (y b : ℤ)))) hsubMed
+              exact hmonoMed.trans hmed'
+            have hupper : independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                YG0 (fun b => 2 * YG0 b) EunitHigh ≤ (CexpF + CexpG) * q := by
+              by_cases horder : YF0 zeroF ≤ YG0 zeroG
+              · have hFmainComplex : roughCoefficientMass Fm * 2 ^ Fm.totalDegree ≤ Y0 := hEvalCutF
+                have hGtailComplex :
+                    (roughCoefficientMass (roughMainCoefficientTail Gm) + 1) ^ 2 ≤ Y0 := by
+                  have hcomp := hcomplexG iG
+                  dsimp [complexityG] at hcomp
+                  omega
+                have hActiveMaxF0 : ∀ a ∈ Fm.vars, YF0 a ≤ Y0 := by
+                  intro a ha
+                  rw [show Y0 = YF0 zeroF by
+                    dsimp [Y0]
+                    exact Nat.min_eq_left horder]
+                  exact hActiveMaxF a ha
+                have hMassGTail : ∀ b : Fin nG,
+                    0 < primePoolMass (YG0 b.succ) (2 * YG0 b.succ) := by
+                  intro b
+                  exact dyadicPrimePoolMass_pos (YG0 b.succ)
+                    ((by omega : 2 ≤ L).trans (hYG0 b.succ))
+                have hBTtest : ∀ p, p.Prime → p ^ 2 ≤ YG0 zeroG →
+                    ∀ a : Fin p, 0 < a.val →
+                      (∑ q ∈ (Finset.Ico (YG0 zeroG) (2 * YG0 zeroG)).filter Nat.Prime,
+                        if q % p = a.val then primePoolLaw (YG0 zeroG)
+                          (2 * YG0 zeroG) q else 0) ≤ Cbt / p := by
+                  intro p hp hp2 a ha
+                  exact hBTall (YG0 zeroG) (by omega) p hp hp2 a ha
+                have hExpoRaw := roughLargeExposureProbability_le Fm Gm hGm YF0 hMassF0
+                  (fun b => YG0 b.succ) (fun b => 2 * YG0 b.succ) hMassGTail
+                  hActiveMaxF0 hY0large hY0G hFmainComplex hGtailComplex
+                  Cbt Aatom hCbt hAatom hBTtest hAtom
+                have hGlo : Fin.cons (YG0 zeroG) (fun b : Fin nG => YG0 b.succ) = YG0 := by
+                  funext b
+                  exact Fin.cases rfl (fun b => rfl) b
+                have hGhi : Fin.cons (2 * YG0 zeroG)
+                    (fun b : Fin nG => 2 * YG0 b.succ) = (fun b => 2 * YG0 b) := by
+                  funext b
+                  exact Fin.cases rfl (fun b => rfl) b
+                have hExpo : independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                    YG0 (fun b => 2 * YG0 b) (roughLargeExposureEvent Fm Gm Y0) ≤
+                    CexpF * q := by
+                  have hratio := log_div_sqrt_antitone hLlarge hLY0
+                  have hcoef : (2 * (Fm.totalDegree + 1) : ℝ) *
+                      ((Gm.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom)) = CexpF := by
+                    simp [CexpF, hFdegreeMoved, hGdegreeMoved]
+                    ring
+                  have hscale : (2 * (Fm.totalDegree + 1) : ℝ) *
+                      ((Gm.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom) *
+                        (Real.log (Y0 : ℝ) / Real.sqrt (Y0 : ℝ))) ≤ CexpF * q := by
+                    calc
+                      _ = ((2 * (Fm.totalDegree + 1) : ℝ) *
+                            ((Gm.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom))) *
+                            (Real.log (Y0 : ℝ) / Real.sqrt (Y0 : ℝ)) := by ring
+                      _ ≤ CexpF * q := by
+                            rw [hcoef]
+                            dsimp [q]
+                            exact mul_le_mul_of_nonneg_left hratio (by positivity)
+                  simpa [hGlo, hGhi] using hExpoRaw.trans hscale
+                have hsubsetExpo : ∀ x y, EunitHigh x y →
+                    roughLargeExposureEvent Fm Gm Y0 x y := by
+                  intro x y hxy
+                  rcases hxy with ⟨hFx, hGy, p, hp, hsqrt, hpAbove,
+                    ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+                  have hdivNat : p ∣ (evalIntegerPolynomial Fm
+                      (fun a => (x a : ℤ))).natAbs := by
+                    exact Int.natCast_dvd_natCast.mp (Int.dvd_natAbs.mpr hdivF)
+                  have hFabs : (evalIntegerPolynomial Fm
+                      (fun a => (x a : ℤ))).natAbs ≠ 0 := by
+                    intro hz
+                    exact hFx (Int.natAbs_eq_zero.mp hz)
+                  have hmem : p ∈
+                      roughLargePrimeFactors (evalIntegerPolynomial Fm
+                        (fun a => (x a : ℤ))).natAbs Y0 := by
+                    apply Finset.mem_filter.mpr
+                    refine ⟨?_, ?_⟩
+                    · exact hp.mem_primeFactors hdivNat hFabs
+                    · omega
+                  exact ⟨p, hmem, hdivG, hnotB⟩
+                have hmonoExpo := independentPrimePairProbability_mono
+                  YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+                  EunitHigh (roughLargeExposureEvent Fm Gm Y0) hsubsetExpo
+                have hunitExpo := hmonoExpo.trans hExpo
+                have hCexpFnonneg : 0 ≤ CexpF := by dsimp [CexpF]; positivity
+                have hCexpFle : CexpF ≤ CexpF + CexpG := by
+                  linarith [show 0 ≤ CexpG by dsimp [CexpG]; positivity]
+                exact hunitExpo.trans (mul_le_mul_of_nonneg_right hCexpFle hqnonneg)
+              · have horder' : YG0 zeroG ≤ YF0 zeroF := by omega
+                have hGmainComplex : roughCoefficientMass Gm * 2 ^ Gm.totalDegree ≤ Y0 := hEvalCutG
+                have hFtailComplex :
+                    (roughCoefficientMass (roughMainCoefficientTail Fm) + 1) ^ 2 ≤ Y0 := by
+                  have hcomp := hcomplexF iF
+                  dsimp [complexityF] at hcomp
+                  omega
+                have hActiveMaxG0 : ∀ b ∈ Gm.vars, YG0 b ≤ Y0 := by
+                  intro b hb
+                  rw [show Y0 = YG0 zeroG by
+                    dsimp [Y0]
+                    exact Nat.min_eq_right horder']
+                  exact hActiveMaxG b hb
+                have hMassFTail : ∀ a : Fin nF,
+                    0 < primePoolMass (YF0 a.succ) (2 * YF0 a.succ) := by
+                  intro a
+                  exact dyadicPrimePoolMass_pos (YF0 a.succ)
+                    ((by omega : 2 ≤ L).trans (hYF0 a.succ))
+                have hBTtest : ∀ p, p.Prime → p ^ 2 ≤ YF0 zeroF →
+                    ∀ a : Fin p, 0 < a.val →
+                      (∑ q ∈ (Finset.Ico (YF0 zeroF) (2 * YF0 zeroF)).filter Nat.Prime,
+                        if q % p = a.val then primePoolLaw (YF0 zeroF)
+                          (2 * YF0 zeroF) q else 0) ≤ Cbt / p := by
+                  intro p hp hp2 a ha
+                  exact hBTall (YF0 zeroF) (by omega) p hp hp2 a ha
+                have hExpoRaw := roughLargeExposureProbability_le Gm Fm hFm YG0 hMassG0
+                  (fun a => YF0 a.succ) (fun a => 2 * YF0 a.succ) hMassFTail
+                  hActiveMaxG0 hY0large hY0F hGmainComplex hFtailComplex
+                  Cbt Aatom hCbt hAatom hBTtest hAtom
+                have hFlo : Fin.cons (YF0 zeroF) (fun a : Fin nF => YF0 a.succ) = YF0 := by
+                  funext a
+                  exact Fin.cases rfl (fun a => rfl) a
+                have hFhi : Fin.cons (2 * YF0 zeroF)
+                    (fun a : Fin nF => 2 * YF0 a.succ) = (fun a => 2 * YF0 a) := by
+                  funext a
+                  exact Fin.cases rfl (fun a => rfl) a
+                have hExpo : independentPrimePairProbability YG0 (fun b => 2 * YG0 b)
+                    YF0 (fun a => 2 * YF0 a) (roughLargeExposureEvent Gm Fm Y0) ≤
+                    CexpG * q := by
+                  have hratio := log_div_sqrt_antitone hLlarge hLY0
+                  have hcoef : (2 * (Gm.totalDegree + 1) : ℝ) *
+                      ((Fm.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom)) = CexpG := by
+                    simp [CexpG, hFdegreeMoved, hGdegreeMoved]
+                    ring
+                  have hscale : (2 * (Gm.totalDegree + 1) : ℝ) *
+                      ((Fm.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom) *
+                        (Real.log (Y0 : ℝ) / Real.sqrt (Y0 : ℝ))) ≤ CexpG * q := by
+                    calc
+                      _ = ((2 * (Gm.totalDegree + 1) : ℝ) *
+                            ((Fm.totalDegree : ℝ) * (Cbt / Real.log 2 + 3 * Aatom))) *
+                            (Real.log (Y0 : ℝ) / Real.sqrt (Y0 : ℝ)) := by ring
+                      _ ≤ CexpG * q := by
+                            rw [hcoef]
+                            dsimp [q]
+                            exact mul_le_mul_of_nonneg_left hratio (by positivity)
+                  simpa [hFlo, hFhi] using hExpoRaw.trans hscale
+                have hsubsetExpo : ∀ y x, EunitHigh x y →
+                    roughLargeExposureEvent Gm Fm Y0 y x := by
+                  intro y x hxy
+                  rcases hxy with ⟨hFx, hGy, p, hp, hsqrt, hpAbove,
+                    ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+                  have hdivNat : p ∣ (evalIntegerPolynomial Gm
+                      (fun b => (y b : ℤ))).natAbs := by
+                    exact Int.natCast_dvd_natCast.mp (Int.dvd_natAbs.mpr hdivG)
+                  have hGabs : (evalIntegerPolynomial Gm
+                      (fun b => (y b : ℤ))).natAbs ≠ 0 := by
+                    intro hz
+                    exact hGy (Int.natAbs_eq_zero.mp hz)
+                  have hmem : p ∈
+                      roughLargePrimeFactors (evalIntegerPolynomial Gm
+                        (fun b => (y b : ℤ))).natAbs Y0 := by
+                    apply Finset.mem_filter.mpr
+                    refine ⟨?_, ?_⟩
+                    · exact hp.mem_primeFactors hdivNat hGabs
+                    · omega
+                  exact ⟨p, hmem, hdivF, hnotA⟩
+                have hswap := independentPrimePairProbability_swap
+                  YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b) EunitHigh
+                have hmonoExpo := independentPrimePairProbability_mono
+                  YG0 (fun b => 2 * YG0 b) YF0 (fun a => 2 * YF0 a)
+                  (fun y x => EunitHigh x y)
+                  (roughLargeExposureEvent Gm Fm Y0) hsubsetExpo
+                have hunitExpo := (hswap ▸ hmonoExpo).trans hExpo
+                have hCexpGnonneg : 0 ≤ CexpG := by dsimp [CexpG]; positivity
+                have hCexpGle : CexpG ≤ CexpF + CexpG := by
+                  linarith [show 0 ≤ CexpF by dsimp [CexpF]; positivity]
+                exact hunitExpo.trans (mul_le_mul_of_nonneg_right hCexpGle hqnonneg)
+            have hunitBound :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) Eunit ≤ (Cmed + CexpF + CexpG) * q := by
+              have hsubsetUnit : ∀ x y, Eunit x y → EunitMed x y ∨ EunitHigh x y := by
+                intro x y hxy
+                rcases hxy with ⟨hFx, hGy, p, hp, hsqrt,
+                  ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+                by_cases hp2 : p ^ 2 ≤ Y0
+                · left
+                  exact ⟨hFx, hGy, p, hp, hsqrt, hp2,
+                    ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+                · right
+                  exact ⟨hFx, hGy, p, hp, hsqrt, Nat.lt_of_not_ge hp2,
+                    ⟨hdivF, hnotA⟩, ⟨hdivG, hnotB⟩⟩
+              have hmonoUnit := independentPrimePairProbability_mono
+                YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+                Eunit (fun x y => EunitMed x y ∨ EunitHigh x y) hsubsetUnit
+              have hUUnit := independentPrimePairProbability_or_le
+                YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b)
+                EunitMed EunitHigh
+              calc
+                _ ≤ independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b)
+                        (fun x y => EunitMed x y ∨ EunitHigh x y) := hmonoUnit
+                _ ≤ independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) EunitMed +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) EunitHigh := hUUnit
+                _ ≤ Cmed * q + (CexpF + CexpG) * q := add_le_add hUnitMed hupper
+                _ = (Cmed + CexpF + CexpG) * q := by ring
+            let z : ActivePair := ⟨(iF, iG), ⟨hiF, hiG⟩⟩
+            rcases hchoices z with ⟨hcA, hcB, hcZA, hcZB, hBoundA,
+              hBoundB, hBoundZA, hBoundZB⟩
+            have hzeroA :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) EzeroA ≤ cZeroA z * q := by
+              rw [independentPrimePairProbability_left_event
+                YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b) hMassG0
+                (fun x => evalIntegerPolynomial A (fun a => (x a : ℤ)) = 0)]
+              exact hBoundZA YF0 L hL (fun a => hYF0 a)
+            have hzeroB :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) EzeroB ≤ cZeroB z * q := by
+              rw [independentPrimePairProbability_right_event
+                YF0 (fun a => 2 * YF0 a) YG0 (fun b => 2 * YG0 b) hMassF0
+                (fun y => evalIntegerPolynomial B (fun b => (y b : ℤ)) = 0)]
+              exact hBoundZB YG0 L hL (fun b => hYG0 b)
+            have hrecA :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) ErecA ≤ cRecA z * q := by
+              have hrecA' :
+                  independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                    YG0 (fun b => 2 * YG0 b) ErecA ≤
+                    (choices z).1 * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := by
+                simpa [ErecA, A, leadF, moveF, Gm, moveG, z] using
+                  hBoundA YF0 YG0 L hYF0 hYG0 hL
+              calc
+                _ ≤ (choices z).1 * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := hrecA'
+                _ = cRecA z * q := by dsimp [cRecA, q]; ring
+            have hrecB :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) ErecB ≤ cRecB z * q := by
+              have hrecB' :
+                  independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                    YG0 (fun b => 2 * YG0 b) ErecB ≤
+                    (choices z).2.1 * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := by
+                simpa [ErecB, B, leadG, moveG, Fm, moveF, z] using
+                  hBoundB YF0 YG0 L hYF0 hYG0 hL
+              calc
+                _ ≤ (choices z).2.1 * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := hrecB'
+                _ = cRecB z * q := by dsimp [cRecB, q]; ring
+            have hsumUnit :
+                cZeroA z * q + cZeroB z * q + cRecA z * q + cRecB z * q +
+                    (Cmed + CexpF + CexpG) * q ≤ C * q := by
+              have hselected :
+                  cRecA z + cRecB z + cZeroA z + cZeroB z + 1 ≤ CRec := by
+                dsimp [CRec]
+                exact Finset.single_le_sum (f := fun z =>
+                  cRecA z + cRecB z + cZeroA z + cZeroB z + 1)
+                  (fun z hz => by
+                    have hA : 0 ≤ cRecA z := (hcRecA z).le
+                    have hB : 0 ≤ cRecB z := (hcRecB z).le
+                    have hZA : 0 ≤ cZeroA z := (hcZeroA z).le
+                    have hZB : 0 ≤ cZeroB z := (hcZeroB z).le
+                    nlinarith)
+                  (Finset.mem_univ z)
+              have hconst : cZeroA z + cZeroB z + cRecA z + cRecB z +
+                  (Cmed + CexpF + CexpG) ≤ C := by
+                dsimp [C]
+                nlinarith [hselected, hCbaseNonneg]
+              calc
+                _ = (cZeroA z + cZeroB z + cRecA z + cRecB z +
+                    (Cmed + CexpF + CexpG)) * q := by ring
+                _ ≤ C * q := mul_le_mul_of_nonneg_right hconst hqnonneg
+            have hdecompBound :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) Edecomp ≤
+                    cZeroA z * q + cZeroB z * q + cRecA z * q + cRecB z * q +
+                      (Cmed + CexpF + CexpG) * q := by
+              calc
+                _ ≤ independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) Ecombined +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) Eunit := hUdecomp
+                _ ≤ (independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) Efirst +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) Esecond) +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) Eunit := by
+                        exact add_le_add hUcombined le_rfl
+                _ ≤ (independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) EzeroA +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) EzeroB) +
+                    (independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) ErecA +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) ErecB) +
+                    independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                      YG0 (fun b => 2 * YG0 b) Eunit := by
+                        apply add_le_add
+                        · exact add_le_add hUfirst hUsecond
+                        · exact le_rfl
+                _ ≤ cZeroA z * q + cZeroB z * q + cRecA z * q + cRecB z * q +
+                    (Cmed + CexpF + CexpG) * q := by
+                      calc
+                        _ ≤ (cZeroA z * q + cZeroB z * q) +
+                            (cRecA z * q + cRecB z * q) +
+                            (Cmed + CexpF + CexpG) * q := by
+                              apply add_le_add
+                              · apply add_le_add
+                                · exact add_le_add hzeroA hzeroB
+                                · exact add_le_add hrecA hrecB
+                              · exact hunitBound
+                        _ = _ := by ring
+            have htargetBound :
+                independentPrimePairProbability YF0 (fun a => 2 * YF0 a)
+                  YG0 (fun b => 2 * YG0 b) Etarget ≤ C * q :=
+              hmono.trans (hdecompBound.trans hsumUnit)
+            have hReindex := roughLargePrimeDivisorEvent_reindex eF eG F G L YF YG
+            have hFinal := hReindex ▸ htargetBound
+            calc
+              _ ≤ C * q := hFinal
+              _ = C * Real.log (L : ℝ) / Real.sqrt (L : ℝ) := by
+                dsimp [q]
+                ring
+  have hresult := hInduction (F.totalDegree + G.totalDegree) kF kG F G hF hG rfl
+  exact hresult
+
+set_option maxHeartbeats 200000
 
 /-- Lemma `lem:rough-coprimality`: for fixed nonzero integer polynomials in disjoint
 independent prime tuples sampled harmonically from dyadic intervals, the polynomial-zero
