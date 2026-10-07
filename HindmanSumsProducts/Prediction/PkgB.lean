@@ -5753,6 +5753,50 @@ private theorem pkgB_momentModulus_repeat {K sl : ℕ} {As : Finset ℚ}
       T.modulus (corrScales MS) N p := by
   simp [momentModulus, pkgB_momentPrimeRepeat]
 
+private noncomputable def pkgB_extendPrimeTuple {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (p : Fin q → ℕ) (fill : ℕ) : Fin m → ℕ :=
+  (pkgB_embeddingTupleEquiv ι).symm (p, fun _ => fill)
+
+private theorem pkgB_extendPrimeTuple_apply {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (p : Fin q → ℕ) (fill : ℕ) (i : Fin q) :
+    pkgB_extendPrimeTuple ι p fill (ι i) = p i := by
+  have h := pkgB_embeddingTupleEquiv_apply_left ι
+    (pkgB_extendPrimeTuple ι p fill) i
+  simpa [pkgB_extendPrimeTuple] using h.symm
+
+private theorem pkgB_momentPrimeDiagonal_eq_repeat {sl b : ℕ}
+    {Dm : Finset (IntegerPolynomial sl)} {T : CubeTemplate} (hT : Allowed Dm T)
+    (p : Fin sl → ℕ) :
+    momentPrimeDiagonal hT p =
+      pkgB_momentPrimeRepeat (b := b) (fun j => p (momentMasterEmbedding hT j)) := by
+  funext i
+  rfl
+
+private theorem pkgB_momentBaseRegular_goodTemplate_eventually {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (J0 : ℕ) (hJ0 : 0 < J0)
+    (b : ℕ) (hT : Allowed Dm T) :
+    ∀ᶠ N : ℕ in atTop, ∀ p : Fin T.q → ℕ,
+      T.Good (corrScales MS) l N p →
+        momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p) := by
+  filter_upwards [pkgB_momentBaseRegular_eventually MS B l hgap T J0 hJ0 b hT]
+    with N hreg p hp
+  let pFull := pkgB_extendPrimeTuple (momentMasterEmbedding hT) p 0
+  have hselected : (fun j => pFull (momentMasterEmbedding hT j)) = p := by
+    funext j
+    exact pkgB_extendPrimeTuple_apply (momentMasterEmbedding hT) p 0 j
+  have hpFull : T.Good (corrScales MS) l N
+      (fun j => pFull (momentMasterEmbedding hT j)) := by
+    simpa [hselected] using hp
+  have hbase := hreg pFull hpFull
+  rw [pkgB_momentPrimeDiagonal_eq_repeat hT pFull] at hbase
+  have hrepeat : pkgB_momentPrimeRepeat (b := b)
+      (fun j => pFull (momentMasterEmbedding hT j)) =
+        pkgB_momentPrimeRepeat (b := b) p := by
+    rw [hselected]
+  rwa [hrepeat] at hbase
+
 private noncomputable def pkgB_momentActiveShiftTerm {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
