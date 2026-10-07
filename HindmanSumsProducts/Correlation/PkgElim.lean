@@ -3267,6 +3267,12 @@ def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
   arity_le := Nat.zero_le K
   cutoff := Fin.elim0
 
+noncomputable def retainedChoice {m q r : ℕ} (Sh : RowShape m q r)
+    (I : NonTarget Sh) (η : {R : NonTarget Sh // R ≠ I} → Fin 2)
+    (R : NonTarget Sh) : Fin 2 := by
+  classical
+  exact if h : R ≠ I then η ⟨R, h⟩ else 0
+
 noncomputable def rowCoeff {K m q r s h d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
@@ -3352,12 +3358,11 @@ theorem occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
     (∑ R : NonTarget Sh, ∑ e : Fin 2,
       occurrenceCoeff S C a Sh dirs N p (.inr (j, ⟨I, η⟩))
         (.inr (.inl (R, e))) * (x (.inr (.inl (R, e))) : ℚ)) =
-      ∑ R : NonTarget Sh, if h : R ≠ I then
+      ∑ R : NonTarget Sh, if R = I then 0 else
         rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
           (dirs.translation (chainScale S.core.parameters C a N)
             (directionModulus S N dirs.poly p) p R.1) *
-          (x (.inr (.inl (R, η ⟨R, h⟩)) : Coordinate Sh) : ℚ)
-        else 0 := by
+          (x (.inr (.inl (R, retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
   classical
   apply Finset.sum_congr rfl
   intro R hR
@@ -3392,14 +3397,16 @@ theorem occurrenceOldShiftContribution {K m q r s : ℕ} {Aset : Finset ℚ}
         · intro e he he₀
           simp [he₀]
         · simp
-      _ = if h : R ≠ I then
+      _ = if R = I then 0 else
             rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
               (dirs.translation (chainScale S.core.parameters C a N)
                 (directionModulus S N dirs.poly p) p R.1) *
-              (x (.inr (.inl (R, η ⟨R, h⟩)) : Coordinate Sh) : ℚ)
-          else 0 := by
-        rw [dif_pos h]
-  · simp [occurrenceCoeff, occurrenceRow, h]
+              (x (.inr (.inl (R, retainedChoice Sh I η R)) : Coordinate Sh) : ℚ) := by
+        have hchoice : retainedChoice Sh I η R = e₀ := by
+          simp [retainedChoice, e₀, h]
+        simp [h, hchoice]
+  · have hEq : R = I := by simpa using h
+    simp [occurrenceCoeff, occurrenceRow, retainedChoice, h, hEq]
 
 theorem occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
@@ -3410,12 +3417,11 @@ theorem occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
     occurrenceValue S C a Sh dirs N p (.inr (j, ⟨I, η⟩)) x =
       rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
         (fun k => (x (.inl k) : ℚ)) +
-      (∑ R : NonTarget Sh, if h : R ≠ I then
+      (∑ R : NonTarget Sh, if R = I then 0 else
         rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
           (dirs.translation (chainScale S.core.parameters C a N)
             (directionModulus S N dirs.poly p) p R.1) *
-          (x (.inr (.inl (R, η ⟨R, h⟩)) : Coordinate Sh) : ℚ)
-        else 0) +
+          (x (.inr (.inl (R, retainedChoice Sh I η R)) : Coordinate Sh) : ℚ)) +
       rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
         (dirs.rootTranslation (chainScale S.core.parameters C a N)
           (S.core.parameters.M N) p) * (x (.inr (.inr j) : Coordinate Sh) : ℚ) := by
