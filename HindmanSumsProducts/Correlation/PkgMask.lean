@@ -3619,6 +3619,113 @@ theorem masterScaleV_tendsto_atTop {n : ℕ}
   unfold masterScaleV
   omega
 
+theorem masterScaleV_le_earlierScale_sq {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) (N : ℕ) :
+    (masterScaleV A N l : ℝ) ≤
+      (OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+        (fun N => OAI.SourceAdmissible.previous (A.X N) i) N) ^ 2 := by
+  classical
+  let I : Finset (Fin n) := Finset.univ.filter (fun j => j < l)
+  let J : Finset (Fin n) := Finset.univ.filter (fun j => j < i)
+  have hsub : I ⊆ J := by
+    intro j hj
+    have hj' := Finset.mem_filter.mp hj
+    apply Finset.mem_filter.mpr
+    exact ⟨Finset.mem_univ _, lt_trans hj'.2 hli⟩
+  have hprod :
+      (∏ j ∈ I, A.X N j ^ 2) ≤
+        (OAI.SourceAdmissible.previous (A.X N) i) ^ 2 := by
+    calc
+      (∏ j ∈ I, A.X N j ^ 2) ≤ ∏ j ∈ J, A.X N j ^ 2 :=
+        Finset.prod_le_prod_of_subset_of_one_le hsub (by
+          intro j hj hjnot
+          exact Nat.one_le_pow 2 (A.X N j) (A.Xpos N j))
+      _ = (OAI.SourceAdmissible.previous (A.X N) i) ^ 2 := by
+        simp [J, OAI.SourceAdmissible.previous, Finset.prod_pow]
+  have hprodR :
+      ((∏ j ∈ I, A.X N j ^ 2 : ℕ) : ℝ) ≤
+        ((OAI.SourceAdmissible.previous (A.X N) i : ℕ) : ℝ) ^ 2 := by
+    exact_mod_cast hprod
+  have hmain :
+      (2 : ℝ) + (A.M N : ℝ) +
+          ((∏ j ∈ I, A.X N j ^ 2 : ℕ) : ℝ) ≤
+        (2 + (A.M N : ℝ) +
+          ((OAI.SourceAdmissible.previous (A.X N) i : ℕ) : ℝ)) ^ 2 := by
+    nlinarith [hprodR, Nat.cast_nonneg (α := ℝ) (A.M N),
+      Nat.cast_nonneg (α := ℝ) (OAI.SourceAdmissible.previous (A.X N) i)]
+  simpa [masterScaleV, I, OAI.AdmissibleMicrocellBoundary.earlierScale] using hmain
+
+theorem logPivot_dominates_masterScaleV {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l i : Fin n) (hli : l < i) :
+    OAI.MicrocellScale.Dominates
+      (fun N => Real.log (A.X N i : ℝ))
+      (fun N => (masterScaleV A N l : ℝ)) := by
+  intro B hB
+  let E : ℕ → ℝ := fun N =>
+    OAI.AdmissibleMicrocellBoundary.earlierScale A.M
+      (fun N => OAI.SourceAdmissible.previous (A.X N) i) N
+  have hEtop : Tendsto E atTop atTop := by
+    have hM : Tendsto (fun N => (A.M N : ℝ)) atTop atTop :=
+      tendsto_natCast_atTop_atTop.comp (sourceParameter_M_tendsto_atTop A)
+    apply tendsto_atTop_mono' atTop ?_ hM
+    filter_upwards with N
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale]
+    nlinarith [Nat.cast_nonneg (α := ℝ) (OAI.SourceAdmissible.previous (A.X N) i)]
+  have hEpos (N : ℕ) : 0 < E N := by
+    dsimp [E, OAI.AdmissibleMicrocellBoundary.earlierScale]
+    positivity
+  have hlogH : Tendsto
+      (fun N => Real.log (A.X N i : ℝ) / (A.H N i : ℝ)) atTop atTop := by
+    simpa only [Real.rpow_one] using A.Xdom i 1 (by norm_num)
+  have hHE : Tendsto
+      (fun N => (A.H N i : ℝ) / E N ^ (2 * B + 1)) atTop atTop := by
+    simpa [E] using A.Hdom i (2 * B + 1) (by positivity)
+  have hHEscaled : Tendsto
+      (fun N => (A.H N i : ℝ) / E N ^ (2 * B)) atTop atTop := by
+    have hmul := hHE.atTop_mul_atTop₀ hEtop
+    have hEq : (fun N => (A.H N i : ℝ) / E N ^ (2 * B)) =
+        fun N => ((A.H N i : ℝ) / E N ^ (2 * B + 1)) * E N := by
+      funext N
+      have hpow : E N ^ (2 * B + 1) = E N ^ (2 * B) * E N := by
+        rw [Real.rpow_add (hEpos N)]
+        simp
+      rw [hpow]
+      field_simp [ne_of_gt (hEpos N)]
+    rw [hEq]
+    exact hmul
+  have hHV : Tendsto
+      (fun N => (A.H N i : ℝ) / (masterScaleV A N l : ℝ) ^ B) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ hHEscaled
+    filter_upwards with N
+    have hVle := masterScaleV_le_earlierScale_sq A l i hli N
+    have hVpow : (masterScaleV A N l : ℝ) ^ B ≤ E N ^ (2 * B) := by
+      calc
+        (masterScaleV A N l : ℝ) ^ B ≤ (E N ^ 2) ^ B :=
+          Real.rpow_le_rpow (by positivity) hVle hB.le
+        _ = E N ^ (2 * B) := by
+          calc
+            (E N ^ (2 : ℕ) : ℝ) ^ B = (E N ^ (2 : ℝ)) ^ B := by
+              exact congrArg (fun x : ℝ => x ^ B)
+                (Real.rpow_natCast (E N) 2).symm
+            _ = E N ^ (2 * B) :=
+              (Real.rpow_mul (le_of_lt (hEpos N)) (2 : ℝ) B).symm
+    exact div_le_div_of_nonneg_left (by positivity)
+      (Real.rpow_pos_of_pos (by
+        have hV : 0 < masterScaleV A N l := by
+          unfold masterScaleV
+          omega
+        exact_mod_cast hV) B) hVpow
+  have hmul := hlogH.atTop_mul_atTop₀ hHV
+  have hfinalEq :
+      (fun N => Real.log (A.X N i : ℝ) / (masterScaleV A N l : ℝ) ^ B) =
+        fun N => (Real.log (A.X N i : ℝ) / (A.H N i : ℝ)) *
+          ((A.H N i : ℝ) / (masterScaleV A N l : ℝ) ^ B) := by
+    funext N
+    have hHpos : 0 < (A.H N i : ℝ) := by exact_mod_cast A.Hpos N i
+    field_simp [ne_of_gt hHpos]
+  rw [hfinalEq]
+  exact hmul
+
 theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
