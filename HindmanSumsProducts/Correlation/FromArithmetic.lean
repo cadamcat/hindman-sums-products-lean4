@@ -645,6 +645,7 @@ structure WeightedLinearFormsData {n q d b m : ℕ} {Aset : Finset ℚ}
   epsilonCRT : ℕ → ℝ
   baseMass : ℕ → (Fin m → ℕ) → (Fin d → ℤ) → ℝ
   goodDomain : ℕ → (Fin m → ℕ) → Prop
+  epsilonBase_nonnegative : ∀ N, 0 ≤ epsilonBase N
   V_lower : ∀ N, S.core.parameters.M N ≤ V N
   V_tendsto : Tendsto (fun N => V N) atTop atTop
   slot_gap_bound : ∀ N i, V N ≤ masterScaleV S.core.parameters N (gap i)
