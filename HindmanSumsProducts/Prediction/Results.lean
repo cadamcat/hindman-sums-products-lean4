@@ -1460,7 +1460,7 @@ theorem nilsequence_recipe_tests (MS : MasterScales K As sl Dm) (B : Block K) (l
         intro ω p z
         change Finset (Fin (s + 1)) at ω
         change Fin 0 → ℕ at p
-        have hν : 0 ≤ nu A N B z := nu_nonneg A N B
+        have hν : 0 ≤ nu A N B z := pkgD_nu_nonneg A N B
           (fun i => harmonicNormalizer_pos (A.X N i) (primorial (N + 1))
             (primorial_pos _) (MS.gapStage.valid_raw_cutoffs N i)) z
         exact (hinputBound q ω p z).trans (by linarith) }
@@ -2130,7 +2130,7 @@ theorem nilsequence_testing (MS : MasterScales K As sl Dm) (h1 : (1 : IntegerPol
         congr 1
         funext y
         ring
-      _ = _ := Emu_add MS.core.parameters N B.1 _ _
+      _ = _ := pkgD_Emu_add MS.core.parameters N B.1 _ _
   have hbdSmall : (1 + C₀) * (Cbd / (J₀ : ℝ) + ηb) ≤ ε / 8 := by
     rw [show ηb = ε / (16 * (1 + C₀)) by rfl]
     have h := mul_le_mul_of_nonneg_left hboundarySmall (by positivity : (0 : ℝ) ≤ 1 + C₀)

@@ -1391,7 +1391,7 @@ theorem uniformUnitResidueLaw_nonneg {Q : ℕ} (hQ : 0 < Q) (a : Fin Q) :
   · exact div_nonneg (by norm_num) (Nat.cast_nonneg _)
   · exact le_rfl
 
-theorem primePoolLaw_nonneg {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) (p : ℕ) :
+theorem pkgElim_primePoolLaw_nonneg {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) (p : ℕ) :
     0 ≤ primePoolLaw lo hi p := by
   unfold primePoolLaw
   split_ifs with hp
@@ -2312,7 +2312,7 @@ theorem primePoolCRTLaw_probability {w V Q lo hi : ℕ}
   · intro r
     apply tsum_nonneg
     intro n
-    have hμ := primePoolLaw_nonneg hmass n
+    have hμ := pkgElim_primePoolLaw_nonneg hmass n
     split_ifs <;> positivity
   · calc
       _ = ∑ r : FromArithmetic.CRTResidues w V,
@@ -3299,7 +3299,7 @@ theorem linearRowValue_eq_occurrenceValue {K m q r s h d : ℕ} {Aset : Finset �
 
 theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
     (p : Fin q → ℕ) (ω : NonTarget Sh → Fin 2) (x : Coordinate Sh → ℤ) :
     occurrenceValue S C a Sh dirs N p (.inl ω) x =

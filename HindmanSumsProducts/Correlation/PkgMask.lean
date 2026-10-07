@@ -2579,14 +2579,14 @@ theorem rowShape_minor_value_ne_zero_of_tests {m q r s : ℕ}
 
 theorem rowShapeLinearCoefficients_pairwise_independent_eventually
     {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
     (ι : Fin q ↪ Fin s)
     (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm) :
     ∀ᶠ N in atTop, ∀ p, (∀ i,
       (S.primeStage.pool N C.gap).lower ≤ p i ∧
       p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) →
-      ∀ v (hv : v.Prime), N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+      ∀ v (hv : v.Prime), N + 1 < v → v ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
       (∀ Q ∈ Dm, ¬ (v : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ))) →
       ∀ R I, R ≠ I →
         ∃ j k,

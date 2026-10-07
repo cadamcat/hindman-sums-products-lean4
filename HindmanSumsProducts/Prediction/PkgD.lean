@@ -333,7 +333,7 @@ theorem tailProductLaw_cutoff_bound {K sl : ℕ} {As : Finset ℚ}
 def harmonicIntSupport (X W : ℕ) : Finset ℤ :=
   (harmonicNatSupport X W).image (fun n : ℕ => (n : ℤ))
 
-theorem harmonicLaw_zero_of_not_mem (X W : ℕ) (y : ℤ)
+theorem pkgD_harmonicLaw_zero_of_not_mem (X W : ℕ) (y : ℤ)
     (hy : y ∉ harmonicIntSupport X W) : harmonicLaw X W y = 0 := by
   by_cases h : 0 ≤ y ∧ X ≤ y.toNat ∧ y.toNat < X ^ 2 ∧ Nat.Coprime y.toNat W
   · have hyNat : ((y.toNat : ℕ) : ℤ) = y := Int.toNat_of_nonneg h.1
@@ -361,7 +361,7 @@ theorem Emu_eq_harmonicNat_sum {n : ℕ} (A : Parameters n) (N : ℕ)
   unfold Emu
   change (∑' y : ℤ, harmonicLaw (A.X N i) (primorial (N + 1)) y * f y) = _
   rw [tsum_eq_sum (s := T) (fun y hy => by
-    rw [harmonicLaw_zero_of_not_mem _ _ y (by simpa [T] using hy)]
+    rw [pkgD_harmonicLaw_zero_of_not_mem _ _ y (by simpa [T] using hy)]
     simp)]
   change (∑ y ∈ S.image (fun y : ℕ => (y : ℤ)),
     harmonicLaw (A.X N i) (primorial (N + 1)) y * f y) = _
@@ -441,7 +441,7 @@ theorem harmonicLaw_tsum_eq_natSum (X W : ℕ) (f : ℤ → ℝ) :
   let S := harmonicNatSupport X W
   let T := harmonicIntSupport X W
   rw [tsum_eq_sum (s := T) (fun y hy => by
-    rw [harmonicLaw_zero_of_not_mem X W y (by simpa [T] using hy)]
+    rw [pkgD_harmonicLaw_zero_of_not_mem X W y (by simpa [T] using hy)]
     simp)]
   change (∑ y ∈ S.image (fun y : ℕ => (y : ℤ)),
     harmonicLaw X W y * f y) = _
@@ -872,7 +872,7 @@ theorem Emu_eq_harmonicInt_sum {n : ℕ} (A : Parameters n) (N : ℕ)
   change (∑' y : ℤ, harmonicLaw (A.X N i) (primorial (N + 1)) y * f y) = _
   rw [tsum_eq_sum (s := harmonicIntSupport (A.X N i) (primorial (N + 1)))
     (fun y hy => by
-      rw [harmonicLaw_zero_of_not_mem _ _ y hy]
+      rw [pkgD_harmonicLaw_zero_of_not_mem _ _ y hy]
       simp)]
 
 theorem parameterTailProductLaw_zero_of_gt {n : ℕ} (A : Parameters n)
@@ -898,7 +898,7 @@ theorem nuWeightedPairing_eq {n : ℕ} (A : Parameters n) (N : ℕ)
   let Sσ : Finset ℕ := Finset.range (bound + 1)
   have hμzero : ∀ y ∉ Sy, μ y = 0 := by
     intro y hy
-    exact harmonicLaw_zero_of_not_mem _ _ y (by simpa [Sy, μ] using hy)
+    exact pkgD_harmonicLaw_zero_of_not_mem _ _ y (by simpa [Sy, μ] using hy)
   have htailzero : ∀ σ ∉ Sσ, Tail σ = 0 := by
     intro σ hσ
     apply parameterTailProductLaw_zero_of_gt A N Tails σ _
@@ -969,7 +969,7 @@ noncomputable def pkgDBoundaryIndicator (H width : ℕ) (y : ℤ) : ℝ :=
     classical
     exact if pkgDBoundaryStrip H width y then 1 else 0
 
-theorem harmonicNatLaw_nonneg (X W n : ℕ) (hNorm : 0 < harmonicNormalizer X W) :
+theorem pkgD_harmonicNatLaw_nonneg (X W n : ℕ) (hNorm : 0 < harmonicNormalizer X W) :
     0 ≤ harmonicNatLaw X W n := by
   unfold harmonicNatLaw
   split_ifs with h
@@ -980,7 +980,7 @@ theorem harmonicNatLaw_nonneg (X W n : ℕ) (hNorm : 0 < harmonicNormalizer X W)
       · exact hNorm.le
   · positivity
 
-theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n)
+theorem pkgD_parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n)
     (N : ℕ) (Tails : Finset (Fin n))
     (hNorm : ∀ i, 0 < harmonicNormalizer (A.X N i) (primorial (N + 1)))
     (σ : ℕ) : 0 ≤ parameterTailProductLaw A N Tails σ := by
@@ -991,15 +991,15 @@ theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n)
   · positivity
   · apply Finset.prod_nonneg
     intro i hi
-    exact harmonicNatLaw_nonneg (A.X N i) (primorial (N + 1)) (t i) (hNorm i)
+    exact pkgD_harmonicNatLaw_nonneg (A.X N i) (primorial (N + 1)) (t i) (hNorm i)
 
-theorem nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (B : Block n)
+theorem pkgD_nu_nonneg {n : ℕ} (A : Parameters n) (N : ℕ) (B : Block n)
     (hNorm : ∀ i, 0 < harmonicNormalizer (A.X N i) (primorial (N + 1))) (y : ℤ) :
     0 ≤ nu A N B y := by
   unfold nu nuB
   apply tsum_nonneg
   intro σ
-  have htail := parameterTailProductLaw_nonneg A N B.2.val hNorm σ
+  have htail := pkgD_parameterTailProductLaw_nonneg A N B.2.val hNorm σ
   by_cases hd : (σ : ℤ) ∣ y
   · simp [hd]
     positivity
@@ -1017,7 +1017,7 @@ theorem dilationReference_pairing_l1 (X W σ : ℕ) (hσ : 0 < σ)
     (harmonicIntSupport X W).image (fun z => (σ : ℤ) * z)
   have hμzero : ∀ z ∉ harmonicIntSupport X W, harmonicLaw X W z = 0 := by
     intro z hz
-    exact harmonicLaw_zero_of_not_mem X W z hz
+    exact pkgD_harmonicLaw_zero_of_not_mem X W z hz
   have hrefzero : ∀ y ∉ S, dilationReference (harmonicLaw X W) σ y = 0 := by
     intro y hy
     have hyμ : y ∉ harmonicIntSupport X W := by
@@ -1083,12 +1083,12 @@ theorem pivotNu_nonneg_eventually {K sl : ℕ} {As : Finset ℚ}
     intro j hj
     exact A.eventual_X j
   filter_upwards [hXall] with N hXN y
-  apply nu_nonneg A N B
+  apply pkgD_nu_nonneg A N B
   intro j
   exact harmonicNormalizer_pos (A.X N j) (primorial (N + 1)) (primorial_pos _)
     (hXN j (Finset.mem_univ j))
 
-theorem Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
+theorem pkgD_Emu_add {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
     (f g : ℤ → ℝ) :
     Emu A N i (fun y => f y + g y) = Emu A N i f + Emu A N i g := by
   rw [Emu_eq_harmonicNat_sum, Emu_eq_harmonicNat_sum, Emu_eq_harmonicNat_sum]
@@ -1120,7 +1120,7 @@ theorem Emu_const_add_mul {n : ℕ} (A : Parameters n) (N : ℕ) (i : Fin n)
           funext y
           ring
     _ = Emu A N i (fun y => a * w y) +
-        Emu A N i (fun y => b * (w y * f y)) := Emu_add A N i _ _
+        Emu A N i (fun y => b * (w y * f y)) := pkgD_Emu_add A N i _ _
     _ = a * Emu A N i w + b * Emu A N i (fun y => w y * f y) := by
       rw [Emu_const_mul, Emu_const_mul]
 
@@ -1540,7 +1540,7 @@ theorem harmonicDilation_boundary_raw_bound (X W H width σ : ℕ)
     if z ∈ S then pkgDBoundaryIndicator H width ((σ : ℤ) * z) else 0
   have hμzero : ∀ z ∉ S, harmonicLaw X W z = 0 := by
     intro z hz
-    exact harmonicLaw_zero_of_not_mem X W z (by simpa [S] using hz)
+    exact pkgD_harmonicLaw_zero_of_not_mem X W z (by simpa [S] using hz)
   have hf0 : ∀ z, 0 ≤ f z := by
     intro z
     by_cases hz : z ∈ S
@@ -1736,7 +1736,7 @@ theorem pivotEmu_one_plus_nu_le_three {K sl : ℕ} {As : Finset ℚ}
     omega
   have hTailNonneg (N σ : ℕ) : 0 ≤ Tail N σ := by
     dsimp [Tail]
-    exact parameterTailProductLaw_nonneg A N B.2.val (fun j => hNorm N j) σ
+    exact pkgD_parameterTailProductLaw_nonneg A N B.2.val (fun j => hNorm N j) σ
   have hTailSum (N : ℕ) : ∑ σ ∈ Sig N, Tail N σ = 1 := by
     have htotal := parameterTailProductLaw_tsum_one A N B.2.val
       (fun j => A.Xpos N j) (fun j => hNorm N j)
@@ -1829,7 +1829,7 @@ theorem pivotEmu_one_plus_nu_le_three {K sl : ℕ} {As : Finset ℚ}
   filter_upwards [pivotSamplingEventually MS B.1, hVle, hError]
     with N ⟨hX2, hlog⟩ hVX hE
   have hmean := hNuBound N hX2 hlog hVX
-  rw [Emu_add, hMuOne N]
+  rw [pkgD_Emu_add, hMuOne N]
   linarith
 
 theorem masterScaleV_le_earlierScale_sq {n : ℕ}
@@ -2134,7 +2134,7 @@ theorem weighted_boundary_aux (s : ℕ) :
     omega
   have hTailNonneg (N σ : ℕ) : 0 ≤ Tail N σ := by
     dsimp [Tail]
-    exact parameterTailProductLaw_nonneg A N B.2.val (fun j => hNorm N j) σ
+    exact pkgD_parameterTailProductLaw_nonneg A N B.2.val (fun j => hNorm N j) σ
   have hTailSum (N : ℕ) : ∑ σ ∈ Sig N, Tail N σ = 1 := by
     have htotal := parameterTailProductLaw_tsum_one A N B.2.val
       (fun j => A.Xpos N j) (fun j => hNorm N j)
@@ -2231,7 +2231,7 @@ theorem weighted_boundary_aux (s : ℕ) :
             congr 1
             funext y
             ring
-      _ = _ := Emu_add A N B.1 _ _
+      _ = _ := pkgD_Emu_add A N B.1 _ _
   have hTotalBound (N : ℕ) (hX2 : 2 ≤ X N)
       (hlog : Real.log (X N : ℝ) > (W N : ℝ) / (X N : ℝ))
       (hWidthX : Width N + 1 ≤ X N) (hVpivot : Vpivot N ≤ X N) :
