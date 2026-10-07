@@ -30,7 +30,77 @@ def dualMomentConstant (dStar : ℕ) : ℝ := (2 : ℝ) ^ (2 ^ dStar - 1)
 theorem direction_integers (d : ℕ) (ω : Finset (Fin d)) (hω : ω.Nonempty) :
     ∃ a : Fin (d + 1) → ℤ, a 0 ≠ 0 ∧ a 0 + ∑ j ∈ ω, a j.succ = 0 ∧
       ∀ ω' : Finset (Fin d), ω' ≠ ω → a 0 + ∑ j ∈ ω', a j.succ ≠ 0 := by
-  sorry
+  classical
+  let a : Fin (d + 1) → ℤ := Fin.cases (ω.card : ℤ)
+    (fun j => if j ∈ ω then -1 else 1)
+  refine ⟨a, ?_, ?_, ?_⟩
+  · simp only [a, Fin.cases_zero]
+    exact_mod_cast (Finset.card_pos.mpr hω).ne'
+  · have hωsum : ∑ j ∈ ω, (if j ∈ ω then -1 else 1) =
+        -(ω.card : ℤ) := by
+      calc
+        _ = ∑ _j ∈ ω, (-1 : ℤ) := by
+          apply Finset.sum_congr rfl
+          intro j hj
+          simp [hj]
+        _ = -(ω.card : ℤ) := by simp [Finset.sum_const]
+    simpa [a, Fin.cases_succ, hωsum]
+  · intro ω' hne
+    have hsum : ∑ j ∈ ω', a j.succ =
+        -((ω' ∩ ω).card : ℤ) + ((ω' \ ω).card : ℤ) := by
+      have hdecomp : ω' = ω' ∩ ω ∪ (ω' \ ω) := by
+        ext j
+        simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
+        tauto
+      have hdisj : Disjoint (ω' ∩ ω) (ω' \ ω) := by
+        rw [Finset.disjoint_iff_inter_eq_empty]
+        ext j
+        simp
+      conv_lhs => rw [hdecomp]
+      rw [Finset.sum_union hdisj]
+      simp only [a, Fin.cases_succ]
+      have hleft : ∑ j ∈ ω' ∩ ω, (if j ∈ ω then -1 else 1) =
+          -((ω' ∩ ω).card : ℤ) := by
+        calc
+          _ = ∑ _j ∈ ω' ∩ ω, (-1 : ℤ) := by
+            apply Finset.sum_congr rfl
+            intro j hj
+            simp only [Finset.mem_inter] at hj
+            simp [hj.2]
+          _ = -((ω' ∩ ω).card : ℤ) := by simp [Finset.sum_const]
+      have hright : ∑ j ∈ ω' \ ω, (if j ∈ ω then -1 else 1) =
+          ((ω' \ ω).card : ℤ) := by
+        calc
+          _ = ∑ _j ∈ ω' \ ω, (1 : ℤ) := by
+            apply Finset.sum_congr rfl
+            intro j hj
+            simp only [Finset.mem_sdiff] at hj
+            simp [hj.2]
+          _ = ((ω' \ ω).card : ℤ) := by simp [Finset.sum_const]
+      rw [hleft, hright]
+    have hcard : (ω.card : ℤ) =
+        ((ω \ ω').card : ℤ) + ((ω ∩ ω').card : ℤ) := by
+      exact_mod_cast (Finset.card_sdiff_add_card_inter ω ω').symm
+    have hneZero : ((ω \ ω').card : ℤ) + ((ω' \ ω).card : ℤ) ≠ 0 := by
+      intro hz
+      have hleft : ((ω \ ω').card : ℤ) = 0 := by nlinarith
+      have hright : ((ω' \ ω).card : ℤ) = 0 := by nlinarith
+      have hleftN : (ω \ ω').card = 0 := by exact_mod_cast hleft
+      have hrightN : (ω' \ ω).card = 0 := by exact_mod_cast hright
+      have hωsub : ω ⊆ ω' := Finset.sdiff_eq_empty_iff_subset.mp
+        (Finset.card_eq_zero.mp hleftN)
+      have hω'sub : ω' ⊆ ω := Finset.sdiff_eq_empty_iff_subset.mp
+        (Finset.card_eq_zero.mp hrightN)
+      exact hne (Finset.Subset.antisymm hω'sub hωsub)
+    intro hz
+    have hz' : (ω.card : ℤ) +
+        ∑ j ∈ ω', a j.succ = 0 := by
+      change a 0 + ∑ j ∈ ω', a j.succ = 0
+      exact hz
+    rw [hsum] at hz'
+    rw [Finset.inter_comm ω ω'] at hcard
+    apply hneZero
+    linarith
 
 /-- (eq:prediction-dual-products), 05:68–74 and 129–164: for every fixed `b` and fixed tests at
 the same block (possibly different valid gaps, allowed types and `J₀`),
@@ -62,7 +132,96 @@ theorem dual_clipping_error (MS : MasterScales K As sl Dm) (B : Block K) (l : Fi
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : DualInput MS B T N,
       Emu MS.core.parameters N B.1 (fun y => (1 + nu MS.core.parameters N B y) *
         |dualTest MS B T l J0 N I y - clip Kc (dualTest MS B T l J0 N I y)| ^ p) ≤ ε := by
-  sorry
+  intro ε hε
+  let Astar : ℝ := dualMomentConstant dStar
+  have hApos : 0 < Astar := by
+    dsimp [Astar, dualMomentConstant]
+    positivity
+  have hAone : 1 ≤ Astar := by
+    dsimp [Astar, dualMomentConstant]
+    exact one_le_pow₀ (by norm_num)
+  have hKpos : 0 < Kc := lt_trans hApos hK
+  have hKone : 1 < Kc := lt_of_le_of_lt hAone hK
+  let ratioA : ℝ := Astar / Kc
+  let ratioK : ℝ := 1 / Kc
+  have hratioA0 : 0 ≤ ratioA := by positivity
+  have hratioA1 : ratioA < 1 := (div_lt_one hKpos).2 hK
+  have hratioK0 : 0 ≤ ratioK := by positivity
+  have hratioK1 : ratioK < 1 := (div_lt_one hKpos).2 hKone
+  have hpowA : Tendsto (fun n : ℕ => ratioA ^ n) atTop (𝓝 0) :=
+    tendsto_pow_atTop_nhds_zero_of_lt_one hratioA0 hratioA1
+  have hpowK : Tendsto (fun n : ℕ => ratioK ^ n) atTop (𝓝 0) :=
+    tendsto_pow_atTop_nhds_zero_of_lt_one hratioK0 hratioK1
+  have hsmall : Tendsto
+      (fun n : ℕ => 2 * Astar ^ p * ratioA ^ n + ratioK ^ n) atTop (𝓝 0) := by
+    simpa using (tendsto_const_nhds.mul hpowA).add hpowK
+  let Cseq : ℕ → ℝ := fun n =>
+    Kc ^ p * (Kc ^ (p + n))⁻¹ * (2 * Astar ^ (p + n) + 1)
+  have hCeq (n : ℕ) :
+      Cseq n = 2 * Astar ^ p * ratioA ^ n + ratioK ^ n := by
+    dsimp [Cseq, ratioA, ratioK]
+    rw [pow_add, pow_add]
+    have hcancel : Kc ^ p * (Kc ^ p * Kc ^ n)⁻¹ = (Kc ^ n)⁻¹ := by
+      field_simp [ne_of_gt (pow_pos hKpos p), ne_of_gt (pow_pos hKpos n)]
+    calc
+      Kc ^ p * (Kc ^ p * Kc ^ n)⁻¹ * (2 * (Astar ^ p * Astar ^ n) + 1) =
+          (Kc ^ n)⁻¹ * (2 * (Astar ^ p * Astar ^ n) + 1) := by rw [hcancel]
+      _ = 2 * Astar ^ p * (Astar ^ n / Kc ^ n) + 1 / Kc ^ n := by
+        field_simp [ne_of_gt (pow_pos hKpos n)]
+      _ = 2 * Astar ^ p * (Astar / Kc) ^ n + (1 / Kc) ^ n := by
+        have h1 : (1 / Kc) ^ n = 1 / Kc ^ n := by
+          simpa using (div_pow (1 : ℝ) Kc n)
+        calc
+          _ = 2 * Astar ^ p * (Astar / Kc) ^ n + 1 / Kc ^ n := by
+            rw [← div_pow]
+          _ = 2 * Astar ^ p * (Astar / Kc) ^ n + (1 / Kc) ^ n := by
+            rw [← h1]
+  have hCseq : Tendsto Cseq atTop (𝓝 0) := by
+    apply hsmall.congr'
+    filter_upwards with n
+    exact (hCeq n).symm
+  have hevent : ∀ᶠ n : ℕ in atTop, Cseq n < ε :=
+    hCseq.eventually (Iio_mem_nhds hε)
+  obtain ⟨n, hn⟩ := Filter.eventually_atTop.1 hevent
+  have hCsmall : Cseq n < ε := hn n le_rfl
+  let b : ℕ := p + n
+  have hpb : p ≤ b := by dsimp [b]; omega
+  have hb : 0 < b := lt_of_lt_of_le hp hpb
+  let Ctail : ℝ := Kc ^ p * (Kc ^ b)⁻¹
+  have hCtail : 0 ≤ Ctail := by dsimp [Ctail]; positivity
+  have hmoment :=
+    dual_moment_bound MS B l T J0 hgap hT hJ0 dStar hd b hb 1 (by norm_num)
+  filter_upwards [hmoment] with N hmomentN
+  intro I
+  let D : ℤ → ℝ := dualTest MS B T l J0 N I
+  let w : ℤ → ℝ := fun y => 1 + nu MS.core.parameters N B y
+  have hw (y : ℤ) : 0 ≤ w y := by
+    have h := I.g_bound (∅ : Finset (Fin T.d)) (fun _ => 0) y
+    exact le_trans (abs_nonneg _) h
+  have hpoint (y : ℤ) :
+      w y * |D y - clip Kc (D y)| ^ p ≤ Ctail * (w y * |D y| ^ b) := by
+    have hclip := clip_error_pow_le Kc (D y) hKpos p b hpb hp
+    calc
+      w y * |D y - clip Kc (D y)| ^ p ≤
+          w y * (Ctail * |D y| ^ b) :=
+        mul_le_mul_of_nonneg_left hclip (hw y)
+      _ = Ctail * (w y * |D y| ^ b) := by ring
+  have hresult :
+      Emu MS.core.parameters N B.1 (fun y => w y * |D y - clip Kc (D y)| ^ p) < ε := by
+   calc
+    Emu MS.core.parameters N B.1 (fun y => w y * |D y - clip Kc (D y)| ^ p)
+        ≤ Emu MS.core.parameters N B.1 (fun y => Ctail * (w y * |D y| ^ b)) :=
+      Emu_mono MS.core.parameters N B.1 hpoint
+    _ = Ctail * Emu MS.core.parameters N B.1 (fun y => w y * |D y| ^ b) :=
+      Emu_mul_left MS.core.parameters N B.1 Ctail (fun y => w y * |D y| ^ b)
+    _ ≤ Ctail * (2 * Astar ^ b + 1) :=
+      mul_le_mul_of_nonneg_left (hmomentN I) hCtail
+    _ < ε := by
+      have heq : Ctail * (2 * Astar ^ b + 1) = Cseq n := by
+        dsimp [Ctail, Cseq, b]
+      rw [heq]
+      exact hCsmall
+  exact le_of_lt (by simpa [w, D] using hresult)
 
 /-- 05:80–82 and 184–189: (eq:prediction-dual-products) remains true for clipped tests, for a
 common clipping bound `K > A_*`. -/
@@ -73,7 +232,283 @@ theorem dual_products_orthogonal_clipped (MS : MasterScales K As sl Dm) (B : Blo
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
       |Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
         ∏ k, clip Kc (dualTest MS B (T k) (gap k) (J0 k) N (I k) y))| ≤ ε := by
-  sorry
+  intro ε hε
+  by_cases hb0 : b = 0
+  · subst b
+    simpa using
+      (dual_products_orthogonal MS B 0 gap T J0 hgap hT hJ0 ε hε)
+  · have hb : 0 < b := Nat.pos_of_ne_zero hb0
+    let Astar : ℝ := dualMomentConstant dStar
+    have hApos : 0 < Astar := by
+      dsimp [Astar, dualMomentConstant]
+      positivity
+    let M : ℝ := 2 * Astar ^ b + 1
+    have hMone : 1 ≤ M := by
+      dsimp [M]
+      nlinarith [pow_nonneg (le_of_lt hApos) b]
+    have hMpos : 0 < M := lt_of_lt_of_le (by norm_num) hMone
+    let theta : ℝ := ε / (4 * (b : ℝ))
+    have htheta : 0 < theta := by dsimp [theta]; positivity
+    let rtail : ℝ := theta / M ^ b
+    have hrtail : 0 < rtail := by dsimp [rtail]; positivity
+    let delta : ℝ := rtail ^ b
+    have hdelta : 0 < delta := by dsimp [delta]; positivity
+    let pRoot : ℝ := 1 / (b : ℝ)
+    have hbReal : 0 < (b : ℝ) := by exact_mod_cast hb
+    have hpNat : (b : ℝ) * pRoot = 1 := by
+      dsimp [pRoot]
+      exact mul_one_div_cancel hbReal.ne'
+    have hdeltaRoot : delta ^ pRoot = rtail := by
+      dsimp [delta, pRoot]
+      rw [← Real.rpow_natCast_mul (le_of_lt hrtail), hpNat, Real.rpow_one]
+    have horth :=
+      dual_products_orthogonal MS B b gap T J0 hgap hT hJ0 (ε / 2) (by positivity)
+    have hmomentEach (k : Fin b) :
+        ∀ᶠ N in atTop, ∀ Ik : DualInput MS B (T k) N,
+          Emu MS.core.parameters N B.1
+            (fun y => (1 + nu MS.core.parameters N B y) *
+              |dualTest MS B (T k) (gap k) (J0 k) N Ik y| ^ b) ≤ M := by
+      have hm := dual_moment_bound MS B (gap k) (T k) (J0 k)
+        (hgap k) (hT k) (hJ0 k) dStar (hd k) b hb 1 (by norm_num)
+      simpa [M, Astar] using hm
+    have hclipEach (k : Fin b) :
+        ∀ᶠ N in atTop, ∀ Ik : DualInput MS B (T k) N,
+          Emu MS.core.parameters N B.1
+            (fun y => (1 + nu MS.core.parameters N B y) *
+              |dualTest MS B (T k) (gap k) (J0 k) N Ik y -
+                clip Kc (dualTest MS B (T k) (gap k) (J0 k) N Ik y)| ^ b) ≤ delta :=
+      dual_clipping_error MS B (gap k) (T k) (J0 k)
+        (hgap k) (hT k) (hJ0 k) dStar (hd k) Kc hK b hb delta hdelta
+    have hAll : ∀ᶠ N in atTop, ∀ k : Fin b,
+        (∀ Ik : DualInput MS B (T k) N,
+          Emu MS.core.parameters N B.1
+            (fun y => (1 + nu MS.core.parameters N B y) *
+              |dualTest MS B (T k) (gap k) (J0 k) N Ik y| ^ b) ≤ M) ∧
+        (∀ Ik : DualInput MS B (T k) N,
+          Emu MS.core.parameters N B.1
+            (fun y => (1 + nu MS.core.parameters N B y) *
+              |dualTest MS B (T k) (gap k) (J0 k) N Ik y -
+                clip Kc (dualTest MS B (T k) (gap k) (J0 k) N Ik y)| ^ b) ≤ delta) := by
+      have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+        (fun k _ => (hmomentEach k).and (hclipEach k))
+      simpa using h
+    filter_upwards [horth, hAll] with N horthN hAllN
+    intro I
+    let D : Fin b → ℤ → ℝ := fun k y =>
+      dualTest MS B (T k) (gap k) (J0 k) N (I k) y
+    let C : Fin b → ℤ → ℝ := fun k y => clip Kc (D k y)
+    let w : ℤ → ℝ := fun y => 1 + nu MS.core.parameters N B y
+    have hw (y : ℤ) : 0 ≤ w y := by
+      dsimp [w]
+      exact add_nonneg (by norm_num) (nu_nonneg MS.core.parameters N B y)
+    have hrootAbs (y : ℤ) :
+        |nu MS.core.parameters N B y - 1| ≤ w y := by
+      dsimp [w]
+      exact abs_sub_one_le_add_one (nu_nonneg MS.core.parameters N B y)
+    let term : Fin b → ℤ → ℝ := fun i y =>
+      |C i y - D i y| *
+        ∏ k : Fin b, (if k = i then (1 : ℝ) else |D k y|)
+    let F : Fin b → Fin b → ℤ → ℝ := fun i k y =>
+      if k = i then D i y - C i y else D k y
+    have hFprod (i : Fin b) (y : ℤ) :
+        ∏ k : Fin b, |F i k y| = term i y := by
+      dsimp [F, term]
+      calc
+        ∏ k : Fin b, |if k = i then D i y - C i y else D k y| =
+            ∏ k : Fin b, if k = i then |D i y - C i y| else |D k y| := by
+              apply Finset.prod_congr rfl
+              intro k hk
+              by_cases hki : k = i <;> simp [hki]
+        _ = |D i y - C i y| *
+            ∏ k : Fin b, (if k = i then (1 : ℝ) else |D k y|) :=
+          prod_ite_factorization (Finset.univ : Finset (Fin b)) i
+            (Finset.mem_univ i) _ _
+        _ = |C i y - D i y| *
+            ∏ k : Fin b, (if k = i then (1 : ℝ) else |D k y|) := by
+              rw [abs_sub_comm]
+    have htel (y : ℤ) :
+        |(∏ k : Fin b, C k y) - ∏ k : Fin b, D k y| ≤
+          ∑ k : Fin b, term k y := by
+      have hbase := abs_prod_sub_prod_le (Finset.univ : Finset (Fin b))
+        (fun k => C k y) (fun k => D k y)
+      have hmax (k : Fin b) :
+          max (|C k y|) (|D k y|) = |D k y| :=
+        max_eq_right (clip_abs_le_abs Kc (D k y) (le_of_lt (lt_trans hApos hK)))
+      simpa [term, hmax] using hbase
+    letI : Nonempty (Fin b) := ⟨⟨0, hb⟩⟩
+    have hholder (i : Fin b) :
+        Emu MS.core.parameters N B.1 (fun y => w y * term i y) ≤
+          ∏ k : Fin b,
+            (Emu MS.core.parameters N B.1
+              (fun y => w y * |F i k y| ^ b)) ^ pRoot := by
+      calc
+        Emu MS.core.parameters N B.1 (fun y => w y * term i y) =
+            Emu MS.core.parameters N B.1
+              (fun y => w y * ∏ k : Fin b, |F i k y|) := by
+                congr 1
+                funext y
+                rw [hFprod i y]
+        _ ≤ ∏ k : Fin b,
+              (Emu MS.core.parameters N B.1
+                (fun y => w y * |F i k y| ^ (Finset.univ : Finset (Fin b)).card)) ^
+                  (1 / ((Finset.univ : Finset (Fin b)).card : ℝ)) :=
+          Emu_weighted_holder (Finset.univ : Finset (Fin b)) Finset.univ_nonempty
+            MS.core.parameters N B.1 w (F i) hw
+        _ = _ := by simp [Finset.card_fin, pRoot]
+    have hmomentNonneg (i k : Fin b) :
+        0 ≤ Emu MS.core.parameters N B.1
+          (fun y => w y * |F i k y| ^ b) :=
+      Emu_nonneg MS.core.parameters N B.1
+        (fun y => mul_nonneg (hw y) (pow_nonneg (abs_nonneg _) _))
+    have hmomentRootBound (i k : Fin b) :
+        (Emu MS.core.parameters N B.1
+          (fun y => w y * |F i k y| ^ b)) ^ pRoot ≤
+            if k = i then rtail else M := by
+      by_cases hki : k = i
+      · subst k
+        have herr := (hAllN i).2 (I i)
+        have hbound : Emu MS.core.parameters N B.1
+            (fun y => w y * |F i i y| ^ b) ≤ delta := by
+          simpa [F, D, C, w] using herr
+        have hroot : (Emu MS.core.parameters N B.1
+            (fun y => w y * |F i i y| ^ b)) ^ pRoot ≤ rtail := by
+          calc
+            _ ≤ delta ^ pRoot :=
+              Real.rpow_le_rpow (hmomentNonneg i i) hbound (by positivity)
+            _ = rtail := hdeltaRoot
+        simpa using hroot
+      · have hbound : Emu MS.core.parameters N B.1
+            (fun y => w y * |F i k y| ^ b) ≤ M := by
+          simpa [F, hki, D, w] using (hAllN k).1 (I k)
+        have hp_le_one : pRoot ≤ 1 := by
+          have hbcast : 1 ≤ (b : ℝ) := by
+            exact_mod_cast (Nat.one_le_iff_ne_zero.mpr (Nat.ne_of_gt hb))
+          dsimp [pRoot]
+          calc
+            1 / (b : ℝ) ≤ 1 / 1 :=
+              one_div_le_one_div_of_le (by norm_num) hbcast
+            _ = 1 := by norm_num
+        have hroot : (Emu MS.core.parameters N B.1
+            (fun y => w y * |F i k y| ^ b)) ^ pRoot ≤ M := by
+          calc
+          _ ≤ M ^ pRoot :=
+            Real.rpow_le_rpow (hmomentNonneg i k) hbound (by positivity)
+          _ ≤ M := by
+            simpa using Real.rpow_le_rpow_of_exponent_le hMone hp_le_one
+        simpa [hki] using hroot
+    have hrootProd (i : Fin b) :
+        ∏ k : Fin b,
+            (Emu MS.core.parameters N B.1
+              (fun y => w y * |F i k y| ^ b)) ^ pRoot ≤ theta := by
+      have hprod :
+          ∏ k : Fin b,
+            (Emu MS.core.parameters N B.1
+              (fun y => w y * |F i k y| ^ b)) ^ pRoot ≤
+            ∏ k : Fin b, (if k = i then rtail else M) :=
+        Finset.prod_le_prod₀
+          (fun k _ => Real.rpow_nonneg (hmomentNonneg i k) _)
+          (fun k _ => hmomentRootBound i k)
+      have hrest :
+          ∏ k ∈ (Finset.univ : Finset (Fin b)),
+              (if k = i then (1 : ℝ) else M) ≤ M ^ b := by
+        calc
+          ∏ k ∈ (Finset.univ : Finset (Fin b)), (if k = i then (1 : ℝ) else M) ≤
+              ∏ k ∈ (Finset.univ : Finset (Fin b)), M :=
+            Finset.prod_le_prod₀
+              (fun k _ => by
+                by_cases hk : k = i
+                · simp [hk]
+                · simp [hk, hMpos.le])
+              (fun k _ => by
+                by_cases hk : k = i
+                · simpa [hk] using hMone
+                · simp [hk])
+          _ = M ^ b := by simp
+      calc
+        _ ≤ ∏ k : Fin b, (if k = i then rtail else M) := hprod
+        _ = rtail * ∏ k : Fin b, (if k = i then (1 : ℝ) else M) :=
+          prod_ite_factorization (Finset.univ : Finset (Fin b)) i
+            (Finset.mem_univ i) rtail (fun _ => M)
+        _ ≤ rtail * M ^ b :=
+          mul_le_mul_of_nonneg_left hrest (le_of_lt hrtail)
+        _ = theta := by
+          dsimp [rtail]
+          field_simp [ne_of_gt (pow_pos hMpos b)]
+    have htermBound (i : Fin b) : Emu MS.core.parameters N B.1
+        (fun y => w y * term i y) ≤ theta :=
+      (hholder i).trans (hrootProd i)
+    have hdiffBound :
+        Emu MS.core.parameters N B.1
+          (fun y => w y *
+            |(∏ k : Fin b, C k y) - ∏ k : Fin b, D k y|) ≤
+          (b : ℝ) * theta := by
+      calc
+        _ ≤ Emu MS.core.parameters N B.1
+            (fun y => w y * ∑ k : Fin b, term k y) :=
+          Emu_mono MS.core.parameters N B.1 (fun y =>
+            mul_le_mul_of_nonneg_left (htel y) (hw y))
+        _ = ∑ k : Fin b, Emu MS.core.parameters N B.1
+              (fun y => w y * term k y) := by
+          simpa [Finset.mul_sum] using
+            Emu_finset_sum MS.core.parameters N B.1
+              (Finset.univ : Finset (Fin b)) (fun k y => w y * term k y)
+        _ ≤ ∑ _k : Fin b, theta := Finset.sum_le_sum fun k _ => htermBound k
+        _ = (b : ℝ) * theta := by simp [Finset.sum_const, Finset.card_fin]
+    have hdiffAbs :
+        |Emu MS.core.parameters N B.1
+          (fun y => (nu MS.core.parameters N B y - 1) *
+            ((∏ k : Fin b, C k y) - ∏ k : Fin b, D k y))| ≤
+          (b : ℝ) * theta := by
+      calc
+        _ ≤ Emu MS.core.parameters N B.1
+            (fun y => |(nu MS.core.parameters N B y - 1) *
+              ((∏ k : Fin b, C k y) - ∏ k : Fin b, D k y)|) :=
+          Emu_abs_le MS.core.parameters N B.1 _
+        _ ≤ Emu MS.core.parameters N B.1
+            (fun y => w y *
+              |(∏ k : Fin b, C k y) - ∏ k : Fin b, D k y|) :=
+          Emu_mono MS.core.parameters N B.1 (fun y => by
+            rw [abs_mul]
+            exact mul_le_mul_of_nonneg_right (hrootAbs y) (abs_nonneg _))
+        _ ≤ (b : ℝ) * theta := hdiffBound
+    have hlinear :
+        Emu MS.core.parameters N B.1
+            (fun y => (nu MS.core.parameters N B y - 1) * ∏ k : Fin b, C k y) =
+          Emu MS.core.parameters N B.1
+            (fun y => (nu MS.core.parameters N B y - 1) * ∏ k : Fin b, D k y) +
+          Emu MS.core.parameters N B.1
+            (fun y => (nu MS.core.parameters N B y - 1) *
+              ((∏ k : Fin b, C k y) - ∏ k : Fin b, D k y)) := by
+      calc
+        _ = Emu MS.core.parameters N B.1
+              (fun y => (nu MS.core.parameters N B y - 1) * ∏ k : Fin b, D k y +
+                (nu MS.core.parameters N B y - 1) *
+                  ((∏ k : Fin b, C k y) - ∏ k : Fin b, D k y)) := by
+            congr 1
+            funext y
+            ring
+        _ = _ := Emu_add MS.core.parameters N B.1 _ _
+    calc
+      |Emu MS.core.parameters N B.1
+          (fun y => (nu MS.core.parameters N B y - 1) * ∏ k : Fin b, C k y)|
+          ≤ (ε / 2) + (b : ℝ) * theta := by
+              rw [hlinear]
+              calc
+                _ ≤
+                    |Emu MS.core.parameters N B.1
+                      (fun y => (nu MS.core.parameters N B y - 1) * ∏ k : Fin b, D k y)| +
+                    |Emu MS.core.parameters N B.1
+                      (fun y => (nu MS.core.parameters N B y - 1) *
+                        ((∏ k : Fin b, C k y) - ∏ k : Fin b, D k y))| :=
+                  abs_add_le _ _
+                _ ≤ (ε / 2) + (b : ℝ) * theta :=
+                  add_le_add (by simpa [D] using horthN I) hdiffAbs
+      _ ≤ ε := by
+        dsimp [theta]
+        have hbR : 0 < (b : ℝ) := by exact_mod_cast hb
+        have hbRne : (b : ℝ) ≠ 0 := ne_of_gt hbR
+        field_simp [hbRne]
+        linarith
 
 /-- Lemma `lem:dual-pseudorandomness` (05:68–83), assembled from its three parts. -/
 theorem dual_pseudorandomness (MS : MasterScales K As sl Dm) (B : Block K) (dStar : ℕ) :
