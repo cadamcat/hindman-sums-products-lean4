@@ -3297,6 +3297,21 @@ theorem linearRowValue_eq_occurrenceValue {K m q r s h d : ℕ} {Aset : Finset �
       (eO.symm u) (eX.symm j) * (x j : ℚ))
     (by intro v; simp)).symm
 
+theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (ω : NonTarget Sh → Fin 2) (x : Coordinate Sh → ℤ) :
+    occurrenceValue S C a Sh dirs N p (.inl ω) x =
+      rowForm (chainScale S.core.parameters C a N) (Sh.row Sh.star) p
+        (fun k => (x (.inl k) : ℚ)) +
+      (directionModulus S N dirs.poly p : ℚ) *
+        ∑ R : NonTarget Sh, (x (.inr (.inl (R, ω R)) : Coordinate Sh) : ℚ) := by
+  classical
+  simp [occurrenceValue, occurrenceCoeff, occurrenceRow, rowTemplateCoefficient,
+    rowForm, Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.sum_ite_eq']
+  rw [Finset.mul_sum]
+
 end AdditiveMoment
 
 end HindmanSumsProducts
