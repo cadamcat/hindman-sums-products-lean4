@@ -1,213 +1,145 @@
 import HindmanSumsProducts.Prediction.Results
 
+/-!
+# Nilsequence projections and the Ramsey selection of gap energies (§5.2, 05:355–430)
+
+The paper works in the real Hilbert space of uniformly bounded families with pairing
+`lim_𝒰 ⟨·,·⟩_{L²(μ_i)}` (05:355–364) and its closed subspaces `𝒩_{i,l}` spanned by representing
+families at gap `l`.  Every statement of §5 uses only norms of projections `‖P_{i,l} v‖₂` of
+bounded families `v`, and for a closed span these are
+`‖P_{i,l} v‖₂ = sup {⟨v, u⟩ : u ∈ span, ‖u‖₂ ≤ 1}`.
+So the statements below use `projNorm`, defined by that supremum, with no completion; the
+Hilbert space itself is a device of the proofs (`energy_selection`, `projection_lower_bound`).
+In particular (eq:prediction-coarse-approximation) `‖S − P F‖ ≤ ε` with `S ∈ 𝒩` is equivalent to
+`‖P(F − S)‖ ≤ ε`, since `P S = S`.
+-/
+
 open scoped BigOperators NNReal Topology
-open Filter Classical
+open Filter
 
 namespace HindmanSumsProducts.Prediction
 
-/-- The Hilbert ultraproduct projection system from §5, lines 355–376. `base.project i l`
-represents `P_{i,l}`; `represented i l f` means the family belongs to `𝒩_{i,l}`. -/
-structure HilbertGapProjectionSystem (n : ℕ) where
-  base : GapProjection n
-  inner : (i : Fin n) → (ℕ → ℤ → ℝ) → (ℕ → ℤ → ℝ) → ℝ
-  inner_cauchy_schwarz : ∀ i f g,
-    |inner i f g| ≤ base.norm i f * base.norm i g
-  represented : (i l : Fin n) → l < i → (ℕ → ℤ → ℝ) → Prop
-  nested_subspace_inclusion : ∀ (i l l' : Fin n) (h : l < i) (h' : l' < i)
-    (hll' : l < l') (v : ℕ → ℤ → ℝ),
-      represented i l' h' v → represented i l h v
-  project_represented : ∀ i l (h : l < i) f,
-    represented i l h (base.project i l h f)
-  project_pairing : ∀ i l (h : l < i) f g, represented i l h g →
-    inner i (base.project i l h f) g = inner i f g
-  nested_projection_identity : ∀ (i l l' : Fin n) (h : l < i) (h' : l' < i)
-    (_hll' : l < l') (v : ℕ → ℤ → ℝ),
-      base.norm i (base.project i l h v - base.project i l' h' v) ^ 2 =
-        base.norm i (base.project i l h v) ^ 2 -
-          base.norm i (base.project i l' h' v) ^ 2
-  clip01_represented : ∀ i l (h : l < i) (v : ℕ → ℤ → ℝ),
-    represented i l h (fun N y => max 0 (min 1 (v N y)))
-  projection_norm_nonneg : ∀ i f, 0 ≤ base.norm i f
+noncomputable section
 
-/-- The projection-distance identity in (eq:prediction-nested-spaces), §5, lines 366–376. -/
-theorem nested_projection_distance_identity {n : ℕ}
-    (P : HilbertGapProjectionSystem n) (i l l' : Fin n)
-    (h : l < i) (h' : l' < i) (hll' : l < l') (v : ℕ → ℤ → ℝ) :
-    P.base.norm i (P.base.project i l h v - P.base.project i l' h' v) ^ 2 =
-      P.base.norm i (P.base.project i l h v) ^ 2 -
-        P.base.norm i (P.base.project i l' h' v) ^ 2 :=
-  P.nested_projection_identity i l l' h h' hll' v
+variable {K r : ℕ}
 
-/-- Existence of the Hilbert ultraproduct and its nested closed nilsequence subspaces for the
-OAI harmonic pivot laws. The ultrafilter is arbitrary nonprincipal. -/
-theorem hilbert_gap_projection_system {n : ℕ} (A : Parameters n)
-    (U : Ultrafilter ℕ) (hU : (U : Filter ℕ) ≤ Filter.cofinite) :
-    Nonempty (HilbertGapProjectionSystem n) := by
+/-- The pairing `⟨f, g⟩ = lim_𝒰 E_{μ_i} f_N g_N` of 05:356–359. -/
+def familyInner (A : Parameters K) (U : Ultrafilter ℕ) (i : Fin K) (f g : ℕ → ℤ → ℝ) : ℝ :=
+  ulim U (fun N => Emu A N i (fun y => f N y * g N y))
+
+/-- The span of the representing families at gap `l` of step `≤ s` (all menus, all Lipschitz
+bounds); its closure in the Hilbert space is `𝒩_{i,l}` (05:359–364). -/
+def repSpan (A : Parameters K) (l : Fin K) (s : ℕ) : Submodule ℝ (ℕ → ℤ → ℝ) :=
+  Submodule.span ℝ
+    {v | ∃ (Fm : Menu s) (Km : ℝ≥0) (Φ : RepFamily A l Fm Km), v = Φ.eval}
+
+/-- `‖P_{i,l} v‖₂`, the norm of the orthogonal projection onto `𝒩_{i,l}` (step `≤ s`), for a
+bounded family `v`. -/
+def projNorm (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K) (s : ℕ)
+    (v : ℕ → ℤ → ℝ) : ℝ :=
+  sSup ((fun u => familyInner A U i v u) ''
+    {u | u ∈ repSpan A l s ∧ familyInner A U i u u ≤ 1})
+
+/-- (eq:prediction-nested-spaces), inclusion part (05:366–373): if `R_l ∣ R_{l'}` then
+representing families at gap `l'` are representing families at gap `l` (pieces are re-indexed;
+the global progression index is unchanged). -/
+theorem repSpan_antitone (A : Parameters K) (s : ℕ) {l l' : Fin K}
+    (hdiv : ∀ N, A.H N l ∣ A.H N l') : repSpan A l' s ≤ repSpan A l s := by
   sorry
 
-/-- Fine projection norm `‖P_{i,l}v‖₂`. -/
-def fineProjectionNorm {n : ℕ} (P : HilbertGapProjectionSystem n)
-    (i l : Fin n) (h : l < i) (v : ℕ → ℤ → ℝ) : ℝ :=
-  P.base.norm i (P.base.project i l h v)
-
-/-- Projection-energy coloring data before the Ramsey selection. `energy` is the squared norm of
-`P_{i,l}F_{T∪{i},a,c}`; `coarseApproximation` records density of represented families in the
-closed nilsequence subspace. -/
-structure EnergySelectionContext (M r : ℕ) (As : Finset ℚ) where
-  dense : DenseModelFamily M r
-  projections : HilbertGapProjectionSystem M
-  energy : (B : Block M) → (l : Fin M) →
-    (∀ t ∈ B.2.val, t < l) → l < B.1 →
-      (a : ℚ) → a ∈ As → Fin r → ℝ
-  energy_range : ∀ B l hT hl a ha c,
-    0 ≤ energy B l hT hl a ha c ∧ energy B l hT hl a ha c ≤ 1
-  -- GAP: spell out that `energy` is the squared projection norm and that coarse projection
-  -- approximants are finite combinations of the representing families from §5, lines 398–419.
-  energy_is_projection_energy : Prop
-  coarseApproximation : Prop
-
-/-- A family of master-scale energy data indexed by the master count. -/
-structure MasterEnergyFamily (r : ℕ) (As : Finset ℚ) where
-  context : ∀ M : ℕ, EnergySelectionContext M r As
-  context_valid : ∀ M,
-    (context M).energy_is_projection_energy ∧ (context M).coarseApproximation
-
-/-- Interleaving and selected coarse models produced by the energy argument. -/
-structure EnergySelectionOutput (n : ℕ) {M r : ℕ} {As : Finset ℚ}
-    (E : EnergySelectionContext M r As) (eps : ℝ) (hn : 0 < n) where
-  padding : Fin n → Fin M
-  principal : Fin n → Fin M
-  padding_before_principal : ∀ u, padding u < principal u
-  principal_before_next_padding : ∀ u (hnext : u.val + 1 < n),
-    principal u < padding ⟨u.val + 1, hnext⟩
-  first_padding_before_all_principals : ∀ u,
-    padding ⟨0, hn⟩ < principal u
-  models : Fin n → DenseModelFamily M r
-  models_range : ∀ (u : Fin n) (N : ℕ) (B : Block M) (a : ℚ)
-    (c : Fin r) (y : ℤ), 0 ≤ models u N B a c y ∧ models u N B a c y ≤ 1
-  represented_at_coarse_scale : ∀ (u : Fin n) (B : Block M),
-    B.1 = principal u → (∀ t ∈ B.2.val, t < padding u) →
-      ∀ (a : ℚ), a ∈ As → ∀ (c : Fin r),
-        E.projections.represented (principal u) (padding u)
-          (padding_before_principal u) (fun N y => models u N B a c y)
-  coarse_projection_error : ∀ (u : Fin n) (B : Block M),
-    B.1 = principal u → (∀ t ∈ B.2.val, t < padding u) →
-      ∀ (a : ℚ), a ∈ As → ∀ (c : Fin r),
-        E.projections.base.norm (principal u)
-          ((fun N y => models u N B a c y) -
-            E.projections.base.project (principal u) (padding u)
-              (padding_before_principal u) (fun N y => E.dense N B a c y)) ≤ eps
-  fine_projection_error : ∀ (u : Fin n) (B : Block M),
-    B.1 = principal u → (∀ t ∈ B.2.val, t < padding ⟨0, hn⟩) →
-      ∀ (a : ℚ), a ∈ As → ∀ (c : Fin r),
-        E.projections.base.norm (principal u)
-          (E.projections.base.project (principal u) (padding ⟨0, hn⟩)
-            (first_padding_before_all_principals u)
-            (fun N y => E.dense N B a c y - models u N B a c y)) ≤ 2 * eps
-  complexity_bounded : Prop
-
-/-- Ramsey selection of gap energies, Lemma `lem:energy-selection`, §5, lines 378–430.
-The chosen master count depends only on the requested chain length, number of colors, finite scale
-list size, and `eps`; model complexity may depend on the selected count. -/
-theorem energy_selection {n r : ℕ} (hn : 0 < n) (As : Finset ℚ) (eps : ℝ) (heps : 0 < eps)
-    (E : MasterEnergyFamily r As) :
-    ∃ M : ℕ, Nonempty (EnergySelectionOutput n (E.context M) eps hn) := by
+/-- Raising the step bound only enlarges the span (`OAI.SourceMenuLiteral.raiseMenu`). -/
+theorem repSpan_mono_step (A : Parameters K) (l : Fin K) {s s' : ℕ} (h : s ≤ s') :
+    repSpan A l s ≤ repSpan A l s' := by
   sorry
 
-/-- The local subgroup-cube comparison data in §5, lines 518–578. Its constants depend on the
-cube dimension and `J₀`, but not on the number of cells. -/
-structure SubgroupCubeComparison (d J0 : ℕ) where
-  shortCube : ℕ → ℝ
-  periodizedCube : ℕ → ℝ
-  subgroupNorm : ℕ → ℝ
-  boundaryError : ℕ → ℝ
-  boundaryConstant : ℝ
-  boundaryConstant_nonneg : 0 ≤ boundaryConstant
-  constant : ℝ
-  constant_nonneg : 0 ≤ constant
-  boundary_small : ∀ ε > 0, ∀ᶠ N in atTop,
-    boundaryError N ≤ boundaryConstant / J0 + ε
-  short_to_periodized : ∀ ε > 0, ∀ᶠ N in atTop,
-    |shortCube N - periodizedCube N| ≤ boundaryError N
-  cauchy_schwarz_cube_bound : ∀ N,
-    |periodizedCube N| ≤ constant * subgroupNorm N
-
-/-- The `2^d`-fold weighted Cauchy–Schwarz passage to a subgroup `U^{2^d}` norm and its
-`O_d(J₀⁻¹)` periodization error, §5, lines 518–578. -/
-theorem short_cube_to_subgroup_norm (d : ℕ) (J0 : ℕ) (hJ0 : 0 < J0) :
-    ∃ C : ℝ, 0 ≤ C ∧ ∀ ε > 0, ∀ᶠ N in atTop,
-      ∃ S : SubgroupCubeComparison d J0,
-        S.constant ≤ C * (J0 : ℝ) ^ (2 ^ d) ∧
-        S.boundaryConstant ≤ C ∧
-        |S.shortCube N| ≤ S.constant * S.subgroupNorm N + C / J0 + ε := by
+/-- Projection lower bound (05:670–674): a span element `V` with `‖V‖₂ ≤ 1` and
+`⟨h, V⟩ ≥ c` forces `‖P_{i,l} h‖₂ ≥ c`, for a bounded family `h`. -/
+theorem le_projNorm (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K) (s : ℕ)
+    (h V : ℕ → ℤ → ℝ) (hb : ∃ C, ∀ N y, |h N y| ≤ C) (hV : V ∈ repSpan A l s)
+    (hVn : familyInner A U i V V ≤ 1) :
+    familyInner A U i h V ≤ projNorm A U i l s h := by
   sorry
 
-/-- Finite cell decomposition for the global `U^t` norm in (eq:prediction-cyclic-interval).
-The moment identity is exactly the cellwise decomposition of the global cube mean. -/
-structure FiniteCellGowersData (t : ℕ) where
-  Cell : Type
-  [cellFintype : Fintype Cell]
-  [cellDecidableEq : DecidableEq Cell]
-  weight : Cell → ℝ
-  weight_nonneg : ∀ C, 0 ≤ weight C
-  weight_sum_one : ∑ C, weight C = 1
-  localNorm : Cell → ℝ
-  localNorm_nonneg : ∀ C, 0 ≤ localNorm C
-  localNorm_le_one : ∀ C, localNorm C ≤ 1
-  globalNorm : ℝ
-  globalNorm_nonneg : 0 ≤ globalNorm
-  moment_identity : globalNorm ^ (2 ^ t) =
-    ∑ C, weight C * localNorm C ^ (2 ^ t)
-
-attribute [instance] FiniteCellGowersData.cellFintype
-  FiniteCellGowersData.cellDecidableEq
-
-/-- The cells with local `U^t` norm at least `δ/2` have total probability at least
-`δ^(2^t)/2`, as used in §5, lines 644–652. -/
-theorem global_gowers_norm_large_cells {t : ℕ} (S : FiniteCellGowersData t)
-    (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hglobal : δ ≤ S.globalNorm) :
-    δ ^ (2 ^ t) / 2 ≤
-      ∑ C, S.weight C * (if δ / 2 ≤ S.localNorm C then 1 else 0) := by
+/-- A Lipschitz map of `[0,1]` into itself, applied to a representing family, is a representing
+family on the same menu (05:374–376, used for `ψ(S)` at 05:729–731). -/
+theorem RepFamily.comp_exists {A : Parameters K} {l : Fin K} {s : ℕ} {Fm : Menu s}
+    {Km : ℝ≥0} (Φ : RepFamily A l Fm Km) (ψ : ℝ → ℝ) (L : ℝ≥0) (hψ : LipschitzWith L ψ)
+    (hψ01 : ∀ x ∈ Set.Icc (0 : ℝ) 1, ψ x ∈ Set.Icc (0 : ℝ) 1) :
+    ∃ Ψ : RepFamily A l Fm (L * Km), ∀ N y, Ψ.eval N y = ψ (Φ.eval N y) := by
   sorry
 
-/-- A piecewise nilsequence with positive Hilbert pairing forces the fine orthogonal projection
-to have at least that norm. This is the final orthogonality/Cauchy–Schwarz step in §5, lines
-667–674. -/
-theorem projection_lower_bound_of_correlator {n : ℕ}
-    (P : HilbertGapProjectionSystem n) (i l : Fin n) (hl : l < i)
-    (h : ℕ → ℤ → ℝ) (V : ℕ → ℤ → ℝ) (c : ℝ)
-    (hc : 0 < c) (hVrep : P.represented i l hl V)
-    (hVnorm : P.base.norm i V ≤ 1) (hcor : c ≤ P.inner i h V) :
-    c ≤ fineProjectionNorm P i l hl h := by
+/-- Closure of the model class (02:103–105, 05:374–376, 05:407–419; blueprint X.1): for finitely
+many menus of step `≤ s` there is one menu (built from product nilmanifolds of the charted menus)
+on which every `[0,1]`-valued Lipschitz combination of representing families on those menus, at
+the same gap, is again a representing family.  This includes clipping finite real combinations
+to `[0,1]` and re-expressing finitely many families on one common menu. -/
+theorem rep_menu_combination (A : Parameters K) (l : Fin K) {k s : ℕ} (Fm : Fin k → Menu s) :
+    ∃ F' : Menu s, ∀ (Km : Fin k → ℝ≥0) (Φ : ∀ t, RepFamily A l (Fm t) (Km t))
+      (G : (Fin k → ℝ) → ℝ) (L : ℝ≥0), LipschitzWith L G →
+      (∀ x : Fin k → ℝ, (∀ t, x t ∈ Set.Icc (0 : ℝ) 1) → G x ∈ Set.Icc (0 : ℝ) 1) →
+      ∃ (K' : ℝ≥0) (Ψ : RepFamily A l F' K'),
+        ∀ N y, Ψ.eval N y = G (fun t => (Φ t).eval N y) := by
   sorry
 
-/-- Cyclic-to-interval comparison from (eq:prediction-cyclic-interval), §5, lines 601–642. The
-estimate concerns powers of the norms (the normalized cube means). -/
-theorem cyclic_to_interval_cube_mean (t q K : ℕ) [NeZero q]
-    (hq : 0 < q) (hK : 0 < K)
-    (v : ZMod q → ℝ) :
-    |intervalCubeMean t (K * q) (fun z => v (z : ZMod q)) -
-      (∑ x : ZMod q, ∑ a : Fin t → ZMod q,
-        ∏ ω : Finset (Fin t), v (x + ∑ j ∈ ω, a j)) /
-        ((Fintype.card (ZMod q) : ℝ) ^ (t + 1))| ≤
-      (t + 1 : ℝ) ^ 3 / K := by
+/-- The coarse approximant (05:407–419): a `[0,1]`-valued family `F` has a `[0,1]`-valued
+representing family `S` at gap `l` with `‖P_{i,l}(F − S)‖₂ ≤ ε` (approximate `P F` by a finite
+combination, clip it to `[0,1]`, Pythagoras). -/
+theorem coarse_approximant (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K) (s : ℕ)
+    (F : ℕ → ℤ → ℝ) (hF : ∀ N y, F N y ∈ Set.Icc (0 : ℝ) 1) (ε : ℝ) (hε : 0 < ε) :
+    ∃ (Fm : Menu s) (Km : ℝ≥0) (Φ : RepFamily A l Fm Km),
+      projNorm A U i l s (fun N y => F N y - Φ.eval N y) ≤ ε := by
   sorry
 
-/-- From subgroup cubes to a fine nilsequence projection, Lemma `lem:subgroup-inverse`,
-§5, lines 491–683. `κ` is independent of the master count, gap, cutoff, and cell probabilities. -/
-theorem subgroup_cube_to_fine_projection (d J0 : ℕ) (hJ0 : 0 < J0)
-    (γ : ℝ) (hγ : 0 < γ) :
-    ∃ κ : ℝ, 0 < κ ∧ ∀ s : ℕ, 2 * (2 ^ d) - 2 ≤ s →
-      ∀ {n : ℕ} (A : Parameters n) (P : HilbertGapProjectionSystem n)
-        (B : Block n) (l : Fin n) (hl : l < B.1)
-        (U : Ultrafilter ℕ) (hU : (U : Filter ℕ) ≤ Filter.cofinite),
-        ∀ (h : ℕ → ℤ → ℝ), (∀ N y, |h N y| ≤ 1) →
-        ∀ D : ∀ N, DualTest B (divisorWeight A N B),
-          (∀ N, (D N).dimension = d ∧ (D N).J0 = J0 ∧ (D N).gap = l) →
-          fineProjectionNorm P B.1 l hl h < κ →
-          UltrafilterUpperBound U
-            (fun N => |DualTest.cubeAverage A N B (D N) (h N)|)
-            (γ + (2 : ℝ) * d / J0) := by
+/-- The Ramsey step of Lemma `lem:energy-selection` (05:399–405): a tuple `(T, l, i)` with
+`T < l < i` is identified with the set `T ∪ {l, i}`; for `c` colours there is a master count
+`K₀` such that every colouring of subsets has a set `H` of size `2n` on which the colour of a
+subset of size `3, …, n+1` depends only on its size. -/
+theorem energy_ramsey (n c : ℕ) :
+    ∃ K₀ : ℕ, ∀ col : Finset (Fin K₀) → Fin c, ∃ H : Finset (Fin K₀), H.card = 2 * n ∧
+      ∀ T T' : Finset (Fin K₀), T ⊆ H → T' ⊆ H → T.card = T'.card → 3 ≤ T.card →
+        T.card ≤ n + 1 → col T = col T' := by
   sorry
+
+/-- A master block whose pivot is the principal index `prin u` and whose tail consists of
+principal indices `prin v`, `v < u₁` (`u₁ ≤ u`). -/
+def PrincipalBlock {n : ℕ} (prin : Fin n → Fin K) (u₁ u : Fin n) (B : Block K) : Prop :=
+  B.1 = prin u ∧ ∀ t ∈ B.2.val, ∃ v, v < u₁ ∧ t = prin v
+
+/-- The output of Lemma `lem:energy-selection` (05:378–396) for master parameters `A`, an
+ultrafilter `U`, a `[0,1]`-valued family `F`, and `ε`: interleaved indices
+`k_1 < j_1 < ⋯ < k_n < j_n` (`pad`, `prin`), one menu of step `≤ s` with one Lipschitz bound, and
+`[0,1]`-valued representing families `S_{B,a,c}` at the coarse gap `k_u` for the blocks with pivot
+`j_u`, such that (eq:prediction-coarse-approximation) `‖P_{j_u,k_u}(F − S)‖ ≤ ε` and
+(eq:prediction-fine-projection) `‖P_{j_u,k_{u₁}}(F − S)‖ ≤ 2ε` whenever the tail consists of
+principal indices before `j_{u₁}`, `u₁ ≤ u` (for a chain on the principal indices, `k_{u₁}` is
+the padding index immediately before its first pivot). -/
+structure EnergySelection (n s : ℕ) (As : Finset ℚ) (A : Parameters K) (U : Ultrafilter ℕ)
+    (F : BlockFamily K r) (ε : ℝ) where
+  pad : Fin n → Fin K
+  prin : Fin n → Fin K
+  pad_lt_prin : ∀ u, pad u < prin u
+  prin_lt_pad : ∀ u v, u < v → prin u < pad v
+  menu : Menu s
+  lip : ℝ≥0
+  model : (u : Fin n) → Block K → ℚ → Fin r → RepFamily A (pad u) menu lip
+  coarse : ∀ (u : Fin n) (B : Block K), PrincipalBlock prin u u B → ∀ a ∈ As, ∀ c : Fin r,
+    projNorm A U (prin u) (pad u) s (fun N y => F N B a c y - (model u B a c).eval N y) ≤ ε
+  fine : ∀ (u₁ u : Fin n) (B : Block K), u₁ ≤ u → PrincipalBlock prin u₁ u B →
+    ∀ a ∈ As, ∀ c : Fin r,
+      projNorm A U (prin u) (pad u₁) s (fun N y => F N B a c y - (model u B a c).eval N y) ≤
+        2 * ε
+
+/-- Lemma `lem:energy-selection` (05:378–396): for every `ε > 0` a master count `K` depending
+only on `n`, `r`, `|𝒜|` and `ε` admits the selection, for every step `s`, every scale list of size
+`≤ a`, every master parameters with nested gap lengths, every ultrafilter and every
+`[0,1]`-valued family.  The model complexity (menu, Lipschitz bound) depends on all of these. -/
+theorem energy_selection (n r a : ℕ) (ε : ℝ) (hε : 0 < ε) :
+    ∃ K : ℕ, ∀ (s : ℕ) (As : Finset ℚ), As.card ≤ a → ∀ (A : Parameters K),
+      (∀ N (l l' : Fin K), l ≤ l' → A.H N l ∣ A.H N l') →
+      ∀ (U : Ultrafilter ℕ) (F : BlockFamily K r), UnitValued F →
+        Nonempty (EnergySelection n s As A U F ε) := by
+  sorry
+
+end
 
 end HindmanSumsProducts.Prediction
