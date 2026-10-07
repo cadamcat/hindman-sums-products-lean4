@@ -1292,6 +1292,35 @@ theorem harmonicProductLaw_eq_finite_sum {q : ℕ}
   unfold harmonicProductLaw
   exact tsum_eq_sum (s := D) hzero
 
+theorem harmonicProductLaw_coprime_of_ne_zero {q : ℕ} (W : ℕ)
+    (X : Fin q → ℕ) (σ : ℕ)
+    (hσ : harmonicProductLaw W X σ ≠ 0) : Nat.Coprime σ W := by
+  classical
+  by_contra hcop
+  have hterm (t : Fin q → ℕ) :
+      (if (∏ i, t i) = σ then 1 else 0) *
+        ∏ i, harmonicNatLaw (X i) W (t i) = 0 := by
+    by_cases hp : (∏ i, t i) = σ
+    · have hnotAll : ¬ ∀ i, Nat.Coprime (t i) W := by
+        intro hall
+        have hprodCop : Nat.Coprime (∏ i, t i) W := by
+          rw [Nat.coprime_fintype_prod_left_iff]
+          exact hall
+        exact hcop (by simpa [hp] using hprodCop)
+      obtain ⟨i, hi⟩ := not_forall.mp hnotAll
+      have hzero : harmonicNatLaw (X i) W (t i) = 0 := by
+        simp [harmonicNatLaw, hi]
+      have hprod : ∏ i, harmonicNatLaw (X i) W (t i) = 0 :=
+        Finset.prod_eq_zero (s := Finset.univ)
+          (f := fun i => harmonicNatLaw (X i) W (t i)) (Finset.mem_univ i) hzero
+      simp [hp, hprod]
+    · simp [hp]
+  apply hσ
+  rw [harmonicProductLaw_eq_finite_sum]
+  apply Finset.sum_eq_zero
+  intro t ht
+  exact hterm t
+
 def finsetComplement {α : Type*} [Fintype α] [DecidableEq α] (T : Finset α) : Finset α :=
   Finset.univ.filter fun i => i ∉ T
 
