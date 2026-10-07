@@ -15,7 +15,8 @@ This project uses [`openai/math`](https://github.com/openai/math/tree/adc7f1241b
 | `HindmanSumsProducts/Concatenation.lean` | 484–494 | `OAI/Combinatorics/Progressions/Estimates/ComplexFiniteMeans.lean` |
 | `HindmanSumsProducts/Concatenation.lean` | 499–569 | `OAI/Combinatorics/Progressions/Estimates/BooleanCubeProduct.lean` |
 | `HindmanSumsProducts/Concatenation.lean` | 658–688 | `OAI/Combinatorics/Progressions/Estimates/ComplexFiniteMeans.lean` |
-| `HindmanSumsProducts/Prediction/PkgB.lean` | from 3037 (end not marked) | `OAI/MeasureTheory/Falconer/Estimates/FiniteHolder.lean` |
+| `HindmanSumsProducts/Prediction/PkgB.lean` | 3683–3822 | `OAI/MeasureTheory/Falconer/Estimates/FiniteHolder.lean` |
+| `HindmanSumsProducts/Prediction/PkgB.lean` | 3869–3946 | `OAI/Probability/InvariantIsing/Arrays/PerturbationFeatures.lean` |
 
 | Imported module | Imported by |
 |---|---|
