@@ -10,6 +10,29 @@ open OAI OAI.Erdos3
 open Filter
 open scoped BigOperators NNReal Topology BoundedContinuousFunction TensorProduct
 
+local instance lineLieRingObservable : LieRing Line := LieRing.ofAssociativeRing
+local instance lineLieAlgebraObservable : LieAlgebra ℚ Line := LieAlgebra.ofAssociativeAlgebra
+local instance lineIsLieAbelian : IsLieAbelian Line :=
+  (isMulCommutative_iff_isLieAbelian (A := Line)).mp inferInstance
+
+local instance realLineIsLieAbelian : IsLieAbelian (ℝ ⊗[ℚ] Line) := by
+  refine ⟨?_⟩
+  intro x y
+  induction x using TensorProduct.inductionOn with
+  | tmul a z =>
+      induction y using TensorProduct.inductionOn with
+      | tmul b w =>
+          simp [LieAlgebra.ExtendScalars.bracket_tmul, lineIsLieAbelian.trivial]
+      | add y₁ y₂ hy₁ hy₂ =>
+          calc
+            ⁅a ⊗ₜ[ℚ] z, y₁ + y₂⁆ = ⁅a ⊗ₜ[ℚ] z, y₁⁆ + ⁅a ⊗ₜ[ℚ] z, y₂⁆ :=
+              LieRing.lie_add _ _ _
+            _ = 0 := by rw [hy₁, hy₂]; simp
+  | add x₁ x₂ hx₁ hx₂ =>
+      calc
+        ⁅x₁ + x₂, y⁆ = ⁅x₁, y⁆ + ⁅x₂, y⁆ := LieRing.add_lie _ _ _
+        _ = 0 := by rw [hx₁, hx₂]; simp
+
 /-- A triangular bump supported in the interval `(-1/3, 1/3)`. -/
 noncomputable def bump (x : ℝ) : ℝ := max 0 (1 - 3 * |x|)
 
@@ -99,6 +122,37 @@ noncomputable def linearizedObservableLift {L : Type*} [LieRing L] [LieAlgebra �
     (weightFiltration D.filtration hs).realification.Group → ℝ :=
   liftObs (fun X => realTranslationCoordinate D.filtration X.coord)
     (fun X m => linearizedObservablePoint D hs m X) H
+
+private noncomputable def realRationalLieHom {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) :
+    (ℝ ⊗[ℚ] Lin F) →ₗ⁅ℚ⁆ (ℝ ⊗[ℚ] Line) where
+  toLinearMap := (realificationLieHom (rLin F)).toLinearMap.restrictScalars ℚ
+  map_lie' := by
+    intro x y
+    exact (realificationLieHom (rLin F)).map_lie x y
+
+private theorem realTranslationCoordinate_lieBCH {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (x y : ℝ ⊗[ℚ] Lin F) :
+    realTranslationCoordinate F (lieBCH (2 * s) x y) =
+      realTranslationCoordinate F x + realTranslationCoordinate F y := by
+  let f := realRationalLieHom F
+  have hcoord (z : ℝ ⊗[ℚ] Lin F) :
+      realTranslationCoordinate F z =
+        TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ (f z) := by
+    change TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ (rLinReal F z) =
+      TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ (f z)
+    have hf : f z = rLinReal F z := rfl
+    rw [hf]
+  calc
+    realTranslationCoordinate F (lieBCH (2 * s) x y) =
+        TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ (f (lieBCH (2 * s) x y)) := hcoord _
+    _ = TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ
+          (lieBCH (2 * s) (f x) (f y)) := by rw [map_lieBCH]
+    _ = TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ (f x + f y) := by
+          rw [lieBCH_eq_add_of_isLieAbelian (by omega : 1 ≤ 2 * s)]
+    _ = realTranslationCoordinate F x + realTranslationCoordinate F y := by
+          rw [(TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ).map_add, ← hcoord, ← hcoord]
 
 /-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
 theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
