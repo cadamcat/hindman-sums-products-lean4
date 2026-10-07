@@ -1454,6 +1454,29 @@ theorem primorialPow_coprime_crtPrimeProduct {w e V : ℕ} (he : 0 < e) :
     hp'.coprime_iff_not_dvd.mpr hnot
   exact (Nat.coprime_pow_left_iff he (primorial w) p.val).2 hcop.symm
 
+theorem crtPrimeProduct_pairwise_coprime {w V : ℕ} :
+    Pairwise (fun p q : FromArithmetic.CRTPrimeRange w V => Nat.Coprime p.val q.val) := by
+  intro p q hpq
+  have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  have hq : q.val.Prime := (Finset.mem_filter.mp q.property).2
+  apply (Nat.coprime_primes hp hq).2
+  intro hval
+  apply hpq
+  exact Subtype.ext hval
+
+noncomputable def masterCRTModulus_ringEquiv {w e V : ℕ} (he : 0 < e) :
+    ZMod (FromArithmetic.masterCRTModulus w e V) ≃+*
+      ZMod (primorial w ^ e) ×
+        (∀ p : FromArithmetic.CRTPrimeRange w V, ZMod p.val) := by
+  classical
+  let P := ∏ p : FromArithmetic.CRTPrimeRange w V, p.val
+  have hmod : FromArithmetic.masterCRTModulus w e V = primorial w ^ e * P := by
+    simpa [P] using masterCRTModulus_eq_base_mul_crtPrimeProduct (w := w) (e := e) (V := V)
+  exact (ZMod.ringEquivCongr hmod).trans <|
+    (ZMod.chineseRemainder (primorialPow_coprime_crtPrimeProduct he)).trans <|
+      RingEquiv.prodCongr (RingEquiv.refl _) (ZMod.prodEquivPi (fun p :
+        FromArithmetic.CRTPrimeRange w V => p.val) crtPrimeProduct_pairwise_coprime)
+
 theorem primeTupleCRTLaw_eq_prod_marginals {m w V : ℕ}
     (lo hi : Fin m → ℕ) (r : Fin m → FromArithmetic.CRTResidues w V) :
     FromArithmetic.primeTupleCRTLaw lo hi w V r =
