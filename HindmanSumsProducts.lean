@@ -6,3 +6,4 @@ import HindmanSumsProducts.Concatenation
 import HindmanSumsProducts.Framework
 import HindmanSumsProducts.CubeCornerCharted
 import HindmanSumsProducts.InverseBridge
+import HindmanSumsProducts.Correlation
