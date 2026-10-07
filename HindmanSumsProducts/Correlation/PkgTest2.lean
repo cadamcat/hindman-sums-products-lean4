@@ -6616,6 +6616,87 @@ theorem c_test2_weightedTsum_abs_le {α : Type*} (μ F G : α → ℝ)
     _ ≤ ∑' x, μ x * G x := hAbs.tsum_le_tsum (fun x =>
       mul_le_mul_of_nonneg_left (hpoint x) (hμnonneg x)) hG
 
+theorem c_test2_goodSlotAverage_error
+    {K s q : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) (N : ℕ)
+    (good : (Fin q → ℕ) → Prop) (F G : (Fin q → ℕ) → ℝ) (δ : ℝ)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N l).lower
+      (S.primeStage.pool N l).upper)
+    (hGood : 0 < gapSlotProbability S l N good)
+    (hpoint : ∀ p, good p → |F p - G p| ≤ δ) (hδ : 0 ≤ δ) :
+    |goodSlotAverage S l N good F - goodSlotAverage S l N good G| ≤ δ := by
+  classical
+  let P : ℝ := gapSlotProbability S l N good
+  let μ (p : Fin q → ℕ) : ℝ := P⁻¹ * gapSlotMass S l N p * if good p then 1 else 0
+  let support : Finset (Fin q → ℕ) := Fintype.piFinset fun _ : Fin q =>
+    Finset.Ico (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper
+  have hmassZero (p : Fin q → ℕ) (hp : p ∉ support) :
+      gapSlotMass S l N p = 0 := by
+    apply c_test2_independentPrimePoolMass_zero_outside
+    simpa [support, gapSlotMass] using hp
+  have hμnonneg (p : Fin q → ℕ) : 0 ≤ μ p := by
+    dsimp [μ]
+    exact mul_nonneg
+      (mul_nonneg (inv_nonneg.mpr hGood.le)
+        (c_test2_independentPrimePoolMass_nonneg
+          (fun _ : Fin q => (S.primeStage.pool N l).lower)
+          (fun _ => (S.primeStage.pool N l).upper) (fun _ => hMass) p))
+      (by split_ifs <;> positivity)
+  have hμsum : Summable μ := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    simp [μ, hmassZero p hp]
+  have hμone : ∑' p : Fin q → ℕ, μ p = 1 := by
+    have hsum : ∑' p : Fin q → ℕ,
+        gapSlotMass S l N p * (if good p then 1 else 0) = P := by
+      rfl
+    calc
+      _ = ∑' p : Fin q → ℕ,
+          P⁻¹ * (gapSlotMass S l N p * (if good p then 1 else 0)) := by
+        apply tsum_congr
+        intro p
+        dsimp [μ]
+        ring
+      _ = P⁻¹ * ∑' p : Fin q → ℕ,
+          gapSlotMass S l N p * (if good p then 1 else 0) := by rw [← tsum_mul_left]
+      _ = 1 := by rw [hsum]; exact inv_mul_cancel₀ (ne_of_gt hGood)
+  have hμF : Summable (fun p => μ p * F p) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    simp [μ, hmassZero p hp]
+  have hμG : Summable (fun p => μ p * G p) := by
+    apply summable_of_ne_finset_zero (s := support)
+    intro p hp
+    simp [μ, hmassZero p hp]
+  have hpoint' (p : Fin q → ℕ) : μ p = 0 ∨ |F p - G p| ≤ δ := by
+    by_cases hp : good p
+    · exact Or.inr (hpoint p hp)
+    · left
+      simp [μ, P, hp]
+  have hweighted := c_test2_weighted_tsum_error_of_zero_or μ F G δ
+    hμnonneg hμsum hμone hμF hμG hpoint' hδ
+  have hFavg : goodSlotAverage S l N good F = ∑' p, μ p * F p := by
+    unfold goodSlotAverage
+    calc
+      _ = ∑' p, P⁻¹ *
+          (gapSlotMass S l N p * (if good p then F p else 0)) := by
+            rw [← tsum_mul_left]
+      _ = ∑' p, μ p * F p := by
+            apply tsum_congr
+            intro p
+            by_cases hp : good p <;> simp [μ, hp] <;> ring
+  have hGavg : goodSlotAverage S l N good G = ∑' p, μ p * G p := by
+    unfold goodSlotAverage
+    calc
+      _ = ∑' p, P⁻¹ *
+          (gapSlotMass S l N p * (if good p then G p else 0)) := by
+            rw [← tsum_mul_left]
+      _ = ∑' p, μ p * G p := by
+            apply tsum_congr
+            intro p
+            by_cases hp : good p <;> simp [μ, hp] <;> ring
+  simpa [hFavg, hGavg] using hweighted
+
 theorem c_test2_pivotMass_zero_outside_support
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
@@ -6934,5 +7015,63 @@ theorem c_test2_rowCorrelation_le_good_eventually
                 c_test2_rowEnvelopeEventAverage S C a Sh N (fun p => ¬ good p) := by ring
             _ ≤ |goodRowCorrelation S C a N dirs tests f| + η := by
               nlinarith [hEnvN]
+
+theorem c_test2_combine_power_bounds (M D : ℕ) (hD : 0 < D)
+    (x y z A B eta : ℝ)
+    (hx : 0 ≤ x) (hy : 0 ≤ y) (hz : 0 ≤ z)
+    (hA : 0 ≤ A) (hB : 0 ≤ B) (heta : 0 ≤ eta) (heta1 : eta ≤ 1)
+    (hmask : x ^ M ≤ A * (y + eta) + eta)
+    (hadd : y ^ D ≤ B * (z + eta) + eta) :
+    x ^ (M * D) ≤ (2 : ℝ) ^ D * A ^ D * B * z +
+      ((2 : ℝ) ^ D * (A ^ D * (B + 1) + (A + 1) ^ D)) * eta := by
+  have hmask' : x ^ M ≤ A * y + (A + 1) * eta := by linarith
+  have hpow : x ^ (M * D) ≤ (A * y + (A + 1) * eta) ^ D := by
+    rw [pow_mul]
+    exact pow_le_pow_left₀ (pow_nonneg hx _) hmask' D
+  have hsumPow : (A * y + (A + 1) * eta) ^ D ≤
+      (2 : ℝ) ^ D * ((A * y) ^ D + ((A + 1) * eta) ^ D) := by
+    calc
+      _ ≤ (2 : ℝ) ^ (D - 1) * ((A * y) ^ D + ((A + 1) * eta) ^ D) :=
+        add_pow_le (mul_nonneg hA hy) (by positivity) D
+      _ ≤ _ := by
+        apply mul_le_mul_of_nonneg_right _ (by positivity)
+        exact pow_le_pow_right₀ (by norm_num) (Nat.sub_le D 1)
+  have hetaD : eta ^ D ≤ eta := by
+    obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hD)
+    rw [pow_succ]
+    calc
+      eta ^ d * eta ≤ 1 * eta :=
+        mul_le_mul_of_nonneg_right (pow_le_one₀ heta heta1) heta
+      _ = eta := one_mul _
+  have hrest : ((A + 1) * eta) ^ D ≤ (A + 1) ^ D * eta := by
+    rw [mul_pow]
+    exact mul_le_mul_of_nonneg_left hetaD (by positivity)
+  calc
+    _ ≤ (2 : ℝ) ^ D * ((A * y) ^ D + ((A + 1) * eta) ^ D) := hpow.trans hsumPow
+    _ ≤ (2 : ℝ) ^ D * (A ^ D * (B * (z + eta) + eta) + (A + 1) ^ D * eta) := by
+      rw [mul_pow]
+      gcongr
+    _ = _ := by ring
+
+theorem c_test2_error_tolerance (M D : ℕ) (hD : 0 < D)
+    (A B tau : ℝ) (hA : 0 < A) (hB : 0 < B) (htau : 0 < tau) :
+    ∃ eta : ℝ, 0 < eta ∧ eta ≤ 1 ∧
+      ∀ x y z : ℝ, 0 ≤ x → 0 ≤ y → 0 ≤ z →
+        x ^ M ≤ A * (y + eta) + eta →
+        y ^ D ≤ B * (z + eta) + eta →
+        x ^ (M * D) ≤ (2 : ℝ) ^ D * A ^ D * B * z + tau := by
+  let L : ℝ := (2 : ℝ) ^ D * (A ^ D * (B + 1) + (A + 1) ^ D)
+  have hL : 0 < L := by dsimp [L]; positivity
+  let eta := min 1 (tau / L)
+  have heta : 0 < eta := lt_min (by norm_num) (div_pos htau hL)
+  refine ⟨eta, heta, min_le_left _ _, ?_⟩
+  intro x y z hx hy hz hmask hadd
+  have he := c_test2_combine_power_bounds M D hD x y z A B eta
+    hx hy hz hA.le hB.le heta.le (min_le_left _ _) hmask hadd
+  have herror : L * eta ≤ tau := by
+    simpa [mul_comm] using
+      (le_div_iff₀ hL).mp (show eta ≤ tau / L from min_le_right _ _)
+  dsimp [L] at herror
+  linarith
 
 end HindmanSumsProducts
