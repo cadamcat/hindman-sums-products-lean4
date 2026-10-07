@@ -5821,6 +5821,526 @@ private theorem comparisonPrimeValuation_regularTerm_le {p q b : ℕ}
     _ = ((a u + 1 : ℕ) : ℝ) ^ (b * q) /
           (p : ℝ) ^ (a u + a v) := rfl
 
+private theorem comparisonPrimeValuation_exceptionalTerm_le {p q b : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (u : Fin q)
+    (hcond : 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u) :
+    comparisonPrimeValuationWeight (b := b) p a *
+        ((p : ℝ) ^ ((∑ w, a w) - a u) - 1) ≤
+      ((a u + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (a u) := by
+  classical
+  let total : ℕ := ∑ w, a w
+  have hsum : a u ≤ total := rowValuation_le_sum a u
+  have htop (w : Fin q) : a w ≤ a u := by
+    by_cases hwu : w = u
+    · subst w
+      exact le_rfl
+    · exact hcond.2 w hwu
+  have hpoly :
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) ≤
+        ((a u + 1 : ℕ) : ℝ) ^ (b * q) := by
+    calc
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) ≤
+          ∏ _w : Fin q, ((a u + 1 : ℕ) : ℝ) ^ b := by
+        exact finset_prod_le_prod_of_nonneg Finset.univ
+          (fun w => ((a w + 1 : ℕ) : ℝ) ^ b)
+          (fun _ => ((a u + 1 : ℕ) : ℝ) ^ b)
+          (by intro w hw; positivity)
+          (by intro w hw; positivity)
+          (by
+            intro w hw
+            gcongr
+            exact htop w)
+      _ = ((a u + 1 : ℕ) : ℝ) ^ (b * q) := by
+        simp [Finset.prod_const, Fintype.card_fin, pow_mul]
+  have hpR : 0 < (p : ℝ) := by exact_mod_cast hp.pos
+  have hpowPos : 0 < (p : ℝ) ^ (total - a u) := by positivity
+  have hpowOne : (1 : ℝ) ≤ (p : ℝ) ^ (total - a u) :=
+    one_le_pow₀ (by exact_mod_cast hp.one_le)
+  have hpowFactor : (p : ℝ) ^ total =
+      (p : ℝ) ^ (a u) * (p : ℝ) ^ (total - a u) := by
+    have hexp : a u + (total - a u) = total := by omega
+    calc
+      (p : ℝ) ^ total = (p : ℝ) ^ (a u + (total - a u)) := by rw [hexp]
+      _ = (p : ℝ) ^ (a u) * (p : ℝ) ^ (total - a u) := by rw [pow_add]
+  have hweight : comparisonPrimeValuationWeight (b := b) p a =
+      (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) / (p : ℝ) ^ total := by
+    unfold comparisonPrimeValuationWeight
+    rw [Finset.prod_div_distrib, Finset.prod_pow_eq_pow_sum]
+  have hcancel :
+      ((p : ℝ) ^ (total - a u) - 1) / (p : ℝ) ^ total =
+        (1 - ((p : ℝ) ^ (total - a u))⁻¹) / (p : ℝ) ^ (a u) := by
+    rw [hpowFactor]
+    field_simp [ne_of_gt hpR, ne_of_gt hpowPos]
+  have hfactorBound :
+      ((p : ℝ) ^ (total - a u) - 1) / (p : ℝ) ^ total ≤
+        1 / (p : ℝ) ^ (a u) := by
+    rw [hcancel]
+    have hnonneg : 0 ≤ ((p : ℝ) ^ (total - a u))⁻¹ := by positivity
+    have hle : 1 - ((p : ℝ) ^ (total - a u))⁻¹ ≤ 1 := by linarith
+    exact mul_le_mul_of_nonneg_right hle (by positivity)
+  calc
+    comparisonPrimeValuationWeight (b := b) p a *
+        ((p : ℝ) ^ ((∑ w, a w) - a u) - 1) =
+        (∏ w : Fin q, ((a w + 1 : ℕ) : ℝ) ^ b) *
+          (((p : ℝ) ^ (total - a u) - 1) / (p : ℝ) ^ total) := by
+          rw [hweight]
+          dsimp [total]
+          ring
+    _ ≤ ((a u + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (a u) := by
+          have htermNonneg :
+              0 ≤ ((p : ℝ) ^ (total - a u) - 1) / (p : ℝ) ^ total := by
+            apply div_nonneg
+            · linarith [hpowOne]
+            · positivity
+          calc
+            _ ≤ ((a u + 1 : ℕ) : ℝ) ^ (b * q) *
+                (1 / (p : ℝ) ^ (a u)) :=
+              mul_le_mul hpoly hfactorBound htermNonneg (by positivity)
+            _ = _ := by ring
+
+private def exceptionalExcessSeriesTerm (p q b A : ℕ) : ℝ :=
+  if 1 ≤ A then (((A + 1 : ℕ) : ℝ) ^ (b * q)) / (p : ℝ) ^ A else 0
+
+private theorem exceptionalExcessSeriesTerm_summable (p q b : ℕ) (hp : p.Prime) :
+    Summable (fun A : ℕ => exceptionalExcessSeriesTerm p q b A) := by
+  let k := b * q
+  let t : ℕ → ℝ := fun A => exceptionalExcessSeriesTerm p q b A
+  let c : ℕ → ℝ := fun A => (2 / (p : ℝ)) * expPolyWeight k A
+  have hF : Summable (fun A : ℕ => expPolyWeight k A) := expPolyWeight_summable k
+  have htNonneg : ∀ A, 0 ≤ t A := by
+    intro A
+    dsimp [t, exceptionalExcessSeriesTerm]
+    split_ifs <;> positivity
+  have hc : Summable c := by
+    simpa [c] using hF.mul_left (2 / (p : ℝ))
+  have htc : ∀ A, t A ≤ c A := by
+    intro A
+    dsimp [t, c, exceptionalExcessSeriesTerm]
+    exact exceptionalExpTerm_bound p k A hp
+  exact hc.of_nonneg_of_le htNonneg htc
+
+private theorem exceptionalDivisorExcessSeries_range_sum_le {p q b M : ℕ}
+    (hp : p.Prime) :
+    (∑ A ∈ Finset.range (M + 1), exceptionalExcessSeriesTerm p q b A) ≤
+      exceptionalDivisorExcessSeries p q b := by
+  have hs : Summable (fun A : ℕ => exceptionalExcessSeriesTerm p q b A) :=
+    exceptionalExcessSeriesTerm_summable p q b hp
+  have hterm : ∀ A, 0 ≤ exceptionalExcessSeriesTerm p q b A := by
+    intro A
+    unfold exceptionalExcessSeriesTerm
+    split_ifs <;> positivity
+  have hseries : exceptionalDivisorExcessSeries p q b =
+      ∑' A : ℕ, exceptionalExcessSeriesTerm p q b A := by
+    simp [exceptionalDivisorExcessSeries, exceptionalExcessSeriesTerm, Nat.cast_add]
+  calc
+    _ ≤ ∑' A : ℕ, exceptionalExcessSeriesTerm p q b A :=
+      hs.sum_le_tsum _ (by intro A hA; exact hterm A)
+    _ = exceptionalDivisorExcessSeries p q b := hseries.symm
+
+private theorem comparisonPrimeValuation_exceptional_cube_sum_le
+    {p q b M : ℕ} (hp : p.Prime) (u : Fin q) :
+    (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1)),
+      comparisonPrimeValuationWeight (b := b) p a *
+        exceptionalPrimeLocalExcessTerm p a u) ≤
+      exceptionalDivisorExcessSeries p q (b + 1) := by
+  classical
+  let T : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1))
+  let indices : Finset ℕ := Finset.range (M + 1)
+  let indexOf : (Fin q → ℕ) → ℕ := fun a => a u
+  let term : (Fin q → ℕ) → ℝ := fun a =>
+    comparisonPrimeValuationWeight (b := b) p a * exceptionalPrimeLocalExcessTerm p a u
+  have hMaps : Set.MapsTo indexOf (T : Set (Fin q → ℕ)) (indices : Set ℕ) := by
+    intro a ha
+    exact Fintype.mem_piFinset.mp ha u
+  have hgroup :
+      (∑ a ∈ T, term a) =
+        ∑ A ∈ indices, ∑ a ∈ T with indexOf a = A, term a := by
+    simpa [T, indices, indexOf, term] using
+      (Finset.sum_fiberwise_of_maps_to hMaps term).symm
+  have hfiber (A : ℕ) (hA : A ∈ indices) :
+      (∑ a ∈ T with indexOf a = A, term a) ≤
+        exceptionalExcessSeriesTerm p q (b + 1) A := by
+    let fiber : Finset (Fin q → ℕ) := T.filter (fun a => indexOf a = A)
+    let activePred : (Fin q → ℕ) → Prop := fun a =>
+      0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u
+    let active : Finset (Fin q → ℕ) := fiber.filter activePred
+    let allowed : Finset (Fin q → ℕ) := Fintype.piFinset (fun w : Fin q =>
+      if w = u then {A} else Finset.range (A + 1))
+    have hsumActive :
+        (∑ a ∈ fiber, term a) = ∑ a ∈ active, term a := by
+      symm
+      apply Finset.sum_subset (Finset.filter_subset _ _)
+      intro a ha hnot
+      have hfalse : ¬ activePred a := by
+        intro h
+        exact hnot (Finset.mem_filter.mpr ⟨ha, h⟩)
+      simp [term, activePred, exceptionalPrimeLocalExcessTerm, hfalse]
+    have hactiveSubset : active ⊆ allowed := by
+      intro a ha
+      have ha' := Finset.mem_filter.mp ha
+      have htop := ha'.2
+      have hAeq : a u = A := (Finset.mem_filter.mp ha'.1).2
+      apply Fintype.mem_piFinset.mpr
+      intro w
+      by_cases hwu : w = u
+      · subst w
+        simp [allowed, hAeq]
+      · have hwle : a w ≤ A := by rw [← hAeq]; exact htop.2 w hwu
+        simp [allowed, hwu, Finset.mem_range]
+        omega
+    have hcardAllowed : allowed.card ≤ (A + 1) ^ q := by
+      have hcardEq : allowed.card =
+          ∏ w : Fin q, (if w = u then 1 else A + 1) := by
+        change (Fintype.piFinset (fun w : Fin q =>
+          if w = u then {A} else Finset.range (A + 1))).card = _
+        rw [Fintype.card_piFinset]
+        apply Finset.prod_congr rfl
+        intro w hw
+        by_cases hwu : w = u
+        · simp [hwu]
+        · simp [hwu, Finset.card_range]
+      calc
+        allowed.card = ∏ w : Fin q, (if w = u then 1 else A + 1) := hcardEq
+        _ ≤ ∏ _w : Fin q, (A + 1) := by
+          apply Finset.prod_le_prod
+          intro w hw
+          by_cases hwu : w = u
+          · simp [hwu]
+          · simp [hwu]
+        _ = (A + 1) ^ q := by simp [Finset.prod_const, Fintype.card_fin]
+    have hpoint (a : Fin q → ℕ) (ha : a ∈ active) :
+        term a ≤ ((a u + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (a u) := by
+      have ha' := Finset.mem_filter.mp ha
+      have htop := ha'.2
+      have hAeq : a u = A := (Finset.mem_filter.mp ha'.1).2
+      have hcomp := comparisonPrimeValuation_exceptionalTerm_le (b := b) hp a u htop
+      change comparisonPrimeValuationWeight (b := b) p a *
+        exceptionalPrimeLocalExcessTerm p a u ≤
+          ((a u + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (a u)
+      unfold exceptionalPrimeLocalExcessTerm
+      rw [if_pos htop]
+      exact hcomp
+    have hpointSeries (a : Fin q → ℕ) (ha : a ∈ active) :
+        term a ≤ ((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A := by
+      have hAeq : a u = A := by
+        simpa [indexOf] using (Finset.mem_filter.mp (Finset.mem_filter.mp ha).1).2
+      have hpoint' := hpoint a ha
+      rw [hAeq] at hpoint'
+      exact hpoint'
+    have hsmallNonneg : 0 ≤ ((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A := by positivity
+    by_cases hApos : 1 ≤ A
+    · calc
+        (∑ a ∈ fiber, term a) = ∑ a ∈ active, term a := hsumActive
+        _ ≤ ∑ _a ∈ active, ((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A := by
+          apply Finset.sum_le_sum
+          intro a ha
+          exact hpointSeries a ha
+        _ = (active.card : ℝ) * (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A) := by
+          simp [Finset.sum_const]
+        _ ≤ (allowed.card : ℝ) * (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A) := by
+          have hcard : (active.card : ℝ) ≤ (allowed.card : ℝ) := by
+            exact_mod_cast Finset.card_le_card hactiveSubset
+          exact mul_le_mul_of_nonneg_right hcard hsmallNonneg
+        _ ≤ ((A + 1 : ℕ) : ℝ) ^ q * (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A) := by
+          have hcard : (allowed.card : ℝ) ≤ ((A + 1 : ℕ) : ℝ) ^ q := by
+            exact_mod_cast hcardAllowed
+          exact mul_le_mul_of_nonneg_right hcard (by positivity)
+        _ = exceptionalExcessSeriesTerm p q (b + 1) A := by
+          unfold exceptionalExcessSeriesTerm
+          rw [if_pos hApos]
+          calc
+            ((A + 1 : ℕ) : ℝ) ^ q * (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ A) =
+                (((A + 1 : ℕ) : ℝ) ^ q * ((A + 1 : ℕ) : ℝ) ^ (b * q)) /
+                  (p : ℝ) ^ A := by ring
+            _ = ((A + 1 : ℕ) : ℝ) ^ (q + b * q) / (p : ℝ) ^ A := by
+                  rw [← pow_add]
+            _ = ((A + 1 : ℕ) : ℝ) ^ ((b + 1) * q) / (p : ℝ) ^ A := by
+                  congr 2
+                  ring
+    · have hA0 : A = 0 := by omega
+      have hempty : active = ∅ := by
+        ext a
+        constructor
+        · intro ha
+          have ha' := Finset.mem_filter.mp ha
+          have hAeq : a u = A := (Finset.mem_filter.mp ha'.1).2
+          have hpos := ha'.2.1
+          omega
+        · intro ha
+          simp at ha
+      rw [hsumActive, hempty]
+      simp [exceptionalExcessSeriesTerm, hA0]
+  calc
+    (∑ a ∈ T, term a) = ∑ A ∈ indices, ∑ a ∈ T with indexOf a = A, term a := hgroup
+    _ ≤ ∑ A ∈ indices, exceptionalExcessSeriesTerm p q (b + 1) A := by
+      apply Finset.sum_le_sum
+      intro A hA
+      exact hfiber A hA
+    _ ≤ exceptionalDivisorExcessSeries p q (b + 1) :=
+      exceptionalDivisorExcessSeries_range_sum_le hp
+
+private def regularExcessSeriesTerm (p q b A B : ℕ) : ℝ :=
+  if 1 ≤ B ∧ B ≤ A then
+    (((A + 1 : ℕ) : ℝ) * (B + 1 : ℝ)) ^ (b * q) / (p : ℝ) ^ (A + B)
+  else 0
+
+private theorem regularExcessSeriesTerm_summable (p q b : ℕ) (hp : p.Prime) :
+    Summable (fun x : ℕ × ℕ => regularExcessSeriesTerm p q b x.1 x.2) := by
+  let k := b * q
+  let F : ℝ := ∑' A : ℕ, expPolyWeight k A
+  let G : ℝ := ∑' x : ℕ × ℕ, expPolyWeight k x.1 * expPolyWeight k x.2
+  have hF : Summable (fun A : ℕ => expPolyWeight k A) := expPolyWeight_summable k
+  have hFnonneg : ∀ A, 0 ≤ expPolyWeight k A := by
+    intro A
+    unfold expPolyWeight
+    positivity
+  have hpair : Summable
+      (fun x : ℕ × ℕ => expPolyWeight k x.1 * expPolyWeight k x.2) :=
+    hF.mul_of_nonneg hF hFnonneg hFnonneg
+  let t : ℕ × ℕ → ℝ := fun x => regularExcessSeriesTerm p q b x.1 x.2
+  let c : ℕ × ℕ → ℝ := fun x =>
+    (4 / (p : ℝ) ^ 2) * expPolyWeight k x.1 * expPolyWeight k x.2
+  have htNonneg : ∀ x, 0 ≤ t x := by
+    intro x
+    dsimp [t, regularExcessSeriesTerm]
+    split_ifs <;> positivity
+  have hc : Summable c := by
+    simpa [c, G, mul_assoc] using hpair.mul_left (4 / (p : ℝ) ^ 2)
+  have htle : ∀ x, t x ≤ c x := by
+    intro x
+    dsimp [t, c, regularExcessSeriesTerm]
+    exact regularExpTerm_bound p k x.1 x.2 hp
+  exact hc.of_nonneg_of_le htNonneg htle
+
+private theorem regularDivisorExcessSeries_range_sum_le {p q b M : ℕ}
+    (hp : p.Prime) :
+    (∑ A ∈ Finset.range (M + 1), ∑ B ∈ Finset.range (M + 1),
+      regularExcessSeriesTerm p q b A B) ≤ regularDivisorExcessSeries p q b := by
+  classical
+  have ht : Summable (fun x : ℕ × ℕ => regularExcessSeriesTerm p q b x.1 x.2) :=
+    regularExcessSeriesTerm_summable p q b hp
+  have hseries : regularDivisorExcessSeries p q b =
+      ∑' x : ℕ × ℕ, regularExcessSeriesTerm p q b x.1 x.2 := by
+    simpa [regularDivisorExcessSeries, regularExcessSeriesTerm] using ht.tsum_prod.symm
+  have hnonneg (x : ℕ × ℕ) : 0 ≤ regularExcessSeriesTerm p q b x.1 x.2 := by
+    unfold regularExcessSeriesTerm
+    split_ifs <;> positivity
+  have hsum :
+      (∑ A ∈ Finset.range (M + 1), ∑ B ∈ Finset.range (M + 1),
+        regularExcessSeriesTerm p q b A B) =
+        ∑ x ∈ Finset.range (M + 1) ×ˢ Finset.range (M + 1),
+          regularExcessSeriesTerm p q b x.1 x.2 := by
+    rw [Finset.sum_product]
+  calc
+    _ = ∑ x ∈ Finset.range (M + 1) ×ˢ Finset.range (M + 1),
+        regularExcessSeriesTerm p q b x.1 x.2 := hsum
+    _ ≤ ∑' x : ℕ × ℕ, regularExcessSeriesTerm p q b x.1 x.2 :=
+      ht.sum_le_tsum _ (by intro x hx; exact hnonneg x)
+    _ = regularDivisorExcessSeries p q b := hseries.symm
+
+private theorem comparisonPrimeValuation_regularTerm_cube_sum_le
+    {p q b M : ℕ} (hp : p.Prime) (u v : Fin q) (huv : u ≠ v) :
+    (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1)),
+      comparisonPrimeValuationWeight (b := b) p a *
+        regularPrimeLocalExcessTerm p a u v) ≤
+      regularDivisorExcessSeries p q (b + 1) := by
+  classical
+  let T : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1))
+  let Pairs : Finset (ℕ × ℕ) := Finset.range (M + 1) ×ˢ Finset.range (M + 1)
+  let pairOf : (Fin q → ℕ) → ℕ × ℕ := fun a => (a u, a v)
+  let term : (Fin q → ℕ) → ℝ := fun a =>
+    comparisonPrimeValuationWeight (b := b) p a * regularPrimeLocalExcessTerm p a u v
+  have hMaps : Set.MapsTo pairOf (T : Set (Fin q → ℕ)) (Pairs : Set (ℕ × ℕ)) := by
+    intro a ha
+    have haT := Fintype.mem_piFinset.mp ha
+    apply Finset.mem_product.mpr
+    exact ⟨haT u, haT v⟩
+  have hgroup :
+      (∑ a ∈ T, term a) =
+        ∑ AB ∈ Pairs, ∑ a ∈ T with pairOf a = AB, term a := by
+    simpa [T, Pairs, pairOf, term] using
+      (Finset.sum_fiberwise_of_maps_to hMaps term).symm
+  have hfiber (AB : ℕ × ℕ) (hABmem : AB ∈ Pairs) :
+      (∑ a ∈ T with pairOf a = AB, term a) ≤
+        regularExcessSeriesTerm p q (b + 1) AB.1 AB.2 := by
+    let A := AB.1
+    let B := AB.2
+    have hAmax : A ≤ M := by
+      have h := Finset.mem_product.mp hABmem |>.1
+      exact Nat.lt_succ_iff.mp (Finset.mem_range.mp h)
+    have hBmax : B ≤ M := by
+      have h := Finset.mem_product.mp hABmem |>.2
+      exact Nat.lt_succ_iff.mp (Finset.mem_range.mp h)
+    by_cases hAB : 1 ≤ B ∧ B ≤ A
+    · let activePred : (Fin q → ℕ) → Prop := fun a =>
+        u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+          ∀ w, w ≠ u → a w ≤ a v
+      let fiber : Finset (Fin q → ℕ) := T.filter (fun a => pairOf a = AB)
+      let active : Finset (Fin q → ℕ) := fiber.filter activePred
+      let allowed : Finset (Fin q → ℕ) := Fintype.piFinset (fun w : Fin q =>
+        if w = u then {A} else Finset.range (B + 1))
+      have hsumActive :
+          (∑ a ∈ fiber, term a) = ∑ a ∈ active, term a := by
+        symm
+        apply Finset.sum_subset (Finset.filter_subset _ _)
+        intro a ha hnot
+        have hfalse : ¬ activePred a := by
+          intro h
+          exact hnot (Finset.mem_filter.mpr ⟨ha, h⟩)
+        simp [term, activePred, regularPrimeLocalExcessTerm, hfalse]
+      have hactiveSubset : active ⊆ allowed := by
+        intro a ha
+        have ha' := Finset.mem_filter.mp ha
+        have htop := ha'.2
+        have hpPair := (Finset.mem_filter.mp ha'.1).2
+        have hau : a u = A := congrArg Prod.fst (by simpa [pairOf, A, B] using hpPair)
+        have hav : a v = B := congrArg Prod.snd (by simpa [pairOf, A, B] using hpPair)
+        apply Fintype.mem_piFinset.mpr
+        intro w
+        by_cases hwu : w = u
+        · subst w
+          simp [allowed, hau]
+        · have hwle : a w ≤ B := by
+            rw [← hav]
+            exact htop.2.2.2.2 w hwu
+          simp [allowed, hwu, Finset.mem_range]
+          omega
+      have hcardAllowed : allowed.card ≤ (B + 1) ^ q := by
+        have hcardEq : allowed.card =
+            ∏ w : Fin q, (if w = u then 1 else B + 1) := by
+          change (Fintype.piFinset (fun w : Fin q =>
+            if w = u then {A} else Finset.range (B + 1))).card = _
+          rw [Fintype.card_piFinset]
+          apply Finset.prod_congr rfl
+          intro w hw
+          by_cases hwu : w = u
+          · simp [hwu]
+          · simp [hwu, Finset.card_range]
+        calc
+          allowed.card = ∏ w : Fin q, (if w = u then 1 else B + 1) := hcardEq
+          _ ≤ ∏ _w : Fin q, (B + 1) := by
+            apply Finset.prod_le_prod
+            intro w hw
+            by_cases hwu : w = u
+            · simp [hwu]
+            · simp [hwu]
+          _ = (B + 1) ^ q := by simp [Finset.prod_const, Fintype.card_fin]
+      have hpoint (a : Fin q → ℕ) (ha : a ∈ active) :
+          term a ≤ ((a u + 1 : ℕ) : ℝ) ^ (b * q) /
+            (p : ℝ) ^ (a u + a v) := by
+        have ha' := Finset.mem_filter.mp ha
+        have htop := ha'.2
+        have hpPair := (Finset.mem_filter.mp ha'.1).2
+        have hau : a u = A := congrArg Prod.fst (by simpa [pairOf, A, B] using hpPair)
+        have hav : a v = B := congrArg Prod.snd (by simpa [pairOf, A, B] using hpPair)
+        have hcond : 1 ≤ a v ∧ a v ≤ a u ∧ ∀ w, w ≠ u → a w ≤ a v := by
+          refine ⟨?_, ?_, ?_⟩
+          · simpa [hav] using hAB.1
+          · simpa [hau, hav] using hAB.2
+          · intro w hwu
+            exact htop.2.2.2.2 w hwu
+        have hterm : regularPrimeLocalExcessTerm p a u v =
+            (p : ℝ) ^ ((∑ w, a w) - a u - a v) - 1 := by
+          have huPos : 0 < a u := by omega
+          have hvPos : 0 < a v := by omega
+          have hcondFull : u ≠ v ∧ 0 < a u ∧ 0 < a v ∧ a v ≤ a u ∧
+              (∀ w, w ≠ u → a w ≤ a v) :=
+            ⟨huv, huPos, hvPos, hcond.2.1, hcond.2.2⟩
+          unfold regularPrimeLocalExcessTerm
+          rw [if_pos hcondFull]
+        have hcomp := comparisonPrimeValuation_regularTerm_le (b := b) hp a u v huv hcond
+        change comparisonPrimeValuationWeight (b := b) p a *
+          regularPrimeLocalExcessTerm p a u v ≤ _
+        rw [hterm]
+        simpa [hau, hav] using hcomp
+      have hpointSeries (a : Fin q → ℕ) (ha : a ∈ active) :
+          term a ≤ ((A + 1 : ℕ) : ℝ) ^ (b * q) /
+            (p : ℝ) ^ (A + B) := by
+        have ha' := Finset.mem_filter.mp ha
+        have hpPair := (Finset.mem_filter.mp ha'.1).2
+        have hau : a u = A := congrArg Prod.fst (by simpa [pairOf, A, B] using hpPair)
+        have hav : a v = B := congrArg Prod.snd (by simpa [pairOf, A, B] using hpPair)
+        simpa [hau, hav] using hpoint a ha
+      have hscalarNonneg :
+          0 ≤ ((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (A + B) := by positivity
+      calc
+        (∑ a ∈ fiber, term a) = ∑ a ∈ active, term a := hsumActive
+        _ ≤ ∑ _a ∈ active,
+              ((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (A + B) := by
+              apply Finset.sum_le_sum
+              intro a ha
+              exact hpointSeries a ha
+        _ = (active.card : ℝ) *
+              (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (A + B)) := by
+                simp [Finset.sum_const]
+        _ ≤ (allowed.card : ℝ) *
+              (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (A + B)) := by
+              have hcard : (active.card : ℝ) ≤ (allowed.card : ℝ) := by
+                exact_mod_cast Finset.card_le_card hactiveSubset
+              exact mul_le_mul_of_nonneg_right hcard hscalarNonneg
+        _ ≤ ((B + 1 : ℕ) : ℝ) ^ q *
+              (((A + 1 : ℕ) : ℝ) ^ (b * q) / (p : ℝ) ^ (A + B)) := by
+              have hcard : (allowed.card : ℝ) ≤ ((B + 1 : ℕ) : ℝ) ^ q := by
+                exact_mod_cast hcardAllowed
+              exact mul_le_mul_of_nonneg_right hcard (by positivity)
+        _ ≤ regularExcessSeriesTerm p q (b + 1) A B := by
+              rw [regularExcessSeriesTerm, if_pos hAB]
+              have hAreal : (1 : ℝ) ≤ ((A + 1 : ℕ) : ℝ) := by
+                simpa [Nat.cast_add] using (show (1 : ℝ) ≤ (A : ℝ) + 1 by positivity)
+              have hBreal : (1 : ℝ) ≤ ((B + 1 : ℕ) : ℝ) := by
+                simpa [Nat.cast_add] using (show (1 : ℝ) ≤ (B : ℝ) + 1 by positivity)
+              have hqle : q ≤ (b + 1) * q := by
+                simpa using Nat.mul_le_mul_right q (Nat.succ_le_succ (Nat.zero_le b))
+              have hbqle : b * q ≤ (b + 1) * q :=
+                Nat.mul_le_mul_right q (Nat.le_succ b)
+              have hnum : ((B + 1 : ℕ) : ℝ) ^ q *
+                    ((A + 1 : ℕ) : ℝ) ^ (b * q) ≤
+                  (((A + 1 : ℕ) : ℝ) * (B + 1 : ℝ)) ^ ((b + 1) * q) := by
+                calc
+                  _ ≤ ((B + 1 : ℕ) : ℝ) ^ ((b + 1) * q) *
+                      ((A + 1 : ℕ) : ℝ) ^ ((b + 1) * q) := by
+                        exact mul_le_mul
+                          (pow_le_pow_right₀ hBreal hqle)
+                          (pow_le_pow_right₀ hAreal hbqle) (by positivity) (by positivity)
+                  _ = _ := by
+                    rw [mul_pow]
+                    simp only [Nat.cast_add, Nat.cast_one]
+                    ring
+              calc
+                _ = ((((B + 1 : ℕ) : ℝ) ^ q) *
+                    ((A + 1 : ℕ) : ℝ) ^ (b * q)) / (p : ℝ) ^ (A + B) := by ring
+                _ ≤ (((A + 1 : ℕ) : ℝ) * (B + 1 : ℝ)) ^ ((b + 1) * q) /
+                    (p : ℝ) ^ (A + B) :=
+                  div_le_div_of_nonneg_right hnum (by positivity)
+    · let fiber : Finset (Fin q → ℕ) := T.filter (fun a => pairOf a = AB)
+      have hzero (a : Fin q → ℕ) (ha : a ∈ fiber) : term a = 0 := by
+        have hpPair := (Finset.mem_filter.mp ha).2
+        unfold term regularPrimeLocalExcessTerm
+        split_ifs with hcond
+        · have hau : a u = A := congrArg Prod.fst (by simpa [pairOf, A, B] using hpPair)
+          have hav : a v = B := congrArg Prod.snd (by simpa [pairOf, A, B] using hpPair)
+          rcases hcond with ⟨_, hAu, hAv, hBA, _⟩
+          have hBpos : 1 ≤ B := by simpa [hav] using (Nat.succ_le_of_lt hAv)
+          have hBA' : B ≤ A := by simpa [hau, hav] using hBA
+          exact False.elim (hAB ⟨hBpos, hBA'⟩)
+        · simp [hcond]
+      rw [Finset.sum_eq_zero hzero]
+      simp [regularExcessSeriesTerm, A, B, hAB]
+  calc
+    (∑ a ∈ T, term a) =
+        ∑ AB ∈ Pairs, ∑ a ∈ T with pairOf a = AB, term a := hgroup
+    _ ≤ ∑ AB ∈ Pairs, regularExcessSeriesTerm p q (b + 1) AB.1 AB.2 := by
+          apply Finset.sum_le_sum
+          intro AB hAB
+          exact hfiber AB hAB
+    _ = ∑ A ∈ Finset.range (M + 1), ∑ B ∈ Finset.range (M + 1),
+          regularExcessSeriesTerm p q (b + 1) A B := by
+          simp [Pairs, Finset.sum_product]
+    _ ≤ regularDivisorExcessSeries p q (b + 1) :=
+          regularDivisorExcessSeries_range_sum_le hp
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
