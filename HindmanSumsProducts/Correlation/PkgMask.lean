@@ -342,6 +342,20 @@ theorem rowForm_scaleBalancedQ {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate 
       (z u : ℚ) := Function.update_of_ne huv _ _
   rw [hu]
 
+/-- Rational row coefficients viewed through the master prime-slot embedding. -/
+def rowShapeLinearCoefficients {m q r s : ℕ} (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (c : Fin m → ℚ) :
+    ℕ → (Fin s → ℕ) → Fin r → Fin m → ℚ :=
+  fun _ p R k => c k / c (Sh.row R).anchor *
+    (Sh.row R).value (fun i => p (ι i)) k
+
+theorem linearRowValue_rowShape {m q r s : ℕ} (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (c : Fin m → ℚ) (N : ℕ) (p : Fin s → ℕ)
+    (R : Fin r) (z : Fin m → ℤ) :
+    FromArithmetic.linearRowValue (rowShapeLinearCoefficients Sh ι c) N p R z =
+      rowForm c (Sh.row R) (fun i => p (ι i)) (fun k => (z k : ℚ)) := by
+  rfl
+
 theorem RowTemplate.entry_exists_of_mem_support {m q : ℕ} (T : RowTemplate m q)
     (k : Fin m) (hk : k ∈ T.support) : ∃ e, T.entry k = some e := by
   have hsome : (T.entry k).isSome := (Finset.mem_filter.mp hk).2
