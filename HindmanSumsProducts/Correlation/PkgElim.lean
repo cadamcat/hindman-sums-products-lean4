@@ -3267,6 +3267,36 @@ def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
   arity_le := Nat.zero_le K
   cutoff := Fin.elim0
 
+noncomputable def rowCoeff {K m q r s h d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (eO : Occurrence Sh ≃ Fin h)
+    (eX : Coordinate Sh ≃ Fin d) :
+    ℕ → (Fin s → ℕ) → Fin h → Fin d → ℚ := fun N p' u j =>
+      occurrenceCoeff S C a Sh dirs N (fun i => p' (ι i))
+        (eO.symm u) (eX.symm j)
+
+theorem linearRowValue_eq_occurrenceValue {K m q r s h d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (eO : Occurrence Sh ≃ Fin h)
+    (eX : Coordinate Sh ≃ Fin d) (N : ℕ) (p' : Fin s → ℕ)
+    (u : Fin h) (x : Fin d → ℤ) :
+    FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX)
+      N p' u x =
+        occurrenceValue S C a Sh dirs N (fun i => p' (ι i)) (eO.symm u)
+          (fun v => x (eX v)) := by
+  classical
+  unfold FromArithmetic.linearRowValue rowCoeff occurrenceValue
+  exact (Fintype.sum_equiv eX
+    (fun v => occurrenceCoeff S C a Sh dirs N (fun i => p' (ι i)) (eO.symm u) v *
+      ((x (eX v) : ℤ) : ℚ))
+    (fun j => occurrenceCoeff S C a Sh dirs N (fun i => p' (ι i))
+      (eO.symm u) (eX.symm j) * (x j : ℚ))
+    (by intro v; simp)).symm
+
 end AdditiveMoment
 
 end HindmanSumsProducts
