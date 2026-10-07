@@ -262,7 +262,77 @@ theorem correlation_cube_root_tv_bound :
           (progressionReference (harmonicLaw X W) k h) ≤
         C₀ * (Real.log (2 * k) / Real.log X + (H : ℝ) / X +
           (W : ℝ) * (k : ℝ) ^ 2 / ((Nat.totient W : ℝ) / W * X * Real.log X)) := by
-  sorry
+  refine ⟨10, by norm_num, ?_⟩
+  intro X W k H h hW hX hk hkX hcop h0 hH hdiv hHX
+  let μ : ℤ → ℝ := harmonicLaw X W
+  have hlog : Real.log X > (W : ℝ) / X := correlation_root_log_condition hW hX
+  have hsample : SamplingPointwiseBounds X W :=
+    sampling_pointwise_claim X W hW (by omega) hlog
+  have hdilation := hsample.dilation (by omega) hlog k (by omega) hkX hcop
+  have href := correlationRoot_reference_shift_numeric_bound X W k H h
+    hW hX hk hkX hcop h0 hH hdiv hHX
+  let B : ℤ := ((k * X ^ 2 + H : ℕ) : ℤ)
+  have hk1 : 1 ≤ k := Nat.succ_le_iff.mpr hk
+  have hsqLe : X ^ 2 ≤ k * X ^ 2 := by
+    calc
+      X ^ 2 = 1 * X ^ 2 := by simp
+      _ ≤ k * X ^ 2 := Nat.mul_le_mul_right (X ^ 2) hk1
+  have hShiftUpper (A : ℕ) (hA : A ≤ k * X ^ 2) :
+      (A : ℤ) + h ≤ B := by
+    have hA' : (A : ℤ) ≤ ((k * X ^ 2 : ℕ) : ℤ) := by exact_mod_cast hA
+    have hH' : h ≤ (H : ℤ) := hH
+    calc
+      (A : ℤ) + h ≤ ((k * X ^ 2 : ℕ) : ℤ) + (H : ℤ) := add_le_add hA' hH'
+      _ = B := by
+        change ((k * X ^ 2 : ℕ) : ℤ) + (H : ℤ) =
+          ((k * X ^ 2 + H : ℕ) : ℤ)
+        exact (Nat.cast_add _ _).symm
+  have hfSupport : ∀ z, translatedLaw (dilatedLaw μ k) h z ≠ 0 →
+      0 ≤ z ∧ z ≤ B := by
+    intro z hz
+    have hs := translated_support h0 (fun y hy => by
+      have hy' := dilatedLaw_support hk hy
+      exact ⟨hy'.1, hy'.2.2⟩) hz
+    exact ⟨hs.1, le_of_lt (lt_of_lt_of_le hs.2 (hShiftUpper (k * X ^ 2) le_rfl))⟩
+  have hgSupport : ∀ z, translatedLaw (dilationReference μ k) h z ≠ 0 →
+      0 ≤ z ∧ z ≤ B := by
+    intro z hz
+    have hs := translated_support h0 (fun y hy => by
+      have hy' := dilationReference_support hy
+      exact ⟨hy'.1, hy'.2.2⟩) hz
+    have hupper := hShiftUpper (X ^ 2) hsqLe
+    exact ⟨hs.1, le_of_lt (lt_of_lt_of_le hs.2 hupper)⟩
+  have hrSupport : ∀ z, progressionReference (harmonicLaw X W) k h z ≠ 0 →
+      0 ≤ z ∧ z ≤ B := by
+    intro z hz
+    have hs := progressionReference_support hz
+    have hupper : (X ^ 2 : ℤ) ≤ B := by
+      have hu := hShiftUpper (X ^ 2) hsqLe
+      exact le_trans (by omega : (X ^ 2 : ℤ) ≤ (X ^ 2 : ℤ) + h) hu
+    exact ⟨hs.1, le_of_lt (lt_of_lt_of_le hs.2.2 hupper)⟩
+  have htri := arithmeticL1_triangle_of_Icc_support B hfSupport hgSupport hrSupport
+  calc
+    arithmeticL1 (translatedLaw (dilatedLaw μ k) h)
+        (progressionReference (harmonicLaw X W) k h) ≤
+        arithmeticL1 (translatedLaw (dilatedLaw μ k) h)
+            (translatedLaw (dilationReference μ k) h) +
+          arithmeticL1 (translatedLaw (dilationReference μ k) h)
+            (progressionReference (harmonicLaw X W) k h) := htri
+    _ = arithmeticL1 (dilatedLaw (harmonicLaw X W) k)
+            (dilationReference (harmonicLaw X W) k) +
+          arithmeticL1 (translatedLaw (dilationReference (harmonicLaw X W) k) h)
+          (progressionReference (harmonicLaw X W) k h) := by
+          rw [arithmeticL1_translate_int]
+          
+    _ ≤ (2 * Real.log k + (W : ℝ) * k / X * (1 + 1 / X)) /
+            (Real.log X - (W : ℝ) / X) +
+          (7 * (H : ℝ) / X + 7 * (W : ℝ) * k / (X * Real.log X)) :=
+          add_le_add hdilation.1 href
+    _ ≤ 10 * (Real.log (2 * k) / Real.log X + (H : ℝ) / X +
+          (W : ℝ) * (k : ℝ) ^ 2 /
+            ((Nat.totient W : ℝ) / W * X * Real.log X)) :=
+          by simpa [add_assoc] using
+            (correlationRoot_error_comparison X W k H hW hX hk)
 
 /-- The law of the cube root (04:614–683): for `z_a ∼ μ_{X_a}`, `z_j ∼ μ_{X_j}` independent,
 `k` coprime to `W`, `b ∈ Wℤ` coprime to `k`, `bX_j² ≤ H` and `h ∈ [0,H]∩Wℤ`, the law of
