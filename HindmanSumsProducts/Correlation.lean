@@ -7,6 +7,7 @@ import HindmanSumsProducts.Correlation.PkgElim
 import HindmanSumsProducts.Correlation.PkgElim2
 import HindmanSumsProducts.Correlation.PkgTest
 import HindmanSumsProducts.Correlation.PkgTest2
+import HindmanSumsProducts.Correlation.PkgOpusCorr
 
 /-!
 # Removing multiplicative masks and detecting a shifted error (§4)
@@ -115,6 +116,64 @@ theorem weighted_cauchy_schwarz {α : Type*} (μ Ω H₀ H₁ : α → ℝ) (hμ
 
 /-! ## Weighted removal of multiplicative masks (Lemma `lem:mask-removal`, 04:128–307) -/
 
+/-- Part of Lemma `lem:mask-removal`: one step with the one-coordinate substitution
+`z_u ↦ pz_u` (04:175–178), for `u ∈ J_*` outside the removed mask `U`. -/
+theorem opus_corr_mask_step_outside {m q r : ℕ} (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jstar.card)
+    (Sh : RowShape m q r) (hStar : (Sh.row Sh.star).support = Jstar)
+    (masks : Finset (Finset (Fin m))) (U : Finset (Fin m)) (hU : U ∈ masks)
+    (u : Fin m) (huJ : u ∈ Jstar) (huU : u ∉ U) :
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r') (tests : Finset (IntegerPolynomial (q + 2)))
+      (C₁ : ℝ),
+      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧ (∀ P ∈ tests, P ≠ 0) ∧ 0 < C₁ ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin (q + 2) ↪ Fin s),
+        TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+        ∀ (st : MaskRemovalState m q r) (gstar : ℤ → ℝ),
+          st.shape = Sh → st.masks = masks → st.Valid S C a N Jstar gstar →
+          ∃ st' : MaskRemovalState m (q + 2) r',
+            st'.shape = Sh' ∧ st'.masks = masks.erase U ∧ st'.Valid S C a N Jstar gstar ∧
+            |st.correlation S C a N| ^ 2 ≤ C₁ * |st'.correlation S C a N| + ε := by
+  sorry
+
+/-- Part of Lemma `lem:mask-removal`: one step with the balanced substitution
+`z_u ↦ z_u/p`, `z_v ↦ pz_v` (equation `eq:balanced-prime-substitution`, 04:176–186), for distinct
+`u, v ∈ J_*` when `J_*` is contained in the removed mask `U`. -/
+theorem opus_corr_mask_step_balanced {m q r : ℕ} (Jstar : Finset (Fin m))
+    (hJ : 2 ≤ Jstar.card) (Sh : RowShape m q r) (hStar : (Sh.row Sh.star).support = Jstar)
+    (masks : Finset (Finset (Fin m))) (U : Finset (Fin m)) (hU : U ∈ masks)
+    (hJU : Jstar ⊆ U) (u v : Fin m) (huJ : u ∈ Jstar) (hvJ : v ∈ Jstar) (huv : u ≠ v) :
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r') (tests : Finset (IntegerPolynomial (q + 2)))
+      (C₁ : ℝ),
+      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧ (∀ P ∈ tests, P ≠ 0) ∧ 0 < C₁ ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin (q + 2) ↪ Fin s),
+        TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+        ∀ (st : MaskRemovalState m q r) (gstar : ℤ → ℝ),
+          st.shape = Sh → st.masks = masks → st.Valid S C a N Jstar gstar →
+          ∃ st' : MaskRemovalState m (q + 2) r',
+            st'.shape = Sh' ∧ st'.masks = masks.erase U ∧ st'.Valid S C a N Jstar gstar ∧
+            |st.correlation S C a N| ^ 2 ≤ C₁ * |st'.correlation S C a N| + ε := by
+  sorry
+
+/-- One mask-removal step (04:173–297): the outside substitution when `J_*` has a coordinate
+outside `U`, the balanced one otherwise. -/
+theorem opus_corr_mask_step (m : ℕ) (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jstar.card) :
+    opus_corr_MaskStep m Jstar := by
+  intro q r Sh hStar masks U hU
+  by_cases hout : ∃ u ∈ Jstar, u ∉ U
+  · obtain ⟨u, huJ, huU⟩ := hout
+    exact opus_corr_mask_step_outside Jstar hJ Sh hStar masks U hU u huJ huU
+  · have hJU : Jstar ⊆ U := by
+      intro x hx
+      by_contra hxU
+      exact hout ⟨x, hx, hxU⟩
+    obtain ⟨u, huJ, v, hvJ, huv⟩ := Finset.one_lt_card.mp (by omega : 1 < Jstar.card)
+    exact opus_corr_mask_step_balanced Jstar hJ Sh hStar masks U hU hJU u v huJ hvJ huv
+
 /-- Lemma `lem:mask-removal`, equation `eq:mask-removal-output`:
 `|𝒞|^{2^{q_mask}} ≤ C_m|E_{p,z}∏_R f_R(ℓ_R(z))|+o(1)`. The row family (at most `K_m` pairwise
 nonparallel templates, the distinguished row having support `J_*`), the number of prime slots,
@@ -135,7 +194,28 @@ theorem weighted_mask_removal (m : ℕ) (Jstar : Finset (Fin m)) (hJ : 2 ≤ Jst
           (∀ p, f Sh.star p = g Jstar) ∧
           |maskedCorrelation S.core.parameters C a N b g| ^ (2 ^ maskCount m) ≤
             Cm * |rowCorrelation S C a N Sh f| + ε := by
-  sorry
+  classical
+  obtain ⟨q, r, Sh, tests, Cm, hq, hr, hStar, htests, hCm, hmain⟩ :=
+    opus_corr_mask_iterate m Jstar hJ (opus_corr_mask_step m Jstar hJ)
+      (nonemptyMaskFinset m).toList (Finset.nodup_toList _)
+      (fun U hU => by simpa [nonemptyMaskFinset] using hU)
+  have hlen : (nonemptyMaskFinset m).toList.length = maskCount m := by
+    rw [Finset.length_toList, nonemptyMaskFinset_card]
+  refine ⟨q, r, Sh, tests, Cm, ?_, ?_, hStar, htests, hCm, ?_⟩
+  · unfold maskRowBound
+    rw [hlen] at hr
+    exact hr
+  · rw [hq, hlen]
+  · intro K s Aset Dm S ι hlisted C a ha ε hε
+    filter_upwards [hmain S ι hlisted C a ha ε hε] with N hN
+    intro b g hv
+    obtain ⟨st, hsh, hmasks, hvalid, hineq⟩ := hN b g hv
+    subst hsh
+    have hempty : st.masks = ∅ := by
+      rw [hmasks, Finset.toList_toFinset, Finset.sdiff_self]
+    refine ⟨st.rowFunction, hvalid.2.2.1, hvalid.2.2.2, ?_⟩
+    rw [← MaskRemovalState.correlation_empty st S C a N hempty, ← hlen]
+    exact hineq
 
 /-! ## Polynomial directions and integer translations (Lemma `lem:row-directions`,
 04:316–418) -/
@@ -277,6 +357,73 @@ theorem additive_elimination_auxiliary_moments {m q r : ℕ} (Sh : RowShape m q 
   · simpa [hcard1] using hmoment 1 (by omega)
   · simpa [hcard2] using hmoment 2 (by omega)
 
+/-- Part of Lemma `lem:additive-elimination` (04:442–509): the translation by
+`∑_{R≠*}v_Ru_R` and the `d` weighted Cauchy–Schwarz steps `eq:additive-weighted-cs` give
+`|E∏_I f_I(ℓ_I(z))|^{2^d} ≤ C₁|E GΨ|+o(1)`, with `G` the target cube of `f_*` and `Ψ` the
+retained weights `eq:correlation-retained-weights`. `C₁` depends only on the templates. -/
+theorem opus_corr_elim_cauchy {m q r : ℕ} (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∃ C₁ : ℝ, 0 < C₁ ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ J0 : ℕ, 0 < J0 → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+        ∀ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
+          (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
+          |goodRowCorrelation S C a N dirs tests f| ^ (2 ^ Fintype.card (NonTarget Sh)) ≤
+            C₁ * |eliminationAverage S C N dirs tests J0 fun p z u =>
+              (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star p)
+                (targetVertex (chainScale S.core.parameters C a N) Sh p
+                  (directionModulus S N dirs.poly p) z u ω)) *
+                retainedWeights S C a N dirs p z u| + ε := by
+  sorry
+
+/-- Part of Lemma `lem:additive-elimination` (04:516–530): translating `z` by `v_0u_0`, `u_0`
+uniform on `[0,R)`, changes `E GΨ` by `o(1)`; `G` is unchanged since `ℓ_*(v_0)=0`, so
+`E GΨ = E GH+o(1)` with `H(z,u)=E_{u_0}Ψ(z+v_0u_0,u)`. -/
+theorem opus_corr_elim_root {m q r : ℕ} (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+    ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+    ∀ J0 : ℕ, 0 < J0 → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+      ∀ h : (Fin q → ℕ) → ℤ → ℝ,
+        (∀ p y, |h p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row Sh.star).anchor y) →
+        |(eliminationAverage S C N dirs tests J0 fun p z u =>
+            (∏ ω : NonTarget Sh → Fin 2, atQ (h p)
+              (targetVertex (chainScale S.core.parameters C a N) Sh p
+                (directionModulus S N dirs.poly p) z u ω)) *
+              retainedWeights S C a N dirs p z u) -
+          eliminationAverage S C N dirs tests J0 fun p z u =>
+            (∏ ω : NonTarget Sh → Fin 2, atQ (h p)
+              (targetVertex (chainScale S.core.parameters C a N) Sh p
+                (directionModulus S N dirs.poly p) z u ω)) *
+              averagedRetainedWeights S C a N dirs p z u| ≤ ε := by
+  sorry
+
+/-- Part of Lemma `lem:additive-elimination` (04:530–572): the weighted replacement
+`|E G(H-2^t)| ≤ (E B)^{1/2}(E B(H-2^t)²)^{1/2} = o(1)`, from `|G| ≤ B` and the moments
+`eq:auxiliary-weight-moments`; `E G` is the target cube. -/
+theorem opus_corr_elim_variance {m q r : ℕ} (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+    ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+    ∀ J0 : ℕ, 0 < J0 → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+      ∀ h : (Fin q → ℕ) → ℤ → ℝ,
+        (∀ p y, |h p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row Sh.star).anchor y) →
+        |(eliminationAverage S C N dirs tests J0 fun p z u =>
+            (∏ ω : NonTarget Sh → Fin 2, atQ (h p)
+              (targetVertex (chainScale S.core.parameters C a N) Sh p
+                (directionModulus S N dirs.poly p) z u ω)) *
+              averagedRetainedWeights S C a N dirs p z u) -
+          (2 : ℝ) ^ (Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)) *
+            additiveCube S C a N dirs tests J0 h| ≤ ε := by
+  sorry
+
 /-- Lemma `lem:additive-elimination`, equation `eq:additive-elimination-output`: under the
 normalized good-tuple law, `|E∏_I f_I(ℓ_I(z))|^{2^d} ≤ C_m|E∏_{ω∈{0,1}^d}
 f_*(ℓ_*(z)+M(p)∑_{R≠*}u_R^{ω_R})|+o(1)`, uniformly over `|f_I| ≤ W_I`. The constant depends only
@@ -293,7 +440,55 @@ theorem weighted_additive_elimination {m q r : ℕ} (Sh : RowShape m q r)
           (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
           |goodRowCorrelation S C a N dirs tests f| ^ (2 ^ Fintype.card (NonTarget Sh)) ≤
             Cm * |additiveCube S C a N dirs tests J0 (f Sh.star)| + ε := by
-  sorry
+  obtain ⟨C₁, hC₁, hA⟩ := opus_corr_elim_cauchy Sh dirs hdirs tests htests hdt
+  let t : ℕ := Fintype.card (NonTarget Sh) * 2 ^ (Fintype.card (NonTarget Sh) - 1)
+  refine ⟨C₁ * (2 : ℝ) ^ t, by positivity, ?_⟩
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0 ε hε
+  let δ : ℝ := ε / (3 * (C₁ + 1))
+  have hδ : 0 < δ := by positivity
+  filter_upwards [hA S ι hlisted C a ha J0 hJ0 (ε / 3) (by positivity),
+    opus_corr_elim_root Sh dirs hdirs tests htests hdt S ι hlisted C a ha J0 hJ0 δ hδ,
+    opus_corr_elim_variance Sh dirs hdirs tests htests hdt S ι hlisted C a ha J0 hJ0 δ hδ]
+    with N hAN hRoot hVar
+  intro f hf
+  have h1 := hAN f hf
+  have h2 := hRoot (f Sh.star) (hf Sh.star)
+  have h3 := hVar (f Sh.star) (hf Sh.star)
+  set Y := eliminationAverage S C N dirs tests J0 fun p z u =>
+    (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star p)
+      (targetVertex (chainScale S.core.parameters C a N) Sh p
+        (directionModulus S N dirs.poly p) z u ω)) *
+      retainedWeights S C a N dirs p z u with hY
+  set Z := eliminationAverage S C N dirs tests J0 fun p z u =>
+    (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star p)
+      (targetVertex (chainScale S.core.parameters C a N) Sh p
+        (directionModulus S N dirs.poly p) z u ω)) *
+      averagedRetainedWeights S C a N dirs p z u with hZ
+  set W := additiveCube S C a N dirs tests J0 (f Sh.star) with hW
+  have hct : (0 : ℝ) ≤ (2 : ℝ) ^ t := by positivity
+  have hYle : |Y| ≤ (2 : ℝ) ^ t * |W| + 2 * δ := by
+    have e1 : |Y| ≤ |Z| + δ := by
+      have := abs_sub_abs_le_abs_sub Y Z
+      linarith
+    have e2 : |Z| ≤ |(2 : ℝ) ^ t * W| + δ := by
+      have := abs_sub_abs_le_abs_sub Z ((2 : ℝ) ^ t * W)
+      linarith
+    rw [abs_mul, abs_of_nonneg hct] at e2
+    linarith
+  have hδC : C₁ * (2 * δ) ≤ 2 * ε / 3 := by
+    have hden : 0 < 3 * (C₁ + 1) := by positivity
+    have : C₁ * (2 * δ) = 2 * ε * C₁ / (3 * (C₁ + 1)) := by
+      simp only [δ]
+      field_simp
+    rw [this, div_le_iff₀ hden]
+    nlinarith
+  calc
+    |goodRowCorrelation S C a N dirs tests f| ^ (2 ^ Fintype.card (NonTarget Sh)) ≤
+        C₁ * |Y| + ε / 3 := h1
+    _ ≤ C₁ * ((2 : ℝ) ^ t * |W| + 2 * δ) + ε / 3 := by
+      gcongr
+    _ = C₁ * (2 : ℝ) ^ t * |W| + C₁ * (2 * δ) + ε / 3 := by ring
+    _ ≤ C₁ * (2 : ℝ) ^ t * |W| + ε := by linarith
 
 /-! ## The cube root (04:614–683) -/
 
