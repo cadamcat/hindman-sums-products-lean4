@@ -1324,6 +1324,7 @@ private theorem momentLinearRowValue_rootBaseEncode {K sl : â„•} {As : Finset â„
         momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) = y := by
     rw [hsum]
     simp only [MomentBaseIndex, Fintype.sum_sum_type, Fintype.sum_prod_type]
+    trace_state
     simp_rw [hrootCoeff, hshiftCoeff, momentBaseEncode_root, momentBaseEncode_shift]
     simp [root]
   exact_mod_cast hInt
