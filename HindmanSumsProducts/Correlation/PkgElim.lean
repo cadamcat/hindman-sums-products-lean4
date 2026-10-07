@@ -1906,6 +1906,31 @@ theorem finiteSum_mul_singletonIndicator {α : Type*} [Fintype α] [DecidableEq 
     simp [hxa]
   · simp
 
+theorem sum_ne_subtype_eq_filter {α : Type*} [Fintype α] [DecidableEq α]
+    (I : α) (f : {x : α // x ≠ I} → ℝ) :
+    (∑ x : α, if h : x ≠ I then f ⟨x, h⟩ else 0) =
+      ∑ x : {x : α // x ≠ I}, f x := by
+  classical
+  let pred : α → Prop := fun x => x ≠ I
+  let g : α → ℝ := fun x => if h : pred x then f ⟨x, h⟩ else 0
+  have hS : (Finset.univ : Finset {x : α // pred x}) =
+      (Finset.univ : Finset α).subtype pred := by
+    ext x
+    simp [pred]
+  change (∑ x : α, g x) = ∑ x : {x : α // pred x}, f x
+  calc
+    _ = ∑ x ∈ (Finset.univ : Finset α).filter pred, g x := by
+      conv_rhs => rw [Finset.sum_filter]
+      apply Finset.sum_congr rfl
+      intro x hx
+      by_cases h : pred x <;> simp [g, pred, h]
+    _ = ∑ x : {x : α // pred x}, f x := by
+      rw [← Finset.sum_subtype_eq_sum_filter]
+      rw [hS]
+      apply Finset.sum_congr rfl
+      intro x hx
+      simp [g, pred, x.property]
+
 theorem uniformUnitResidueLaw_crtProjection {w e V : ℕ} (he : 0 < e)
     (r : FromArithmetic.CRTResidues w V) :
     (∑ a : Fin (FromArithmetic.masterCRTModulus w e V),
