@@ -98,6 +98,23 @@ noncomputable def liftObs {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y
     (H : Y → ℝ) (x : X) : ℝ :=
   ∑ᶠ m : ℤ, bump (r x - m) * H (point x m)
 
+/-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
+theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
+    (H : Y → ℝ) (x : X) :
+    liftObs r point H x =
+      ∑ m ∈ (bump_integer_support_finite (r x)).toFinset,
+        bump (r x - m) * H (point x m) := by
+  let f : ℤ → ℝ := fun m => bump (r x - m) * H (point x m)
+  have hfin : {m : ℤ | bump (r x - m) ≠ 0}.Finite := bump_integer_support_finite (r x)
+  have hsub : Function.support f ⊆ hfin.toFinset := by
+    intro m hm
+    have hterm : f m ≠ 0 := hm
+    have hbump : bump (r x - m) ≠ 0 := by
+      by_contra hb
+      exact hterm (by simp [f, hb])
+    exact hfin.mem_toFinset.mpr hbump
+  rw [liftObs, finsum_eq_sum_of_support_subset f hsub]
+
 /-- The real translation coordinate on the realification of the linearized
 semidirect Lie algebra. -/
 noncomputable def realTranslationCoordinate {L : Type*} [LieRing L] [LieAlgebra ℚ L]
@@ -243,11 +260,10 @@ private theorem exists_realification_lattice_factor {L : Type*} [LieRing L]
     {γ : (weightFiltration F hs).realification.Group}
     (hγ : γ ∈ GammaHat.map (NilpotentLieBCHGroup.realificationHom
       (hnil := (weightFiltration F hs).lowerCentralSeries_eq_bot))) :
-    ∃ k : ℤ, ∃ γ₀ : (weightFiltration F hs).realification.Group,
-      γ₀ ∈ GammaHat.map (NilpotentLieBCHGroup.realificationHom
-        (hnil := (weightFiltration F hs).lowerCentralSeries_eq_bot)) ∧
-      realTranslationCoordinate F γ₀.coord = 0 ∧
-      γ = γ₀ * linearizedShiftElement F hs k := by
+    ∃ k : ℤ, ∃ g₀ : (weightFiltration F hs).Group,
+      g₀ ∈ GammaHat ∧ rLin F g₀.coord = 0 ∧
+      γ = NilpotentLieBCHGroup.realificationHom g₀ *
+        linearizedShiftElement F hs k := by
   classical
   obtain ⟨g, hg, rfl⟩ := Subgroup.mem_map.mp hγ
   obtain ⟨z, hz⟩ := hcoord g hg
@@ -281,13 +297,13 @@ private theorem exists_realification_lattice_factor {L : Type*} [LieRing L]
         simpa using (IsScalarTower.algebraMap_smul (R := ℚ) (A := ℝ)
           (B * z : ℚ) ((1 : ℝ) ⊗ₜ[ℚ] Dhat F))
       _ = (k : ℝ) • ((1 : ℝ) ⊗ₜ[ℚ] Dhat F) := by simp [k]
-  refine ⟨k, γ₀, hγ₀mem, hγ₀coord, ?_⟩
+  refine ⟨k, g₀, hg₀, hg₀coord, ?_⟩
   have hfactor : γ₀ * shiftR = NilpotentLieBCHGroup.realificationHom g := by
     change NilpotentLieBCHGroup.realificationHom (g * shift⁻¹) * shiftR =
       NilpotentLieBCHGroup.realificationHom g
     rw [← hshiftR, map_mul, map_inv]
     simp
-  exact hfactor.symm
+  simpa [γ₀, shiftR] using hfactor.symm
 
 /-- Remove the translation coordinate by an integer evaluation shift, then
 evaluate the polynomial component in the original quotient. -/
@@ -397,20 +413,24 @@ private theorem linearizedObservablePoint_factor {L : Type*} [LieRing L]
     change realTranslationCoordinate F (realTranslationElement F hs k).coord = k
     exact realTranslationElement_coord F hs k
   have hrY : rY = r + k := by
-    change realTranslationCoordinate F (X * γ₀ * shift).coord =
+    change realTranslationCoordinate F
+      (lieBCH (2 * s) (lieBCH (2 * s) X.coord γ₀.coord) shift.coord) =
       realTranslationCoordinate F X.coord + k
-    rw [realTranslationCoordinate_group_mul F hs (X * γ₀) shift,
-      realTranslationCoordinate_group_mul F hs X γ₀, hγ₀r, hshiftCoord]
+    rw [realTranslationCoordinate_lieBCH F hs
+      (lieBCH (2 * s) X.coord γ₀.coord) shift.coord,
+      realTranslationCoordinate_lieBCH F hs X.coord γ₀.coord,
+      hγ₀r, hshiftCoord]
     ring
   have hinnerX : realTranslationCoordinate F innerX.coord = 0 := by
     change realTranslationCoordinate F
-      (realTranslationElement F hs (-r) * X).coord = 0
-    rw [realTranslationCoordinate_group_mul F hs (realTranslationElement F hs (-r)) X,
+      (lieBCH (2 * s) (realTranslationElement F hs (-r)).coord X.coord) = 0
+    rw [realTranslationCoordinate_lieBCH F hs,
       realTranslationElement_coord F hs (-r)]
     ring
   have hinnerY : realTranslationCoordinate F innerY.coord = 0 := by
-    change realTranslationCoordinate F (innerX * γ₀).coord = 0
-    rw [realTranslationCoordinate_group_mul F hs innerX γ₀, hinnerX, hγ₀r]
+    change realTranslationCoordinate F
+      (lieBCH (2 * s) innerX.coord γ₀.coord) = 0
+    rw [realTranslationCoordinate_lieBCH F hs, hinnerX, hγ₀r]
     simp
   have hTsum : realTranslationElement F hs (-(r + k)) =
       realTranslationElement F hs (-k) * realTranslationElement F hs (-r) := by
@@ -493,22 +513,94 @@ private theorem linearizedObservablePoint_factor {L : Type*} [LieRing L]
   change QuotientGroup.mk (a * b) = QuotientGroup.mk a
   exact hquot
 
-/-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
-theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
-    (H : Y → ℝ) (x : X) :
-    liftObs r point H x =
-      ∑ m ∈ (bump_integer_support_finite (r x)).toFinset,
-        bump (r x - m) * H (point x m) := by
-  let f : ℤ → ℝ := fun m => bump (r x - m) * H (point x m)
-  have hfin : {m : ℤ | bump (r x - m) ≠ 0}.Finite := bump_integer_support_finite (r x)
-  have hsub : Function.support f ⊆ hfin.toFinset := by
-    intro m hm
-    have hterm : f m ≠ 0 := hm
-    have hbump : bump (r x - m) ≠ 0 := by
-      by_contra hb
-      exact hterm (by simp [f, hb])
-    exact hfin.mem_toFinset.mpr hbump
-  rw [liftObs, finsum_eq_sum_of_support_subset f hsub]
+private theorem linearizedObservableLift_invariant {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    (B : ℕ) (GammaHat : Subgroup (weightFiltration D.filtration hs).Group)
+    (hcoord : ∀ γ ∈ GammaHat,
+      ∃ z : ℤ, rLin D.filtration γ.coord = (B * z : ℚ))
+    (hshift : ∀ z : ℤ,
+      (⟨(B * z : ℚ) • Dhat D.filtration⟩ :
+        (weightFiltration D.filtration hs).Group) ∈ GammaHat)
+    (hEval : ∀ (g : (weightFiltration D.filtration hs).Group), g ∈ GammaHat →
+      rLin D.filtration g.coord = 0 → ∀ n : ℤ,
+        (⟨evLin D.filtration n g.coord⟩ : D.filtration.Group) ∈ D.lattice)
+    (H : D.Space → ℝ) (X : (weightFiltration D.filtration hs).realification.Group)
+    {γ : (weightFiltration D.filtration hs).realification.Group}
+    (hγ : γ ∈ GammaHat.map (NilpotentLieBCHGroup.realificationHom
+      (hnil := (weightFiltration D.filtration hs).lowerCentralSeries_eq_bot))) :
+    linearizedObservableLift D hs H (X * γ) = linearizedObservableLift D hs H X := by
+  classical
+  let F := D.filtration
+  obtain ⟨k, g₀, hg₀, hg₀r, hfactor⟩ :=
+    exists_realification_lattice_factor F hs B GammaHat hcoord hshift hγ
+  have hEval₀ : ∀ n : ℤ,
+      (⟨evLin F n g₀.coord⟩ : F.Group) ∈ D.lattice := hEval g₀ hg₀ hg₀r
+  have hpoint (n : ℤ) :
+      linearizedObservablePoint D hs (n + k) (X * γ) =
+        linearizedObservablePoint D hs n X := by
+    rw [hfactor]
+    rw [← mul_assoc]
+    exact linearizedObservablePoint_factor D hs n X g₀ hg₀r k hEval₀
+  let r : ℝ := realTranslationCoordinate F X.coord
+  let r' : ℝ := realTranslationCoordinate F (X * γ).coord
+  let γ₀ := NilpotentLieBCHGroup.realificationHom g₀
+  let shift := linearizedShiftElement F hs k
+  have hrγ₀ : realTranslationCoordinate F γ₀.coord = 0 := by
+    simpa [γ₀, realTranslationCoordinate, rLinReal,
+      NilpotentLieBCHGroup.realificationHom_coord] using congrArg (fun q : ℚ => (q : ℝ)) hg₀r
+  have hshiftCoord : realTranslationCoordinate F shift.coord = k := by
+    change realTranslationCoordinate F (realTranslationElement F hs k).coord = k
+    exact realTranslationElement_coord F hs k
+  have hr' : r' = r + k := by
+    change realTranslationCoordinate F (X * γ).coord =
+      realTranslationCoordinate F X.coord + k
+    calc
+      realTranslationCoordinate F (X * γ).coord =
+          realTranslationCoordinate F (X * (γ₀ * shift)).coord := by rw [hfactor]
+      _ = realTranslationCoordinate F ((X * γ₀) * shift).coord := by rw [← mul_assoc]
+      _ = realTranslationCoordinate F X.coord + k := by
+          rw [realTranslationCoordinate_group_mul F hs (X * γ₀) shift,
+            realTranslationCoordinate_group_mul F hs X γ₀, hrγ₀, hshiftCoord]
+          ring
+  unfold linearizedObservableLift
+  rw [liftObs_finite_sum, liftObs_finite_sum]
+  apply Finset.sum_bij (fun n _ => n - k)
+  · intro n hn
+    have hn' := (bump_integer_support_finite r').mem_toFinset.mp hn
+    have heq : bump (r' - (n : ℝ)) = bump (r - ((n - k : ℤ) : ℝ)) := by
+      rw [hr']
+      congr 1
+      push_cast
+      ring
+    apply (bump_integer_support_finite r).mem_toFinset.mpr
+    change bump (r - ((n - k : ℤ) : ℝ)) ≠ 0
+    rw [← heq]
+    exact hn'
+  · intro n hn n' hn' hnn'
+    omega
+  · intro n hn
+    have hn' := (bump_integer_support_finite r).mem_toFinset.mp hn
+    refine ⟨n + k, ?_, by omega⟩
+    have heq : bump (r' - ((n + k : ℤ) : ℝ)) = bump (r - (n : ℝ)) := by
+      rw [hr']
+      congr 1
+      push_cast
+      ring
+    apply (bump_integer_support_finite r').mem_toFinset.mpr
+    change bump (r' - ((n + k : ℤ) : ℝ)) ≠ 0
+    rw [heq]
+    exact hn'
+  · intro n hn
+    have heq : bump (r' - (n : ℝ)) = bump (r - ((n - k : ℤ) : ℝ)) := by
+      rw [hr']
+      congr 1
+      push_cast
+      ring
+    have hp := hpoint (n - k)
+    have hidx : n - k + k = n := by omega
+    rw [hidx] at hp
+    rw [heq, hp]
 
 /-- Bounded observables remain bounded under the triangular interpolation. -/
 theorem liftObs_abs_le_one {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
