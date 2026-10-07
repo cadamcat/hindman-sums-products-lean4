@@ -7958,6 +7958,118 @@ private theorem linearFormsBaseTupleKernel_error {n q d b m K : ℕ}
     _ ≤ (K : ℝ) * D.epsilonBase N := hbaseError
 
 
+/-! ### Remaining parts of `prop_linear_forms`
+
+The proof of `prop_linear_forms` is assembled from four parts:
+
+* `linearFormsTupleKernel_envelope`: for one supported divisor tuple, the global cleared-row
+  kernel count `α` satisfies `1 ≤ α` and `α - 1 ≤` the capped CRT tuple envelope at the slots'
+  CRT residues (local regular/exceptional kernel bounds through the CRT factorization).
+* `linearFormsPrimeAverage_error_envelope`: for good slots, the inner base average of the
+  divisor weights is `1` up to `V^q * epsilonBase` plus the capped CRT envelope.
+* `weightedLinearForms_error_transfer`: transfer of the pointwise bound through the prime-slot
+  law, with the CRT total-variation error.
+* `linearForms_uniformCrtEnvelope_eventual`: the uniform CRT expectation of the envelope is
+  eventually `O(1/(N+1))`.
+-/
+
+/-- Part 1. For a divisor tuple of nonzero mass and good slots, the normalized kernel count of
+the global cleared-row map is at least one, and its excess is at most the capped CRT tuple
+envelope evaluated at the slots' CRT residues. -/
+private theorem linearFormsTupleKernel_envelope {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (slots : Fin m → ℕ) (hgood : D.goodDomain N slots)
+    (σ : Fin q → ℕ)
+    (hσ : ∀ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u) ≠ 0)
+    [∀ u : Fin q, NeZero (σ u)]
+    (K : ℕ) [NeZero K] (hK : 0 < K) (hKprod : ∏ u, σ u = K)
+    (hdiv : ∀ u, σ u ∣ K) :
+    1 ≤ normalizedKernelCount
+        (globalDivisibilityAddHom σ hdiv
+          (fun u j =>
+            (rationalRowClearedCoefficient
+              (fun j => D.rowCoeff N slots u j) j : ZMod K))).toMultiplicative ∧
+      normalizedKernelCount
+          (globalDivisibilityAddHom σ hdiv
+            (fun u j =>
+              (rationalRowClearedCoefficient
+                (fun j => D.rowCoeff N slots u j) j : ZMod K))).toMultiplicative - 1 ≤
+        linearFormsTupleEnvelope D N σ
+          (fun i => integerCRTResidues (N + 1) (D.V N) (slots i)) := by
+  sorry
+
+/-- Part 2. For good slots, the base average of the divisor-weight product differs from one by
+at most `V^q * epsilonBase` plus the capped CRT envelope at the slots' CRT residues. -/
+private theorem linearFormsPrimeAverage_error_envelope {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (slots : Fin m → ℕ) (hgood : D.goodDomain N slots) :
+    |linearFormsPrimeAverage D N slots - 1| ≤
+      (D.V N : ℝ) ^ q * D.epsilonBase N +
+        linearFormsCrtEnvelope D N
+          (fun i => integerCRTResidues (N + 1) (D.V N) (slots i)) := by
+  sorry
+
+/-- Part 3. Transfer through the prime-slot law: the weighted average differs from the event
+probability by the base and CRT errors plus the uniform CRT expectation of the envelope. -/
+private theorem weightedLinearForms_error_transfer {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (E : (Fin m → ℕ) → Prop)
+    (hE : ∀ slots, E slots → D.goodDomain N slots) :
+    |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
+      (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) +
+        ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r := by
+  sorry
+
+/-- Part 4. The uniform CRT expectation of the capped envelope is eventually `O(1/(N+1))`. -/
+private theorem linearForms_uniformCrtEnvelope_eventual {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) :
+    ∃ C : ℝ, 0 < C ∧ ∀ᶠ N in atTop,
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) ≤
+        C / (N + 1 : ℝ) := by
+  sorry
+
+private theorem independentPrimePoolProbability_bounds {m : ℕ}
+    (lo hi : Fin m → ℕ) (E : (Fin m → ℕ) → Prop) :
+    0 ≤ independentPrimePoolProbability lo hi E ∧
+      independentPrimePoolProbability lo hi E ≤ 1 := by
+  classical
+  let T := linearFormsPrimeSupport lo hi
+  have hzero (p : Fin m → ℕ) (hp : p ∉ T) : independentPrimePoolMass lo hi p = 0 :=
+    independentPrimePoolMass_zero_of_not_mem_linearFormsSupport lo hi p (by simpa [T] using hp)
+  have hzeroE (p : Fin m → ℕ) (hp : p ∉ T) :
+      independentPrimePoolMass lo hi p * (if E p then 1 else 0) = 0 := by
+    rw [hzero p hp]
+    simp
+  have hnonneg (p : Fin m → ℕ) : 0 ≤ independentPrimePoolMass lo hi p := by
+    unfold independentPrimePoolMass
+    exact Finset.prod_nonneg fun i _ => primePoolLaw_nonneg_local (lo i) (hi i) (p i)
+  have htotal := independentPrimePoolMass_total_le_one lo hi
+  rw [tsum_eq_sum (s := T) hzero] at htotal
+  unfold independentPrimePoolProbability
+  rw [tsum_eq_sum (s := T) hzeroE]
+  constructor
+  · exact Finset.sum_nonneg fun p _ =>
+      mul_nonneg (hnonneg p) (by split_ifs <;> norm_num)
+  · calc
+      (∑ p ∈ T, independentPrimePoolMass lo hi p * (if E p then 1 else 0)) ≤
+          ∑ p ∈ T, independentPrimePoolMass lo hi p := by
+        apply Finset.sum_le_sum
+        intro p _
+        split_ifs
+        · simp
+        · simp [hnonneg p]
+      _ ≤ 1 := htotal
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
@@ -7967,7 +8079,68 @@ theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
       |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
         C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ q *
           (D.epsilonBase N + D.epsilonCRT N)) := by
-  sorry
+  classical
+  obtain ⟨Ct, hCt, hev⟩ := linearForms_uniformCrtEnvelope_eventual D
+  obtain ⟨N₀, hN₀⟩ := Filter.eventually_atTop.mp hev
+  let Cinit : ℝ := 1 + ∑ k ∈ Finset.range N₀, ((k : ℝ) + 1) * ((D.V k : ℝ) ^ q + 1)
+  let C : ℝ := max 1 (max Ct Cinit)
+  have hC1 : 1 ≤ C := le_max_left _ _
+  have hCt' : Ct ≤ C := le_trans (le_max_left _ _) (le_max_right _ _)
+  have hCinit : Cinit ≤ C := le_trans (le_max_right _ _) (le_max_right _ _)
+  refine ⟨C, lt_of_lt_of_le one_pos hC1, ?_⟩
+  intro N E hE
+  have hNpos : (0 : ℝ) < (N : ℝ) + 1 := by positivity
+  have hεCRT : 0 ≤ D.epsilonCRT N := by
+    refine le_trans ?_ (D.crt_error_bound N)
+    unfold finiteL1
+    exact Finset.sum_nonneg fun r _ => abs_nonneg _
+  have hX : 0 ≤ (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) :=
+    mul_nonneg (by positivity) (add_nonneg (D.epsilonBase_nonnegative N) hεCRT)
+  have hinv : 0 ≤ 1 / ((N : ℝ) + 1) := by positivity
+  by_cases hN : N₀ ≤ N
+  · have htr := weightedLinearForms_error_transfer D N E hE
+    have htail := hN₀ N hN
+    have h1 : Ct / ((N : ℝ) + 1) ≤ C * (1 / ((N : ℝ) + 1)) := by
+      rw [div_eq_mul_one_div]
+      exact mul_le_mul_of_nonneg_right hCt' hinv
+    have h2 : (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) ≤
+        C * ((D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N)) :=
+      le_mul_of_one_le_left hX hC1
+    calc
+      _ ≤ (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) +
+          ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r := htr
+      _ ≤ (D.V N : ℝ) ^ q * (D.epsilonBase N + D.epsilonCRT N) + Ct / ((N : ℝ) + 1) := by
+          linarith
+      _ ≤ C * (1 / ((N : ℝ) + 1) + (D.V N : ℝ) ^ q *
+          (D.epsilonBase N + D.epsilonCRT N)) := by
+          rw [mul_add]
+          linarith
+  · push_neg at hN
+    have hbounds := weightedLinearFormsAverage_bounds D N E
+    have hprob : 0 ≤ weightedLinearFormsEventProbability D N E ∧
+        weightedLinearFormsEventProbability D N E ≤ 1 :=
+      independentPrimePoolProbability_bounds _ _ E
+    have habs : |weightedLinearFormsAverage D N E -
+        weightedLinearFormsEventProbability D N E| ≤ (D.V N : ℝ) ^ q + 1 := by
+      rw [abs_le]
+      constructor <;> linarith [hbounds.1, hbounds.2, hprob.1, hprob.2]
+    have hterm : ((N : ℝ) + 1) * ((D.V N : ℝ) ^ q + 1) ≤ Cinit := by
+      have hmem : N ∈ Finset.range N₀ := Finset.mem_range.mpr hN
+      have hsingle := Finset.single_le_sum
+        (f := fun k : ℕ => ((k : ℝ) + 1) * ((D.V k : ℝ) ^ q + 1))
+        (fun k _ => by positivity) hmem
+      dsimp only [Cinit]
+      linarith
+    have hinit : (D.V N : ℝ) ^ q + 1 ≤ C * (1 / ((N : ℝ) + 1)) := by
+      rw [mul_one_div, le_div_iff₀ hNpos]
+      nlinarith
+    calc
+      _ ≤ (D.V N : ℝ) ^ q + 1 := habs
+      _ ≤ C * (1 / ((N : ℝ) + 1)) := hinit
+      _ ≤ C * (1 / ((N : ℝ) + 1) + (D.V N : ℝ) ^ q *
+          (D.epsilonBase N + D.epsilonCRT N)) :=
+          mul_le_mul_of_nonneg_left (le_add_of_nonneg_right hX) (by linarith)
 
 /-- With master-scale CRT accuracy and base residue errors smaller than every fixed inverse
 power of V, the linear-forms error tends to zero at each fixed row count. -/
