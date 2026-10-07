@@ -483,6 +483,57 @@ theorem RowTemplate.scaleBranchQ_entry {m q : ℕ} (T : RowTemplate m q) (u k : 
       some (fun i => Fin.cases (if k = u then 1 else 0) (Fin.cases 0 e) i) := by
   simp [RowTemplate.scaleBranchQ, RowTemplate.padSlot, RowTemplate.scaleColumn, he]
 
+theorem RowTemplate.scaleBranches_parallel_support {m q : ℕ}
+    (T : RowTemplate m q) (u : Fin m)
+    (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u)) :
+    u ∉ T.support ∨ T.support = {u} := by
+  rcases hpar with ⟨_, ⟨δ, hδ⟩⟩
+  have hindicator (k : Fin m) (hk : k ∈ T.support) :
+      (if k = u then (1 : ℤ) else 0) = δ (0 : Fin (q + 2)) := by
+    obtain ⟨e, he⟩ := T.entry_exists_of_mem_support k hk
+    have heP := T.scaleBranchP_entry u k e he
+    have heQ := T.scaleBranchQ_entry u k e he
+    let eP : Fin (q + 2) → ℕ :=
+      @Fin.cases (q + 1) (fun _ : Fin (q + 2) => ℕ) 0
+        (fun i => @Fin.cases q (fun _ : Fin (q + 1) => ℕ)
+          (if k = u then 1 else 0) e i)
+    let eQ : Fin (q + 2) → ℕ :=
+      @Fin.cases (q + 1) (fun _ : Fin (q + 2) => ℕ)
+        (if k = u then 1 else 0)
+        (fun i => @Fin.cases q (fun _ : Fin (q + 1) => ℕ) 0 e i)
+    have hrel := hδ k
+      eP eQ heP heQ
+      (0 : Fin (q + 2))
+    have hQval : eQ (0 : Fin (q + 2)) = if k = u then 1 else 0 := rfl
+    have hPval : eP (0 : Fin (q + 2)) = 0 := rfl
+    rw [hQval, hPval, Nat.cast_ite, Nat.cast_one, Nat.cast_zero] at hrel
+    simpa using hrel
+  by_cases hanchor : T.anchor = u
+  · right
+    ext k
+    constructor
+    · intro hk
+      by_cases hku : k = u
+      · exact Finset.mem_singleton.mpr hku
+      · have hk0 : (0 : ℤ) = δ 0 := by
+          simpa [hku] using hindicator k hk
+        have hu1 : (1 : ℤ) = δ 0 := by
+          simpa [hanchor] using
+            hindicator T.anchor (Finset.max'_mem T.support T.support_nonempty)
+        omega
+    · intro hk
+      have hku : k = u := Finset.mem_singleton.mp hk
+      subst k
+      rw [← hanchor]
+      exact Finset.max'_mem T.support T.support_nonempty
+  · left
+    intro hu
+    have hu' := hindicator u hu
+    have ha' := hindicator T.anchor (Finset.max'_mem T.support T.support_nonempty)
+    have hneq : T.anchor ≠ u := by simpa [eq_comm] using hanchor
+    simp [hu, hneq] at hu' ha'
+    omega
+
 theorem RowTemplate.scaleBalancedP_entry {m q : ℕ} (T : RowTemplate m q)
     (u v k : Fin m) (e : Fin q → ℕ) (he : T.entry k = some e) :
     (T.scaleBalancedP u v).entry k =
@@ -496,6 +547,90 @@ theorem RowTemplate.scaleBalancedQ_entry {m q : ℕ} (T : RowTemplate m q)
       some (fun i => Fin.cases (if k = v then 1 else 0)
         (Fin.cases (if k = u then 1 else 0) e) i) := by
   simp [RowTemplate.scaleBalancedQ, RowTemplate.scaleColumn, he]
+
+theorem RowTemplate.scaleBalancedBranches_parallel_support {m q : ℕ}
+    (T : RowTemplate m q) (u v : Fin m) (huv : u ≠ v)
+    (hpar : (T.scaleBalancedP u v).Parallel (T.scaleBalancedQ u v)) :
+    (u ∉ T.support ∧ v ∉ T.support) ∨ T.support = {u} ∨ T.support = {v} := by
+  rcases hpar with ⟨_, ⟨δ, hδ⟩⟩
+  have hdelta (k : Fin m) (hk : k ∈ T.support) :
+      (if k = v then (1 : ℤ) else 0) =
+        (if k = u then (1 : ℤ) else 0) + δ 0 := by
+    obtain ⟨e, he⟩ := T.entry_exists_of_mem_support k hk
+    have heP := T.scaleBalancedP_entry u v k e he
+    have heQ := T.scaleBalancedQ_entry u v k e he
+    let eP : Fin (q + 2) → ℕ :=
+      @Fin.cases (q + 1) (fun _ : Fin (q + 2) => ℕ)
+        (if k = u then 1 else 0)
+        (fun i => @Fin.cases q (fun _ : Fin (q + 1) => ℕ)
+          (if k = v then 1 else 0) e i)
+    let eQ : Fin (q + 2) → ℕ :=
+      @Fin.cases (q + 1) (fun _ : Fin (q + 2) => ℕ)
+        (if k = v then 1 else 0)
+        (fun i => @Fin.cases q (fun _ : Fin (q + 1) => ℕ)
+          (if k = u then 1 else 0) e i)
+    have hrel := hδ k
+      eP eQ heP heQ (0 : Fin (q + 2))
+    have hPval : eP (0 : Fin (q + 2)) = if k = u then 1 else 0 := rfl
+    have hQval : eQ (0 : Fin (q + 2)) = if k = v then 1 else 0 := rfl
+    rw [hPval, hQval, Nat.cast_ite, Nat.cast_one, Nat.cast_zero] at hrel
+    simpa using hrel
+  by_cases hau : T.anchor = u
+  · right
+    left
+    ext k
+    constructor
+    · intro hk
+      by_cases hkv : k = v
+      · have hk' := hdelta k hk
+        have hu' := hdelta T.anchor (Finset.max'_mem T.support T.support_nonempty)
+        simp [hau, huv, hkv] at hk' hu'
+        omega
+      · by_cases hku : k = u
+        · exact Finset.mem_singleton.mpr hku
+        · have hk' := hdelta k hk
+          have hu' := hdelta T.anchor (Finset.max'_mem T.support T.support_nonempty)
+          simp [hau, hkv, hku] at hk' hu'
+          omega
+    · intro hk
+      have hku : k = u := Finset.mem_singleton.mp hk
+      subst k
+      rw [← hau]
+      exact Finset.max'_mem T.support T.support_nonempty
+  · by_cases hav : T.anchor = v
+    · right
+      right
+      ext k
+      constructor
+      · intro hk
+        by_cases hku : k = u
+        · have hk' := hdelta k hk
+          have hv' := hdelta T.anchor (Finset.max'_mem T.support T.support_nonempty)
+          simp [hav, huv, hku] at hk' hv'
+          omega
+        · by_cases hkv : k = v
+          · exact Finset.mem_singleton.mpr hkv
+          · have hk' := hdelta k hk
+            have hv' := hdelta T.anchor (Finset.max'_mem T.support T.support_nonempty)
+            simp [hav, hku, hkv] at hk' hv'
+            omega
+      · intro hk
+        have hkv : k = v := Finset.mem_singleton.mp hk
+        subst k
+        rw [← hav]
+        exact Finset.max'_mem T.support T.support_nonempty
+    · left
+      constructor
+      · intro hu
+        have hU := hdelta u hu
+        have hA := hdelta T.anchor (Finset.max'_mem T.support T.support_nonempty)
+        simp [hau, hav, huv] at hU hA
+        omega
+      · intro hv
+        have hV := hdelta v hv
+        have hA := hdelta T.anchor (Finset.max'_mem T.support T.support_nonempty)
+        simp [hau, hav, huv] at hV hA
+        omega
 
 theorem RowTemplate.scaleBranchP_support {m q : ℕ} (T : RowTemplate m q) (u : Fin m) :
     (T.scaleBranchP u).support = T.support := by
@@ -2975,6 +3110,28 @@ theorem RowTemplate.value_eq_monomial_scale_of_parallel {m q : ℕ}
               Finset.prod_mul_distrib
         _ = (∏ i, (p i : ℚ) ^ δ i) * ∏ i, (p i : ℚ) ^ e i := by ring
 
+theorem RowTemplate.value_ne_zero_of_slots {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (k : Fin m) (hk : k ∈ T.support)
+    (hp : ∀ i, p i ≠ 0) : T.value p k ≠ 0 := by
+  obtain ⟨e, he⟩ := T.entry_exists_of_mem_support k hk
+  rw [RowTemplate.value, he]
+  apply Finset.prod_ne_zero_iff.mpr
+  intro i hi
+  apply pow_ne_zero
+  exact_mod_cast hp i
+
+theorem rowForm_basis_anchor_eq_value {m q : ℕ}
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (hc : c T.anchor ≠ 0) :
+    rowForm c T p (fun k => if k = T.anchor then 1 else 0) = T.value p T.anchor := by
+  unfold rowForm
+  rw [Finset.sum_eq_single T.anchor]
+  · simp [div_self hc]
+  · intro k hk hka
+    simp [hka]
+  · intro h
+    exact (h (Finset.mem_univ T.anchor)).elim
+
 theorem RowTemplate.rowForm_eq_monomial_scale_of_parallel {m q : ℕ}
     (c : Fin m → ℚ) (T T' : RowTemplate m q) (hpar : T.Parallel T')
     (p : Fin q → ℕ) (hp : ∀ i, p i ≠ 0) :
@@ -3010,10 +3167,61 @@ theorem RowTemplate.rowForm_eq_monomial_scale_of_parallel {m q : ℕ}
 def dropPrimeTuple2 {q : ℕ} (p : Fin (q + 2) → ℕ) : Fin q → ℕ :=
   fun i => p i.succ.succ
 
+theorem extendPrimeTuple2_drop {q : ℕ} (p : Fin (q + 2) → ℕ) :
+    extendPrimeTuple (extendPrimeTuple (dropPrimeTuple2 p) (p 1)) (p 0) = p := by
+  funext i
+  refine Fin.cases ?_ ?_ i
+  · simp [extendPrimeTuple]
+  · intro i
+    refine Fin.cases ?_ ?_ i
+    · change (extendPrimeTuple (dropPrimeTuple2 p) (p 1)) 0 = p 1
+      rfl
+    · intro j
+      change (dropPrimeTuple2 p j) = p (j.succ.succ)
+      rfl
+
 theorem dropPrimeTuple2_extend {q : ℕ} (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
     dropPrimeTuple2 (extendPrimeTuple (extendPrimeTuple p p₁) p₀) = p := by
   funext i
   simp [dropPrimeTuple2, extendPrimeTuple]
+
+theorem rowForm_scaleBranchP_tuple2 {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
+    rowForm c (T.scaleBranchP u) p (fun k => (z k : ℚ)) =
+      rowForm c T (dropPrimeTuple2 p)
+        (Function.update (fun k => (z k : ℚ)) u
+          ((p 1 : ℚ) * (z u : ℚ))) := by
+  rw [← extendPrimeTuple2_drop p]
+  exact rowForm_scaleBranchP c T u (dropPrimeTuple2 p) (p 1) (p 0) z
+
+theorem rowForm_scaleBranchQ_tuple2 {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
+    rowForm c (T.scaleBranchQ u) p (fun k => (z k : ℚ)) =
+      rowForm c T (dropPrimeTuple2 p)
+        (Function.update (fun k => (z k : ℚ)) u
+          ((p 0 : ℚ) * (z u : ℚ))) := by
+  rw [← extendPrimeTuple2_drop p]
+  exact rowForm_scaleBranchQ c T u (dropPrimeTuple2 p) (p 1) (p 0) z
+
+theorem rowForm_scaleBalancedP_tuple2 {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (u v : Fin m) (huv : u ≠ v)
+    (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
+    rowForm c (T.scaleBalancedP u v) p (fun k => (z k : ℚ)) =
+      rowForm c T (dropPrimeTuple2 p)
+        (Function.update (Function.update (fun k => (z k : ℚ)) u
+          ((p 0 : ℚ) * (z u : ℚ))) v ((p 1 : ℚ) * (z v : ℚ))) := by
+  rw [← extendPrimeTuple2_drop p]
+  exact rowForm_scaleBalancedP c T u v huv (dropPrimeTuple2 p) (p 1) (p 0) z
+
+theorem rowForm_scaleBalancedQ_tuple2 {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (u v : Fin m) (huv : u ≠ v)
+    (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
+    rowForm c (T.scaleBalancedQ u v) p (fun k => (z k : ℚ)) =
+      rowForm c T (dropPrimeTuple2 p)
+        (Function.update (Function.update (fun k => (z k : ℚ)) v
+          ((p 0 : ℚ) * (z v : ℚ))) u ((p 1 : ℚ) * (z u : ℚ))) := by
+  rw [← extendPrimeTuple2_drop p]
+  exact rowForm_scaleBalancedQ c T u v huv (dropPrimeTuple2 p) (p 1) (p 0) z
 
 noncomputable def combineParallelRowFunction {q : ℕ}
     (f : (Fin q → ℕ) → ℤ → ℝ) (scale : (Fin (q + 2) → ℕ) → ℚ)
@@ -3046,6 +3254,118 @@ theorem combineParallelRowFunction_abs_le {q : ℕ}
             · exact hW y
       _ = W y := by field_simp [ne_of_gt hw]
   · simp [atQ, hden, hW y]
+
+theorem rowForm_update_of_not_mem_support {m q : ℕ}
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (u : Fin m) (v : ℚ) (hu : u ∉ T.support) :
+    rowForm c T p (Function.update z u v) = rowForm c T p z := by
+  unfold rowForm
+  apply Finset.sum_congr rfl
+  intro k hk
+  by_cases hku : k = u
+  · subst k
+    have hnone : T.entry u = none := by
+      cases h : T.entry u with
+      | none => rfl
+      | some e => exact (hu (by simp [RowTemplate.support, h])).elim
+    simp [RowTemplate.value, hnone]
+  · simp [Function.update_of_ne hku]
+
+theorem rowForm_update_mul_singleton {m q : ℕ}
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (u : Fin m) (v : ℚ)
+    (hsupport : T.support = {u}) (hc : c u ≠ 0) :
+    rowForm c T p (Function.update z u (v * z u)) = v * rowForm c T p z := by
+  have hanchor : T.anchor = u := by
+    simp [RowTemplate.anchor, hsupport]
+  have hform (z : Fin m → ℚ) : rowForm c T p z = T.value p u * z u := by
+    unfold rowForm
+    rw [Finset.sum_eq_single u]
+    · simp [hanchor, div_self hc]
+    · intro k hk hku
+      have hk' : k ∉ T.support := by
+        simp [hsupport, hku]
+      have hnone : T.entry k = none := by
+        cases h : T.entry k with
+        | none => rfl
+        | some e => exact (hk' (by simp [RowTemplate.support, h])).elim
+      simp [RowTemplate.value, hnone]
+    · intro hu
+      exact (hu (Finset.mem_univ u)).elim
+  rw [hform, hform]
+  simp [Function.update_self]
+  ring
+
+theorem RowTemplate.scaleBranch_parallel_factor_eq {m q : ℕ}
+    (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
+    (hp : ∀ i, p i ≠ 0)
+    (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u)) :
+    (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) =
+      if T.support = {u} then (p 0 : ℚ) / (p 1 : ℚ) else 1 := by
+  classical
+  let c : Fin m → ℚ := fun _ => 1
+  let oldp := dropPrimeTuple2 p
+  let z₀ : Fin m → ℤ := fun k => if k = T.anchor then 1 else 0
+  let z₀Q : Fin m → ℚ := fun k => (z₀ k : ℚ)
+  have hpOld : ∀ i, oldp i ≠ 0 := fun i => hp i.succ.succ
+  have hOldEq : rowForm c T oldp z₀Q = T.value oldp T.anchor := by
+    simpa [c, z₀, z₀Q] using rowForm_basis_anchor_eq_value c T oldp (by norm_num)
+  have hOldNe : rowForm c T oldp z₀Q ≠ 0 := by
+    rw [hOldEq]
+    exact T.value_ne_zero_of_slots oldp T.anchor
+      (Finset.max'_mem T.support T.support_nonempty) hpOld
+  have hscale := RowTemplate.rowForm_eq_monomial_scale_of_parallel
+    c (T.scaleBranchP u) (T.scaleBranchQ u) hpar p hp z₀Q
+  rcases T.scaleBranches_parallel_support u hpar with hu | hsingle
+  · have hP : rowForm c (T.scaleBranchP u) p z₀Q = rowForm c T oldp z₀Q := by
+      rw [rowForm_scaleBranchP_tuple2]
+      exact rowForm_update_of_not_mem_support c T oldp z₀Q u
+        ((p 1 : ℚ) * z₀Q u) hu
+    have hQ : rowForm c (T.scaleBranchQ u) p z₀Q = rowForm c T oldp z₀Q := by
+      rw [rowForm_scaleBranchQ_tuple2]
+      exact rowForm_update_of_not_mem_support c T oldp z₀Q u
+        ((p 0 : ℚ) * z₀Q u) hu
+    have hfactor : (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) = 1 := by
+      have hEq : rowForm c T oldp z₀Q =
+          (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * rowForm c T oldp z₀Q := by
+        simpa [hP, hQ] using hscale
+      have hcancel :
+          (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * rowForm c T oldp z₀Q =
+            1 * rowForm c T oldp z₀Q := by simpa using hEq.symm
+      exact mul_right_cancel₀ hOldNe hcancel
+    have hnotSingle : T.support ≠ {u} := by
+      intro h
+      apply hu
+      rw [h]
+      simp
+    simp [hnotSingle, hfactor]
+  · have hP : rowForm c (T.scaleBranchP u) p z₀Q =
+        (p 1 : ℚ) * rowForm c T oldp z₀Q := by
+      rw [rowForm_scaleBranchP_tuple2]
+      change rowForm c T oldp
+        (Function.update z₀Q u ((p 1 : ℚ) * z₀Q u)) = _
+      exact rowForm_update_mul_singleton c T oldp z₀Q u (p 1 : ℚ)
+        hsingle (by norm_num [c])
+    have hQ : rowForm c (T.scaleBranchQ u) p z₀Q =
+        (p 0 : ℚ) * rowForm c T oldp z₀Q := by
+      rw [rowForm_scaleBranchQ_tuple2]
+      change rowForm c T oldp
+        (Function.update z₀Q u ((p 0 : ℚ) * z₀Q u)) = _
+      exact rowForm_update_mul_singleton c T oldp z₀Q u (p 0 : ℚ)
+        hsingle (by norm_num [c])
+    have hp1 : (p 1 : ℚ) ≠ 0 := by exact_mod_cast hp 1
+    have hfactor : (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) =
+        (p 0 : ℚ) / (p 1 : ℚ) := by
+      have hEq : (p 0 : ℚ) * rowForm c T oldp z₀Q =
+          (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) *
+            ((p 1 : ℚ) * rowForm c T oldp z₀Q) := by
+        simpa [hP, hQ, mul_assoc] using hscale
+      have hcancel : (p 0 : ℚ) =
+          (∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)) * (p 1 : ℚ) :=
+        mul_right_cancel₀ hOldNe (by simpa [mul_assoc] using hEq)
+      field_simp [hp1]
+      nlinarith [hcancel]
+    simp [hsingle, hfactor]
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
