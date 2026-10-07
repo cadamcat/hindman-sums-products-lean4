@@ -5547,6 +5547,7 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (ι : Fin q ↪ Fin s) (tests : Finset (IntegerPolynomial q))
+    (included : Finset (Fin r))
     (hlisted : TestsListed Dm ι tests)
     (hPrimitive : ∀ N p,
       c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p →
@@ -5580,8 +5581,10 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     c_test2_rowWeightedCoeff S C a ι Sh
   let tail : Fin r → Finset (Fin K) :=
     fun u => (C.block (Sh.row u).anchor).2.val
+  let selectedTail : Fin r → Finset (Fin K) :=
+    fun u => if u ∈ included then tail u else ∅
   let divisor : Fin r → FromArithmetic.DivisorTemplate K K :=
-    fun u => c_test2_divisorTemplateOfTail (tail u)
+    fun u => c_test2_divisorTemplateOfTail (selectedTail u)
   let epsilonBase : ℕ → ℝ := fun N =>
     ∑ i : Fin m, FromArithmetic.harmonicResidueUniformError
       (A.X N (C.block i).1) (primorial (N + 1)) (V N ^ r)
@@ -5601,11 +5604,14 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
       0 < harmonicNormalizer (A.X N i) (primorial (N + 1)) :=
     c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
       (S.gapStage.valid_raw_cutoffs N i)
+  have hVpos (N : ℕ) : 1 ≤ V N := by
+    dsimp [V, FromArithmetic.masterScaleV]
+    omega
   have htailLaw (N : ℕ) (u : Fin r) (σ : ℕ) :
       FromArithmetic.divisorTemplateLaw A N (divisor u) σ =
-        FromArithmetic.parameterTailProductLaw A N (tail u) σ := by
-    simpa [divisor, tail] using
-      c_test2_divisorTemplateLaw_eq_parameterTailProductLaw A N (tail u)
+        FromArithmetic.parameterTailProductLaw A N (selectedTail u) σ := by
+    simpa [divisor, selectedTail] using
+      c_test2_divisorTemplateLaw_eq_parameterTailProductLaw A N (selectedTail u)
         (fun i => hnormAll N i) σ
   refine
     { gap := fun _ => C.gap
@@ -5667,25 +5673,31 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
       (fun i : Fin m => A.X N (C.block i).1) (primorial (N + 1))
       (fun i => A.Xpos N (C.block i).1) (fun i => hnorm N i)
   · intro N u σ hσ
-    have htailNZ : FromArithmetic.parameterTailProductLaw A N (tail u) σ ≠ 0 := by
+    have htailNZ : FromArithmetic.parameterTailProductLaw A N (selectedTail u) σ ≠ 0 := by
       intro hz
       apply hσ
       rw [htailLaw N u σ, hz]
-    exact c_test2_parameterTailProductLaw_pos_of_nonzero A N (tail u) σ htailNZ
+    exact c_test2_parameterTailProductLaw_pos_of_nonzero A N (selectedTail u) σ htailNZ
   · intro N u σ hσ
-    have htailNZ : FromArithmetic.parameterTailProductLaw A N (tail u) σ ≠ 0 := by
+    have htailNZ : FromArithmetic.parameterTailProductLaw A N (selectedTail u) σ ≠ 0 := by
       intro hz
       apply hσ
       rw [htailLaw N u σ, hz]
-    exact c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor σ
-      htailNZ
+    by_cases hu : u ∈ included
+    · simpa [selectedTail, hu, tail] using
+        c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor σ
+          (by simpa [selectedTail, hu] using htailNZ)
+    · have hle := c_test2_parameterTailProductLaw_support_le A N ∅ σ
+        (by simpa [selectedTail, hu] using htailNZ)
+      have hleOne : σ ≤ 1 := by simpa using hle
+      exact hleOne.trans (hVpos N)
   · intro N p σ hgood hdivNZ hσ
     let Kprod : ℕ := ∏ u : Fin r, σ u
     have hK : 0 < Kprod := by
       dsimp [Kprod]
       exact Finset.prod_pos fun u _ => hσ u
     have htailNZ (u : Fin r) :
-        FromArithmetic.parameterTailProductLaw A N (tail u) (σ u) ≠ 0 := by
+        FromArithmetic.parameterTailProductLaw A N (selectedTail u) (σ u) ≠ 0 := by
       intro hz
       have heq := htailLaw N u (σ u)
       apply hdivNZ u
@@ -5695,10 +5707,16 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
       rw [Nat.coprime_fintype_prod_left_iff]
       intro u
       exact c_test2_parameterTailProductLaw_coprime_of_nonzero A N
-        (tail u) (σ u) (htailNZ u)
-    have hσle (u : Fin r) : σ u ≤ V N :=
-      c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor
-        (σ u) (htailNZ u)
+        (selectedTail u) (σ u) (htailNZ u)
+    have hσle (u : Fin r) : σ u ≤ V N := by
+      by_cases hu : u ∈ included
+      · simpa [selectedTail, hu, tail] using
+          c_test2_chainTail_support_le_masterScaleV A N C (Sh.row u).anchor
+            (σ u) (by simpa [selectedTail, hu] using htailNZ u)
+      · have hle := c_test2_parameterTailProductLaw_support_le A N ∅ (σ u)
+          (by simpa [selectedTail, hu] using htailNZ u)
+        have hleOne : σ u ≤ 1 := by simpa using hle
+        exact hleOne.trans (hVpos N)
     have hKbound : Kprod ≤ V N ^ r := by
       calc
         _ ≤ ∏ _u : Fin r, V N := by
