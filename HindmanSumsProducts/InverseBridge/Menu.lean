@@ -8,8 +8,8 @@ Charted menus and constructors for observable pieces (IB.b1--b3).
 
 namespace HindmanSumsProducts.InverseBridge
 
-open OAI OAI.SourceChartedMenu OAI.SourceProductChart OAI.SourceMenuLiteral
-open scoped NNReal BoundedContinuousFunction
+open OAI OAI.Erdos3 OAI.SourceChartedMenu OAI.SourceProductChart OAI.SourceMenuLiteral
+open scoped NNReal BoundedContinuousFunction TensorProduct
 open scoped Manifold ContDiff Topology
 
 variable {s : ℕ}
@@ -139,7 +139,7 @@ theorem exists_linearized_chart {d s : ℕ} {G : Type} [Group G] [TopologicalSpa
 
 /-- A finite collection of canonical linearized models forms one fixed charted menu.
 The construction includes the maximum of the observable Lipschitz constants (IB.b2). -/
-theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
+theorem exists_bridgeMenuData (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
     ∃ (M : Menu (2 * s)) (K : ℝ≥0)
       (data : Fin M.size → BaseData s),
       0 < M.size ∧ (∀ i, RealizableAt K₀ (data i)) ∧
@@ -182,30 +182,45 @@ theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
 
 /-- A charted menu selected uniformly from the finite canonical list. -/
 noncomputable def bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) : Menu (2 * s) :=
-  Classical.choose (exists_bridgeMenu s K₀ hK₀)
+  Classical.choose (exists_bridgeMenuData s K₀ hK₀)
 
 noncomputable def bridgeMenuLip (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) : ℝ≥0 :=
-  Classical.choose (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀))
+  Classical.choose (Classical.choose_spec (exists_bridgeMenuData s K₀ hK₀))
 
 noncomputable def bridgeMenuData (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
     Fin (bridgeMenu s K₀ hK₀).size → BaseData s :=
   Classical.choose (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))
+    (Classical.choose_spec (exists_bridgeMenuData s K₀ hK₀)))
 
 theorem bridgeMenu_size_pos (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
     0 < (bridgeMenu s K₀ hK₀).size :=
   (Classical.choose_spec (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))).1
+    (Classical.choose_spec (exists_bridgeMenuData s K₀ hK₀)))).1
 
 theorem bridgeMenuData_realizable (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀)
     (i : Fin (bridgeMenu s K₀ hK₀).size) : RealizableAt K₀ (bridgeMenuData s K₀ hK₀ i) :=
   (Classical.choose_spec (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))).2.1 i
+    (Classical.choose_spec (exists_bridgeMenuData s K₀ hK₀)))).2.1 i
 
 theorem bridgeMenuData_covers (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) (δ : BaseData s)
     (hδ : RealizableAt K₀ δ) : ∃ i, bridgeMenuData s K₀ hK₀ i = δ :=
   (Classical.choose_spec (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))).2.2 δ hδ
+    (Classical.choose_spec (exists_bridgeMenuData s K₀ hK₀)))).2.2 δ hδ
+
+/-- The finite canonical charted menu represents every bounded observable on every
+degree-s nilmanifold, uniformly over unit phases (IB.b2). -/
+theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
+    ∃ (M : Menu (2 * s)) (K : ℝ≥0), 0 < M.size ∧
+      ∀ {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+        [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+        [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
+        (D : RationalFilteredNilmanifold L s d)
+        (T : D.Niltest (fun _ : Unit => 1)),
+        T.normBound ≤ 1 → T.ComplexityLE K₀ →
+        ∀ u : ℂ, ‖u‖ = 1 →
+          ∃ P : CosetPiece M K, ∀ n : ℤ,
+            2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
+  sorry
 
 /-- Construct a menu piece from a point, translation, and bounded continuous observable. -/
 def ofObservable {M : Menu s} {K : ℝ≥0} (i : Fin M.size)
