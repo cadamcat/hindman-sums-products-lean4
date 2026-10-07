@@ -8011,7 +8011,117 @@ private theorem linearFormsPrimeAverage_error_envelope {n q d b m : ℕ}
       (D.V N : ℝ) ^ q * D.epsilonBase N +
         linearFormsCrtEnvelope D N
           (fun i => integerCRTResidues (N + 1) (D.V N) (slots i)) := by
-  sorry
+  classical
+  let support := linearFormsDivisorTupleSupport D N
+  let mass := linearFormsDivisorTupleMass D N
+  let indicatorAverage (σ : Fin q → ℕ) : ℝ :=
+    ∑' x : Fin d → ℤ, D.baseMass N slots x *
+      (if ∀ u, (σ u : ℤ) ∣
+        (linearRowValue D.rowCoeff N slots u x).num then 1 else 0)
+  let r := fun i => integerCRTResidues (N + 1) (D.V N) (slots i)
+  let B : ℝ := (D.V N : ℝ) ^ q * D.epsilonBase N
+  have hfacts := linearFormsDivisorTuple_support_facts D N
+  have htotal : (∑ σ ∈ support, mass σ) = 1 := hfacts.2.1
+  have hterm (σ : Fin q → ℕ) (hσ : σ ∈ support) :
+      |mass σ * ((∏ u, (σ u : ℝ)) * indicatorAverage σ - 1)| ≤
+        mass σ * (B + linearFormsTupleEnvelope D N σ r) := by
+    by_cases hmass : mass σ = 0
+    · simp [hmass]
+    have hrow (u : Fin q) :
+        divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u) ≠ 0 := by
+      intro hzero
+      apply hmass
+      exact Finset.prod_eq_zero (Finset.mem_univ u) hzero
+    have hpos (u : Fin q) : 0 < σ u :=
+      lt_of_lt_of_le Nat.zero_lt_one (hfacts.2.2.2 σ hσ u).1
+    let K : ℕ := ∏ u, σ u
+    have hK : 0 < K := Finset.prod_pos (fun u hu => hpos u)
+    letI : NeZero K := ⟨Nat.ne_of_gt hK⟩
+    letI : ∀ u : Fin q, NeZero (σ u) := fun u => ⟨Nat.ne_of_gt (hpos u)⟩
+    have hdiv (u : Fin q) : σ u ∣ K :=
+      Finset.dvd_prod_of_mem σ (Finset.mem_univ u)
+    let α : ℝ := normalizedKernelCount
+      (globalDivisibilityAddHom σ hdiv
+        (fun u j => (rationalRowClearedCoefficient
+          (fun j => D.rowCoeff N slots u j) j : ZMod K))).toMultiplicative
+    have hkernel : 1 ≤ α ∧ α - 1 ≤ linearFormsTupleEnvelope D N σ r :=
+      linearFormsTupleKernel_envelope D N slots hgood σ hrow K hK rfl hdiv
+    have hbase : |(K : ℝ) * indicatorAverage σ - α| ≤
+        (K : ℝ) * D.epsilonBase N := by
+      have herr := @linearFormsBaseTupleKernel_error n q d b m K Aset tests S
+        D N slots hgood σ hrow inferInstance K inferInstance hK rfl hdiv
+      have hleft :
+          (∑' x : Fin d → ℤ, D.baseMass N slots x * (K : ℝ) *
+            (if ∀ u, (σ u : ℤ) ∣
+              (linearRowValue D.rowCoeff N slots u x).num then 1 else 0)) =
+          (K : ℝ) * indicatorAverage σ := by
+        calc
+          _ = ∑' x : Fin d → ℤ, (K : ℝ) * (D.baseMass N slots x *
+                (if ∀ u, (σ u : ℤ) ∣
+                  (linearRowValue D.rowCoeff N slots u x).num then 1 else 0)) := by
+                    apply tsum_congr
+                    intro x
+                    ring
+          _ = _ := tsum_mul_left
+      rw [hleft] at herr
+      exact herr
+    have hKbound : (K : ℝ) ≤ (D.V N : ℝ) ^ q := by
+      calc
+        (K : ℝ) = ∏ u, (σ u : ℝ) := by simp [K]
+        _ ≤ ∏ _u : Fin q, (D.V N : ℝ) := by
+          apply finset_prod_le_prod_of_nonneg Finset.univ
+          · intro u hu; positivity
+          · intro u hu; positivity
+          · intro u hu
+            exact_mod_cast (hfacts.2.2.2 σ hσ u).2.1
+        _ = (D.V N : ℝ) ^ q := by simp
+    have herror : |(K : ℝ) * indicatorAverage σ - 1| ≤
+        B + linearFormsTupleEnvelope D N σ r := by
+      calc
+        _ = |((K : ℝ) * indicatorAverage σ - α) + (α - 1)| := by
+          congr 1
+          ring
+        _ ≤ |(K : ℝ) * indicatorAverage σ - α| + |α - 1| := abs_add_le _ _
+        _ ≤ (K : ℝ) * D.epsilonBase N + linearFormsTupleEnvelope D N σ r := by
+          apply add_le_add hbase
+          rw [abs_of_nonneg (sub_nonneg.mpr hkernel.1)]
+          exact hkernel.2
+        _ ≤ B + linearFormsTupleEnvelope D N σ r :=
+          add_le_add
+            (mul_le_mul_of_nonneg_right hKbound (D.epsilonBase_nonnegative N)) le_rfl
+    have hcast : (∏ u, (σ u : ℝ)) = (K : ℝ) := by simp [K]
+    rw [hcast, abs_mul, abs_of_nonneg (hfacts.1 σ)]
+    exact mul_le_mul_of_nonneg_left herror (hfacts.1 σ)
+  have hexpand : linearFormsPrimeAverage D N slots - 1 =
+      ∑ σ ∈ support, mass σ *
+        ((∏ u, (σ u : ℝ)) * indicatorAverage σ - 1) := by
+    rw [linearFormsPrimeAverage_divisorExpansion]
+    calc
+      _ = (∑ σ ∈ support, mass σ *
+            ((∏ u, (σ u : ℝ)) * indicatorAverage σ)) -
+          ∑ σ ∈ support, mass σ := by
+        rw [htotal]
+        congr 1
+        apply Finset.sum_congr rfl
+        intro σ hσ
+        dsimp [mass, indicatorAverage]
+        ring
+      _ = _ := by
+        rw [← Finset.sum_sub_distrib]
+        apply Finset.sum_congr rfl
+        intro σ hσ
+        ring
+  rw [hexpand]
+  calc
+    _ ≤ ∑ σ ∈ support,
+        |mass σ * ((∏ u, (σ u : ℝ)) * indicatorAverage σ - 1)| :=
+      Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ σ ∈ support, mass σ * (B + linearFormsTupleEnvelope D N σ r) :=
+      Finset.sum_le_sum hterm
+    _ = B + linearFormsCrtEnvelope D N r := by
+      simp_rw [mul_add]
+      rw [Finset.sum_add_distrib, ← Finset.sum_mul, htotal, one_mul]
+      rfl
 
 /-- Part 3. Transfer through the prime-slot law: the weighted average differs from the event
 probability by the base and CRT errors plus the uniform CRT expectation of the envelope. -/
