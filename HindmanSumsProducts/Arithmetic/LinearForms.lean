@@ -4321,6 +4321,39 @@ private theorem divisorTuplePrimeVectorMass_le {n q d b m : ℕ}
           exact mul_le_mul h6 hprodLower (by positivity) (by positivity)
   exact independentPrimeVectorMass_le P laws support hlawZero hlawNonneg a upper hupper hrow
 
+private theorem exists_top_two_positive_valuations {q : ℕ}
+    (a : Fin q → ℕ)
+    (hcard : 2 ≤ ((Finset.univ : Finset (Fin q)).filter fun u => 0 < a u).card) :
+    ∃ u v : Fin q,
+      0 < a u ∧ 0 < a v ∧ u ≠ v ∧ a v ≤ a u ∧
+        ∀ w, w ≠ u → a w ≤ a v := by
+  classical
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  have hUnonempty : U.Nonempty := by
+    apply Finset.card_pos.mp
+    omega
+  obtain ⟨u, huU, huMax⟩ := Finset.exists_max_image U a hUnonempty
+  let R := U.erase u
+  have hRcard : R.card = U.card - 1 := by
+    dsimp [R]
+    exact Finset.card_erase_of_mem huU
+  have hRnonempty : R.Nonempty := by
+    apply Finset.card_pos.mp
+    rw [hRcard]
+    omega
+  obtain ⟨v, hvR, hvMax⟩ := Finset.exists_max_image R a hRnonempty
+  have hvR' := Finset.mem_erase.mp hvR
+  have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
+  have hvPos : 0 < a v := (Finset.mem_filter.mp hvR'.2).2
+  refine ⟨u, v, huPos, hvPos, hvR'.1,
+    huMax v (Finset.mem_erase.mpr ⟨hvR'.1, hvR'.2⟩), ?_⟩
+  intro w hwu
+  by_cases hw : 0 < a w
+  · have hwU : w ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hw⟩
+    exact hvMax w (Finset.mem_erase.mpr ⟨hwu, hwU⟩)
+  · have hwa : a w = 0 := by omega
+    omega
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
