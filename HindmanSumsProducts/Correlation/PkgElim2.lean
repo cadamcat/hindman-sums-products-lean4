@@ -2742,4 +2742,113 @@ theorem c_elim2_boxWeightRowFactor_le_boxRetainedProduct
         ∏ η : FullBranch, rowFactor η := hrowSub
     _ ≤ c_elim2_boxRetainedProduct D Finset.univ b fullU := hrowFactorLe
 
+theorem c_elim2_iterate_box_cauchy {α : Type u} [Fintype α] [DecidableEq α]
+    (F : Finset α → ℝ) (C : ℝ) (hC : 0 < C)
+    (hstep : ∀ (E : Finset α), E ⊆ Finset.univ → ∀ R, R ∈ Finset.univ → R ∉ E →
+      |F E| ^ 2 ≤ C * F (insert R E))
+    (hnonneg : ∀ E : Finset α, E.Nonempty → 0 ≤ F E) :
+    |F ∅| ^ (2 ^ Fintype.card α) ≤
+      C ^ (2 ^ Fintype.card α - 1) * |F Finset.univ| := by
+  classical
+  have hiter : ∀ n, ∀ E : Finset α,
+      (Finset.univ \ E).card = n → E ⊆ Finset.univ →
+      |F E| ^ (2 ^ n) ≤ C ^ (2 ^ n - 1) * |F Finset.univ| := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+        intro E hcard hE
+        by_cases hn0 : n = 0
+        · have hcard0 := hcard
+          subst n
+          have hEeq : E = Finset.univ := by
+            ext x
+            constructor
+            · intro hx
+              exact Finset.mem_univ x
+            · intro hx
+              by_contra hxE
+              have hpos : 0 < (Finset.univ \ E).card :=
+                Finset.card_pos.mpr ⟨x, Finset.mem_sdiff.mpr ⟨hx, hxE⟩⟩
+              rw [hcard0] at hpos
+              omega
+          simp [hEeq]
+        · have hnpos : 0 < n := Nat.pos_of_ne_zero hn0
+          have hremNonempty : (Finset.univ \ E).Nonempty := by
+            by_contra h
+            have hempty : Finset.univ \ E = ∅ := Finset.not_nonempty_iff_eq_empty.mp h
+            rw [hempty] at hcard
+            simp at hcard
+            omega
+          obtain ⟨R, hRrem⟩ := hremNonempty
+          have hRmem : R ∈ Finset.univ := (Finset.mem_sdiff.mp hRrem).1
+          have hRnotE : R ∉ E := (Finset.mem_sdiff.mp hRrem).2
+          let E' := insert R E
+          have hE' : E' ⊆ Finset.univ := by
+            intro x hx
+            rcases Finset.mem_insert.mp hx with hxR | hxE
+            · simpa [hxR]
+            · exact hE hxE
+          have hcard' : (Finset.univ \ E').card = n - 1 := by
+            dsimp [E']
+            rw [Finset.sdiff_insert, Finset.card_erase_of_mem hRrem, hcard]
+          have hnext := ih (n - 1) (by omega) E' hcard' hE'
+          have hFnext : 0 ≤ F E' :=
+            hnonneg E' ⟨R, Finset.mem_insert_self R E⟩
+          have hstepN := hstep E hE R hRmem hRnotE
+          let k : ℕ := 2 ^ (n - 1)
+          have hpowIndex : 2 ^ n = 2 * k := by
+            dsimp [k]
+            calc
+              2 ^ n = 2 ^ ((n - 1) + 1) := by congr 1; omega
+              _ = 2 ^ (n - 1) * 2 := by rw [Nat.pow_succ]
+              _ = 2 * 2 ^ (n - 1) := by omega
+          have hpower := pow_le_pow_left₀ (sq_nonneg (|F E|)) hstepN k
+          have hnextAbs : |F E'| = F E' := abs_of_nonneg hFnext
+          rw [hnextAbs] at hnext
+          calc
+            |F E| ^ (2 ^ n) = (|F E| ^ 2) ^ k := by
+              rw [hpowIndex, pow_mul]
+            _ ≤ (C * F E') ^ k := hpower
+            _ = C ^ k * F E' ^ k := by rw [mul_pow]
+            _ ≤ C ^ k * (C ^ (k - 1) * |F Finset.univ|) := by
+              exact mul_le_mul_of_nonneg_left hnext (by positivity)
+            _ = C ^ (2 ^ n - 1) * |F Finset.univ| := by
+              rw [← mul_assoc, ← pow_add]
+              congr 2
+              dsimp [k]
+              omega
+  have hmain := hiter (Fintype.card α) ∅ (by simp) (Finset.empty_subset _)
+  simpa using hmain
+
+theorem c_elim2_uniformFintypeAverage_mono {α : Type*} [Fintype α]
+    (f g : α → ℝ) (h : ∀ x, f x ≤ g x) :
+    c_elim2_uniformFintypeAverage f ≤ c_elim2_uniformFintypeAverage g := by
+  unfold c_elim2_uniformFintypeAverage
+  apply mul_le_mul_of_nonneg_left
+  · exact Finset.sum_le_sum (fun x hx => h x)
+  · exact inv_nonneg.mpr (Nat.cast_nonneg _)
+
+theorem c_elim2_shiftStateAverage_le_fullUniformAverage
+    {α : Type u} [Fintype α] [DecidableEq α] (E : Finset α) (L : ℕ)
+    (hL : 0 < L) (G : (c_elim2_ShiftCoord E → Fin L) → ℝ)
+    (F : (α → Fin 2 → Fin L) → ℝ)
+    (hpoint : ∀ u : α → Fin 2 → Fin L,
+      G (c_elim2_shiftAssignmentPartitionEquiv E L u).1 ≤ F u) :
+    c_elim2_shiftStateAverage E L G ≤ c_elim2_uniformFintypeAverage F := by
+  classical
+  let e := c_elim2_shiftAssignmentPartitionEquiv E L
+  let Outside := {i : α // i ∉ E} → Fin L
+  letI : Fintype Outside := inferInstance
+  letI : Nonempty Outside := ⟨fun _ => ⟨0, hL⟩⟩
+  have hdep : c_elim2_uniformFintypeAverage (fun u => G (e u).1) =
+      c_elim2_uniformFintypeAverage G :=
+    c_elim2_uniformFintypeAverage_depends_on_state e
+      (fun u => G (e u).1) G (by intro u; rfl)
+  change c_elim2_uniformFintypeAverage G ≤ c_elim2_uniformFintypeAverage F
+  calc
+    c_elim2_uniformFintypeAverage G =
+        c_elim2_uniformFintypeAverage (fun u => G (e u).1) := hdep.symm
+    _ ≤ c_elim2_uniformFintypeAverage F :=
+      c_elim2_uniformFintypeAverage_mono _ _ hpoint
+
 end HindmanSumsProducts
