@@ -4398,6 +4398,89 @@ theorem pkgB_momentBaseRegular_eventually {K sl : ℕ} {As : Finset ℚ}
       simpa only [momentPrimeDiagonal_apply] using hlen
     omega
 
+private theorem pkgB_primePoolLaw_tsum_eq_one {lo hi : ℕ}
+    (hMass : 0 < primePoolMass lo hi) :
+    ∑' p : ℕ, primePoolLaw lo hi p = 1 := by
+  classical
+  have hzero : ∀ p ∉ Finset.Ico lo hi, primePoolLaw lo hi p = 0 := by
+    intro p hp
+    have hp' : ¬ (lo ≤ p ∧ p < hi) := by
+      simpa only [Finset.mem_Ico] using hp
+    simp only [primePoolLaw]
+    split_ifs with h
+    · exact False.elim (hp' ⟨h.1, h.2.1⟩)
+    · rfl
+  calc
+    (∑' p : ℕ, primePoolLaw lo hi p) =
+        ∑ p ∈ Finset.Ico lo hi, primePoolLaw lo hi p :=
+      tsum_eq_sum (s := Finset.Ico lo hi) hzero
+    _ = ∑ p ∈ (Finset.Ico lo hi).filter Nat.Prime,
+          (1 / (p : ℝ)) / primePoolMass lo hi := by
+      rw [Finset.sum_filter]
+      apply Finset.sum_congr rfl
+      intro p hp
+      simp [primePoolLaw, Finset.mem_Ico.mp hp]
+    _ = (∑ p ∈ (Finset.Ico lo hi).filter Nat.Prime, 1 / (p : ℝ)) /
+          primePoolMass lo hi := by
+      rw [Finset.sum_div]
+    _ = 1 := by
+      rw [show (∑ p ∈ (Finset.Ico lo hi).filter Nat.Prime, 1 / (p : ℝ)) =
+          primePoolMass lo hi by rfl]
+      exact div_self (ne_of_gt hMass)
+
+/-- The independent prime tuple law has mass one whenever every pool has positive harmonic
+mass. The finite support and product-sum identity make this independent of the tuple dimension. -/
+theorem pkgB_independentPrimePoolMass_tsum_eq_one {m : ℕ}
+    (lo hi : Fin m → ℕ)
+    (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
+    ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
+  classical
+  let S : Finset (Fin m → ℕ) := Fintype.piFinset fun i : Fin m => Finset.Ico (lo i) (hi i)
+  have hzero : ∀ p ∉ S, independentPrimePoolMass lo hi p = 0 := by
+    intro p hp
+    have hnot : ¬ ∀ i, p i ∈ Finset.Ico (lo i) (hi i) := by
+      simpa [S] using hp
+    obtain ⟨i, hnoti⟩ := not_forall.mp hnot
+    have hfactor : primePoolLaw (lo i) (hi i) (p i) = 0 := by
+      have hbounds : ¬ (lo i ≤ p i ∧ p i < hi i) := by
+        simpa only [Finset.mem_Ico] using hnoti
+      simp only [primePoolLaw]
+      split_ifs with h
+      · exact False.elim (hbounds ⟨h.1, h.2.1⟩)
+      · rfl
+    unfold independentPrimePoolMass
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hfactor
+  rw [tsum_eq_sum (s := S) hzero]
+  have hfactor :
+      (∑ p ∈ S, independentPrimePoolMass lo hi p) =
+        ∏ i : Fin m, ∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n := by
+    simpa [S, independentPrimePoolMass] using
+      (Finset.prod_univ_sum (fun i : Fin m => Finset.Ico (lo i) (hi i))
+        (fun i n => primePoolLaw (lo i) (hi i) n)).symm
+  calc
+    (∑ p ∈ S, independentPrimePoolMass lo hi p) =
+        ∏ i : Fin m, ∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n := hfactor
+    _ = ∏ _i : Fin m, (1 : ℝ) := by
+      apply Finset.prod_congr rfl
+      intro i hmem
+      have hsum : (∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n) = 1 := by
+        have hzero' : ∀ n ∉ Finset.Ico (lo i) (hi i),
+            primePoolLaw (lo i) (hi i) n = 0 := by
+          intro n hn
+          have hbounds : ¬ (lo i ≤ n ∧ n < hi i) := by
+            simpa only [Finset.mem_Ico] using hn
+          simp only [primePoolLaw]
+          split_ifs with h
+          · exact False.elim (hbounds ⟨h.1, h.2.1⟩)
+          · rfl
+        calc
+          (∑ n ∈ Finset.Ico (lo i) (hi i), primePoolLaw (lo i) (hi i) n) =
+              ∑' n : ℕ, primePoolLaw (lo i) (hi i) n :=
+            (tsum_eq_sum (s := Finset.Ico (lo i) (hi i)) hzero').symm
+          _ = 1 := pkgB_primePoolLaw_tsum_eq_one (hMass i)
+      exact hsum
+    _ = 1 := by simp
+
 end Prediction
 
 end HindmanSumsProducts
