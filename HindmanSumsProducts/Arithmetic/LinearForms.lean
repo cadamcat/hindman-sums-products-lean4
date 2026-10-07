@@ -7588,6 +7588,91 @@ private theorem linearForms_uniformCrtEnvelope_excess {n q d b m : ℕ}
           rw [hfiniteToSubtype]
           simpa [c] using hprodExcess
 
+private theorem inverseSquare_prime_product_tail (w V : ℕ) (hw : 0 < w)
+    (C₁ : ℝ) (hC₁ : 0 ≤ C₁) :
+    (∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime,
+      (1 + C₁ / (p : ℝ) ^ 2)) - 1 ≤ (Real.exp C₁ * C₁) / (w : ℝ) := by
+  classical
+  let P : Finset ℕ := (Finset.Ioc w (V + 1)).filter Nat.Prime
+  let S : ℝ := ∑ p ∈ P, C₁ / (p : ℝ) ^ 2
+  have hsumNonneg : 0 ≤ S := by
+    dsimp [S]
+    apply Finset.sum_nonneg
+    intro p hp
+    positivity
+  have hsumBound : S ≤ C₁ / (w : ℝ) := by
+    by_cases hwV : w ≤ V + 1
+    · have hsubset : P ⊆ Finset.Ioc w (V + 1) := Finset.filter_subset _ _
+      have hinterval :
+          (∑ p ∈ P, C₁ / (p : ℝ) ^ 2) ≤
+            ∑ p ∈ Finset.Ioc w (V + 1), C₁ / (p : ℝ) ^ 2 :=
+        Finset.sum_le_sum_of_subset_of_nonneg hsubset (by
+          intro p hp hnot
+          positivity)
+      have hfactor :
+          (∑ p ∈ Finset.Ioc w (V + 1), C₁ / (p : ℝ) ^ 2) =
+            C₁ * ∑ p ∈ Finset.Ioc w (V + 1), ((p : ℝ) ^ 2)⁻¹ := by
+        calc
+          _ = ∑ p ∈ Finset.Ioc w (V + 1), C₁ * ((p : ℝ) ^ 2)⁻¹ := by
+                apply Finset.sum_congr rfl
+                intro p hp
+                ring
+          _ = _ := by rw [← Finset.mul_sum]
+      have hrecip := sum_Ioc_inv_sq_le_sub (α := ℝ) (by omega : w ≠ 0) hwV
+      calc
+        S ≤ C₁ * ∑ p ∈ Finset.Ioc w (V + 1), ((p : ℝ) ^ 2)⁻¹ := by
+          simpa [S, hfactor] using hinterval
+        _ ≤ C₁ * ((w : ℝ)⁻¹ - ((V + 1 : ℕ) : ℝ)⁻¹) :=
+          mul_le_mul_of_nonneg_left hrecip hC₁
+        _ ≤ C₁ * (w : ℝ)⁻¹ := by
+          have hnonneg : 0 ≤ ((V + 1 : ℕ) : ℝ)⁻¹ := by positivity
+          nlinarith [hC₁]
+        _ = C₁ / (w : ℝ) := by ring
+    · have hempty : Finset.Ioc w (V + 1) = ∅ := by
+        ext p
+        simp only [Finset.mem_Ioc]
+        constructor
+        · rintro ⟨hpw, hpV⟩
+          exact False.elim (hwV (le_trans hpw.le hpV))
+        · intro hp
+          exact False.elim (Finset.notMem_empty p hp)
+      have hPempty : P = ∅ := by simp [P, hempty]
+      simp [S, hPempty]
+      positivity
+  have hprodExp :
+      (∏ p ∈ P, (1 + C₁ / (p : ℝ) ^ 2)) ≤ Real.exp S := by
+    simpa [S] using
+      (Real.prod_one_add_le_exp_sum P (f := fun p => C₁ / (p : ℝ) ^ 2)
+        (by intro p; positivity))
+  have hwR : 0 < (w : ℝ) := by exact_mod_cast hw
+  have hwRle : 1 ≤ (w : ℝ) := by exact_mod_cast (Nat.succ_le_of_lt hw)
+  have hSleC : S ≤ C₁ := by
+    have hdiv : C₁ / (w : ℝ) ≤ C₁ := by
+      apply (div_le_iff₀ hwR).2
+      have hmul : 0 ≤ C₁ * ((w : ℝ) - 1) := mul_nonneg hC₁ (by linarith)
+      nlinarith
+    exact hsumBound.trans hdiv
+  have hbasic : Real.exp S - 1 ≤ Real.exp S * S := by
+    have hneg := Real.add_one_le_exp (-S)
+    have hproduct : Real.exp S * Real.exp (-S) = 1 := by
+      rw [← Real.exp_add]
+      simp
+    have hmul : Real.exp S * (1 - S) ≤ 1 := by
+      calc
+        Real.exp S * (1 - S) ≤ Real.exp S * Real.exp (-S) :=
+          mul_le_mul_of_nonneg_left (by linarith) (Real.exp_nonneg S)
+        _ = 1 := hproduct
+    linarith
+  have hExpLe : Real.exp S ≤ Real.exp C₁ := Real.exp_le_exp.mpr hSleC
+  have hmulBound : Real.exp S * S ≤ Real.exp C₁ * (C₁ / (w : ℝ)) :=
+    mul_le_mul hExpLe hsumBound hsumNonneg (by positivity)
+  calc
+    (∏ p ∈ P, (1 + C₁ / (p : ℝ) ^ 2)) - 1 ≤ Real.exp S - 1 :=
+      sub_le_sub_right hprodExp 1
+    _ ≤ Real.exp S * S := hbasic
+    _ ≤ Real.exp C₁ * (C₁ / (w : ℝ)) := hmulBound
+    _ = (Real.exp C₁ * C₁) / (w : ℝ) := by ring
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
