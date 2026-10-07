@@ -771,5 +771,173 @@ theorem opus_corr_elim_iterate (S : FromArithmetic.MasterScales K Aset s Dm)
 
 end ElimStep
 
+
+/-! ## The concrete box integrands of additive elimination -/
+
+section Concrete
+
+variable {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+theorem opus_corr_br_univ {ι : Type*} [Fintype ι] [DecidableEq ι] :
+    opus_corr_br (Finset.univ : Finset ι) = Finset.univ := by
+  ext ω; simp [opus_corr_mem_br]
+
+theorem opus_corr_brI_univ {ι : Type*} [Fintype ι] [DecidableEq ι] (I : ι) :
+    opus_corr_brI (Finset.univ : Finset ι) I = Finset.univ := by
+  ext η; simp [opus_corr_mem_brI]
+
+theorem opus_corr_br_empty {ι : Type*} [Fintype ι] [DecidableEq ι] :
+    opus_corr_br (∅ : Finset ι) = {fun _ => 0} := by
+  ext ω
+  simp only [opus_corr_mem_br, Finset.notMem_empty, not_false_eq_true, forall_const,
+    Finset.mem_singleton]
+  constructor
+  · intro h; funext x; exact h x
+  · rintro rfl x; rfl
+
+/-- The target factor `g_*(ℓ_*(z)+M(p)∑_Ry_R)`. -/
+def opus_corr_cT (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) :
+    (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → ℕ) → ℝ := fun p z y =>
+  atQ (f Sh.star p) (rowForm (chainScale S.core.parameters C a N) (Sh.row Sh.star) p z +
+    (directionModulus S N dirs.poly p : ℚ) * ∑ R, (y R : ℚ))
+
+/-- The point `z+∑_{R≠I}y_Rv_R` at which the row `I` is read. -/
+def opus_corr_cPt (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (p : Fin q → ℕ) (z : Fin m → ℚ) (I : NonTarget Sh) (y : {R // R ≠ I} → ℕ) :
+    Fin m → ℚ := fun k =>
+  z k + ∑ R : {R // R ≠ I}, (y R : ℚ) *
+    dirs.translation (chainScale S.core.parameters C a N) (directionModulus S N dirs.poly p)
+      p R.1.1 k
+
+/-- The active row factor `f_I(ℓ_I(z+∑_{R≠I}y_Rv_R))`. -/
+def opus_corr_cA (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) :
+    (Fin q → ℕ) → (Fin m → ℚ) → ∀ I : NonTarget Sh, ({R // R ≠ I} → ℕ) → ℝ :=
+  fun p z I y => atQ (f I.1 p) (rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+    (opus_corr_cPt S C a N dirs p z I y))
+
+/-- The weight `W_I=1+ν_{a(I)}` at the same point. -/
+def opus_corr_cW (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) :
+    (Fin q → ℕ) → (Fin m → ℚ) → ∀ I : NonTarget Sh, ({R // R ≠ I} → ℕ) → ℝ :=
+  fun p z I y => 1 + atQ (chainWeight S.core.parameters C N (Sh.row I.1).anchor)
+    (rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+      (opus_corr_cPt S C a N dirs p z I y))
+
+theorem opus_corr_atQ_chainWeight_nonneg (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (x : ℚ) :
+    0 ≤ atQ (chainWeight S.core.parameters C N d) x := by
+  unfold atQ
+  split_ifs
+  · exact chainWeight_nonneg S C N d _
+  · exact le_rfl
+
+theorem opus_corr_cW_nonneg (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p z I y) :
+    0 ≤ opus_corr_cW S C a N dirs p z I y := by
+  unfold opus_corr_cW
+  have := opus_corr_atQ_chainWeight_nonneg S C N (Sh.row I.1).anchor
+    (rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+      (opus_corr_cPt S C a N dirs p z I y))
+  linarith
+
+theorem opus_corr_cW_ge_one (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p z I y) :
+    1 ≤ opus_corr_cW S C a N dirs p z I y := by
+  unfold opus_corr_cW
+  have := opus_corr_atQ_chainWeight_nonneg S C N (Sh.row I.1).anchor
+    (rowForm (chainScale S.core.parameters C a N) (Sh.row I.1) p
+      (opus_corr_cPt S C a N dirs p z I y))
+  linarith
+
+theorem opus_corr_cA_abs_le (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hf : ∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y)
+    (p z I y) :
+    |opus_corr_cA S C a N dirs f p z I y| ≤ opus_corr_cW S C a N dirs p z I y := by
+  unfold opus_corr_cA opus_corr_cW atQ
+  split_ifs
+  · exact hf _ _ _
+  · simp
+
+/-- At `E = univ` the box integrand is the target cube times the retained weights. -/
+theorem opus_corr_elimPhi_univ (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (x : (Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ)) :
+    opus_corr_elimPhi (opus_corr_cT S C a N dirs f) (opus_corr_cA S C a N dirs f)
+        (opus_corr_cW S C a N dirs) Finset.univ x =
+      (∏ ω : NonTarget Sh → Fin 2, atQ (f Sh.star x.1)
+        (targetVertex (chainScale S.core.parameters C a N) Sh x.1
+          (directionModulus S N dirs.poly x.1) x.2.1 x.2.2 ω)) *
+        retainedWeights S C a N dirs x.1 x.2.1 x.2.2 := by
+  unfold opus_corr_elimPhi opus_corr_boxPhi
+  rw [opus_corr_br_univ]
+  have hfilter : (Finset.univ.filter fun I : NonTarget Sh => I ∉ (Finset.univ : Finset _)) = ∅ := by
+    simp
+  rw [hfilter]
+  simp only [Finset.prod_empty, Finset.prod_const_one, mul_one]
+  simp_rw [opus_corr_brI_univ]
+  rfl
+
+/-- At `E = ∅`, on a tuple with the direction facts, the box integrand is the product of all
+rows translated by `∑_R u_R^0v_R` (04:444–452). -/
+theorem opus_corr_elimPhi_empty (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (B : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (p : Fin q → ℕ)
+    (hfacts : IntegerDirectionFacts S C a N dirs tests B p)
+    (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ) :
+    opus_corr_elimPhi (opus_corr_cT S C a N dirs f) (opus_corr_cA S C a N dirs f)
+        (opus_corr_cW S C a N dirs) ∅ (p, z, u) =
+      ∏ J : Fin r, atQ (f J p) (rowForm (chainScale S.core.parameters C a N) (Sh.row J) p
+        (fun k => z k + ∑ R : NonTarget Sh, (u R 0 : ℚ) *
+          dirs.translation (chainScale S.core.parameters C a N)
+            (directionModulus S N dirs.poly p) p R.1 k)) := by
+  classical
+  let c := chainScale S.core.parameters C a N
+  let Mp := directionModulus S N dirs.poly p
+  have hstar : ∀ R : NonTarget Sh, rowForm c (Sh.row Sh.star) p (dirs.translation c Mp p R.1) =
+      (Mp : ℚ) := fun R => hfacts.2.2.2.1 R.1 R.2
+  have hself : ∀ R : NonTarget Sh, rowForm c (Sh.row R.1) p (dirs.translation c Mp p R.1) = 0 :=
+    fun R => hfacts.2.2.2.2.1 R.1 R.2
+  unfold opus_corr_elimPhi opus_corr_boxPhi
+  rw [opus_corr_br_empty]
+  have hfilter : (Finset.univ.filter fun I : NonTarget Sh => I ∉ (∅ : Finset _)) =
+      Finset.univ := by simp
+  rw [hfilter]
+  simp only [Finset.prod_singleton, Finset.prod_empty, mul_one]
+  rw [Fintype.prod_eq_mul_prod_subtype_ne _ Sh.star]
+  congr 1
+  · -- the target
+    unfold opus_corr_cT
+    congr 1
+    rw [c_elim2_rowForm_finset_sum c (Sh.row Sh.star) p z Finset.univ
+      (fun R => (u R 0 : ℚ)) (fun R => dirs.translation c Mp p R.1)]
+    simp only [hstar, opus_corr_ev]
+    rw [← Finset.sum_mul]
+    ring
+  · -- the other rows
+    apply Finset.prod_congr rfl
+    intro I _
+    unfold opus_corr_cA
+    congr 1
+    unfold opus_corr_cPt
+    rw [c_elim2_rowForm_finset_sum c (Sh.row I.1) p z Finset.univ
+      (fun R : {R // R ≠ I} => (opus_corr_evI u (opus_corr_restr (fun _ => 0) I) R : ℚ))
+      (fun R => dirs.translation c Mp p R.1.1)]
+    rw [c_elim2_rowForm_finset_sum c (Sh.row I.1) p z Finset.univ
+      (fun R : NonTarget Sh => (u R 0 : ℚ)) (fun R => dirs.translation c Mp p R.1)]
+    congr 1
+    rw [Fintype.sum_eq_add_sum_subtype_ne _ I, hself I, mul_zero, zero_add]
+    rfl
+
+end Concrete
+
 end
 end HindmanSumsProducts
