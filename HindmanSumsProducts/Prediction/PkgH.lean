@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Prediction.Subgroup
 import OAI.Combinatorics.SumProduct.Alignment.ProductExposure03
 
-/-! Helper lemmas for the §5 proof package S5-H (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-H). -/
 
 open Filter
 open MeasureTheory

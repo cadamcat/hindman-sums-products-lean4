@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Correlation.Defs
 import HindmanSumsProducts.Correlation.Outside
 
-/-! Helper lemmas for the uniform correlation test proof (lane `c-test2`). -/
+/-! Helper lemmas for the uniform correlation test proof. -/
 
 namespace HindmanSumsProducts
 

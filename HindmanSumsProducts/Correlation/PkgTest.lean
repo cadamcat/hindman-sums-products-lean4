@@ -2,7 +2,7 @@ import HindmanSumsProducts.Correlation.Defs
 import HindmanSumsProducts.Correlation.Outside
 import HindmanSumsProducts.Correlation.FromArithmetic
 
-/-! Helper lemmas for the §4 proof package `Test` (owned by its proof lane). -/
+/-! Helper lemmas for §4 (part Test). -/
 
 namespace HindmanSumsProducts
 

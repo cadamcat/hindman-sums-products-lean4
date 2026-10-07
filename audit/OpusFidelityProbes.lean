@@ -24,7 +24,7 @@ example (A B : Finset ℕ) : B ⊆ A ↔ ∀ x, x ∈ B → x ∈ A := Iff.rfl
 example (A B : Finset ℕ) : B ≤ A ↔ B ⊆ A := Iff.rfl
 example (B : Finset ℕ) : ∑ b ∈ B, b = B.sum id ∧ ∏ b ∈ B, b = B.prod id := ⟨rfl, rfl⟩
 
-/-- Independent restatement written before reading the coordinator's table: a colouring of the
+/-- Independent restatement: a colouring of the
 positive integers `ℕ+` into an arbitrary finite type, an `m`-element `Finset ℕ+`, and one colour
 for every nonempty subset sum (taken in `ℕ`, which must be the value of a positive integer)
 and every nonempty subset product (taken in `ℕ+`). -/

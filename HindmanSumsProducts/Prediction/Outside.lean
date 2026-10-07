@@ -5,7 +5,7 @@ import HindmanSumsProducts.InverseBridge
 /-!
 # The outside inverse theorem used by §5
 
-The two external statements of 05:450–489 are replaced as decided by the coordinator:
+The two external statements of 05:450–489 are replaced as follows:
 
 * Tao–Ziegler's Bessel inequality (eq:prediction-bessel) is replaced by the subgroup box-norm
   concatenation `HindmanSumsProducts.SubgroupBox.combine_subgroups` (`Concatenation.lean`), used

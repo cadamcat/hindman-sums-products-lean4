@@ -2,7 +2,7 @@ import HindmanSumsProducts.Prediction.Results
 import HindmanSumsProducts.ChainSelection.FiniteRamsey
 import OAI.Combinatorics.SumProduct.Alignment.HarmonicTranslation01
 
-/-! Helper lemmas for the §5 proof package S5-F (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-F). -/
 
 open Filter
 open scoped BigOperators NNReal Topology

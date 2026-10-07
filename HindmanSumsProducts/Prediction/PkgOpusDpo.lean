@@ -3,7 +3,7 @@ import HindmanSumsProducts.Prediction.PkgD
 import HindmanSumsProducts.Prediction.PkgB
 
 /-!
-# Lead helpers for `dual_products_orthogonal` (lane opus-dpo)
+# Helpers for `dual_products_orthogonal`
 
 Shared definitions for the part lemmas stated above `dual_products_orthogonal` in `Results.lean`,
 built on the `PkgB2` state machinery (replicated prime slots, occurrence rows, mixed base law):
@@ -1213,7 +1213,7 @@ theorem opus_dpo_inner_translation {K sl b : ℕ} {As : Finset ℚ}
 
 /-! ### Translation insertion: decay and the part lemma -/
 
-/-- (Copied from lane sol-dpop.) Harmonic translation errors decay superpolynomially when the
+/-- Harmonic translation errors decay superpolynomially when the
 logarithmic cutoff
 separates every fixed power of a scale dominating the displacement and block scale. -/
 theorem opus_dpo_harmonicTranslation_superPolynomial
@@ -2358,8 +2358,7 @@ theorem opus_dpo_inner_replica {K sl b : ℕ} {As : Finset ℚ}
       ring
 
 
-/-! ### Replica identity: prime-slot factorization (copied from lane l-drep's `PkgDRep.lean`,
-snapshot 2026-10-08, prefix renamed) -/
+/-! ### Replica identity: prime-slot factorization -/
 
 private noncomputable def opus_dpo_rep_blockTupleEquiv {b sl M : ℕ} :
     (Fin (b * sl) → Fin M) ≃ (Fin b → Fin sl → Fin M) where
@@ -3205,8 +3204,7 @@ theorem opus_dpo_replica_identity_proof {K sl b : ℕ} {As : Finset ℚ}
   rfl
 
 
-/-! ### Cauchy–Schwarz elimination step: helpers copied from lane sol-dpop
-(`PkgDpoS.lean` and the scratch `SolDpopCheck.lean`, snapshot 2026-10-08, prefix renamed) -/
+/-! ### Cauchy–Schwarz elimination step -/
 
 section OpusDpoS
 

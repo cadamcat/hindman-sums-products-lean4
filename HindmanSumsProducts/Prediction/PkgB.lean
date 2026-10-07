@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Prediction.Outside
 import Mathlib.Analysis.MeanInequalities
 
-/-! Helper lemmas for the §5 proof package S5-B (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-B). -/
 
 namespace HindmanSumsProducts
 

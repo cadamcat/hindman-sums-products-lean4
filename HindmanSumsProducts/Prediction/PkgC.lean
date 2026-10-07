@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Prediction.Outside
 import Mathlib.Topology.Sion
 
-/-! Helper lemmas for the §5 proof package S5-C (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-C). -/
 
 namespace HindmanSumsProducts
 

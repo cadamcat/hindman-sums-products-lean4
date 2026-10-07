@@ -9,11 +9,10 @@ in the namespace `HindmanSumsProducts.FromArithmetic`, so it elaborates next to
 `HindmanSumsProducts.Arithmetic` without a name clash.
 
 Every copy names its source `HindmanSumsProducts.<name>` (`Arithmetic/<File>.lean`) and says
-whether it is the same statement as on `main` at `1e75bc3` (repaired §3, merge of
-`lane/repair-master`). "Same" means the same text up to the namespace, so replacing the copy
-by an import is mechanical. The only copies that differ are `WeightedLinearFormsData`,
-`weightedLinearFormsAverage` and `prop_linear_forms`: §4 needs rows whose coefficients depend on
-`N` and on the prime slots (see `WeightedLinearFormsData`).
+whether it is the same statement as in `Arithmetic/`. "Same" means the same text up to the
+namespace, so replacing the copy by an import is mechanical. The only copies that differ are
+`WeightedLinearFormsData`, `weightedLinearFormsAverage` and `prop_linear_forms`: §4 needs rows
+whose coefficients depend on `N` and on the prime slots (see `WeightedLinearFormsData`).
 -/
 
 open scoped BigOperators Topology
