@@ -3359,6 +3359,159 @@ theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
       exact pivotMass_zero_of_not_mem_support S C N z hz
     _ = 1 := hfinite
 
+theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
+    {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
+    (hmodulus : 0 < modulus) (r : Fin m → Fin modulus) :
+    FromArithmetic.baseResidueLaw modulus hmodulus (pivotMass S.core.parameters C N) r =
+      ∏ i, harmonicResidueLaw
+        (harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+        modulus (r i) := by
+  classical
+  let D := pivotMassSupport S C N
+  let coord (i : Fin m) (z : ℤ) : ℝ :=
+    harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)) z *
+      (if FromArithmetic.integerResidue modulus hmodulus z = r i then 1 else 0)
+  have hterm (z : Fin m → ℤ) :
+      pivotMass S.core.parameters C N z *
+        (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+          then 1 else 0) = ∏ i, coord i (z i) := by
+    have hvec :
+        (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r ↔
+          ∀ i, FromArithmetic.integerResidue modulus hmodulus (z i) = r i := by
+      constructor
+      · intro h i
+        exact congrFun h i
+      · intro h
+        exact funext h
+    have hind :
+        (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+          then (1 : ℝ) else 0) =
+          ∏ i, (if FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+            then (1 : ℝ) else 0) := by
+      simp only [hvec]
+      by_cases hall : ∀ i,
+          FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+      · simp [hall]
+      · have hnot : ¬ ∀ i,
+            FromArithmetic.integerResidue modulus hmodulus (z i) = r i := hall
+        obtain ⟨i, hi⟩ := not_forall.mp hnot
+        have hzero :
+            (∏ i, (if FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+              then (1 : ℝ) else 0)) = 0 :=
+          Finset.prod_eq_zero (s := Finset.univ)
+            (f := fun i => if FromArithmetic.integerResidue modulus hmodulus (z i) = r i
+              then (1 : ℝ) else 0) (Finset.mem_univ i) (by simp [hi])
+        rw [if_neg hnot, hzero]
+    change (∏ i,
+        harmonicLaw (S.core.parameters.X N (C.block i).1)
+          (primorial (N + 1)) (z i)) * _ = _
+    rw [hind, ← Finset.prod_mul_distrib]
+
+  have hzero (z : Fin m → ℤ) (hz : z ∉ D) :
+      pivotMass S.core.parameters C N z *
+        (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+          then 1 else 0) = 0 := by
+    have hmass : pivotMass S.core.parameters C N z = 0 :=
+      pivotMass_zero_of_not_mem_support S C N z (by simpa [D] using hz)
+    simp [hmass]
+
+  have hfinite :
+      FromArithmetic.baseResidueLaw modulus hmodulus
+          (pivotMass S.core.parameters C N) r =
+        ∑ z ∈ D, ∏ i, coord i (z i) := by
+    unfold FromArithmetic.baseResidueLaw
+    calc
+      (∑' z : Fin m → ℤ,
+        pivotMass S.core.parameters C N z *
+          (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+            then 1 else 0)) =
+          ∑ z ∈ D,
+            pivotMass S.core.parameters C N z *
+              (if (fun i => FromArithmetic.integerResidue modulus hmodulus (z i)) = r
+                then 1 else 0) := tsum_eq_sum (s := D) hzero
+      _ = ∑ z ∈ D, ∏ i, coord i (z i) := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        exact hterm z
+
+  have hfactor :
+      (∑ z ∈ D, ∏ i, coord i (z i)) =
+        ∏ i, ∑ z ∈ harmonicLawSupport
+            (S.core.parameters.X N (C.block i).1) (primorial (N + 1)), coord i z := by
+    dsimp [D, pivotMassSupport]
+    symm
+    exact Finset.prod_univ_sum
+      (t := fun i => harmonicLawSupport
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+      (f := fun i z => coord i z)
+
+  have hcoordinate (i : Fin m) :
+      (∑ z ∈ harmonicLawSupport
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)), coord i z) =
+      harmonicResidueLaw
+        (harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+        modulus (r i) := by
+    let X := S.core.parameters.X N (C.block i).1
+    let W := primorial (N + 1)
+    let supp := harmonicLawSupport X W
+    have hnonneg (z : ℤ) (hz : z ∈ supp) : 0 ≤ z := by
+      rcases Finset.mem_image.mp hz with ⟨n, hn, rfl⟩
+      exact Int.natCast_nonneg n
+    have hres (z : ℤ) (hz : z ∈ supp) :
+        FromArithmetic.integerResidue modulus hmodulus z = r i ↔
+          0 ≤ z ∧ z.toNat % modulus = (r i).val := by
+      constructor
+      · intro heq
+        have hval := congrArg Fin.val heq
+        rw [integerResidue_eq_natMod_of_nonneg hmodulus (hnonneg z hz)] at hval
+        exact ⟨hnonneg z hz, hval⟩
+      · rintro ⟨hz0, hrem⟩
+        apply Fin.ext
+        rw [integerResidue_eq_natMod_of_nonneg hmodulus hz0]
+        exact hrem
+    have htermEq (z : ℤ) (hz : z ∈ supp) :
+        coord i z =
+          (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then
+            harmonicLaw X W z else 0) := by
+      by_cases hc : 0 ≤ z ∧ z.toNat % modulus = (r i).val
+      · have hr := (hres z hz).2 hc
+        simp [coord, X, W, hc, hr]
+      · have hr : ¬ FromArithmetic.integerResidue modulus hmodulus z = r i := by
+          intro hr
+          exact hc ((hres z hz).1 hr)
+        simp [coord, X, W, hc, hr]
+    have hzero (z : ℤ) (hz : z ∉ supp) :
+        (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then harmonicLaw X W z else 0) = 0 := by
+      by_cases hc : 0 ≤ z ∧ z.toNat % modulus = (r i).val
+      · simp [hc, harmonicLaw_zero_of_not_mem_support X W z hz]
+      · simp [hc]
+    unfold harmonicResidueLaw
+    calc
+      (∑ z ∈ supp, coord i z) =
+          ∑ z ∈ supp,
+            (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then
+              harmonicLaw X W z else 0) := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        exact htermEq z hz
+      _ = ∑' z : ℤ,
+          (if 0 ≤ z ∧ z.toNat % modulus = (r i).val then
+            harmonicLaw X W z else 0) := (tsum_eq_sum (s := supp) hzero).symm
+
+  calc
+    FromArithmetic.baseResidueLaw modulus hmodulus
+        (pivotMass S.core.parameters C N) r =
+        ∑ z ∈ D, ∏ i, coord i (z i) := hfinite
+    _ = ∏ i, ∑ z ∈ harmonicLawSupport
+        (S.core.parameters.X N (C.block i).1) (primorial (N + 1)), coord i z := hfactor
+    _ = ∏ i, harmonicResidueLaw
+        (harmonicLaw (S.core.parameters.X N (C.block i).1) (primorial (N + 1)))
+        modulus (r i) := by
+      apply Finset.prod_congr rfl
+      intro i hi
+      exact hcoordinate i
+
 noncomputable def gapPivotMass {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
