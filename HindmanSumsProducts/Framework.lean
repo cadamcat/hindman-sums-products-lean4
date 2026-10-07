@@ -28,6 +28,21 @@ ordering condition `eq:block-chain`; this is the same predicate as `IsChain` in
 def IsBlockChain {n m : ℕ} (B : Fin m → FrameworkBlock n) : Prop :=
   IsChain (fun d => (B d).2.val) (fun d => (B d).1)
 
+/-- Finite type of OAI block chains of a fixed length and ambient dimension. -/
+abbrev BlockChains (n m : ℕ) := {B : Fin m → FrameworkBlock n // IsBlockChain B}
+
+/-- The block-chain subtype is finite because its ambient list type is finite. -/
+noncomputable instance blockChainsFintype (n m : ℕ) : Fintype (BlockChains n m) :=
+  Fintype.ofFinite _
+
+/-- A finite rational scale list viewed as a finite subtype. -/
+noncomputable instance scaleListSubtypeFintype (vs : Finset ℚ) :
+    Fintype {a : ℚ // a ∈ vs} := Fintype.ofFinite _
+
+/-- The calibration triples `(B,a,c)` for fixed finite data. -/
+abbrev CalibrationIndex (n r : ℕ) (vs : Finset ℚ) :=
+  FrameworkBlock n × {a : ℚ // a ∈ vs} × Fin r
+
 /-- Earlier blocks of a chain lie in the later block's added-block family; this is the
 combinatorial reason for the tail-then-pivot ordering in `eq:block-chain`. -/
 theorem earlier_chain_block_mem_E {n m : ℕ} (B : Fin m → FrameworkBlock n)
@@ -40,8 +55,22 @@ theorem earlier_chain_block_mem_E {n m : ℕ} (B : Fin m → FrameworkBlock n)
   · intro t ht
     exact htailPivot d k t ht
 
+/-- Repackage the tails and pivots returned by `chain_selection` as OAI blocks. -/
+theorem blocksOfChainSelection {n m : ℕ} (T : Fin m → Finset (Fin n))
+    (piv : Fin m → Fin n) (hT : IsChain T piv) :
+    ∃ B : Fin m → FrameworkBlock n, IsBlockChain B ∧
+      ∀ d, (B d).set = insert (piv d) (T d) := by
+  refine ⟨fun d => ⟨piv d, ⟨T d, hT.1 d, ?_⟩⟩, ?_, fun d => rfl⟩
+  · intro j hj
+    exact hT.2.2.1 d d j hj
+  · exact hT
+
 /-- The rational scale vectors reused from OpenAI's word plan. -/
 abbrev FrameworkScale (n : ℕ) := OAI.ConstructedWordPlan.GlobalWordPlan.Scale n
+
+/-- The count triples `(b,𝐁,c)` for fixed finite data. -/
+abbrev PredictionCountIndex (n m r : ℕ) (bs : Finset (FrameworkScale n)) :=
+  {b : FrameworkScale n // b ∈ bs} × BlockChains n m × Fin r
 
 /-- The value of a scale vector on a block, using OpenAI's `blockProduct`. -/
 def blockScale {n : ℕ} (b : FrameworkScale n) (B : FrameworkBlock n) : ℚ :=
@@ -63,6 +92,27 @@ theorem frameworkLaw_eq {n : ℕ} (A : OAI.SourceAdmissible.Parameters n) (N : �
     (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) :
     frameworkLaw A N = A.law N hX := by
   simp [frameworkLaw, hX]
+
+/-- The total law is either OAI's probability law or the zero measure. -/
+noncomputable instance frameworkLawIsZeroOrProbabilityMeasure {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) :
+    MeasureTheory.IsZeroOrProbabilityMeasure (frameworkLaw A N) := by
+  rw [MeasureTheory.isZeroOrProbabilityMeasure_iff]
+  unfold frameworkLaw
+  split_ifs with hX
+  · haveI : MeasureTheory.IsProbabilityMeasure (A.law N hX) :=
+      OAI.SourceMenuAlignment.law_probability A N hX
+    exact Or.inr MeasureTheory.IsProbabilityMeasure.measure_univ
+  · simp
+
+/-- The total law is finite at the whole sample space. -/
+theorem frameworkLaw_ne_top_univ {n : ℕ} (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) :
+    frameworkLaw A N Set.univ ≠ ⊤ := by
+  have hcases : frameworkLaw A N Set.univ = 0 ∨ frameworkLaw A N Set.univ = 1 :=
+    (MeasureTheory.isZeroOrProbabilityMeasure_iff).mp inferInstance
+  rcases hcases with hzero | hone
+  · simpa [hzero]
+  · simpa [hone]
 
 /-- The raw tail product in a sampled vector. -/
 def tailValue {n : ℕ} (B : FrameworkBlock n) (t : Fin n → ℕ) : ℕ :=
@@ -188,11 +238,120 @@ def calibrationProbability {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
     (B : FrameworkBlock n) (a : ℚ) (c : Fin r) (τ : ℝ) : ℝ :=
   (frameworkLaw A N).real (calibrationFailureSet S χ N B a c τ)
 
+/-- Calibration failure set at a finite triple `(B,a,c)`. -/
+def calibrationFailureAt {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
+    {vs : Finset ℚ} {F : OAI.SourceRawMenu.Menu s}
+    (S : OAI.SourceRawMenu.ModelsSystem A vs r F) (χ : ℕ → Fin r) (N : ℕ)
+    (τ : ℝ) (i : CalibrationIndex n r vs) : Set (Fin n → ℕ) :=
+  calibrationFailureSet S χ N i.1 i.2.1 i.2.2 τ
+
+/-- Union of the finitely many calibration-failure events. -/
+def calibrationUnionSet {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
+    {vs : Finset ℚ} {F : OAI.SourceRawMenu.Menu s}
+    (S : OAI.SourceRawMenu.ModelsSystem A vs r F) (χ : ℕ → Fin r) (N : ℕ)
+    (τ : ℝ) : Set (Fin n → ℕ) :=
+  ⋃ i ∈ (Finset.univ : Finset (CalibrationIndex n r vs)),
+    calibrationFailureAt S χ N τ i
+
+/-- Probability that at least one calibration failure occurs. The index type is finite. -/
+def calibrationUnionProbability {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
+    {vs : Finset ℚ} {F : OAI.SourceRawMenu.Menu s}
+    (S : OAI.SourceRawMenu.ModelsSystem A vs r F) (χ : ℕ → Fin r) (N : ℕ)
+    (τ : ℝ) : ℝ :=
+  (frameworkLaw A N).real (calibrationUnionSet S χ N τ)
+
+/-- Probability form of the union bound for the finite calibration family. -/
+theorem calibration_failure_union_probability_le {n r s : ℕ}
+    {A : OAI.SourceAdmissible.Parameters n} {vs : Finset ℚ}
+    {F : OAI.SourceRawMenu.Menu s} (S : OAI.SourceRawMenu.ModelsSystem A vs r F)
+    (χ : ℕ → Fin r) (N : ℕ) (τ : ℝ) :
+    calibrationUnionProbability S χ N τ ≤
+      ∑ i : CalibrationIndex n r vs,
+        calibrationProbability S χ N i.1 i.2.1 i.2.2 τ := by
+  classical
+  unfold calibrationUnionProbability calibrationUnionSet
+  calc
+    (frameworkLaw A N).real (calibrationUnionSet S χ N τ) ≤
+      ∑ i ∈ (Finset.univ : Finset (CalibrationIndex n r vs)),
+        (frameworkLaw A N).real (calibrationFailureAt S χ N τ i) :=
+      MeasureTheory.measureReal_biUnion_finset_le _ _
+    _ = _ := by simp [calibrationFailureAt, calibrationProbability]
+
+/-- The alignment event from OpenAI's model event predicate. -/
+def alignmentEventSet {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
+    {vs : Finset ℚ} {F : OAI.SourceRawMenu.Menu s}
+    (S : OAI.SourceRawMenu.ModelsSystem A vs r F) (bs : Finset (FrameworkScale n))
+    (N : ℕ) (τ : ℝ) : Set (Fin n → ℕ) :=
+  OAI.SourceMenuAlignment.event bs (S.model N) (A.ht N) τ
+
+/-- OAI alignment-event probability, evaluated using the total law sequence. -/
+def alignmentProbability {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
+    {vs : Finset ℚ} {F : OAI.SourceRawMenu.Menu s}
+    (S : OAI.SourceRawMenu.ModelsSystem A vs r F) (bs : Finset (FrameworkScale n))
+    (N : ℕ) (τ : ℝ) : ℝ :=
+  (frameworkLaw A N).real (alignmentEventSet S bs N τ)
+
+/-- Mass of samples that align and avoid every calibration failure. -/
+def goodAlignmentProbability {n r s : ℕ} {A : OAI.SourceAdmissible.Parameters n}
+    {vs : Finset ℚ} {F : OAI.SourceRawMenu.Menu s}
+    (S : OAI.SourceRawMenu.ModelsSystem A vs r F) (χ : ℕ → Fin r)
+    (bs : Finset (FrameworkScale n)) (N : ℕ) (τ : ℝ) : ℝ :=
+  (frameworkLaw A N).real
+    (alignmentEventSet S bs N τ ∩ (calibrationUnionSet S χ N τ)ᶜ)
+
 /-- Upper-bound notation for a limit along an ultrafilter. The sequences here are bounded
 probabilities (or absolute differences of two `[0,1]` expectations), so this is equivalent to the
 paper's `lim_U f ≤ bound`. -/
 def UltrafilterLimLE (U : Ultrafilter ℕ) (f : ℕ → ℝ) (bound : ℝ) : Prop :=
   ∀ ε, 0 < ε → ∀ᶠ N in (U : Filter ℕ), f N < bound + ε
+
+/-- A pointwise smaller sequence has the same ultrafilter upper bound. -/
+theorem UltrafilterLimLE.mono {U : Ultrafilter ℕ} {f g : ℕ → ℝ} {bound : ℝ}
+    (hfg : ∀ N, f N ≤ g N) (hg : UltrafilterLimLE U g bound) :
+    UltrafilterLimLE U f bound := by
+  intro ε hε
+  filter_upwards [hg ε hε] with N hN
+  exact lt_of_le_of_lt (hfg N) hN
+
+/-- Increasing the comparison bound preserves `UltrafilterLimLE`. -/
+theorem UltrafilterLimLE.bound_mono {U : Ultrafilter ℕ} {f : ℕ → ℝ} {a b : ℝ}
+    (hab : a ≤ b) (hf : UltrafilterLimLE U f a) : UltrafilterLimLE U f b := by
+  intro ε hε
+  filter_upwards [hf ε hε] with N hN
+  exact lt_of_lt_of_le hN (by linarith)
+
+/-- Extract eventual lower bounds from an ordinary lower limit for a sequence in `[0,1]`. -/
+theorem liminf_bound_eventually {f : ℕ → ℝ} {δ : ℝ}
+    (hf0 : ∀ N, 0 ≤ f N) (hf1 : ∀ N, f N ≤ 1)
+    (hδ : δ ≤ Filter.liminf f Filter.atTop) :
+    ∀ ε, 0 < ε → ∀ᶠ N in Filter.atTop, δ - ε < f N := by
+  have hCob : Filter.IsCoboundedUnder (fun x y : ℝ => y ≤ x) Filter.atTop f :=
+    Filter.IsCoboundedUnder.of_frequently_le
+      (Filter.Frequently.of_forall fun N => hf1 N)
+  have hBdd : Filter.IsBoundedUnder (fun x y : ℝ => y ≤ x) Filter.atTop f :=
+    Filter.isBoundedUnder_of_eventually_ge (Filter.Eventually.of_forall hf0)
+  intro ε hε
+  exact (Filter.le_liminf_iff (h₁ := hCob) (h₂ := hBdd)).mp hδ
+    (δ - ε) (by linarith)
+
+/-- For a finite measure, removing a bad event reduces event mass by at most the bad-event mass. -/
+theorem measureReal_inter_compl_ge {α : Type*} [MeasurableSpace α]
+    (μ : Measure α) (hμ : μ Set.univ ≠ ⊤) (s t : Set α) :
+    μ.real (s ∩ tᶜ) ≥ μ.real s - μ.real t := by
+  have hsub : s ⊆ (s ∩ tᶜ) ∪ t := by
+    intro x hx
+    by_cases hxt : x ∈ t
+    · exact Or.inr hxt
+    · exact Or.inl ⟨hx, hxt⟩
+  have hnot : μ ((s ∩ tᶜ) ∪ t) ≠ ⊤ := by
+    intro hs
+    have hle : μ ((s ∩ tᶜ) ∪ t) ≤ μ Set.univ :=
+      MeasureTheory.measure_mono (Set.subset_univ ((s ∩ tᶜ) ∪ t))
+    rw [hs] at hle
+    exact hμ (top_unique hle)
+  have hmono := MeasureTheory.measureReal_mono hsub hnot
+  have hunion := MeasureTheory.measureReal_union_le (μ := μ) (s ∩ tᶜ) t
+  linarith [hmono, hunion]
 
 /-- The Prediction Principle `pr:prediction`, in OAI's admissible-parameter and raw-menu
 vocabulary. The quantifier order makes `s` depend only on `m`. `U` may be any nonprincipal
@@ -286,6 +445,38 @@ theorem ultrafilter_alignment_intersection (U : Ultrafilter ℕ)
   filter_upwards [hAlign, hCal] with N ha hc
   linarith
 
+/-- The calibration union and the alignment event leave positive mass along the ultrafilter. -/
+theorem goodAlignmentMass_eventually {n r s : ℕ}
+    (U : Ultrafilter ℕ) (hU : (U : Filter ℕ) ≤ Filter.cofinite)
+    {A : OAI.SourceAdmissible.Parameters n} {vs : Finset ℚ}
+    {F : OAI.SourceRawMenu.Menu s} (S : OAI.SourceRawMenu.ModelsSystem A vs r F)
+    (χ : ℕ → Fin r) (bs : Finset (FrameworkScale n)) (τ δ : ℝ)
+    (hAlign : δ ≤ Filter.liminf (fun N => alignmentProbability S bs N τ) Filter.atTop)
+    (hBad : UltrafilterLimLE U (fun N => calibrationUnionProbability S χ N τ) (δ/2)) :
+    ∀ ε, 0 < ε → ∀ᶠ N in (U : Filter ℕ),
+      δ/2 - ε < goodAlignmentProbability S χ bs N τ := by
+  have hA0 : ∀ N, 0 ≤ alignmentProbability S bs N τ := by
+    intro N
+    exact MeasureTheory.measureReal_nonneg
+  have hA1 : ∀ N, alignmentProbability S bs N τ ≤ 1 := by
+    intro N
+    exact MeasureTheory.measureReal_le_one
+  have hAlignEventually := liminf_bound_eventually hA0 hA1 hAlign
+  intro ε hε
+  have hDiff := ultrafilter_alignment_intersection U hU
+    (fun N => alignmentProbability S bs N τ)
+    (fun N => calibrationUnionProbability S χ N τ) δ ε hε hAlignEventually hBad
+  have hPoint : ∀ N,
+      alignmentProbability S bs N τ - calibrationUnionProbability S χ N τ ≤
+        goodAlignmentProbability S χ bs N τ := by
+    intro N
+    have hmass := measureReal_inter_compl_ge (frameworkLaw A N)
+      (frameworkLaw_ne_top_univ A N)
+      (alignmentEventSet S bs N τ) (calibrationUnionSet S χ N τ)
+    exact hmass
+  filter_upwards [hDiff] with N hN
+  exact lt_of_lt_of_le hN (hPoint N)
+
 /-- A lower bound for the model part of the aligned integrand (lines 330–355). The exponent
 `2^m` safely dominates the number of nonsingleton subsets. -/
 theorem aligned_model_integrand_positive (m : ℕ) (_hm : 2 ≤ m) {τ : ℝ}
@@ -319,6 +510,53 @@ theorem positive_total_count_has_positive_summand {ι : Type} [DecidableEq ι]
   have hsum : (∑ i ∈ I, f i) ≤ 0 := Finset.sum_nonpos h
   linarith
 
+/-- The outer tolerances can be chosen after the alignment mass and the two finite index counts
+are fixed, as in `eq:outer-tolerances`. -/
+theorem existsFrameworkTolerances {C K δ : ℝ} (hC : 0 ≤ C) (hK : 0 ≤ K)
+    (hδ : 0 < δ) (m : ℕ) :
+    ∃ τ η : ℝ, 0 < τ ∧ τ < 1/4 ∧ 3*C*τ < δ/4 ∧ 0 < η ∧
+      C*η < δ/4 ∧ K*η < δ*τ^(2^m)/4 := by
+  let τ : ℝ := min (1/8) (δ / (100 * (C + 1)))
+  have hdenC : 0 < C + 1 := by linarith
+  have hratioC : C / (C + 1) ≤ 1 := (div_le_iff₀ hdenC).2 (by linarith)
+  have hτpos : 0 < τ := lt_min (by norm_num) (div_pos hδ (by positivity))
+  have hτlt : τ < 1/4 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+  have hτsmall : τ ≤ δ / (100 * (C + 1)) := min_le_right _ _
+  have hCτ : C * τ ≤ δ / 100 := by
+    calc
+      C * τ ≤ C * (δ / (100 * (C + 1))) := mul_le_mul_of_nonneg_left hτsmall hC
+      _ = δ / 100 * (C / (C + 1)) := by field_simp
+      _ ≤ δ / 100 := by
+        simpa using mul_le_mul_of_nonneg_left (a := δ / 100) hratioC (by positivity)
+  have hCτ' : 3 * C * τ < δ / 4 := by nlinarith
+  let η : ℝ := min (δ / (100 * (C + 1)))
+    (δ * τ ^ (2 ^ m) / (100 * (K + 1)))
+  have hdenK : 0 < K + 1 := by linarith
+  have hratioK : K / (K + 1) ≤ 1 := (div_le_iff₀ hdenK).2 (by linarith)
+  have hηpos : 0 < η := lt_min (div_pos hδ (by positivity))
+    (div_pos (mul_pos hδ (pow_pos hτpos _)) (by positivity))
+  have hηCsmall : η ≤ δ / (100 * (C + 1)) := min_le_left _ _
+  have hCη : C * η ≤ δ / 100 := by
+    calc
+      C * η ≤ C * (δ / (100 * (C + 1))) := mul_le_mul_of_nonneg_left hηCsmall hC
+      _ = δ / 100 * (C / (C + 1)) := by field_simp
+      _ ≤ δ / 100 := by
+        simpa using mul_le_mul_of_nonneg_left (a := δ / 100) hratioC (by positivity)
+  have hηKsmall : η ≤ δ * τ ^ (2 ^ m) / (100 * (K + 1)) := min_le_right _ _
+  have hKη : K * η ≤ δ * τ ^ (2 ^ m) / 100 := by
+    calc
+      K * η ≤ K * (δ * τ ^ (2 ^ m) / (100 * (K + 1))) :=
+        mul_le_mul_of_nonneg_left hηKsmall hK
+      _ = δ * τ ^ (2 ^ m) / 100 * (K / (K + 1)) := by field_simp
+      _ ≤ δ * τ ^ (2 ^ m) / 100 :=
+        by
+          simpa using mul_le_mul_of_nonneg_left (a := δ * τ ^ (2 ^ m) / 100)
+            hratioK (by positivity)
+  have hδτpos : 0 < δ * τ ^ (2 ^ m) := mul_pos hδ (pow_pos hτpos _)
+  refine ⟨τ, η, hτpos, hτlt, hCτ', hηpos, ?_, ?_⟩
+  · nlinarith
+  · nlinarith
+
 /-- A positive weighted count yields an actual finite-sums/products configuration (lines
 366–375). This includes divisor-support, integer-lattice, and distinctness extraction from the
 admissible growth hierarchy. -/
@@ -337,6 +575,51 @@ theorem main_of_principles_large (hP : PredictionPrinciple) (r : ℕ) (χ : ℕ 
     (m : ℕ) (hm : 2 ≤ m) :
     ∃ (A : Finset ℕ) (c : Fin r), A.card = m ∧ (∀ a ∈ A, 0 < a) ∧
       ∀ B ⊆ A, B.Nonempty → χ (∑ b ∈ B, b) = c ∧ χ (∏ b ∈ B, b) = c := by
+  classical
+  let U : Ultrafilter ℕ := Filter.hyperfilter ℕ
+  have hU : (U : Filter ℕ) ≤ Filter.cofinite := by
+    exact Filter.hyperfilter_le_cofinite
+  obtain ⟨s, hPstep⟩ := hP m hm
+  obtain ⟨n, hchainSelection⟩ := chain_selection m r
+  obtain ⟨bs, vs, δ, hδ, hbs, hvs, hclosed, hAlign⟩ :=
+    alignment_principle n r s
+  let C : ℝ := Fintype.card (CalibrationIndex n r vs)
+  let K : ℝ := Fintype.card (PredictionCountIndex n m r bs)
+  have hC : 0 ≤ C := by dsimp [C]; positivity
+  have hK : 0 ≤ K := by dsimp [K]; positivity
+  obtain ⟨τ, η, hτ, hτlt, hτC, hη, hηC, hηK⟩ :=
+    existsFrameworkTolerances hC hK hδ m
+  obtain ⟨A, F, S, hcalibration, hcount⟩ :=
+    hPstep U hU n r χ bs vs hbs hvs hclosed τ η hτ hτlt hη
+  have hAlignMass : δ ≤ Filter.liminf (fun N => alignmentProbability S bs N τ) Filter.atTop := by
+    apply hAlign A F S (fun N => frameworkLaw A N)
+    · intro N hX
+      exact frameworkLaw_eq A N hX
+    · exact hτ
+  have hCalibrationSum : UltrafilterLimLE U
+      (fun N => ∑ i ∈ (Finset.univ : Finset (CalibrationIndex n r vs)),
+        calibrationProbability S χ N i.1 i.2.1 i.2.2 τ)
+      ((Fintype.card (CalibrationIndex n r vs) : ℝ) * (3*τ+η)) := by
+    apply calibration_union_bound U Finset.univ
+    · intro i hi
+      exact hcalibration i.1 i.2.1.val i.2.1.property i.2.2
+  have hCalibrationUnion : UltrafilterLimLE U
+      (fun N => calibrationUnionProbability S χ N τ) (C * (3*τ+η)) := by
+    apply UltrafilterLimLE.mono (f := fun N => calibrationUnionProbability S χ N τ)
+      (g := fun N => ∑ i ∈ (Finset.univ : Finset (CalibrationIndex n r vs)),
+        calibrationProbability S χ N i.1 i.2.1 i.2.2 τ)
+    · intro N
+      simpa using calibration_failure_union_probability_le S χ N τ
+    · simpa [C] using hCalibrationSum
+  have hCalibrationUnionSmall : C * (3*τ+η) < δ/2 := by
+    calc
+      C * (3*τ+η) = 3*C*τ + C*η := by ring
+      _ < δ/4 + δ/4 := add_lt_add hτC hηC
+      _ = δ/2 := by ring
+  have hCalibrationBound : UltrafilterLimLE U
+      (fun N => calibrationUnionProbability S χ N τ) (δ/2) :=
+    UltrafilterLimLE.bound_mono (le_of_lt hCalibrationUnionSmall) hCalibrationUnion
+  have hGoodMass := goodAlignmentMass_eventually U hU S χ bs τ δ hAlignMass hCalibrationBound
   sorry
 
 /-- Deduction of the frozen finite sums/products statement from Prediction and Alignment. The
