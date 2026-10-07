@@ -3963,6 +3963,411 @@ private theorem momentPrimeTupleCRTLaw_eq_prod {m w V : ℕ}
             (by simpa [S] using hn)
         simp [f, hlaw]
 
+private theorem momentUniformUnitResidueLaw_sum_eq_one (Q : ℕ) (hQ : 0 < Q) :
+    ∑ a : Fin Q, uniformUnitResidueLaw Q a = 1 := by
+  classical
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  let Source := {a : Fin Q // Nat.Coprime a.val Q}
+  let G := (ZMod Q)ˣ
+  let c : ℝ := 1 / (Fintype.card G : ℝ)
+  let good : Fin Q → Prop := fun a => Nat.Coprime a.val Q
+  let eUnit : Source ≃ G := momentFinCoprimeEquivUnits Q hQ
+  have hcardR : (Fintype.card G : ℝ) = (Nat.totient Q : ℝ) := by
+    have hcard : Fintype.card (ZMod Q)ˣ = Nat.totient Q :=
+      ZMod.card_units_eq_totient (n := Q)
+    exact_mod_cast hcard
+  have hterm (a : Fin Q) :
+      uniformUnitResidueLaw Q a = if good a then c else 0 := by
+    by_cases ha : Nat.Coprime a.val Q <;>
+      simp [uniformUnitResidueLaw, good, c, ha, hcardR]
+  have hsource :
+      (∑ a : Fin Q, uniformUnitResidueLaw Q a) = ∑ a : Source, c := by
+    calc
+      _ = ∑ a : Fin Q, if good a then c else 0 := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        exact hterm a
+      _ = (∑ a : Source, (if good a.1 then c else 0)) +
+            ∑ a : {a : Fin Q // ¬ good a}, (if good a.1 then c else 0) := by
+        exact (Fintype.sum_subtype_add_sum_subtype good
+          (fun a : Fin Q => if good a then c else 0)).symm
+      _ = ∑ a : Source, c := by
+        have hgoodSum :
+            (∑ a : Source, (if good a.1 then c else 0)) = ∑ a : Source, c := by
+          apply Finset.sum_congr rfl
+          intro a ha
+          exact if_pos a.property
+        have hbadSum :
+            (∑ a : {a : Fin Q // ¬ good a}, (if good a.1 then c else 0)) = 0 := by
+          apply Finset.sum_eq_zero
+          intro a ha
+          exact if_neg a.property
+        rw [hgoodSum, hbadSum]
+        simp
+  have hcardSource : Fintype.card Source = Fintype.card G :=
+    Fintype.card_congr eUnit
+  calc
+    _ = ∑ a : Source, c := hsource
+    _ = (Fintype.card Source : ℝ) * c := by simp [Finset.sum_const, nsmul_eq_mul]
+    _ = 1 := by
+      rw [hcardSource]
+      dsimp [c, G]
+      have hcardPos : (0 : ℝ) < (Fintype.card (ZMod Q)ˣ : ℝ) := by positivity
+      field_simp
+
+private theorem momentCRTUniformLaw_sum_eq_one {w e V : ℕ} :
+    ∑ r : CRTResidues w V, momentCRTUniformLaw r = 1 := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hQpos : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  calc
+    _ = ∑ r : CRTResidues w V, ∑ a : Fin Q,
+          uniformUnitResidueLaw Q a *
+            (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+        apply Finset.sum_congr rfl
+        intro r hr
+        exact (momentCRTUniformProjectionLaw_eq (w := w) (e := e) (V := V) r).symm
+    _ = ∑ a : Fin Q, uniformUnitResidueLaw Q a := by
+        rw [Finset.sum_comm]
+        apply Finset.sum_congr rfl
+        intro a ha
+        change (∑ r ∈ (Finset.univ : Finset (CRTResidues w V)),
+            uniformUnitResidueLaw Q a *
+              (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0)) = _
+        rw [← Finset.mul_sum]
+        simp
+    _ = 1 := momentUniformUnitResidueLaw_sum_eq_one Q hQpos
+
+private theorem uniformPrimeTupleCRTLaw_eq_prod {m w V : ℕ}
+    (r : Fin m → CRTResidues w V) :
+    uniformPrimeTupleCRTLaw w V r = ∏ i, momentCRTUniformLaw (r i) := by
+  rfl
+
+private theorem momentPrimePoolCRTActualLaw_l1_le {w e V lo hi : ℕ} :
+    finiteL1 (momentPrimePoolCRTActualLaw w V lo hi) (momentCRTUniformLaw (w := w) (V := V)) ≤
+      finiteL1 (primePoolResidueLaw lo hi (masterCRTModulus w e V))
+        (uniformUnitResidueLaw (masterCRTModulus w e V)) := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hμ : momentPrimePoolCRTActualLaw w V lo hi =
+      fun r : CRTResidues w V =>
+        ∑ a : Fin Q, primePoolResidueLaw lo hi Q a *
+          (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+    funext r
+    exact momentPrimePoolCRTProjectionLaw_eq r
+  have hν : momentCRTUniformLaw (w := w) (V := V) =
+      fun r : CRTResidues w V =>
+        ∑ a : Fin Q, uniformUnitResidueLaw Q a *
+          (if momentCRTProjection w V Q a = r then (1 : ℝ) else 0) := by
+    funext r
+    exact (momentCRTUniformProjectionLaw_eq r).symm
+  rw [hμ, hν]
+  exact pkgB_finiteL1_pushforward_le (momentCRTProjection w V Q)
+    (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q)
+
+private theorem momentCRTUniformLaw_nonneg {w V : ℕ} (r : CRTResidues w V) :
+    0 ≤ momentCRTUniformLaw r := by
+  classical
+  by_cases hgood : ∀ p : CRTPrimeRange w V, Nat.Coprime (r p).val p.val
+  · rw [momentCRTUniformLaw_eq_inv_card r hgood]
+    positivity
+  · obtain ⟨p, hp⟩ := not_forall.mp hgood
+    have hzero : momentCRTUniformLaw r = 0 := by
+      unfold momentCRTUniformLaw
+      apply Finset.prod_eq_zero (Finset.mem_univ p)
+      simp [hp]
+    rw [hzero]
+
+private theorem momentPrimeTupleCRT_l1_le {m w V : ℕ}
+    (lo hi : Fin m → ℕ) (δ : ℝ) (hδ : 0 ≤ δ)
+    (hslot : ∀ i, finiteL1
+      (momentPrimePoolCRTActualLaw w V (lo i) (hi i))
+      (momentCRTUniformLaw (w := w) (V := V)) ≤ δ) :
+    finiteL1 (primeTupleCRTLaw lo hi w V) (uniformPrimeTupleCRTLaw w V) ≤
+      (m : ℝ) * δ * (1 + δ) ^ m := by
+  classical
+  let μ : Fin m → CRTResidues w V → ℝ := fun i =>
+    momentPrimePoolCRTActualLaw w V (lo i) (hi i)
+  let ν : Fin m → CRTResidues w V → ℝ := fun _ => momentCRTUniformLaw
+  have hνmass (i : Fin m) : ∑ r, |ν i r| = 1 := by
+    calc
+      _ = ∑ r, momentCRTUniformLaw r := by
+        apply Finset.sum_congr rfl
+        intro r hr
+        exact abs_of_nonneg (momentCRTUniformLaw_nonneg r)
+      _ = 1 := momentCRTUniformLaw_sum_eq_one (w := w) (e := 1) (V := V)
+  have hμmass (i : Fin m) : ∑ r, |μ i r| ≤ 1 + δ := by
+    calc
+      _ ≤ ∑ r, (|ν i r| + |μ i r - ν i r|) := by
+        apply Finset.sum_le_sum
+        intro r hr
+        calc
+          |μ i r| = |(μ i r - ν i r) + ν i r| := by congr 1 <;> ring
+          _ ≤ |μ i r - ν i r| + |ν i r| := abs_add_le _ _
+          _ = |ν i r| + |μ i r - ν i r| := by ring
+      _ = 1 + finiteL1 (μ i) (ν i) := by
+        rw [Finset.sum_add_distrib, hνmass i]
+        rfl
+      _ ≤ 1 + δ := by
+        simpa [add_comm] using add_le_add_left (hslot i) 1
+  have hmax (i : Fin m) : max (∑ r, |μ i r|) (∑ r, |ν i r|) ≤ 1 + δ := by
+    apply max_le
+    · exact hμmass i
+    · rw [hνmass i]
+      linarith
+  let F : Fin m → CRTResidues w V → ℝ := μ
+  let G : Fin m → CRTResidues w V → ℝ := ν
+  have hprod (i : Fin m) :
+      ∏ j ∈ (Finset.univ.erase i),
+        max (∑ r, |F j r|) (∑ r, |G j r|) ≤ (1 + δ) ^ m := by
+    let s := Finset.univ.erase i
+    have hlocal : ∀ j ∈ s,
+        max (∑ r, |F j r|) (∑ r, |G j r|) ≤ 1 + δ := by
+      intro j hj
+      exact hmax j
+    have hbase : 1 ≤ 1 + δ := by linarith
+    calc
+      _ ≤ ∏ j ∈ s, (1 + δ) :=
+        Finset.prod_le_prod₀ (fun j hj => by positivity) (fun j hj => hlocal j hj)
+      _ = (1 + δ) ^ s.card := by simp [s]
+      _ ≤ (1 + δ) ^ m := by
+        apply pow_le_pow_right₀ hbase
+        have hs : s.card ≤ (Finset.univ : Finset (Fin m)).card :=
+          Finset.card_le_card (Finset.erase_subset _ _)
+        simpa [s] using hs
+  have htel := finite_product_l1_telescoping F G
+  have hactual :
+      (fun r : Fin m → CRTResidues w V => primeTupleCRTLaw lo hi w V r) =
+        (fun r => ∏ i, F i (r i)) := by
+    funext r
+    simpa [F, μ] using momentPrimeTupleCRTLaw_eq_prod lo hi r
+  have huniform :
+      (fun r : Fin m → CRTResidues w V => uniformPrimeTupleCRTLaw w V r) =
+        (fun r => ∏ i, G i (r i)) := by
+    funext r
+    simp [G, ν, uniformPrimeTupleCRTLaw_eq_prod]
+  change finiteL1
+    (fun r : Fin m → CRTResidues w V => primeTupleCRTLaw lo hi w V r)
+    (fun r => uniformPrimeTupleCRTLaw w V r) ≤ _
+  rw [hactual, huniform]
+  calc
+    _ ≤ ∑ i, finiteL1 (F i) (G i) *
+        ∏ j ∈ (Finset.univ.erase i), max (∑ r, |F j r|) (∑ r, |G j r|) := htel
+    _ ≤ ∑ i, δ * (1 + δ) ^ m := by
+        apply Finset.sum_le_sum
+        intro i hi
+        calc
+          _ ≤ δ * ∏ j ∈ (Finset.univ.erase i),
+                max (∑ r, |F j r|) (∑ r, |G j r|) :=
+                  mul_le_mul_of_nonneg_right (hslot i)
+                    (Finset.prod_nonneg fun j hj => by positivity)
+          _ ≤ δ * (1 + δ) ^ m := mul_le_mul_of_nonneg_left (hprod i) hδ
+    _ = (m : ℝ) * δ * (1 + δ) ^ m := by
+        simp [Finset.sum_const, nsmul_eq_mul]
+        ring
+
+private noncomputable def momentCRTSlotResidueError {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (l : Fin K) (N : ℕ) : ℝ :=
+  finiteL1
+    (primePoolResidueLaw (MS.primeStage.pool N l).lower (MS.primeStage.pool N l).upper
+      (masterCRTModulus (N + 1) (MS.primeStage.e0 N)
+        (masterScaleV MS.core.parameters N l)))
+    (uniformUnitResidueLaw
+      (masterCRTModulus (N + 1) (MS.primeStage.e0 N)
+        (masterScaleV MS.core.parameters N l)))
+
+private noncomputable def momentCRTErrorBound {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (l : Fin K) (N : ℕ) : ℝ :=
+  (sl : ℝ) * momentCRTSlotResidueError MS l N *
+    (1 + momentCRTSlotResidueError MS l N) ^ sl
+
+private theorem momentCRTErrorBound_superPolynomial {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm) (l : Fin K) :
+    SuperPolynomialSmall (momentCRTErrorBound MS l)
+      (fun N => (masterScaleV MS.core.parameters N l : ℝ)) := by
+  let V : ℕ → ℝ := fun N => (masterScaleV MS.core.parameters N l : ℝ)
+  let δ : ℕ → ℝ := momentCRTSlotResidueError MS l
+  have hδsp : SuperPolynomialSmall δ V := by
+    dsimp [δ, V, momentCRTSlotResidueError]
+    exact MS.primeStage.pool_residue_error l
+  have hδnonneg (N : ℕ) : 0 ≤ δ N := by
+    dsimp [δ, momentCRTSlotResidueError, finiteL1]
+    positivity
+  have hVge1 (N : ℕ) : 1 ≤ V N := by
+    have hn : 1 ≤ masterScaleV MS.core.parameters N l := by
+      unfold masterScaleV
+      omega
+    change (1 : ℝ) ≤ (masterScaleV MS.core.parameters N l : ℝ)
+    exact_mod_cast hn
+  have hδV : Tendsto (fun N : ℕ => δ N * V N) atTop (𝓝 0) := by
+    simpa [Real.rpow_one] using hδsp 1 (by norm_num)
+  have hδle : ∀ᶠ N : ℕ in atTop, δ N ≤ 1 := by
+    filter_upwards [hδV.eventually (eventually_lt_nhds (by norm_num : (0 : ℝ) < 1))]
+      with N hN
+    have hmul : δ N ≤ δ N * V N := by
+      calc
+        δ N = δ N * 1 := by ring
+        _ ≤ δ N * V N := mul_le_mul_of_nonneg_left (hVge1 N) (hδnonneg N)
+    exact le_of_lt (lt_of_le_of_lt hmul hN)
+  intro C hC
+  have hδC : Tendsto (fun N : ℕ => δ N * V N ^ C) atTop (𝓝 0) := hδsp C hC
+  have hbound (N : ℕ) (hN : δ N ≤ 1) :
+      momentCRTErrorBound MS l N * V N ^ C ≤
+        (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C) := by
+    have hpow : (1 + δ N) ^ sl ≤ (2 : ℝ) ^ sl := by
+      exact pow_le_pow_left₀ (by linarith [hδnonneg N]) (by linarith) sl
+    have hA : 0 ≤ (sl : ℝ) * δ N * V N ^ C := by
+      exact mul_nonneg (mul_nonneg (by positivity) (hδnonneg N))
+        (Real.rpow_nonneg (by positivity) C)
+    calc
+      momentCRTErrorBound MS l N * V N ^ C =
+          ((sl : ℝ) * δ N * V N ^ C) * (1 + δ N) ^ sl := by
+            dsimp [momentCRTErrorBound, δ]
+            ring
+      _ ≤ ((sl : ℝ) * δ N * V N ^ C) * (2 : ℝ) ^ sl :=
+            mul_le_mul_of_nonneg_left hpow hA
+      _ = (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C) := by ring
+  have hsmall : Tendsto
+      (fun N : ℕ => (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C)) atTop (𝓝 0) := by
+    simpa using (tendsto_const_nhds.mul hδC)
+  have hupper : ∀ᶠ N : ℕ in atTop,
+      momentCRTErrorBound MS l N * V N ^ C ≤
+        (sl : ℝ) * 2 ^ sl * (δ N * V N ^ C) := by
+    filter_upwards [hδle] with N hN
+    exact hbound N hN
+  have hnonneg (N : ℕ) : 0 ≤ momentCRTErrorBound MS l N * V N ^ C := by
+    have hbase : 0 ≤ 1 + δ N := by linarith [hδnonneg N]
+    exact mul_nonneg
+      (mul_nonneg (mul_nonneg (by positivity) (hδnonneg N)) (pow_nonneg hbase _))
+      (Real.rpow_nonneg (by positivity) C)
+  exact squeeze_zero' (Eventually.of_forall hnonneg) hupper hsmall
+
+private theorem momentBaseEpsilonBase_nonneg {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 b N : ℕ) :
+    0 ≤ momentBaseEpsilonBase MS B l T J0 b N := by
+  have hXpos : 0 < (MS.core.parameters.X N B.1 : ℝ) := by
+    exact_mod_cast MS.core.parameters.Xpos N B.1
+  have hlog := momentPivotLogDen_ge_half MS B N
+  have hden : 0 < (MS.core.parameters.X N B.1 : ℝ) *
+      (Real.log (MS.core.parameters.X N B.1 : ℝ) -
+        (primorial (N + 1) : ℝ) / MS.core.parameters.X N B.1) :=
+    mul_pos hXpos (by linarith)
+  have hpivot : 0 ≤ harmonicResidueError
+      (MS.core.parameters.X N B.1) (primorial (N + 1))
+      ((masterScaleV MS.core.parameters N l) ^ Fintype.card (MomentRowIndex b T.d)) := by
+    unfold harmonicResidueError
+    exact div_nonneg (by positivity) hden.le
+  unfold momentBaseEpsilonBase
+  apply mul_nonneg (by positivity)
+  apply add_nonneg hpivot
+  positivity
+
+private noncomputable def momentWeightedLinearFormsData {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (hgap : ValidGap B l)
+    (T : CubeTemplate) (hT : Allowed Dm T) (J0 : ℕ) (hJ0 : 0 < J0)
+    (b : ℕ) (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d))) := Finset.univ) :
+    WeightedLinearFormsData (q := Fintype.card (MomentRowIndex b T.d))
+      (d := Fintype.card (MomentBaseIndex b T.d)) (b := K) MS := by
+  classical
+  refine
+    { gap := fun _ => l
+      rowCoeff := fun N p u j =>
+        momentRowCoeff MS b T l N (momentPrimeDiagonal hT p) u j
+      divisor := momentDivisorFamily B active
+      V := fun N => masterScaleV MS.core.parameters N l
+      epsilonBase := fun N => momentBaseEpsilonBase MS B l T J0 b N
+      epsilonCRT := momentCRTErrorBound MS l
+      baseMass := fun N p x =>
+        momentBaseMass MS B l T J0 N b (momentPrimeDiagonal hT p) x
+      goodDomain := fun N p =>
+        (∀ k : Fin b, T.Good (corrScales MS) l N
+          (fun j => p (momentMasterEmbedding hT j))) ∧
+        momentBaseRegular MS B l T J0 N b (momentPrimeDiagonal hT p)
+      epsilonBase_nonnegative := ?_
+      V_lower := ?_
+      V_tendsto := momentMasterScaleV_tendsto MS.core.parameters l
+      slot_gap_bound := ?_
+      base_nonnegative := ?_
+      base_normalized := ?_
+      divisor_positive := ?_
+      divisor_bounded := ?_
+      base_residue_uniform := ?_
+      row_integer_on_support := ?_
+      row_denominators_are_units := ?_
+      row_primitive := ?_
+      pairwise_row_tests := ?_
+      crt_error_bound := ?_
+      epsilonBase_superpolynomial :=
+        momentBaseEpsilonBase_superPolynomial MS B l hgap T J0 b hJ0
+      epsilonCRT_superpolynomial := momentCRTErrorBound_superPolynomial MS l }
+  · intro N
+    exact momentBaseEpsilonBase_nonneg MS B l T J0 b N
+  · intro N
+    dsimp [masterScaleV]
+    omega
+  · intro N i
+    rfl
+  · intro N p x
+    exact momentBaseMass_nonneg MS B l T J0 N b (momentPrimeDiagonal hT p) x
+  · intro N p
+    exact momentBaseMass_tsum_eq_one MS B l T J0 N b (momentPrimeDiagonal hT p)
+  · intro N u σ hσ
+    exact (momentDivisorFamily_support_specs MS B l hgap.1 active u N σ hσ).1
+  · intro N u σ hσ
+    exact (momentDivisorFamily_support_specs MS B l hgap.1 active u N σ hσ).2
+  · intro N p σ hdom hσ hσpos
+    rcases hdom with ⟨hgood, hreg⟩
+    have hgoodReplica : ∀ k : Fin b,
+        T.Good (corrScales MS) l N
+          (fun j => (momentPrimeDiagonal hT p)
+            ((momentPrimeEnum b T.q).symm (k, j))) := by
+      intro k
+      simpa only [momentPrimeDiagonal_apply] using hgood k
+    exact momentBaseResidue_uniform_bound MS B l hgap T J0 b N hJ0
+      (momentPrimeDiagonal hT p) hreg hgoodReplica active σ hσ
+  · intro N p x hdom hmass u
+    exact momentLinearRowValue_den_eq_one MS b T l N
+      (momentPrimeDiagonal hT p) u x
+  · intro N p hdom r hr hrN hrV u j
+    have hden := momentRowCoeff_den_eq_one MS b T l N
+      (momentPrimeDiagonal hT p) u j
+    rw [hden]
+    exact Nat.coprime_one_left r
+  · intro N p hdom r hr hrN hrV u
+    letI : Fact r.Prime := ⟨hr⟩
+    let root := (momentBaseEnum b T.d).symm (.inl ())
+    refine ⟨root, ?_⟩
+    rw [momentRowCoeff_root_residue MS b T l N
+      (momentPrimeDiagonal hT p) u r hr]
+    exact one_ne_zero
+  · intro N p hdom r hr hrN hrV hno u v huv
+    exact momentRows_pairwise_independent_master MS b T l N hT p r hr hrN hno u v huv
+  · intro N
+    let lo : Fin sl → ℕ := fun _ => (MS.primeStage.pool N l).lower
+    let hi : Fin sl → ℕ := fun _ => (MS.primeStage.pool N l).upper
+    let V := masterScaleV MS.core.parameters N l
+    let δ := momentCRTSlotResidueError MS l N
+    have hδ : 0 ≤ δ := by
+      dsimp [δ, momentCRTSlotResidueError, finiteL1]
+      positivity
+    have hslot (i : Fin sl) :
+        finiteL1 (momentPrimePoolCRTActualLaw (N + 1) V (lo i) (hi i))
+          (momentCRTUniformLaw (w := N + 1) (V := V)) ≤ δ := by
+      exact momentPrimePoolCRTActualLaw_l1_le
+        (w := N + 1) (e := MS.primeStage.e0 N) (V := V)
+        (lo := lo i) (hi := hi i)
+    have hbound := momentPrimeTupleCRT_l1_le lo hi δ hδ hslot
+    simpa [lo, hi, V, δ, momentCRTErrorBound, momentCRTSlotResidueError] using hbound
+
 end Prediction
 
 end HindmanSumsProducts
