@@ -2058,8 +2058,12 @@ theorem correlationRoot_expected_test_bound
                 _ ≤ μj (zj : ℤ) * (M * Eroot) :=
                     mul_le_mul_of_nonneg_left (hRootPer (zj : ℤ) hm) hnonneg
       _ = M * Eroot := by
-        rw [← Finset.sum_mul, hMassB]
-        ring
+        calc
+          (∑ zj ∈ IB, μj (zj : ℤ) * (M * Eroot)) =
+              (∑ zj ∈ IB, μj (zj : ℤ)) * (M * Eroot) := by
+                symm
+                exact Finset.sum_mul _ _ _
+          _ = M * Eroot := by rw [hMassB]; ring
   let residueAvg : ℝ := ∑ zj ∈ IB, μj (zj : ℤ) * P (zj : ℤ)
   let Favg : ℝ := ∑ y ∈ IA, μa (y : ℤ) * F (y : ℤ)
   have hQeq (y : ℤ) : Q y =
@@ -2172,7 +2176,9 @@ theorem correlationRoot_expected_test_bound
       _ = M * Eres := by
           calc
             (∑ y ∈ IA, M * (μa (y : ℤ) * Eres)) =
-                M * ∑ y ∈ IA, μa (y : ℤ) * Eres := by rw [Finset.mul_sum]
+                M * ∑ y ∈ IA, μa (y : ℤ) * Eres := by
+                  symm
+                  exact Finset.mul_sum _ _ _
             _ = M * ((∑ y ∈ IA, μa (y : ℤ)) * Eres) := by rw [Finset.sum_mul]
             _ = M * Eres := by rw [hMassA]; ring
   have hFsource :
