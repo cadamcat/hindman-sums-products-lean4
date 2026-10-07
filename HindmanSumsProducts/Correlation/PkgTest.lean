@@ -2232,4 +2232,234 @@ theorem correlationRoot_expected_test_bound
     _ ≤ M * Eroot + M * Eres := add_le_add hRootGapBound hMixTest
     _ = M * (Eroot + Eres) := by ring
 
+theorem dominates_nat_of_log_dominates {x : ℕ → ℕ} {S : ℕ → ℝ}
+    (hS : ∀ n, 0 < S n)
+    (hDom : OAI.MicrocellScale.Dominates (fun n => Real.log (x n : ℝ)) S) :
+    OAI.MicrocellScale.Dominates (fun n => (x n : ℝ)) S := by
+  intro C hC
+  have hle : (fun n => Real.log (x n : ℝ) / (S n) ^ C) ≤ᶠ[Filter.atTop]
+      (fun n => (x n : ℝ) / (S n) ^ C) := by
+    filter_upwards [] with n
+    exact div_le_div_of_nonneg_right
+      (Real.log_le_self (by exact_mod_cast (Nat.zero_le (x n))))
+      (Real.rpow_pos_of_pos (hS n) C).le
+  exact Filter.tendsto_atTop_mono' Filter.atTop hle (hDom C hC)
+
+theorem dominates_weaken_target {f S T : ℕ → ℝ}
+    (hF : ∀ n, 0 ≤ f n) (hS : ∀ n, 0 < S n) (hT : ∀ n, 0 < T n)
+    (hTS : ∀ n, T n ≤ S n)
+    (hDom : OAI.MicrocellScale.Dominates f S) :
+    OAI.MicrocellScale.Dominates f T := by
+  intro C hC
+  have hle : (fun n => f n / (S n) ^ C) ≤ (fun n => f n / (T n) ^ C) := by
+    intro n
+    rw [div_le_div_iff₀ (Real.rpow_pos_of_pos (hS n) C)
+      (Real.rpow_pos_of_pos (hT n) C)]
+    exact mul_le_mul_of_nonneg_left
+      (Real.rpow_le_rpow (le_of_lt (hT n)) (hTS n) hC.le) (hF n)
+  exact Filter.tendsto_atTop_mono hle (hDom C hC)
+
+theorem dominates_weaken_target_sq {f S T : ℕ → ℝ}
+    (hF : ∀ n, 0 ≤ f n) (hS : ∀ n, 1 ≤ S n) (hT : ∀ n, 0 < T n)
+    (hTS : ∀ n, T n ≤ (S n) ^ (2 : ℝ))
+    (hDom : OAI.MicrocellScale.Dominates f S) :
+    OAI.MicrocellScale.Dominates f T := by
+  intro C hC
+  have hC2 : 0 < 2 * C := mul_pos (by norm_num) hC
+  have hle : (fun n => f n / (S n) ^ (2 * C)) ≤
+      (fun n => f n / (T n) ^ C) := by
+    intro n
+    rw [div_le_div_iff₀ (Real.rpow_pos_of_pos (by linarith [hS n] : 0 < S n) (2 * C))
+      (Real.rpow_pos_of_pos (hT n) C)]
+    have hpow : (T n) ^ C ≤ (S n) ^ (2 * C) := by
+      calc
+        (T n) ^ C ≤ ((S n) ^ (2 : ℝ)) ^ C :=
+          Real.rpow_le_rpow (le_of_lt (hT n)) (hTS n) hC.le
+        _ = (S n) ^ (2 * C) :=
+          (Real.rpow_mul (by linarith [hS n] : 0 ≤ S n) (2 : ℝ) C).symm
+    exact mul_le_mul_of_nonneg_left hpow (hF n)
+  exact Filter.tendsto_atTop_mono hle (hDom (2 * C) hC2)
+
+theorem harmonicNormalizer_pos_of_root_conditions {X W : ℕ}
+    (hW : 0 < W) (hX : 4 * W ≤ X) : 0 < harmonicNormalizer X W := by
+  have hlog := correlation_root_log_condition hW hX
+  have hX2 : 2 ≤ X := by omega
+  have hSamp := FromArithmetic.sampling_pointwise_claim X W hW hX2 hlog
+  have hnorm := hSamp.normalizer hX2 hlog
+  have hXpos : (0 : ℝ) < X := by exact_mod_cast (show 0 < X by omega)
+  have hWpos : (0 : ℝ) < (W : ℝ) := by exact_mod_cast hW
+  let δ : ℝ := (Nat.totient W : ℝ) / W
+  have hδpos : 0 < δ := by
+    dsimp [δ]
+    exact div_pos (by exact_mod_cast Nat.totient_pos.mpr hW) hWpos
+  have hDpos : 0 < Real.log X - (W : ℝ) / X := sub_pos.mpr hlog
+  have herror : (Nat.totient W : ℝ) / X = δ * ((W : ℝ) / X) := by
+    dsimp [δ]
+    field_simp [ne_of_gt hWpos]
+  have hlower := (abs_le.mp hnorm).1
+  have hZlower : δ * (Real.log X - (W : ℝ) / X) ≤ harmonicNormalizer X W := by
+    nlinarith [hlower, herror]
+  exact lt_of_lt_of_le (mul_pos hδpos hDpos) hZlower
+
+theorem rootTV_error_weight_bound
+    (S V W k H X L δ e q C : ℝ)
+    (hS : 1 ≤ S) (hV : 1 ≤ V) (hVS : V ≤ S)
+    (hWpos : 0 < W) (hWS : W ≤ S)
+    (hk : 1 ≤ k) (hkS : k ≤ S)
+    (hH : 0 ≤ H) (hHS : H ≤ 2 * S)
+    (hX : S ^ q ≤ X) (hL : S ^ q ≤ L) (hδ : 1 / W ≤ δ)
+    (he : 0 ≤ e) (heq : e + 5 ≤ q) (hC : 0 ≤ C) :
+    V ^ e * (C * (Real.log (2 * k) / L + 2 * H / X +
+      W * k ^ 2 / (δ * X * L))) ≤ C * (7 / S) := by
+  have hSpos : 0 < S := lt_of_lt_of_le (by norm_num) hS
+  have hVpos : 0 < V := lt_of_lt_of_le (by norm_num) hV
+  have hXpos : 0 < X := lt_of_lt_of_le (by positivity) hX
+  have hLpos : 0 < L := lt_of_lt_of_le (by positivity) hL
+  have hδpos : 0 < δ := lt_of_lt_of_le (div_pos one_pos hWpos) hδ
+  have hVpow : V ^ e ≤ S ^ (q - 5) := by
+    calc
+      V ^ e ≤ S ^ e := Real.rpow_le_rpow (by positivity) hVS he
+      _ ≤ S ^ (q - 5) :=
+        Real.rpow_le_rpow_of_exponent_le hS (by linarith [heq])
+  have hpowAdd (a b : ℝ) : S ^ a * S ^ b = S ^ (a + b) :=
+    (Real.rpow_add hSpos a b).symm
+  have hS2 : S * S = S ^ (2 : ℝ) := by rw [Real.rpow_two]; ring
+  have hS4 : (S : ℝ) ^ 4 = S ^ (4 : ℝ) := (Real.rpow_natCast S 4).symm
+  have hS5prod : S ^ 4 * S = S ^ (5 : ℝ) := by
+    calc
+      S ^ 4 * S = S ^ (4 : ℝ) * S ^ (1 : ℝ) := by rw [hS4, Real.rpow_one]
+      _ = S ^ ((4 : ℝ) + 1) := hpowAdd 4 1
+      _ = S ^ (5 : ℝ) := by congr 1 <;> ring
+  have hSprod2 : S ^ (q - 5) * S * S = S ^ (q - 3) := by
+    calc
+      S ^ (q - 5) * S * S = S ^ (q - 5) * (S * S) := by ring
+      _ = S ^ (q - 5) * S ^ (2 : ℝ) := by rw [hS2]
+      _ = S ^ ((q - 5) + 2) := hpowAdd (q - 5) 2
+      _ = S ^ (q - 3) := by congr 1 <;> ring
+  have hSprod4 : S ^ (q - 5) * S ^ 3 * S = S ^ (q - 1) := by
+    calc
+      S ^ (q - 5) * S ^ 3 * S = S ^ (q - 5) * S ^ 4 := by ring
+      _ = S ^ (q - 5) * S ^ (4 : ℝ) := by rw [hS4]
+      _ = S ^ ((q - 5) + 4) := hpowAdd (q - 5) 4
+      _ = S ^ (q - 1) := by congr 1 <;> linarith
+  have hSprod5 : S ^ (q - 5) * S ^ 4 * S = S ^ q := by
+    calc
+      S ^ (q - 5) * S ^ 4 * S = S ^ (q - 5) * (S ^ 4 * S) := by ring
+      _ = S ^ (q - 5) * S ^ (5 : ℝ) := by rw [hS5prod]
+      _ = S ^ ((q - 5) + 5) := hpowAdd (q - 5) 5
+      _ = S ^ q := by congr 1 <;> ring
+  have hlog2nonneg : 0 ≤ Real.log (2 * k) := by
+    apply Real.log_nonneg
+    nlinarith [hk]
+  have hlog2le : Real.log (2 * k) ≤ 2 * S := by
+    calc
+      Real.log (2 * k) ≤ 2 * k := Real.log_le_self (by positivity)
+      _ ≤ 2 * S := mul_le_mul_of_nonneg_left hkS (by norm_num)
+  have hcross1 : V ^ e * Real.log (2 * k) * S ≤ 2 * L := by
+    calc
+      V ^ e * Real.log (2 * k) * S ≤ S ^ (q - 5) * Real.log (2 * k) * S := by
+        exact mul_le_mul_of_nonneg_right
+          (mul_le_mul_of_nonneg_right hVpow hlog2nonneg) hSpos.le
+      _ ≤ S ^ (q - 5) * (2 * S) * S := by
+        exact mul_le_mul_of_nonneg_right
+          (mul_le_mul_of_nonneg_left hlog2le (by positivity)) hSpos.le
+      _ = 2 * S ^ (q - 3) := by rw [show S ^ (q - 5) * (2 * S) * S =
+          2 * (S ^ (q - 5) * S * S) by ring, hSprod2]
+      _ ≤ 2 * S ^ q :=
+        mul_le_mul_of_nonneg_left
+          (Real.rpow_le_rpow_of_exponent_le hS (by linarith)) (by norm_num)
+      _ ≤ 2 * L := mul_le_mul_of_nonneg_left hL (by norm_num)
+  have hcross2 : V ^ e * (2 * H) * S ≤ 4 * X := by
+    have hH4 : 2 * H ≤ 4 * S := by
+      calc
+        (2 : ℝ) * H ≤ (2 : ℝ) * (2 * S) :=
+          mul_le_mul_of_nonneg_left hHS (by norm_num : (0 : ℝ) ≤ 2)
+        _ = 4 * S := by ring
+    calc
+      V ^ e * (2 * H) * S ≤ S ^ (q - 5) * (4 * S) * S := by
+        exact mul_le_mul_of_nonneg_right
+          (mul_le_mul hVpow hH4 (by positivity) (by positivity)) hSpos.le
+      _ = 4 * S ^ (q - 3) := by rw [show S ^ (q - 5) * (4 * S) * S =
+          4 * (S ^ (q - 5) * S * S) by ring, hSprod2]
+      _ ≤ 4 * S ^ q :=
+        mul_le_mul_of_nonneg_left
+          (Real.rpow_le_rpow_of_exponent_le hS (by linarith)) (by norm_num)
+      _ ≤ 4 * X := mul_le_mul_of_nonneg_left hX (by norm_num)
+  have hSoneInv : 1 / S ≤ δ := by
+    have hInv : 1 / S ≤ 1 / W := by
+      rw [div_le_div_iff₀ hSpos hWpos]
+      simpa using hWS
+    exact le_trans hInv hδ
+  have hWkSq : W * k ^ 2 ≤ S ^ 3 := by
+    have hkSq : k ^ 2 ≤ S ^ 2 := by
+      rw [pow_two, pow_two]
+      calc
+        k * k ≤ S * k := mul_le_mul_of_nonneg_right hkS (by positivity)
+        _ ≤ S * S := mul_le_mul_of_nonneg_left hkS (by positivity)
+    calc
+      W * k ^ 2 ≤ S * k ^ 2 := mul_le_mul_of_nonneg_right hWS (by positivity)
+      _ ≤ S * S ^ 2 := mul_le_mul_of_nonneg_left hkSq (by positivity)
+      _ = S ^ 3 := by ring
+  have hcross3 : V ^ e * (W * k ^ 2) * S ≤ δ * X * L := by
+    have hnum : V ^ e * (W * k ^ 2) * S ≤ S ^ (q - 1) := by
+      calc
+        V ^ e * (W * k ^ 2) * S ≤ S ^ (q - 5) * (W * k ^ 2) * S := by
+          exact mul_le_mul_of_nonneg_right
+            (mul_le_mul_of_nonneg_right hVpow (by positivity)) hSpos.le
+        _ ≤ S ^ (q - 5) * S ^ 3 * S := by
+          exact mul_le_mul_of_nonneg_right
+            (mul_le_mul_of_nonneg_left hWkSq (by positivity)) hSpos.le
+        _ = S ^ (q - 1) := hSprod4
+    have hprod : S ^ q * S ^ q ≤ X * L :=
+      mul_le_mul hX hL (by positivity) (by positivity)
+    have hden : (1 / S) * (S ^ q * S ^ q) ≤ δ * X * L := by
+      calc
+        (1 / S) * (S ^ q * S ^ q) ≤ δ * (S ^ q * S ^ q) :=
+          mul_le_mul_of_nonneg_right hSoneInv (by positivity)
+        _ ≤ δ * (X * L) := mul_le_mul_of_nonneg_left hprod (by positivity)
+        _ = δ * X * L := by ring
+    have hfactor : S ^ (q - 1) ≤ (1 / S) * (S ^ q * S ^ q) := by
+      have hInvPow : (1 / S) * S ^ q = S ^ (q - 1) := by
+        calc
+          (1 / S) * S ^ q = S ^ q / S := by ring
+          _ = S ^ (q - 1) := (Real.rpow_sub_one hSpos.ne' q).symm
+      have hpow := hpowAdd (q - 1) q
+      calc
+        S ^ (q - 1) ≤ S ^ (2 * q - 1) :=
+          Real.rpow_le_rpow_of_exponent_le hS (by linarith [he, heq])
+        _ = (1 / S) * (S ^ q * S ^ q) := by
+          calc
+            S ^ (2 * q - 1) = S ^ (q - 1) * S ^ q := by
+              symm
+              convert hpow using 1 <;> ring
+            _ = (1 / S) * S ^ q * S ^ q := by rw [← hInvPow]
+            _ = (1 / S) * (S ^ q * S ^ q) := by ring
+    exact le_trans (le_trans hnum hfactor) hden
+  have hLpos' : 0 < L := lt_of_lt_of_le (by positivity) hL
+  have hTerm1 : V ^ e * (Real.log (2 * k) / L) ≤ 2 / S := by
+    have heq : V ^ e * (Real.log (2 * k) / L) =
+        (V ^ e * Real.log (2 * k)) / L := by ring
+    rw [heq]
+    apply (div_le_div_iff₀ hLpos' hSpos).2
+    exact hcross1
+  have hTerm2 : V ^ e * (2 * H / X) ≤ 4 / S := by
+    have heq : V ^ e * (2 * H / X) = (V ^ e * (2 * H)) / X := by ring
+    rw [heq]
+    apply (div_le_div_iff₀ hXpos hSpos).2
+    exact hcross2
+  have hTerm3 : V ^ e * (W * k ^ 2 / (δ * X * L)) ≤ 1 / S := by
+    have heq : V ^ e * (W * k ^ 2 / (δ * X * L)) =
+        (V ^ e * (W * k ^ 2)) / (δ * X * L) := by ring
+    rw [heq, div_le_div_iff₀ (mul_pos (mul_pos hδpos hXpos) hLpos) hSpos]
+    simpa [mul_assoc] using hcross3
+  calc
+    V ^ e * (C * (Real.log (2 * k) / L + 2 * H / X +
+        W * k ^ 2 / (δ * X * L))) =
+      C * (V ^ e * (Real.log (2 * k) / L) +
+        V ^ e * (2 * H / X) + V ^ e * (W * k ^ 2 / (δ * X * L))) := by ring
+    _ ≤ C * (2 / S + 4 / S + 1 / S) := by
+      exact mul_le_mul_of_nonneg_left
+        (add_le_add (add_le_add hTerm1 hTerm2) hTerm3) hC
+    _ = C * (7 / S) := by ring
+
 end HindmanSumsProducts

@@ -356,7 +356,357 @@ theorem correlation_cube_root_sampling (Xa Xj k b H V : ℕ → ℕ)
               harmonicLaw (Xj N) (primorial (N + 1)) zj *
                 F ((k N : ℤ) * za + (b N : ℤ) * zj + h)) -
             ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y * F y| ≤ ε := by
-  sorry
+  let Wseq : ℕ → ℕ := fun N => primorial (N + 1)
+  let Sa : ℕ → ℝ := fun N =>
+    ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+  let Sj : ℕ → ℝ := fun N =>
+    ((2 + Wseq N + k N + V N : ℕ) : ℝ)
+  let Uj : ℕ → ℝ := fun N => 2 + (Wseq N : ℝ) + (k N : ℝ) + (V N : ℝ)
+  let Tj : ℕ → ℝ := fun N => 2 + (Wseq N : ℝ) + (k N : ℝ) + 1 + (V N : ℝ)
+  let e : ℝ := max (A + C) 1
+  let q : ℝ := e + 10
+  have he : 0 < e := by
+    dsimp [e]
+    exact lt_of_lt_of_le (by norm_num) (le_max_right _ _)
+  have heAC : A + C ≤ e := by dsimp [e]; exact le_max_left _ _
+  have hq : 0 < q := by dsimp [q]; linarith
+  have hq2 : 2 ≤ q := by dsimp [q]; linarith
+  have heq : e + 5 ≤ q := by dsimp [q]; linarith
+  have hWposNat (N : ℕ) : 0 < Wseq N := by
+    exact primorial_pos _
+  have hSa1 (N : ℕ) : 1 ≤ Sa N := by
+    change (1 : ℝ) ≤ ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show 1 ≤ 2 + Wseq N + k N + H N + V N by omega)
+  have hSaW (N : ℕ) : (Wseq N : ℝ) ≤ Sa N := by
+    change (Wseq N : ℝ) ≤ ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show Wseq N ≤ 2 + Wseq N + k N + H N + V N by omega)
+  have hSaK (N : ℕ) : (k N : ℝ) ≤ Sa N := by
+    change (k N : ℝ) ≤ ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show k N ≤ 2 + Wseq N + k N + H N + V N by omega)
+  have hSaH (N : ℕ) : (H N : ℝ) ≤ Sa N := by
+    change (H N : ℝ) ≤ ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show H N ≤ 2 + Wseq N + k N + H N + V N by omega)
+  have hSaV (N : ℕ) : (V N : ℝ) ≤ Sa N := by
+    change (V N : ℝ) ≤ ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show V N ≤ 2 + Wseq N + k N + H N + V N by omega)
+  have hSa4 (N : ℕ) : 4 ≤ Sa N := by
+    have hw := hWposNat N
+    have hkN := hk N
+    have hv := hV N
+    change (4 : ℝ) ≤ ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show 4 ≤ 2 + Wseq N + k N + H N + V N by omega)
+  have hSaHlt (N : ℕ) : (H N : ℝ) < Sa N := by
+    have hw := hWposNat N
+    have hkN := hk N
+    have hv := hV N
+    change (H N : ℝ) < ((2 + Wseq N + k N + H N + V N : ℕ) : ℝ)
+    exact_mod_cast (show H N < 2 + Wseq N + k N + H N + V N by omega)
+  have hSj1 (N : ℕ) : 1 ≤ Sj N := by
+    change (1 : ℝ) ≤ ((2 + Wseq N + k N + V N : ℕ) : ℝ)
+    exact_mod_cast (show 1 ≤ 2 + Wseq N + k N + V N by omega)
+  have hSjW (N : ℕ) : (Wseq N : ℝ) ≤ Sj N := by
+    change (Wseq N : ℝ) ≤ ((2 + Wseq N + k N + V N : ℕ) : ℝ)
+    exact_mod_cast (show Wseq N ≤ 2 + Wseq N + k N + V N by omega)
+  have hSj4 (N : ℕ) : 4 ≤ Sj N := by
+    have hw := hWposNat N
+    have hkN := hk N
+    have hv := hV N
+    change (4 : ℝ) ≤ ((2 + Wseq N + k N + V N : ℕ) : ℝ)
+    exact_mod_cast (show 4 ≤ 2 + Wseq N + k N + V N by omega)
+  have hDomA : OAI.MicrocellScale.Dominates (fun N => Real.log (Xa N : ℝ)) Sa := by
+    simpa [Sa, Wseq] using hXa
+  have hDomJ : OAI.MicrocellScale.Dominates (fun N => Real.log (Xj N : ℝ)) Sj := by
+    simpa [Sj, Wseq] using hXj
+  have hPowerA : ∀ᶠ N in atTop, Sa N ^ q ≤ Real.log (Xa N : ℝ) := by
+    have hdom := hDomA q hq
+    have hevent := (Filter.tendsto_atTop.1 hdom) (1 : ℝ)
+    filter_upwards [hevent] with N hN
+    have hden : 0 < Sa N ^ q := Real.rpow_pos_of_pos (by linarith [hSa1 N]) q
+    have hmul : 1 * Sa N ^ q ≤ Real.log (Xa N : ℝ) := (le_div_iff₀ hden).mp hN
+    simpa using hmul
+  have hPowerJ : ∀ᶠ N in atTop, Sj N ^ q ≤ Real.log (Xj N : ℝ) := by
+    have hdom := hDomJ q hq
+    have hevent := (Filter.tendsto_atTop.1 hdom) (1 : ℝ)
+    filter_upwards [hevent] with N hN
+    have hden : 0 < Sj N ^ q := Real.rpow_pos_of_pos (by linarith [hSj1 N]) q
+    have hmul : 1 * Sj N ^ q ≤ Real.log (Xj N : ℝ) := (le_div_iff₀ hden).mp hN
+    simpa using hmul
+  have hSaLePow (N : ℕ) : Sa N ≤ Sa N ^ q := by
+    calc
+      Sa N = Sa N ^ (1 : ℝ) := by rw [Real.rpow_one]
+      _ ≤ Sa N ^ q := Real.rpow_le_rpow_of_exponent_le (by linarith [hSa1 N]) (by linarith)
+  have hSaSqLePow (N : ℕ) : Sa N ^ (2 : ℝ) ≤ Sa N ^ q :=
+    Real.rpow_le_rpow_of_exponent_le (by linarith [hSa1 N]) hq2
+  have hSjSqLePow (N : ℕ) : Sj N ^ (2 : ℝ) ≤ Sj N ^ q :=
+    Real.rpow_le_rpow_of_exponent_le (by linarith [hSj1 N]) hq2
+  have hA_facts (N : ℕ) (hp : Sa N ^ q ≤ Real.log (Xa N : ℝ)) :
+      2 ≤ Xa N ∧ 4 * Wseq N ≤ Xa N ∧ k N ≤ Xa N ∧ 4 * H N < Xa N := by
+    have hSpos : 0 < Sa N := by linarith [hSa1 N]
+    have hlogpos : 0 < Real.log (Xa N : ℝ) :=
+      lt_of_lt_of_le (Real.rpow_pos_of_pos hSpos q) hp
+    have hXnonneg : 0 ≤ (Xa N : ℝ) := by positivity
+    have hXgt : 1 < (Xa N : ℝ) := (Real.log_pos_iff hXnonneg).mp hlogpos
+    have hXtwo : 2 ≤ Xa N := by
+      have hNat : 1 < Xa N := by exact_mod_cast hXgt
+      omega
+    have hlogle : Real.log (Xa N : ℝ) ≤ (Xa N : ℝ) := Real.log_le_self hXnonneg
+    have hSaLeX : Sa N ≤ (Xa N : ℝ) := le_trans (hSaLePow N) (le_trans hp hlogle)
+    have hSaSqW : 4 * (Wseq N : ℝ) ≤ Sa N ^ (2 : ℝ) := by
+      calc
+        4 * (Wseq N : ℝ) ≤ 4 * Sa N := mul_le_mul_of_nonneg_left (hSaW N) (by norm_num)
+        _ ≤ Sa N * Sa N := mul_le_mul_of_nonneg_right (hSa4 N) (by positivity)
+        _ = Sa N ^ (2 : ℝ) := by rw [Real.rpow_two]; ring
+    have hSaSqH : 4 * (H N : ℝ) < Sa N ^ (2 : ℝ) := by
+      calc
+        4 * (H N : ℝ) < 4 * Sa N := mul_lt_mul_of_pos_left (hSaHlt N) (by norm_num)
+        _ ≤ Sa N * Sa N := mul_le_mul_of_nonneg_right (hSa4 N) (by positivity)
+        _ = Sa N ^ (2 : ℝ) := by rw [Real.rpow_two]; ring
+    have hWreal : 4 * (Wseq N : ℝ) ≤ (Xa N : ℝ) :=
+      le_trans hSaSqW (le_trans (hSaSqLePow N) (le_trans hp hlogle))
+    have hHreal : 4 * (H N : ℝ) < (Xa N : ℝ) :=
+      lt_of_lt_of_le hSaSqH (le_trans (hSaSqLePow N) (le_trans hp hlogle))
+    have hWnat : 4 * Wseq N ≤ Xa N := by exact_mod_cast hWreal
+    have hKreal : (k N : ℝ) ≤ (Xa N : ℝ) := le_trans (hSaK N) hSaLeX
+    have hKnat : k N ≤ Xa N := by exact_mod_cast hKreal
+    have hHnat : 4 * H N < Xa N := by exact_mod_cast hHreal
+    exact ⟨hXtwo, hWnat, hKnat, hHnat⟩
+  have hJ_facts (N : ℕ) (hp : Sj N ^ q ≤ Real.log (Xj N : ℝ)) :
+      2 ≤ Xj N ∧ 4 * Wseq N ≤ Xj N := by
+    have hSpos : 0 < Sj N := by linarith [hSj1 N]
+    have hlogpos : 0 < Real.log (Xj N : ℝ) :=
+      lt_of_lt_of_le (Real.rpow_pos_of_pos hSpos q) hp
+    have hXnonneg : 0 ≤ (Xj N : ℝ) := by positivity
+    have hXgt : 1 < (Xj N : ℝ) := (Real.log_pos_iff hXnonneg).mp hlogpos
+    have hXtwo : 2 ≤ Xj N := by
+      have hNat : 1 < Xj N := by exact_mod_cast hXgt
+      omega
+    have hlogle : Real.log (Xj N : ℝ) ≤ (Xj N : ℝ) := Real.log_le_self hXnonneg
+    have hSjSqW : 4 * (Wseq N : ℝ) ≤ Sj N ^ (2 : ℝ) := by
+      calc
+        4 * (Wseq N : ℝ) ≤ 4 * Sj N := mul_le_mul_of_nonneg_left (hSjW N) (by norm_num)
+        _ ≤ Sj N * Sj N := mul_le_mul_of_nonneg_right (hSj4 N) (by positivity)
+        _ = Sj N ^ (2 : ℝ) := by rw [Real.rpow_two]; ring
+    have hWreal : 4 * (Wseq N : ℝ) ≤ (Xj N : ℝ) :=
+      le_trans hSjSqW (le_trans (hSjSqLePow N) (le_trans hp hlogle))
+    exact ⟨hXtwo, by exact_mod_cast hWreal⟩
+  have hJfactsEventually : ∀ᶠ N in atTop, 2 ≤ Xj N ∧ 4 * Wseq N ≤ Xj N := by
+    filter_upwards [hPowerJ] with N hp
+    exact hJ_facts N hp
+  have hDenJ : ∀ᶠ N in atTop, Real.log (Xj N : ℝ) > (Wseq N : ℝ) / Xj N := by
+    filter_upwards [hJfactsEventually] with N hN
+    exact correlation_root_log_condition (hWposNat N) hN.2
+  have hDomXjNat : OAI.MicrocellScale.Dominates (fun N => (Xj N : ℝ)) Uj :=
+    dominates_nat_of_log_dominates (by intro N; positivity) (by simpa [Uj, Wseq] using hXj)
+  have hDomXjSample : OAI.MicrocellScale.Dominates (fun N => (Xj N : ℝ)) Tj := by
+    apply dominates_weaken_target_sq
+      (hF := by intro N; positivity)
+      (hS := by
+        intro N
+        have hw : 0 ≤ (Wseq N : ℝ) := by positivity
+        have hkN : 0 ≤ (k N : ℝ) := by positivity
+        have hv : 0 ≤ (V N : ℝ) := by positivity
+        dsimp [Uj]
+        linarith)
+      (hT := by intro N; dsimp [Tj]; positivity)
+      (hTS := by
+        intro N
+        have hU4 : 4 ≤ Uj N := by
+          have hw := hWposNat N
+          have hkN := hk N
+          have hv := hV N
+          change (4 : ℝ) ≤ 2 + (Wseq N : ℝ) + (k N : ℝ) + (V N : ℝ)
+          exact_mod_cast (show 4 ≤ 2 + Wseq N + k N + V N by omega)
+        have hEq : Tj N = Uj N + 1 := by dsimp [Tj, Uj]; ring
+        rw [hEq]
+        calc
+          Uj N + 1 ≤ Uj N ^ 2 := by nlinarith [sq_nonneg (Uj N - 1)]
+          _ = Uj N ^ (2 : ℝ) := (Real.rpow_natCast (Uj N) 2).symm)
+      hDomXjNat
+  have hSamplingAsym := FromArithmetic.sampling_asymptotics
+      Wseq k (fun _ => 1) V Xj
+      (by intro N; have := hk N; omega)
+      (by intro N; norm_num)
+      hV
+      (by intro N; rfl)
+      (by filter_upwards [hJfactsEventually] with N hN; exact hN.1)
+      hDenJ (by simpa [Tj] using hDomXjSample)
+      (by simpa [Uj, Wseq] using hXj)
+  rcases correlation_cube_root_tv_bound with ⟨C₀, hC₀, hCube⟩
+  let δseq : ℕ → ℝ := fun N => (Nat.totient (Wseq N) : ℝ) / Wseq N
+  let Eroot : ℕ → ℝ := fun N => C₀ *
+    (Real.log (2 * (k N : ℝ)) / Real.log (Xa N : ℝ) +
+      (2 * (H N : ℝ)) / Xa N +
+      (Wseq N : ℝ) * (k N : ℝ) ^ 2 /
+        (δseq N * Xa N * Real.log (Xa N : ℝ)))
+  let Eres : ℕ → ℝ := fun N => FromArithmetic.harmonicResidueError (Xj N) (Wseq N) (k N)
+  have hResidueSuper : SuperPolynomialSmall Eres (fun N => (V N : ℝ)) := by
+    simpa [Eres, FromArithmetic.harmonicResidueUniformError,
+      FromArithmetic.harmonicResidueError, Wseq] using hSamplingAsym.1
+  have hResidueWeighted : Tendsto (fun N => (V N : ℝ) ^ e * Eres N) atTop (𝓝 0) := by
+    have h := hResidueSuper e he
+    simpa [mul_comm] using h
+  have hResidueNonneg : ∀ᶠ N in atTop, 0 ≤ Eres N := by
+    filter_upwards [hDenJ, hJfactsEventually] with N hden hfacts
+    have hW : 0 < (Wseq N : ℝ) := by exact_mod_cast hWposNat N
+    have hX : 0 < (Xj N : ℝ) := by
+      exact_mod_cast (show 0 < Xj N by omega)
+    have hD : 0 < Real.log (Xj N : ℝ) - (Wseq N : ℝ) / Xj N := by linarith
+    unfold Eres FromArithmetic.harmonicResidueError
+    apply div_nonneg
+    · positivity
+    · exact (mul_pos hX hD).le
+  have hSaTop : Tendsto Sa atTop atTop := by
+    have hNatTop : Tendsto (fun N : ℕ => (N : ℝ)) atTop atTop := tendsto_natCast_atTop_atTop
+    have hle : (fun N : ℕ => (N : ℝ)) ≤ᶠ[atTop] Sa := by
+      filter_upwards [] with N
+      have hNW : N ≤ Wseq N := by
+        dsimp [Wseq]
+        exact le_trans (Nat.le_succ N) (le_primorial_self (n := N + 1))
+      have hNWreal : (N : ℝ) ≤ (Wseq N : ℝ) := by exact_mod_cast hNW
+      exact le_trans hNWreal (hSaW N)
+    exact Filter.tendsto_atTop_mono' Filter.atTop hle hNatTop
+  have hSaInv : Tendsto (fun N => 1 / Sa N) atTop (𝓝 0) := by
+    convert (tendsto_inv_atTop_zero.comp hSaTop) using 1 <;> funext N <;> simp [one_div]
+  have hRootUpper : Tendsto (fun N => C₀ * (7 / Sa N)) atTop (𝓝 0) := by
+    have h := Filter.Tendsto.const_mul (C₀ * 7) hSaInv
+    simpa [div_eq_mul_inv, mul_assoc, mul_left_comm, mul_comm] using h
+  have hRootEst : ∀ᶠ N in atTop,
+      0 ≤ (V N : ℝ) ^ e * Eroot N ∧ (V N : ℝ) ^ e * Eroot N ≤ C₀ * (7 / Sa N) := by
+    filter_upwards [hPowerA] with N hp
+    rcases hA_facts N hp with ⟨hXa2, hXaW, hXak, hXaH⟩
+    have hW : 0 < Wseq N := hWposNat N
+    have hkN := hk N
+    have hK : 1 ≤ k N := by omega
+    have hVreal : 1 ≤ (V N : ℝ) := by exact_mod_cast hV N
+    have hWreal : 0 < (Wseq N : ℝ) := by exact_mod_cast hW
+    have hXreal : 0 < (Xa N : ℝ) := by exact_mod_cast (show 0 < Xa N by omega)
+    have hLog : 0 < Real.log (Xa N : ℝ) := by
+      exact lt_of_lt_of_le (Real.rpow_pos_of_pos (by linarith [hSa1 N]) q) hp
+    have hXbound : Sa N ^ q ≤ (Xa N : ℝ) :=
+      le_trans hp (Real.log_le_self (by positivity))
+    have hPhi : (1 : ℝ) ≤ (Nat.totient (Wseq N) : ℝ) := by
+      exact_mod_cast (Nat.succ_le_iff.mpr (Nat.totient_pos.mpr hW))
+    have hDeltaPos : 0 < δseq N := by
+      dsimp [δseq]
+      exact div_pos (by exact_mod_cast Nat.totient_pos.mpr hW) hWreal
+    have hDelta : 1 / (Wseq N : ℝ) ≤ δseq N := by
+      dsimp [δseq]
+      exact div_le_div_of_nonneg_right hPhi (by positivity)
+    have hHreal : 0 ≤ (H N : ℝ) := by positivity
+    have hHS : (H N : ℝ) ≤ 2 * Sa N := by linarith [hSaH N]
+    have hKreal : (1 : ℝ) ≤ (k N : ℝ) := by exact_mod_cast hK
+    have hLarg : 0 ≤ C₀ := le_of_lt hC₀
+    have hBound := rootTV_error_weight_bound (Sa N) (V N) (Wseq N) (k N) (H N)
+      (Xa N) (Real.log (Xa N : ℝ)) (δseq N) e q C₀
+      (hSa1 N) (by exact_mod_cast hV N) (hSaV N)
+      hWreal (hSaW N) hKreal (hSaK N) hHreal hHS hXbound hp hDelta he.le heq hLarg
+    have hlog2 : 0 ≤ Real.log (2 * (k N : ℝ)) := by
+      apply Real.log_nonneg
+      have hkN : 1 ≤ k N := hK
+      exact_mod_cast (show 1 ≤ 2 * k N by omega)
+    have hEroot : 0 ≤ Eroot N := by
+      unfold Eroot
+      apply mul_nonneg hLarg
+      apply add_nonneg
+      · apply add_nonneg
+        · exact div_nonneg hlog2 hLog.le
+        · exact div_nonneg (by positivity) (by positivity)
+      · apply div_nonneg
+        · positivity
+        · exact mul_nonneg (mul_nonneg hDeltaPos.le hXreal.le) hLog.le
+    constructor
+    · exact mul_nonneg (Real.rpow_nonneg (by exact_mod_cast (Nat.zero_le (V N))) e) hEroot
+    · simpa [Eroot, δseq, Wseq, Nat.cast_mul] using hBound
+  have hRootWeighted : Tendsto (fun N => (V N : ℝ) ^ e * Eroot N) atTop (𝓝 0) :=
+    squeeze_zero' (hRootEst.mono fun N hN => hN.1)
+      (hRootEst.mono fun N hN => hN.2) hRootUpper
+  have hWeightedTotal : Tendsto
+      (fun N => (V N : ℝ) ^ e * (Eroot N + Eres N)) atTop (𝓝 0) := by
+    have hsum := hRootWeighted.add hResidueWeighted
+    simpa [mul_add] using hsum
+  have hsmall (ε : ℝ) (hε : 0 < ε) :
+      ∀ᶠ N in atTop, (V N : ℝ) ^ e * (Eroot N + Eres N) < ε :=
+    hWeightedTotal.eventually (Iio_mem_nhds hε)
+  intro ε hε
+  filter_upwards [hPowerA, hPowerJ, hResidueNonneg, hsmall ε hε] with N hpA hpJ hrespos hsmallN
+  intro h h0 hH hdiv F hF
+  rcases hA_facts N hpA with ⟨hXa2, hXaW, hXak, hXaH⟩
+  rcases hJ_facts N hpJ with ⟨hXj2, hXjW⟩
+  have hW : 0 < Wseq N := hWposNat N
+  have hWreal : 0 < (Wseq N : ℝ) := by exact_mod_cast hW
+  have hXaPos : 0 < Xa N := by omega
+  have hXjPos : 0 < Xj N := by omega
+  have hXaLog : Real.log (Xa N : ℝ) > (Wseq N : ℝ) / Xa N :=
+    correlation_root_log_condition hW hXaW
+  have hXjLog : Real.log (Xj N : ℝ) > (Wseq N : ℝ) / Xj N :=
+    correlation_root_log_condition hW hXjW
+  have hNormA : 0 < harmonicNormalizer (Xa N) (Wseq N) :=
+    harmonicNormalizer_pos_of_root_conditions hW hXaW
+  have hNormJ : 0 < harmonicNormalizer (Xj N) (Wseq N) :=
+    harmonicNormalizer_pos_of_root_conditions hW hXjW
+  have hSampJ : FromArithmetic.SamplingPointwiseBounds (Xj N) (Wseq N) :=
+    FromArithmetic.sampling_pointwise_claim (Xj N) (Wseq N) hW hXj2 hXjLog
+  have hTV : ∀ (h' : ℤ), 0 ≤ h' → h' ≤ 2 * H N → (Wseq N : ℤ) ∣ h' →
+      arithmeticL1 (translatedLaw (dilatedLaw (harmonicLaw (Xa N) (Wseq N)) (k N)) h')
+        (progressionReference (harmonicLaw (Xa N) (Wseq N)) (k N) h') ≤ Eroot N := by
+    intro h' h'0 h'le h'div
+    have hHX : 2 * (2 * H N) < Xa N := by omega
+    have ht := hCube (Xa N) (Wseq N) (k N) (2 * H N) h'
+      hW hXaW (hk N) hXak (hkW N) h'0 h'le h'div hHX
+    simpa [Eroot, δseq, Wseq, Nat.cast_mul] using ht
+  have hResidue : FromArithmetic.harmonicResidueError (Xj N) (Wseq N) (k N) ≤ Eres N := by
+    rfl
+  have hM : 0 ≤ (V N : ℝ) ^ A := Real.rpow_nonneg (by exact_mod_cast (Nat.zero_le (V N))) A
+  have hErootLocal : 0 ≤ Eroot N := by
+    have hLogApos : 0 < Real.log (Xa N : ℝ) := by
+      exact lt_of_lt_of_le (Real.rpow_pos_of_pos (by linarith [hSa1 N]) q) hpA
+    have hdeltaPos : 0 < δseq N := by
+      dsimp [δseq]
+      exact div_pos (by exact_mod_cast Nat.totient_pos.mpr hW) hWreal
+    have hlog2 : 0 ≤ Real.log (2 * (k N : ℝ)) := by
+      apply Real.log_nonneg
+      have hkN := hk N
+      exact_mod_cast (show 1 ≤ 2 * k N by omega)
+    unfold Eroot
+    apply mul_nonneg (le_of_lt hC₀)
+    apply add_nonneg
+    · apply add_nonneg
+      · exact div_nonneg hlog2 hLogApos.le
+      · exact div_nonneg (by positivity) (by positivity)
+    · apply div_nonneg
+      · positivity
+      · exact mul_nonneg (mul_nonneg hdeltaPos.le (by positivity)) hLogApos.le
+  have hExpected := correlationRoot_expected_test_bound
+      (Xa N) (Xj N) (Wseq N) (k N) (b N) (H N) h
+      ((V N : ℝ) ^ A) (Eroot N) (Eres N)
+      (by exact_mod_cast hXaPos) (by exact_mod_cast hXjPos) (hk N)
+      (hWb N) (hbk N) (hkW N) (hbH N) h0 hH hdiv
+      hNormA hNormJ hXj2 hXjLog hSampJ hM hErootLocal hrespos hTV hResidue F hF
+  have hVN := hV N
+  have hVpos : 0 < (V N : ℝ) := by
+    exact_mod_cast (lt_of_lt_of_le (by norm_num : 0 < 1) hVN)
+  have hVpow : (V N : ℝ) ^ (A + C) ≤ (V N : ℝ) ^ e :=
+    Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hV N) heAC
+  have hErrorNonneg : 0 ≤ Eroot N + Eres N := add_nonneg hErootLocal hrespos
+  have hScaleLe : (V N : ℝ) ^ (A + C) * (Eroot N + Eres N) ≤
+      (V N : ℝ) ^ e * (Eroot N + Eres N) :=
+    mul_le_mul_of_nonneg_right hVpow hErrorNonneg
+  have hpowAC : (V N : ℝ) ^ C * ((V N : ℝ) ^ A * (Eroot N + Eres N)) =
+      (V N : ℝ) ^ (A + C) * (Eroot N + Eres N) := by
+    calc
+      _ = ((V N : ℝ) ^ A * (V N : ℝ) ^ C) * (Eroot N + Eres N) := by ring
+      _ = _ := by rw [← Real.rpow_add hVpos A C]
+  simpa [Wseq] using (calc
+    (V N : ℝ) ^ C *
+        |(∑' za : ℤ, ∑' zj : ℤ, harmonicLaw (Xa N) (Wseq N) za *
+            harmonicLaw (Xj N) (Wseq N) zj *
+              F ((k N : ℤ) * za + (b N : ℤ) * zj + h)) -
+          ∑' y : ℤ, harmonicLaw (Xa N) (Wseq N) y * F y| ≤
+      (V N : ℝ) ^ C * ((V N : ℝ) ^ A * (Eroot N + Eres N) ) :=
+        mul_le_mul_of_nonneg_left hExpected (by positivity)
+    _ = (V N : ℝ) ^ (A + C) * (Eroot N + Eres N) := hpowAC
+    _ ≤ (V N : ℝ) ^ e * (Eroot N + Eres N) := hScaleLe
+    _ ≤ ε := le_of_lt hsmallN)
 
 /-! ## The uniform correlation test (Proposition `prop:correlation-test`, 04:576–707) -/
 
