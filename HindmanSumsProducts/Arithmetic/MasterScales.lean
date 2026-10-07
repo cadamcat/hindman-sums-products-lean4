@@ -2292,6 +2292,7 @@ theorem choose_small_prime_exception_exponent {m : ℕ}
       intro i
       dsimp [masterResidueTupleReduce, masterResidueReduce]
       norm_cast
+      change ((x i).val : ZMod K) = (((x i).val % K : ℕ) : ZMod K)
       simpa only [ZMod.val_natCast] using
         (ZMod.natCast_zmod_val ((x i).val : ZMod K)).symm
     calc
@@ -3215,7 +3216,11 @@ theorem choose_master_gap_length {m : ℕ} (D : Finset (IntegerPolynomial m))
     refine ⟨M * L * (B + 1), ?_⟩
     dsimp [R]
     ring
-  refine ⟨R, hRpos, hRlower, hMdiv, hLdiv, ?_⟩
+  refine ⟨R, ?_⟩
+  refine ⟨hRpos, ?_⟩
+  refine ⟨hRlower, ?_⟩
+  refine ⟨hMdiv, ?_⟩
+  refine ⟨hLdiv, ?_⟩
   intro p Q hQ hp hne
   have htuple : p ∈ tuples₀ := by
     apply Finset.mem_filter.mpr
@@ -3232,6 +3237,546 @@ theorem choose_master_gap_length {m : ℕ} (D : Finset (IntegerPolynomial m))
     apply Finset.mem_image.mpr
     exact ⟨(p, Q), hpair, rfl⟩
   exact (Finset.dvd_prod_of_mem (s := vals) (f := id) hval).trans hproddiv
+
+/-! ### Finite sequential witnesses for the master scales -/
+
+private def masterStageV {n : ℕ} (M : ℕ) (X : Fin n → ℕ) (l : Fin n) : ℕ :=
+  2 + M + ∏ j ∈ (Finset.univ.filter (fun j : Fin n => j < l)), (X j) ^ 2
+
+private def masterStagePreviousGap {n : ℕ} (H : Fin n → ℕ) (l : Fin n) : ℕ :=
+  ∏ j ∈ (Finset.univ.filter (fun j : Fin n => j < l)), H j
+
+private lemma masterStageV_update {n : ℕ} (M : ℕ) (X : Fin n → ℕ)
+    (i j : Fin n) (x : ℕ) (hji : ¬ j < i) :
+    masterStageV M (Function.update X j x) i = masterStageV M X i := by
+  unfold masterStageV
+  congr 1
+  apply Finset.prod_congr rfl
+  intro t ht
+  have hti : t < i := (Finset.mem_filter.mp ht).2
+  have htj : t ≠ j := by
+    intro h
+    subst t
+    exact hji hti
+  simp [Function.update_of_ne htj]
+
+private def masterDummyPrimePool : PrimePool := {
+  lower := 1
+  upper := 2
+  lower_pos := by norm_num
+  lower_lt_upper := by norm_num
+  lower_pow_two := ⟨0, by norm_num⟩
+  upper_pow_two := ⟨1, by norm_num⟩
+  consecutive_complete_intervals := ⟨1, by norm_num⟩
+}
+
+private structure MasterScalePrefix (n k m N e : ℕ)
+    (D : Finset (IntegerPolynomial m)) where
+  pool : Fin n → PrimePool
+  H : Fin n → ℕ
+  X : Fin n → ℕ
+  pool_lower : ∀ l, l.val < k →
+    (N + 1) * masterStageV (masterModulus n N e) X l ^ (N + 1) ≤ (pool l).lower
+  pool_mass : ∀ l, l.val < k →
+    ((N + 1 : ℝ) * (masterStageV (masterModulus n N e) X l : ℝ) ^ (N + 1)) ≤
+      primePoolMass (pool l).lower (pool l).upper
+  pool_error : ∀ l, l.val < k →
+    finiteL1
+      (primePoolResidueLaw (pool l).lower (pool l).upper
+        (masterCRTModulus (N + 1) e (masterStageV (masterModulus n N e) X l)))
+      (uniformUnitResidueLaw
+        (masterCRTModulus (N + 1) e (masterStageV (masterModulus n N e) X l))) ≤
+      1 / (masterStageV (masterModulus n N e) X l : ℝ) ^ (N + 1)
+  H_pos : ∀ l, l.val < k → 0 < H l
+  H_modulus : ∀ l, l.val < k → masterModulus n N e ∣ H l
+  H_previous : ∀ i j, i.val < k → j.val < k → i < j → H i ∣ H j
+  H_polynomial : ∀ l, l.val < k → ∀ (p : Fin m → ℕ) (Q : IntegerPolynomial m),
+    Q ∈ D →
+    (∀ i, (pool l).lower ≤ p i ∧ p i < (pool l).upper ∧ (p i).Prime) →
+    evalIntegerPolynomial Q (fun i => (p i : ℤ)) ≠ 0 →
+    masterModulus n N e * (evalIntegerPolynomial Q (fun i => (p i : ℤ))).natAbs ∣ H l
+  H_bound : ∀ l, l.val < k →
+    (N + 1) * ((pool l).upper + masterStageV (masterModulus n N e) X l) ^ (N + 1) ≤ H l
+  X_pow : ∀ l, l.val < k → ∃ a, X l = 2 ^ a
+  X_log : ∀ l, l.val < k →
+    ((N + 1 : ℝ) * (H l : ℝ) ^ (N + 1)) ≤ Real.log (X l : ℝ)
+  X_valid : ∀ l, l.val < k → 4 * primorial (N + 1) ≤ X l
+
+private theorem master_power_two_cutoff (B W : ℕ) :
+    ∃ X k : ℕ, X = 2 ^ k ∧ 4 * W ≤ X ∧ (B : ℝ) ≤ Real.log (X : ℝ) := by
+  have hpow : Tendsto (fun k : ℕ => (2 : ℝ) ^ k) atTop atTop :=
+    tendsto_pow_atTop_atTop_of_one_lt (by norm_num : (1 : ℝ) < 2)
+  have hlog : Tendsto (fun k : ℕ => Real.log ((2 : ℝ) ^ k)) atTop atTop :=
+    Real.tendsto_log_atTop.comp hpow
+  have hpowEventually : ∀ᶠ k : ℕ in atTop, (4 * W : ℝ) ≤ (2 : ℝ) ^ k :=
+    hpow.eventually_ge_atTop (4 * W : ℝ)
+  have hlogEventually : ∀ᶠ k : ℕ in atTop, (B : ℝ) ≤ Real.log ((2 : ℝ) ^ k) :=
+    hlog.eventually_ge_atTop (B : ℝ)
+  obtain ⟨k₁, hk₁⟩ := (eventually_atTop.mp hpowEventually)
+  obtain ⟨k₂, hk₂⟩ := (eventually_atTop.mp hlogEventually)
+  let k := max k₁ k₂
+  have hk1 := hk₁ k (le_trans (le_max_left _ _) (le_rfl))
+  have hk2 := hk₂ k (le_max_right _ _)
+  refine ⟨2 ^ k, k, rfl, ?_, ?_⟩
+  · exact_mod_cast hk1
+  · simpa [Nat.cast_pow] using hk2
+
+private theorem masterScalePrefix_exists (n m N e : ℕ)
+    (D : Finset (IntegerPolynomial m)) :
+    ∀ k, k ≤ n → Nonempty (MasterScalePrefix n k m N e D) := by
+  intro k
+  induction k with
+  | zero =>
+      intro hk
+      refine ⟨{
+        pool := fun _ => masterDummyPrimePool
+        H := fun _ => 1
+        X := fun _ => 1
+        pool_lower := ?_
+        pool_mass := ?_
+        pool_error := ?_
+        H_pos := ?_
+        H_modulus := ?_
+        H_previous := ?_
+        H_polynomial := ?_
+        H_bound := ?_
+        X_pow := ?_
+        X_log := ?_
+        X_valid := ?_ }⟩
+      all_goals intro l hl; omega
+  | succ k ih =>
+      intro hk
+      obtain ⟨s⟩ := ih (by omega)
+      let l : Fin n := ⟨k, by omega⟩
+      let w := N + 1
+      let V := masterStageV (masterModulus n N e) s.X l
+      let Q := masterCRTModulus w e V
+      let Bpool := w * V ^ w
+      have hV : 0 < V := by dsimp [V, masterStageV]; omega
+      have hVreal : 0 < (V : ℝ) := by exact_mod_cast hV
+      have hprimeProd : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p := by
+        apply Finset.prod_pos
+        intro p hp
+        exact (Finset.mem_filter.mp hp).2.pos
+      have hQ : 0 < Q := by
+        dsimp [Q, masterCRTModulus]
+        exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprimeProd
+      have hε : 0 < (1 / (V : ℝ) ^ w) := by positivity
+      obtain ⟨pool, hpoolLower, hpoolMass, hpoolErr⟩ :=
+        choose_master_pool Q Bpool hQ (1 / (V : ℝ) ^ w) hε
+      let L := masterStagePreviousGap s.H l
+      have hL : 0 < L := by
+        dsimp [L, masterStagePreviousGap]
+        apply Finset.prod_pos
+        intro i hi
+        have hil : i < l := (Finset.mem_filter.mp hi).2
+        apply s.H_pos i
+        have hval := Fin.lt_iff_val_lt_val.mp hil
+        omega
+      have hM : 0 < masterModulus n N e := by
+        dsimp [masterModulus]
+        exact Nat.pow_pos (primorial_pos _)
+      let Bgap := w * (pool.upper + V) ^ w
+      obtain ⟨R, hRpos, hRbound, hRM, hRL, hRpoly⟩ :=
+        choose_master_gap_length D pool.lower pool.upper (masterModulus n N e) L Bgap hM hL
+      obtain ⟨Xnew, xexp, hxpow, hxvalid, hxlog⟩ :=
+        master_power_two_cutoff (w * R ^ w) (primorial w)
+      let pool' := Function.update s.pool l pool
+      let H' := Function.update s.H l R
+      let X' := Function.update s.X l Xnew
+      have hlval : l.val = k := rfl
+      have hVupdate : masterStageV (masterModulus n N e) X' l = V := by
+        dsimp [X', V]
+        exact masterStageV_update _ _ _ _ _ (by simp)
+      have hpoolSelf : pool' l = pool := by simp [pool']
+      have hHSelf : H' l = R := by simp [H']
+      have hXSelf : X' l = Xnew := by simp [X']
+      refine ⟨{
+        pool := pool'
+        H := H'
+        X := X'
+        pool_lower := ?_
+        pool_mass := ?_
+        pool_error := ?_
+        H_pos := ?_
+        H_modulus := ?_
+        H_previous := ?_
+        H_polynomial := ?_
+        H_bound := ?_
+        X_pow := ?_
+        X_log := ?_
+        X_valid := ?_ }⟩
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hpoolSelf, hVupdate]
+          simpa [Bpool, w, V] using hpoolLower
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hVsame : masterStageV (masterModulus n N e) X' i =
+              masterStageV (masterModulus n N e) s.X i := by
+            dsimp [X']
+            apply masterStageV_update
+            intro hli
+            have hlt := Fin.lt_iff_val_lt_val.mp hli
+            have hiLt : i.val < k := hiK
+            have hlval : l.val = k := rfl
+            omega
+          have hpoolOld : pool' i = s.pool i :=
+            Function.update_of_ne hil pool s.pool
+          rw [hpoolOld, hVsame]
+          exact s.pool_lower i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hpoolSelf, hVupdate]
+          simpa [Bpool, w, V, Nat.cast_mul, Nat.cast_pow] using hpoolMass
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hVsame : masterStageV (masterModulus n N e) X' i =
+              masterStageV (masterModulus n N e) s.X i := by
+            dsimp [X']
+            apply masterStageV_update
+            intro hli
+            have hlt := Fin.lt_iff_val_lt_val.mp hli
+            have hiLt : i.val < k := hiK
+            have hlval : l.val = k := rfl
+            omega
+          have hpoolOld : pool' i = s.pool i :=
+            Function.update_of_ne hil pool s.pool
+          rw [hpoolOld, hVsame]
+          exact s.pool_mass i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hpoolSelf, hVupdate]
+          change finiteL1 (primePoolResidueLaw pool.lower pool.upper Q)
+            (uniformUnitResidueLaw Q) ≤ 1 / (V : ℝ) ^ w
+          exact hpoolErr
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hVsame : masterStageV (masterModulus n N e) X' i =
+              masterStageV (masterModulus n N e) s.X i := by
+            dsimp [X']
+            apply masterStageV_update
+            intro hli
+            have hlt := Fin.lt_iff_val_lt_val.mp hli
+            have hiLt : i.val < k := hiK
+            have hlval : l.val = k := rfl
+            omega
+          have hpoolOld : pool' i = s.pool i :=
+            Function.update_of_ne hil pool s.pool
+          rw [hpoolOld, hVsame]
+          exact s.pool_error i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hHSelf]
+          exact hRpos
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hOld : H' i = s.H i := Function.update_of_ne hil R s.H
+          rw [hOld]
+          exact s.H_pos i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hHSelf]
+          exact hRM
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hOld : H' i = s.H i := Function.update_of_ne hil R s.H
+          rw [hOld]
+          exact s.H_modulus i hiK
+      · intro i j hi hj hij
+        by_cases hjl : j = l
+        · subst j
+          have hik : i.val < k := by
+            have hlt := Fin.lt_iff_val_lt_val.mp hij
+            have hlval : l.val = k := rfl
+            omega
+          have hiL : s.H i ∣ L := by
+            dsimp [L, masterStagePreviousGap]
+            apply Finset.dvd_prod_of_mem
+            apply Finset.mem_filter.mpr
+            exact ⟨Finset.mem_univ i, hij⟩
+          have hiNew : H' i = s.H i := by
+            have hiNe : i ≠ l := by
+              intro hEq
+              have hval := congrArg Fin.val hEq
+              have hlt := Fin.lt_iff_val_lt_val.mp hij
+              omega
+            exact Function.update_of_ne hiNe R s.H
+          rw [hiNew, hHSelf]
+          exact hiL.trans hRL
+        · have hjK : j.val < k := by
+            have hne : j.val ≠ k := by
+              intro heq
+              exact hjl (Fin.ext heq)
+            omega
+          have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              have hlt := Fin.lt_iff_val_lt_val.mp hij
+              omega
+            omega
+          have hOld := s.H_previous i j hiK hjK hij
+          have hiNe : i ≠ l := by
+            intro hEq
+            have hval := congrArg Fin.val hEq
+            have hlt := Fin.lt_iff_val_lt_val.mp hij
+            omega
+          have hiUpdate : H' i = s.H i := Function.update_of_ne hiNe R s.H
+          have hjUpdate : H' j = s.H j := Function.update_of_ne hjl R s.H
+          rw [hiUpdate, hjUpdate]
+          exact hOld
+      · intro i hi p Q hQD hp hne
+        by_cases hil : i = l
+        · subst i
+          have hp' : ∀ i, pool.lower ≤ p i ∧ p i < pool.upper ∧ (p i).Prime := by
+            simpa [pool', hpoolSelf] using hp
+          rw [hHSelf]
+          exact hRpoly p Q hQD hp' hne
+        · have hiK : i.val < k := by
+            have hne' : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hpoolOld : pool' i = s.pool i :=
+            Function.update_of_ne hil pool s.pool
+          have hHOld : H' i = s.H i := Function.update_of_ne hil R s.H
+          rw [hpoolOld] at hp
+          rw [hHOld]
+          exact s.H_polynomial i hiK p Q hQD hp hne
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hpoolSelf, hVupdate, hHSelf]
+          change w * (pool.upper + V) ^ w ≤ R
+          exact hRbound
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              apply hil
+              exact Fin.ext heq
+            omega
+          have hVsame : masterStageV (masterModulus n N e) X' i =
+              masterStageV (masterModulus n N e) s.X i := by
+            dsimp [X']
+            apply masterStageV_update
+            intro hli
+            have hlt := Fin.lt_iff_val_lt_val.mp hli
+            have hiLt : i.val < k := hiK
+            have hlval : l.val = k := rfl
+            omega
+          have hpoolOld : pool' i = s.pool i :=
+            Function.update_of_ne hil pool s.pool
+          have hHOld : H' i = s.H i := Function.update_of_ne hil R s.H
+          rw [hpoolOld, hHOld, hVsame]
+          exact s.H_bound i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hXSelf]
+          exact ⟨xexp, hxpow⟩
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hOld : X' i = s.X i := Function.update_of_ne hil Xnew s.X
+          rw [hOld]
+          exact s.X_pow i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          rw [hXSelf, hHSelf]
+          simpa [w, Nat.cast_mul, Nat.cast_pow] using hxlog
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hOld : X' i = s.X i := Function.update_of_ne hil Xnew s.X
+          have hHOld : H' i = s.H i := Function.update_of_ne hil R s.H
+          rw [hOld, hHOld]
+          exact s.X_log i hiK
+      · intro i hi
+        by_cases hil : i = l
+        · subst i
+          simpa [X', Function.update_self, w] using hxvalid
+        · have hiK : i.val < k := by
+            have hne : i.val ≠ k := by
+              intro heq
+              exact hil (Fin.ext heq)
+            omega
+          have hOld : X' i = s.X i := Function.update_of_ne hil Xnew s.X
+          rw [hOld]
+          exact s.X_valid i hiK
+
+private theorem masterStageV_ge_previous {n : ℕ} (M : ℕ) (X : Fin n → ℕ)
+    (l : Fin n) (hX : ∀ j, 1 ≤ X j) :
+    2 + M + OAI.SourceAdmissible.previous X l ≤ masterStageV M X l := by
+  let S := Finset.univ.filter (fun j : Fin n => j < l)
+  have hprod : (∏ j ∈ S, X j) ≤ ∏ j ∈ S, (X j) ^ 2 := by
+    apply Finset.prod_le_prod
+    intro j hj
+    calc
+      X j = X j * 1 := by simp
+      _ ≤ X j * X j := Nat.mul_le_mul_left _ (hX j)
+      _ = (X j) ^ 2 := by ring
+  dsimp [masterStageV, OAI.SourceAdmissible.previous]
+  exact Nat.add_le_add_left hprod (2 + M)
+
+private theorem master_power_lower_dominates_real (b : ℕ → ℝ) (V : ℕ → ℕ)
+    (hV : ∀ N : ℕ, 1 ≤ V N)
+    (hb : ∀ N : ℕ, ((N + 1 : ℝ) * (V N : ℝ) ^ (N + 1)) ≤ b N) :
+    OAI.MicrocellScale.Dominates b (fun N => (V N : ℝ)) := by
+  intro C hC
+  have hshift : Tendsto (fun N : ℕ => ((N + 1 : ℕ) : ℝ)) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ tendsto_natCast_atTop_atTop
+    filter_upwards [] with N
+    norm_num
+  apply tendsto_atTop_mono' atTop _ hshift
+  filter_upwards [hshift.eventually (eventually_ge_atTop (C + 1))] with N hN
+  have hVreal : 1 ≤ (V N : ℝ) := by exact_mod_cast hV N
+  have hNreal : C + 1 ≤ ((N + 1 : ℕ) : ℝ) := by
+    simpa only [Nat.cast_add, Nat.cast_one] using hN
+  have hNcast : C ≤ ((N + 1 : ℕ) : ℝ) := by linarith
+  have hpowR : (V N : ℝ) ^ C ≤ (V N : ℝ) ^ ((N + 1 : ℕ) : ℝ) :=
+    Real.rpow_le_rpow_of_exponent_le hVreal hNcast
+  have hpow : (V N : ℝ) ^ C ≤ (V N : ℝ) ^ (N + 1) := by
+    simpa only [Real.rpow_natCast] using hpowR
+  have hnum : (((N + 1 : ℕ) : ℝ) * (V N : ℝ) ^ C) ≤ b N := by
+    have hb' : (((N + 1 : ℕ) : ℝ) * (V N : ℝ) ^ (N + 1)) ≤ b N := by
+      simpa only [Nat.cast_add, Nat.cast_one] using hb N
+    exact (mul_le_mul_of_nonneg_left hpow (by positivity)).trans hb'
+  exact (le_div_iff₀ (Real.rpow_pos_of_pos (by positivity) C)).2 hnum
+
+private theorem masterStageV_tendsto (n : ℕ) (e0 : ℕ → ℕ)
+    (he0 : ∀ N, 1 ≤ e0 N) (X : ℕ → Fin n → ℕ) (l : Fin n) :
+    Tendsto (fun N => (masterStageV (masterModulus n N (e0 N)) (X N) l : ℝ))
+      atTop atTop := by
+  have hpow : Tendsto (fun k : ℕ => (2 : ℝ) ^ k) atTop atTop :=
+    tendsto_pow_atTop_atTop_of_one_lt (by norm_num : (1 : ℝ) < 2)
+  have hshift : Tendsto (fun N : ℕ => N + 1) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ tendsto_id
+    filter_upwards [] with N
+    exact Nat.le_succ N
+  have hpowShift := hpow.comp hshift
+  have hW : ∀ᶠ N : ℕ in atTop, 2 ≤ primorial (N + 1) := by
+    filter_upwards [eventually_ge_atTop 1] with N hN
+    have hdiv : 2 ∣ primorial (N + 1) :=
+      (Nat.prime_two.dvd_primorial_iff).2 (by omega)
+    exact Nat.le_of_dvd (primorial_pos _) hdiv
+  have hVlower : ∀ᶠ N : ℕ in atTop,
+      (2 : ℝ) ^ (N + 1) ≤
+        (masterStageV (masterModulus n N (e0 N)) (X N) l : ℝ) := by
+    filter_upwards [hW] with N hWN
+    have hexp : N + 1 ≤ e0 N + 1 + (N + 1) * 2 ^ n := by
+      have htwo : 0 < (2 : ℕ) ^ n := Nat.pow_pos (by norm_num)
+      have hmul : N + 1 ≤ (N + 1) * 2 ^ n := Nat.le_mul_of_pos_right _ htwo
+      omega
+    have hpowBase : 2 ^ (N + 1) ≤ (primorial (N + 1)) ^ (N + 1) := by
+      gcongr
+    have hpowExp : (primorial (N + 1)) ^ (N + 1) ≤
+        (primorial (N + 1)) ^ (e0 N + 1 + (N + 1) * 2 ^ n) := by
+      exact Nat.pow_le_pow_right (by omega) hexp
+    have hM : 2 ^ (N + 1) ≤ masterModulus n N (e0 N) := by
+      simpa [masterModulus] using hpowBase.trans hpowExp
+    have hMV : masterModulus n N (e0 N) ≤
+        masterStageV (masterModulus n N (e0 N)) (X N) l := by
+      dsimp [masterStageV]
+      omega
+    exact_mod_cast hM.trans hMV
+  apply tendsto_atTop_mono' atTop _ hpowShift
+  exact hVlower
+
+private theorem master_superPolynomialSmall_of_inverse_power
+    (V : ℕ → ℕ) (E : ℕ → ℝ) (K : ℝ)
+    (hVpos : ∀ N, 0 < (V N : ℝ)) (hVone : ∀ N, 1 ≤ (V N : ℝ))
+    (hVtendsto : Tendsto (fun N => (V N : ℝ)) atTop atTop)
+    (hEnonneg : ∀ N, 0 ≤ E N)
+    (hEbound : ∀ N : ℕ,
+      E N ≤ K / (V N : ℝ) ^ ((N + 1 : ℕ) : ℝ)) (hK : 0 ≤ K) :
+    SuperPolynomialSmall E (fun N => (V N : ℝ)) := by
+  intro C hC
+  have hInv : Tendsto (fun N => 1 / (V N : ℝ)) atTop (𝓝 0) :=
+    tendsto_const_nhds.div_atTop hVtendsto
+  have hUpper : Tendsto (fun N => K * (1 / (V N : ℝ))) atTop (𝓝 0) := by
+    simpa [mul_comm] using hInv.const_mul K
+  have hshift : Tendsto (fun N : ℕ => ((N + 1 : ℕ) : ℝ)) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ tendsto_natCast_atTop_atTop
+    filter_upwards [] with N
+    norm_num
+  have hboundEventually : ∀ᶠ N : ℕ in atTop, C + 1 ≤ ((N + 1 : ℕ) : ℝ) :=
+    hshift.eventually (eventually_ge_atTop (C + 1))
+  apply squeeze_zero' (Eventually.of_forall fun N =>
+    mul_nonneg (hEnonneg N) (Real.rpow_nonneg (by exact_mod_cast (Nat.zero_le (V N))) C))
+  · filter_upwards [hboundEventually] with N hN
+    have vpos := hVpos N
+    have vone := hVone N
+    have hNcast : ((N + 1 : ℕ) : ℝ) = (N : ℝ) + 1 := by norm_cast
+    have hexp : C - ((N : ℝ) + 1) ≤ -1 := by linarith
+    have hpow := Real.rpow_le_rpow_of_exponent_le vone hexp
+    have hratio : (V N : ℝ) ^ C / (V N : ℝ) ^ ((N : ℝ) + 1) =
+        (V N : ℝ) ^ (C - ((N : ℝ) + 1)) :=
+      (Real.rpow_sub vpos C ((N : ℝ) + 1)).symm
+    have hone : (V N : ℝ) ^ (-1 : ℝ) = 1 / (V N : ℝ) := by
+      rw [show (-1 : ℝ) = -(1 : ℝ) by norm_num, Real.rpow_neg vpos.le, Real.rpow_one]
+      simp
+    have hpowRatio : (V N : ℝ) ^ C / (V N : ℝ) ^ ((N : ℝ) + 1) ≤
+        1 / (V N : ℝ) := by
+      rw [hratio, ← hone]
+      exact hpow
+    have hE : E N * (V N : ℝ) ^ C ≤ K * (1 / (V N : ℝ)) := by
+      have hEbound' : E N ≤ K / (V N : ℝ) ^ ((N : ℝ) + 1) := by
+        simpa [Nat.cast_add] using hEbound N
+      calc
+        E N * (V N : ℝ) ^ C ≤
+            (K / (V N : ℝ) ^ ((N : ℝ) + 1)) * (V N : ℝ) ^ C := by
+              apply mul_le_mul_of_nonneg_right hEbound'
+              exact Real.rpow_nonneg vpos.le C
+        _ = K * ((V N : ℝ) ^ C / (V N : ℝ) ^ ((N : ℝ) + 1)) := by ring
+        _ ≤ K * (1 / (V N : ℝ)) :=
+          mul_le_mul_of_nonneg_left hpowRatio hK
+    exact hE
+  · exact hUpper
+
+private theorem master_primorial_power_smooth (w k : ℕ) :
+    OAI.RoughScales.Smooth w ((primorial w : ℤ) ^ k) := by
+  intro p hp hdiv
+  have hpZ : Prime (p : ℤ) :=
+    Int.prime_iff_natAbs_prime.mpr (by simpa using hp)
+  exact OAI.IntegerAlignment.primorial_smooth w p hp (hpZ.dvd_of_dvd_pow hdiv)
+
+private theorem masterCRTModulus_positive (w e V : ℕ) :
+    0 < masterCRTModulus w e V := by
+  unfold masterCRTModulus
+  apply Nat.mul_pos (pow_pos (primorial_pos w) e)
+  apply Finset.prod_pos
+  intro p hp
+  exact (Finset.mem_filter.mp hp).2.pos
+
+private theorem masterCRTModulus_primorial_power_dvd (w e V : ℕ) :
+    (primorial w) ^ e ∣ masterCRTModulus w e V := by
+  refine ⟨(∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p), ?_⟩
+  simp [masterCRTModulus, Nat.mul_comm]
 
 /-- Lemma `lem:master-scales` (§3 lines 197–316): for every fixed master length, positive
 rational template set and finite list of nonzero polynomials, there are OAI admissible
@@ -3251,7 +3796,445 @@ theorem lem_master_scales (n : ℕ) (Aset : Finset ℚ)
     (hA : ∀ a ∈ Aset, 0 < a) (m : ℕ)
     (D : Finset (IntegerPolynomial m)) (hD : ∀ P ∈ D, P ≠ 0) :
     Nonempty (MasterScales n Aset m D) := by
-  sorry
+  classical
+  let e0 : ℕ → ℕ := fun N =>
+    Classical.choose (choose_small_prime_exception_exponent (N + 1) (by omega) D hD)
+  have he0Spec (N : ℕ) :
+      1 ≤ e0 N ∧
+        uniformUnitTupleProbability ((primorial (N + 1)) ^ e0 N) m
+          (uniformSmallPrimeException D (N + 1) (e0 N)) ≤ 1 / ((N + 1 : ℕ) : ℝ) := by
+    dsimp [e0]
+    exact Classical.choose_spec
+      (choose_small_prime_exception_exponent (N + 1) (by omega) D hD)
+  let stages : (N : ℕ) → MasterScalePrefix n n m N (e0 N) D := fun N =>
+    Classical.choice (masterScalePrefix_exists n m N (e0 N) D n (by omega))
+  let M : ℕ → ℕ := fun N => masterModulus n N (e0 N)
+  let X : ℕ → Fin n → ℕ := fun N => (stages N).X
+  let H : ℕ → Fin n → ℕ := fun N => (stages N).H
+  let pool : ℕ → Fin n → PrimePool := fun N => (stages N).pool
+  let V : ℕ → Fin n → ℕ := fun N l => masterStageV (M N) (X N) l
+  let earlier : ℕ → Fin n → ℕ := fun N l =>
+    2 + M N + OAI.SourceAdmissible.previous (X N) l
+  have he0pos (N : ℕ) : 1 ≤ e0 N := (he0Spec N).1
+  have hXone (N : ℕ) (j : Fin n) : 1 ≤ X N j := by
+    obtain ⟨k, hk⟩ := (stages N).X_pow j j.isLt
+    change 1 ≤ (stages N).X j
+    rw [hk]
+    exact Nat.one_le_pow _ _ (by norm_num)
+  have hVgeEarlier (N : ℕ) (l : Fin n) : earlier N l ≤ V N l := by
+    dsimp [earlier, V, M, X]
+    exact masterStageV_ge_previous _ _ l (hXone N)
+  have hVone (N : ℕ) (l : Fin n) : 1 ≤ V N l := by
+    dsimp [V, masterStageV]
+    omega
+  have hVpos (N : ℕ) (l : Fin n) : 0 < (V N l : ℝ) := by
+    exact_mod_cast (lt_of_lt_of_le (by norm_num) (hVone N l))
+  have hVtendsto (l : Fin n) : Tendsto (fun N => (V N l : ℝ)) atTop atTop := by
+    simpa [V, M, X] using masterStageV_tendsto n e0 he0pos X l
+  have hHboundPool (N : ℕ) (l : Fin n) :
+      (N + 1) * ((pool N l).upper + V N l) ^ (N + 1) ≤ H N l := by
+    exact (stages N).H_bound l l.isLt
+  have hHboundV (N : ℕ) (l : Fin n) :
+      (N + 1) * (V N l) ^ (N + 1) ≤ H N l := by
+    have hpow : (V N l) ^ (N + 1) ≤ ((pool N l).upper + V N l) ^ (N + 1) := by
+      gcongr
+      omega
+    exact (Nat.mul_le_mul_left (N + 1) hpow).trans (hHboundPool N l)
+  have hHboundEarlier (N : ℕ) (l : Fin n) :
+      (N + 1) * (earlier N l) ^ (N + 1) ≤ H N l := by
+    have hpow : (earlier N l) ^ (N + 1) ≤ (V N l) ^ (N + 1) := by
+      gcongr
+      exact hVgeEarlier N l
+    exact (Nat.mul_le_mul_left (N + 1) hpow).trans (hHboundV N l)
+  have hPoolLowerReal (N : ℕ) (l : Fin n) :
+      ((N + 1 : ℝ) * (V N l : ℝ) ^ (N + 1)) ≤ ((pool N l).lower : ℝ) := by
+    have hNat := (stages N).pool_lower l l.isLt
+    exact_mod_cast hNat
+  have hPoolMass (N : ℕ) (l : Fin n) :
+      ((N + 1 : ℝ) * (V N l : ℝ) ^ (N + 1)) ≤
+        primePoolMass (pool N l).lower (pool N l).upper := by
+    simpa [V, pool, M, X, Nat.cast_add] using (stages N).pool_mass l l.isLt
+  have hHboundPoolReal (N : ℕ) (l : Fin n) :
+      ((N + 1 : ℝ) *
+        (((pool N l).upper + V N l : ℕ) : ℝ) ^ (N + 1)) ≤ (H N l : ℝ) := by
+    exact_mod_cast hHboundPool N l
+  have hHboundEarlierReal (N : ℕ) (l : Fin n) :
+      ((N + 1 : ℝ) * (earlier N l : ℝ) ^ (N + 1)) ≤ (H N l : ℝ) := by
+    exact_mod_cast hHboundEarlier N l
+  have hXlogReal (N : ℕ) (l : Fin n) :
+      ((N + 1 : ℝ) * (H N l : ℝ) ^ (N + 1)) ≤
+        Real.log (X N l : ℝ) := by
+    have h := (stages N).X_log l l.isLt
+    exact h
+  let params : OAI.SourceAdmissible.Parameters n := {
+    M := M
+    ht := fun N => masterHeight n N
+    H := H
+    X := X
+    Mpos := by
+      intro N
+      dsimp [M, masterModulus]
+      exact Nat.pow_pos (primorial_pos (N + 1))
+    htpos := by
+      intro N l
+      dsimp [masterHeight]
+      exact pow_pos (by exact_mod_cast (primorial_pos (N + 1))) _
+    Hpos := by
+      intro N l
+      exact (stages N).H_pos l l.isLt
+    Xpow := by
+      intro N l
+      exact (stages N).X_pow l l.isLt
+    Msmooth := by
+      intro N p hp hdiv
+      have hpZ : Prime (p : ℤ) :=
+        Int.prime_iff_natAbs_prime.mpr (by simpa using hp)
+      change (p : ℤ) ∣ (primorial (N + 1) : ℤ) ^
+        (e0 N + 1 + (N + 1) * 2 ^ n) at hdiv
+      exact OAI.IntegerAlignment.primorial_smooth (N + 1) p hp
+        (hpZ.dvd_of_dvd_pow hdiv)
+    htsmooth := by
+      intro N l p hp hdiv
+      have hpZ : Prime (p : ℤ) :=
+        Int.prime_iff_natAbs_prime.mpr (by simpa using hp)
+      change (p : ℤ) ∣ (primorial (N + 1) : ℤ) ^
+        ((N + 1) * 2 ^ (n - l.val - 1)) at hdiv
+      exact OAI.IntegerAlignment.primorial_smooth (N + 1) p hp
+        (hpZ.dvd_of_dvd_pow hdiv)
+    Mdiv := by
+      intro N
+      have htwo : 0 < (2 : ℕ) ^ n := Nat.pow_pos (by norm_num)
+      have hmul : N + 1 ≤ (N + 1) * 2 ^ n := Nat.le_mul_of_pos_right _ htwo
+      have hexp : N + 1 ≤ e0 N + 1 + (N + 1) * 2 ^ n := by omega
+      exact pow_dvd_pow _ hexp
+    htdiv := by
+      intro N l
+      have hpow : 0 < (2 : ℕ) ^ (n - l.val - 1) := Nat.pow_pos (by norm_num)
+      have hexp : N + 1 ≤ (N + 1) * 2 ^ (n - l.val - 1) :=
+        Nat.le_mul_of_pos_right _ hpow
+      exact pow_dvd_pow _ hexp
+    singleton_bound := by
+      intro N l
+      simpa [OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height] using
+        (master_height_le_modulus n N (e0 N) ({l} : Finset (Fin n)))
+    block_bound := by
+      intro N B
+      exact master_height_le_modulus n N (e0 N) B.set
+    ratio := by
+      intro N B S hS
+      exact master_height_adding_ratio n N B S hS
+    Hdiv := by
+      intro N l
+      exact (stages N).H_modulus l l.isLt
+    Hdom := by
+      intro l
+      change OAI.MicrocellScale.Dominates (fun N => (H N l : ℝ)) _
+      intro C hC
+      have hdom := master_power_lower_dominates_real
+        (fun N => (H N l : ℝ)) (fun N => earlier N l)
+        (fun N => by dsimp [earlier]; omega)
+        (fun N => hHboundEarlierReal N l) C hC
+      apply hdom.congr'
+      filter_upwards [] with N
+      simp [OAI.AdmissibleMicrocellBoundary.earlierScale, earlier,
+        OAI.SourceAdmissible.previous, Nat.cast_add]
+    Xdom := by
+      intro l
+      change OAI.MicrocellScale.Dominates
+        (fun N => Real.log (X N l : ℝ)) (fun N => (H N l : ℝ))
+      exact master_power_lower_dominates_real
+        (fun N => Real.log (X N l : ℝ)) (fun N => H N l)
+        (fun N => by exact Nat.one_le_of_lt ((stages N).H_pos l l.isLt))
+        (fun N => hXlogReal N l)
+  }
+  let core : MasterScaleCore n Aset := {
+    parameters := params
+    height_formula := by
+      intro N l
+      rfl
+    modulus_power := by
+      intro N
+      refine ⟨e0 N + 1 + (N + 1) * 2 ^ n, ?_⟩
+      rfl
+    adding_pair_ratio := by
+      intro N B S hS
+      exact master_height_adding_ratio n N B S hS
+    chain_coefficients := by
+      simpa [params] using master_chain_coefficients n Aset hA
+  }
+  have hUniformNonneg (N : ℕ) :
+      0 ≤ uniformUnitTupleProbability ((primorial (N + 1)) ^ e0 N) m
+        (uniformSmallPrimeException D (N + 1) (e0 N)) := by
+    unfold uniformUnitTupleProbability
+    apply Finset.sum_nonneg
+    intro x hx
+    apply mul_nonneg
+    · unfold uniformUnitTupleMass
+      split_ifs <;> positivity
+    · split_ifs <;> norm_num
+  have hInvIndex : Tendsto (fun N : ℕ => ((N + 1 : ℕ) : ℝ)) atTop atTop := by
+    apply tendsto_atTop_mono' atTop _ tendsto_natCast_atTop_atTop
+    filter_upwards [] with N
+    norm_num
+  have hUniformLimit : Tendsto
+      (fun N => uniformUnitTupleProbability ((primorial (N + 1)) ^ e0 N) m
+        (uniformSmallPrimeException D (N + 1) (e0 N))) atTop (𝓝 0) := by
+    have hinv : Tendsto (fun N : ℕ => 1 / ((N + 1 : ℕ) : ℝ)) atTop (𝓝 0) :=
+      tendsto_const_nhds.div_atTop hInvIndex
+    apply squeeze_zero' (Eventually.of_forall hUniformNonneg)
+    · filter_upwards [] with N
+      simpa only [Nat.cast_add, Nat.cast_one] using (he0Spec N).2
+    · simpa only [Nat.cast_add, Nat.cast_one] using hinv
+  have hResidueSuper (l : Fin n) :
+      SuperPolynomialSmall
+        (fun N => finiteL1
+          (primePoolResidueLaw (pool N l).lower (pool N l).upper
+            (masterCRTModulus (N + 1) (e0 N) (V N l)))
+          (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l))))
+        (fun N => (V N l : ℝ)) := by
+    apply master_superPolynomialSmall_of_inverse_power
+      (V := fun N => V N l)
+      (E := fun N => finiteL1
+        (primePoolResidueLaw (pool N l).lower (pool N l).upper
+          (masterCRTModulus (N + 1) (e0 N) (V N l)))
+        (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l))))
+      (K := 1)
+    · intro N
+      exact hVpos N l
+    · intro N
+      exact_mod_cast hVone N l
+    · exact hVtendsto l
+    · intro N
+      unfold finiteL1
+      apply Finset.sum_nonneg
+      intro x hx
+      exact abs_nonneg _
+    · intro N
+      have h := (stages N).pool_error l l.isLt
+      simpa only [Real.rpow_natCast] using h
+    · norm_num
+  have hResidueLimit (l : Fin n) : Tendsto
+      (fun N => finiteL1
+        (primePoolResidueLaw (pool N l).lower (pool N l).upper
+          (masterCRTModulus (N + 1) (e0 N) (V N l)))
+        (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l))))
+      atTop (𝓝 0) := by
+    let err : ℕ → ℝ := fun N => finiteL1
+      (primePoolResidueLaw (pool N l).lower (pool N l).upper
+        (masterCRTModulus (N + 1) (e0 N) (V N l)))
+      (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l)))
+    have hweight := hResidueSuper l 1 (by norm_num)
+    have hnonneg (N : ℕ) : 0 ≤ err N := by
+      unfold err finiteL1
+      apply Finset.sum_nonneg
+      intro x hx
+      exact abs_nonneg _
+    have hweight' : Tendsto (fun N => err N * (V N l : ℝ)) atTop (𝓝 0) := by
+      simpa only [Real.rpow_one, err] using hweight
+    apply squeeze_zero' (Eventually.of_forall hnonneg)
+    · filter_upwards [] with N
+      have hV : 1 ≤ (V N l : ℝ) := by exact_mod_cast hVone N l
+      calc
+        err N = err N * 1 := by ring
+        _ ≤ err N * (V N l : ℝ) := mul_le_mul_of_nonneg_left hV (hnonneg N)
+    · exact hweight'
+  let primeStage : MasterScalePrimeStage core m D := {
+    e0 := e0
+    pool := pool
+    e0_pos := he0pos
+    uniform_small_prime_exception := hUniformLimit
+    pool_lower_dominates := by
+      intro l
+      change OAI.MicrocellScale.Dominates
+        (fun N => ((pool N l).lower : ℝ)) (fun N => (V N l : ℝ))
+      apply master_power_lower_dominates_real
+      · intro N
+        exact hVone N l
+      · intro N
+        exact hPoolLowerReal N l
+    pool_harmonic_mass_dominates := by
+      intro l
+      change OAI.MicrocellScale.Dominates
+        (fun N => primePoolMass (pool N l).lower (pool N l).upper)
+        (fun N => (V N l : ℝ))
+      apply master_power_lower_dominates_real
+      · intro N
+        exact hVone N l
+      · intro N
+        exact hPoolMass N l
+    pool_residue_error := by
+      intro l
+      change SuperPolynomialSmall
+        (fun N => finiteL1
+          (primePoolResidueLaw (pool N l).lower (pool N l).upper
+            (masterCRTModulus (N + 1) (e0 N) (V N l)))
+          (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l))))
+        (fun N => (V N l : ℝ))
+      exact hResidueSuper l
+    actual_small_prime_exception := by
+      intro l
+      have hActualNonneg (N : ℕ) :
+          0 ≤ independentPrimePoolProbability
+            (fun _ : Fin m => (pool N l).lower)
+            (fun _ : Fin m => (pool N l).upper)
+            (primeSmallDivisibilityEvent D (N + 1) (e0 N)) := by
+        unfold independentPrimePoolProbability
+        apply tsum_nonneg
+        intro p
+        apply mul_nonneg
+        · unfold independentPrimePoolMass
+          apply Finset.prod_nonneg
+          intro i hi
+          exact primePoolLaw_nonneg_master (pool N l).lower (pool N l).upper (p i)
+        · split_ifs <;> norm_num
+      have hActualBound (N : ℕ) :
+          independentPrimePoolProbability
+              (fun _ : Fin m => (pool N l).lower)
+              (fun _ : Fin m => (pool N l).upper)
+              (primeSmallDivisibilityEvent D (N + 1) (e0 N)) ≤
+            uniformUnitTupleProbability ((primorial (N + 1)) ^ e0 N) m
+              (uniformSmallPrimeException D (N + 1) (e0 N)) +
+                (m : ℝ) * finiteL1
+                  (primePoolResidueLaw (pool N l).lower (pool N l).upper
+                    (masterCRTModulus (N + 1) (e0 N) (V N l)))
+                  (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l))) := by
+        exact pool_small_prime_exception_transfer D (N + 1) (e0 N)
+          (masterCRTModulus (N + 1) (e0 N) (V N l))
+          (pool N l).lower (pool N l).upper
+          (masterCRTModulus_positive _ _ _) (masterCRTModulus_primorial_power_dvd _ _ _)
+      have hRight : Tendsto (fun N =>
+          uniformUnitTupleProbability ((primorial (N + 1)) ^ e0 N) m
+            (uniformSmallPrimeException D (N + 1) (e0 N)) +
+              (m : ℝ) * finiteL1
+                (primePoolResidueLaw (pool N l).lower (pool N l).upper
+                  (masterCRTModulus (N + 1) (e0 N) (V N l)))
+                (uniformUnitResidueLaw (masterCRTModulus (N + 1) (e0 N) (V N l))))
+          atTop (𝓝 0) := by
+        simpa [mul_comm] using hUniformLimit.add ((hResidueLimit l).const_mul (m : ℝ))
+      apply squeeze_zero' (Eventually.of_forall hActualNonneg)
+      · exact Eventually.of_forall hActualBound
+      · exact hRight
+    zero_and_repeat_probability := by
+      intro l
+      let Err : ℕ → ℝ := fun N => independentPrimePoolProbability
+        (fun _ : Fin m => (pool N l).lower)
+        (fun _ : Fin m => (pool N l).upper)
+        (polynomialZeroOrRepeated D)
+      let K : ℝ :=
+        (((∑ P ∈ D, MvPolynomial.totalDegree P) + m ^ 2 : ℕ) : ℝ)
+      apply master_superPolynomialSmall_of_inverse_power
+        (V := fun N => V N l) (E := Err) (K := K)
+      · intro N
+        exact hVpos N l
+      · intro N
+        exact_mod_cast hVone N l
+      · exact hVtendsto l
+      · intro N
+        unfold Err
+        unfold independentPrimePoolProbability
+        apply tsum_nonneg
+        intro p
+        apply mul_nonneg
+        · unfold independentPrimePoolMass
+          apply Finset.prod_nonneg
+          intro i hi
+          exact primePoolLaw_nonneg_master (pool N l).lower (pool N l).upper (p i)
+        · split_ifs <;> norm_num
+      · intro N
+        have hloNat : (V N l) ^ (N + 1) ≤ (pool N l).lower := by
+          have hlow := (stages N).pool_lower l l.isLt
+          have hw : 1 ≤ N + 1 := by omega
+          calc
+            (V N l) ^ (N + 1) = 1 * (V N l) ^ (N + 1) := by simp
+            _ ≤ (N + 1) * (V N l) ^ (N + 1) := Nat.mul_le_mul_right _ hw
+            _ ≤ (pool N l).lower := hlow
+        have hvpow : (V N l : ℝ) ^ (N + 1) ≤ ((pool N l).lower : ℝ) := by
+          exact_mod_cast hloNat
+        have hmass : (V N l : ℝ) ^ (N + 1) ≤
+            primePoolMass (pool N l).lower (pool N l).upper := by
+          have hwNat : 1 ≤ N + 1 := by omega
+          have hw : 1 ≤ (N + 1 : ℝ) := by exact_mod_cast hwNat
+          have hpowNonneg : 0 ≤ (V N l : ℝ) ^ (N + 1) := by positivity
+          have hle : (V N l : ℝ) ^ (N + 1) ≤
+              (N + 1 : ℝ) * (V N l : ℝ) ^ (N + 1) := by
+            calc
+              (V N l : ℝ) ^ (N + 1) = 1 * (V N l : ℝ) ^ (N + 1) := by ring
+              _ ≤ (N + 1 : ℝ) * (V N l : ℝ) ^ (N + 1) :=
+                mul_le_mul_of_nonneg_right hw hpowNonneg
+          exact hle.trans (hPoolMass N l)
+        have hVpowNatPos : 0 < (V N l : ℝ) ^ (N + 1) := pow_pos (hVpos N l) _
+        have hdenPos : 0 < ((pool N l).lower : ℝ) *
+            primePoolMass (pool N l).lower (pool N l).upper := by
+          have hmassPos : 0 < primePoolMass (pool N l).lower (pool N l).upper :=
+            lt_of_lt_of_le (by positivity) hmass
+          exact mul_pos (by exact_mod_cast (pool N l).lower_pos) hmassPos
+        have hden : (V N l : ℝ) ^ (N + 1) ≤
+            ((pool N l).lower : ℝ) * primePoolMass (pool N l).lower (pool N l).upper := by
+          have hprod := mul_le_mul hvpow hmass (by positivity) (by positivity)
+          have honeR : 1 ≤ (V N l : ℝ) ^ ((N + 1 : ℕ) : ℝ) :=
+            Real.one_le_rpow (by exact_mod_cast hVone N l) (by positivity)
+          have hone : 1 ≤ (V N l : ℝ) ^ (N + 1) := by
+            simpa only [Real.rpow_natCast] using honeR
+          nlinarith
+        have hbound := pool_zero_or_repeat_bound D hD
+          (pool N l).lower (pool N l).upper (pool N l).lower_pos
+        have hfrac : K /
+            (((pool N l).lower : ℝ) * primePoolMass (pool N l).lower (pool N l).upper) ≤
+            K / (V N l : ℝ) ^ (N + 1) := by
+          have hKnonneg : 0 ≤ K := by dsimp [K]; positivity
+          have hcross := mul_le_mul_of_nonneg_left hden hKnonneg
+          apply (div_le_div_iff₀ hdenPos hVpowNatPos).2
+          nlinarith [hcross]
+        have hprobBound : Err N ≤ K /
+            (((pool N l).lower : ℝ) * primePoolMass (pool N l).lower (pool N l).upper) := by
+          simpa [Err, K] using hbound
+        have hboundNat : Err N ≤ K / (V N l : ℝ) ^ (N + 1) := hprobBound.trans hfrac
+        simpa only [Real.rpow_natCast] using hboundNat
+      · dsimp [K]
+        positivity
+  }
+  let gapStage : MasterScaleGapStage core primeStage := {
+    gap_dominates_pool_and_bound := by
+      intro l
+      change OAI.MicrocellScale.Dominates
+        (fun N => (H N l : ℝ))
+        (fun N => ((pool N l).upper : ℝ) + (V N l : ℝ))
+      intro C hC
+      have hdom := master_power_lower_dominates_real
+        (fun N => (H N l : ℝ)) (fun N => (pool N l).upper + V N l)
+        (fun N => by
+          have hv := hVone N l
+          omega)
+        (fun N => hHboundPoolReal N l)
+        C hC
+      apply hdom.congr'
+      filter_upwards [] with N
+      simp [Nat.cast_add]
+    gap_modulus_divides := by
+      intro N l
+      exact (stages N).H_modulus l l.isLt
+    earlier_gaps_divide := by
+      intro N i j hij
+      exact (stages N).H_previous i j i.isLt j.isLt hij
+    polynomial_values_divide_gap := by
+      intro N l p Q hQ hp hne
+      exact (stages N).H_polynomial l l.isLt p Q hQ hp hne
+    raw_cutoff_log_dominates_gap := by
+      intro l
+      change OAI.MicrocellScale.Dominates
+        (fun N => Real.log (X N l : ℝ)) (fun N => (H N l : ℝ))
+      exact master_power_lower_dominates_real
+        (fun N => Real.log (X N l : ℝ)) (fun N => H N l)
+        (fun N => Nat.one_le_of_lt ((stages N).H_pos l l.isLt))
+        (fun N => hXlogReal N l)
+    coefficient_divides_modulus := by
+      simpa [params, core, primeStage, M, H] using
+        master_coefficient_divides_modulus n Aset hA e0
+    valid_raw_cutoffs := by
+      intro N l
+      exact (stages N).X_valid l l.isLt
+  }
+  exact ⟨⟨core, primeStage, gapStage⟩⟩
 
 /-- Remark `rem:arithmetic-diagonal`: diagonalize a countable fixed family of templates and
 auxiliary parameters before any test functions are selected (§3 lines 325–341): increasing
