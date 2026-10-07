@@ -1,9 +1,10 @@
 hindman-sums-products-lean4
 Copyright 2026 Yao Xu
 
-This project includes code adapted from OpenAI's openai/math library
-(https://github.com/openai/math, commit adc7f1241b42e322a6451854ab7e4b4c146bf78a),
-which is licensed under the Apache License 2.0. Each adapted block is marked in
-the source with "Adapted from OpenAI openai/math (Apache-2.0), <path>" and
-"End of code adapted from OpenAI"; README.md lists them. The upstream
-repository provides no NOTICE file.
+This project includes Lean source adapted from OpenAI's openai/math library
+(https://github.com/openai/math), commit
+adc7f1241b42e322a6451854ab7e4b4c146bf78a, in the lean/ directory. The
+library is licensed under the Apache License, Version 2.0. Each adapted
+block identifies its upstream path in the source; THIRD_PARTY.md records
+the files, line ranges, and imported OpenAI modules. The upstream repository
+has no separate NOTICE file.
