@@ -4070,6 +4070,107 @@ private theorem momentPrimePoolCRTActualLaw_l1_le {w e V lo hi : ℕ} :
   exact pkgB_finiteL1_pushforward_le (momentCRTProjection w V Q)
     (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q)
 
+private theorem momentCRTUniformLaw_nonneg {w V : ℕ} (r : CRTResidues w V) :
+    0 ≤ momentCRTUniformLaw r := by
+  classical
+  by_cases hgood : ∀ p : CRTPrimeRange w V, Nat.Coprime (r p).val p.val
+  · rw [momentCRTUniformLaw_eq_inv_card r hgood]
+    positivity
+  · obtain ⟨p, hp⟩ := not_forall.mp hgood
+    have hzero : momentCRTUniformLaw r = 0 := by
+      unfold momentCRTUniformLaw
+      apply Finset.prod_eq_zero (Finset.mem_univ p)
+      simp [hp]
+    rw [hzero]
+
+private theorem momentPrimeTupleCRT_l1_le {m w V : ℕ}
+    (lo hi : Fin m → ℕ) (δ : ℝ) (hδ : 0 ≤ δ)
+    (hslot : ∀ i, finiteL1
+      (momentPrimePoolCRTActualLaw w V (lo i) (hi i))
+      (momentCRTUniformLaw (w := w) (V := V)) ≤ δ) :
+    finiteL1 (primeTupleCRTLaw lo hi w V) (uniformPrimeTupleCRTLaw w V) ≤
+      (m : ℝ) * δ * (1 + δ) ^ m := by
+  classical
+  let μ : Fin m → CRTResidues w V → ℝ := fun i =>
+    momentPrimePoolCRTActualLaw w V (lo i) (hi i)
+  let ν : Fin m → CRTResidues w V → ℝ := fun _ => momentCRTUniformLaw
+  have hνmass (i : Fin m) : ∑ r, |ν i r| = 1 := by
+    calc
+      _ = ∑ r, momentCRTUniformLaw r := by
+        apply Finset.sum_congr rfl
+        intro r hr
+        exact abs_of_nonneg (momentCRTUniformLaw_nonneg r)
+      _ = 1 := momentCRTUniformLaw_sum_eq_one (w := w) (e := 1) (V := V)
+  have hμmass (i : Fin m) : ∑ r, |μ i r| ≤ 1 + δ := by
+    calc
+      _ ≤ ∑ r, (|ν i r| + |μ i r - ν i r|) := by
+        apply Finset.sum_le_sum
+        intro r hr
+        calc
+          |μ i r| = |(μ i r - ν i r) + ν i r| := by congr 1 <;> ring
+          _ ≤ |μ i r - ν i r| + |ν i r| := abs_add_le _ _
+          _ = |ν i r| + |μ i r - ν i r| := by ring
+      _ = 1 + finiteL1 (μ i) (ν i) := by
+        rw [Finset.sum_add_distrib, hνmass i]
+        rfl
+      _ ≤ 1 + δ := by
+        simpa [add_comm] using add_le_add_left (hslot i) 1
+  have hmax (i : Fin m) : max (∑ r, |μ i r|) (∑ r, |ν i r|) ≤ 1 + δ := by
+    apply max_le
+    · exact hμmass i
+    · rw [hνmass i]
+      linarith
+  let F : Fin m → CRTResidues w V → ℝ := μ
+  let G : Fin m → CRTResidues w V → ℝ := ν
+  have hprod (i : Fin m) :
+      ∏ j ∈ (Finset.univ.erase i),
+        max (∑ r, |F j r|) (∑ r, |G j r|) ≤ (1 + δ) ^ m := by
+    let s := Finset.univ.erase i
+    have hlocal : ∀ j ∈ s,
+        max (∑ r, |F j r|) (∑ r, |G j r|) ≤ 1 + δ := by
+      intro j hj
+      exact hmax j
+    have hbase : 1 ≤ 1 + δ := by linarith
+    calc
+      _ ≤ ∏ j ∈ s, (1 + δ) :=
+        Finset.prod_le_prod₀ (fun j hj => by positivity) (fun j hj => hlocal j hj)
+      _ = (1 + δ) ^ s.card := by simp [s]
+      _ ≤ (1 + δ) ^ m := by
+        apply pow_le_pow_right₀ hbase
+        have hs : s.card ≤ (Finset.univ : Finset (Fin m)).card :=
+          Finset.card_le_card (Finset.erase_subset _ _)
+        simpa [s] using hs
+  have htel := finite_product_l1_telescoping F G
+  have hactual :
+      (fun r : Fin m → CRTResidues w V => primeTupleCRTLaw lo hi w V r) =
+        (fun r => ∏ i, F i (r i)) := by
+    funext r
+    simpa [F, μ] using momentPrimeTupleCRTLaw_eq_prod lo hi r
+  have huniform :
+      (fun r : Fin m → CRTResidues w V => uniformPrimeTupleCRTLaw w V r) =
+        (fun r => ∏ i, G i (r i)) := by
+    funext r
+    simp [G, ν, uniformPrimeTupleCRTLaw_eq_prod]
+  change finiteL1
+    (fun r : Fin m → CRTResidues w V => primeTupleCRTLaw lo hi w V r)
+    (fun r => uniformPrimeTupleCRTLaw w V r) ≤ _
+  rw [hactual, huniform]
+  calc
+    _ ≤ ∑ i, finiteL1 (F i) (G i) *
+        ∏ j ∈ (Finset.univ.erase i), max (∑ r, |F j r|) (∑ r, |G j r|) := htel
+    _ ≤ ∑ i, δ * (1 + δ) ^ m := by
+        apply Finset.sum_le_sum
+        intro i hi
+        calc
+          _ ≤ δ * ∏ j ∈ (Finset.univ.erase i),
+                max (∑ r, |F j r|) (∑ r, |G j r|) :=
+                  mul_le_mul_of_nonneg_right (hslot i)
+                    (Finset.prod_nonneg fun j hj => by positivity)
+          _ ≤ δ * (1 + δ) ^ m := mul_le_mul_of_nonneg_left (hprod i) hδ
+    _ = (m : ℝ) * δ * (1 + δ) ^ m := by
+        simp [Finset.sum_const, nsmul_eq_mul]
+        ring
+
 end Prediction
 
 end HindmanSumsProducts
