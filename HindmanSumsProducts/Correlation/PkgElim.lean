@@ -636,6 +636,32 @@ theorem masterScaleV_ge_primorial {n : ℕ}
   unfold masterScaleV
   omega
 
+theorem pkgElim_masterScaleV_ge_modulus {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (l : Fin n) :
+    A.M N ≤ masterScaleV A N l := by
+  unfold masterScaleV
+  omega
+
+theorem pkgElim_masterScaleV_tendsto {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) :
+    Tendsto (fun N => (masterScaleV A N l : ℝ)) atTop atTop := by
+  have hpow : Tendsto (fun N : ℕ => (2 : ℝ) ^ (N + 1)) atTop atTop := by
+    exact (tendsto_pow_atTop_atTop_of_one_lt (by norm_num : (1 : ℝ) < 2)).comp
+      (tendsto_add_atTop_nat 1)
+  apply tendsto_atTop_mono' atTop _ hpow
+  filter_upwards [eventually_ge_atTop 1] with N hN
+  have hWdiv : 2 ∣ primorial (N + 1) := by
+    apply (Nat.Prime.dvd_primorial_iff Nat.prime_two).2
+    omega
+  have hW : 2 ≤ primorial (N + 1) :=
+    Nat.le_of_dvd (primorial_pos _) hWdiv
+  have hpowNat : 2 ^ (N + 1) ≤ primorial (N + 1) ^ (N + 1) :=
+    Nat.pow_le_pow_left hW (N + 1)
+  have hM : primorial (N + 1) ^ (N + 1) ≤ A.M N :=
+    Nat.le_of_dvd (A.Mpos N) (A.Mdiv N)
+  have hV : A.M N ≤ masterScaleV A N l := pkgElim_masterScaleV_ge_modulus A N l
+  exact_mod_cast hpowNat.trans (hM.trans hV)
+
 theorem microcellDominates_trans {A B S : ℕ → ℝ}
     (hAB : OAI.MicrocellScale.Dominates A B)
     (hBS : OAI.MicrocellScale.Dominates B S)
@@ -3473,6 +3499,19 @@ theorem linearRowValue_eq_occurrenceValue {K m q r s h d : ℕ} {Aset : Finset �
     (fun j => occurrenceCoeff S C a Sh dirs N (fun i => p' (ι i))
       (eO.symm u) (eX.symm j) * (x j : ℚ))
     (by intro v; simp)).symm
+
+noncomputable def pkgElim_expandedAuxiliaryMoment {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (eX : Coordinate Sh ≃ Fin d) (F : Finset (Occurrence Sh)) (N : ℕ) : ℝ :=
+  goodSlotAverage S C.gap N (GoodTuple S C.gap N tests dirs.poly) fun p =>
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ F,
+          atQ (chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor)
+            (occurrenceValue S C a Sh dirs N p o (fun v => x (eX v)))
 
 theorem occurrenceValue_target {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
