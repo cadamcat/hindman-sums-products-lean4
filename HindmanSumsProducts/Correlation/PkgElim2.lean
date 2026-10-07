@@ -786,6 +786,45 @@ theorem c_elim2_boxState_factor_active {α β : Type u} [Fintype α]
   rw [hactive]
   ring
 
+noncomputable def c_elim2_finsetSubtypeInsertEquiv {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) (hR : R ∉ E) :
+    {i : α // i ∈ insert R E} ≃ {i : α // i ∈ E} ⊕ PUnit.{u + 1} := by
+  classical
+  let f : {i : α // i ∈ insert R E} → {i : α // i ∈ E} ⊕ PUnit.{u + 1} :=
+    fun i => if hi : i.val = R then Sum.inr PUnit.unit else
+      Sum.inl ⟨i.val, (Finset.mem_insert.mp i.property).resolve_left hi⟩
+  let g : {i : α // i ∈ E} ⊕ PUnit.{u + 1} → {i : α // i ∈ insert R E} :=
+    fun j => match j with
+      | Sum.inl i => ⟨i.val, Finset.mem_insert_of_mem i.property⟩
+      | Sum.inr _ => ⟨R, Finset.mem_insert_self R E⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro i
+    by_cases hi : i.val = R
+    · have heq : (⟨R, Finset.mem_insert_self R E⟩ : {i : α // i ∈ insert R E}) = i :=
+        Subtype.ext hi.symm
+      simpa [f, g, hi] using heq
+    · simp [f, g, hi]
+  · intro j
+    cases j with
+    | inl i =>
+        have hi : i.val ≠ R := by
+          intro heq
+          exact hR (heq ▸ i.property)
+        simp [f, g, hi]
+    | inr j =>
+        cases j
+        simp [f, g]
+
+noncomputable def c_elim2_boxBranchInsertEquiv {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) :
+    c_elim2_BoxBranch (insert R E) ≃ c_elim2_BoxBranch E × Fin 2 := by
+  classical
+  let e := c_elim2_finsetSubtypeInsertEquiv E R hR
+  exact (Equiv.arrowCongr e (Equiv.refl (Fin 2))).trans
+    ((Equiv.sumArrowEquivProdArrow {i : α // i ∈ E} PUnit.{u + 1} (Fin 2)).trans
+      (Equiv.prodCongr (Equiv.refl (c_elim2_BoxBranch E))
+        (Equiv.punitArrowEquiv (Fin 2))) )
+
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
