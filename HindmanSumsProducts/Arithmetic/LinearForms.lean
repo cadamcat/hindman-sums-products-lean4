@@ -823,6 +823,71 @@ private theorem localPowerRows_fromData {n q d b m : ℕ} {Aset : Finset ℚ}
     exact ⟨i, j, rationalRowsModPow_minor_unit hr hA rows hden u v i j
       (by simpa [rows] using hminor)⟩
 
+private theorem localClearedRows_fromData {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (slots : Fin m → ℕ) (p A : ℕ) (hp : p.Prime)
+    (hgood : D.goodDomain N slots) (hrough : N + 1 < p) (hpV : p ≤ D.V N)
+    (hA : 0 < A)
+    (hregular : ∀ Q ∈ tests,
+      ¬ ((p : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ)))) :
+    ∃ coeff : Fin q → Fin d → ZMod (p ^ A),
+      (∀ u, ∃ j, IsUnit (coeff u j)) ∧
+      (∀ u v, u ≠ v → ∃ i j,
+        IsUnit (coeff u i * coeff v j - coeff u j * coeff v i)) ∧
+      (∀ u j, coeff u j =
+        (rationalRowDenominator (fun i => D.rowCoeff N slots u i) : ZMod (p ^ A)) *
+          rationalRowsModPow (p := p) (A := A)
+            (fun v i => D.rowCoeff N slots v i)
+            (fun v i => D.row_denominators_are_units N slots hgood p hp hrough hpV v i)
+            u j) := by
+  classical
+  let rows : Fin q → Fin d → ℚ := fun u j => D.rowCoeff N slots u j
+  have hdenP (u : Fin q) (j : Fin d) : Nat.Coprime (rows u j).den p := by
+    exact D.row_denominators_are_units N slots hgood p hp hrough hpV u j
+  have hdenPow (u : Fin q) (j : Fin d) : Nat.Coprime (rows u j).den (p ^ A) := by
+    exact (Nat.coprime_pow_right A (hdenP u j))
+  let ratCoeff : Fin q → Fin d → ZMod (p ^ A) :=
+    rationalRowsModPow (p := p) (A := A) rows hdenP
+  let clearedCoeff : Fin q → Fin d → ZMod (p ^ A) := fun u j =>
+    (rationalRowClearedCoefficient (rows u) j : ZMod (p ^ A))
+  have hDdenUnit (u : Fin q) :
+      IsUnit (rationalRowDenominator (rows u) : ZMod (p ^ A)) := by
+    apply (ZMod.isUnit_iff_coprime _ _).2
+    dsimp [rationalRowDenominator]
+    exact Nat.coprime_fintype_prod_left_iff.mpr (hdenPow u)
+  have hclear (u : Fin q) (j : Fin d) :
+      rationalRowDenominator (rows u) * ratCoeff u j = clearedCoeff u j := by
+    have h := rationalRow_clearedCoefficient_modulus (rows u) (hdenPow u) j
+    simpa [ratCoeff, clearedCoeff, rationalRowsModPow,
+      rationalResidueModPow, rationalResidueModulus] using h
+  have hprimitive (u : Fin q) : ∃ j, IsUnit (ratCoeff u j) := by
+    apply rationalRowsModPow_row_unit hp hA rows hdenP u
+    simpa [rows] using D.row_primitive N slots hgood p hp hrough hpV u
+  refine ⟨clearedCoeff, ?_, ?_, ?_⟩
+  · intro u
+    obtain ⟨j, hj⟩ := hprimitive u
+    refine ⟨j, ?_⟩
+    rw [← hclear u j]
+    exact IsUnit.mul (hDdenUnit u) hj
+  · intro u v huv
+    obtain ⟨i, j, hminor⟩ := D.pairwise_row_tests N slots hgood p hp hrough hpV
+      hregular u v huv
+    have hminorRat := rationalRowsModPow_minor_unit hp hA rows hdenP u v i j
+      (by simpa [rows] using hminor)
+    refine ⟨i, j, ?_⟩
+    have hdet : clearedCoeff u i * clearedCoeff v j -
+        clearedCoeff u j * clearedCoeff v i =
+          (rationalRowDenominator (rows u) : ZMod (p ^ A)) *
+            (rationalRowDenominator (rows v) : ZMod (p ^ A)) *
+              (ratCoeff u i * ratCoeff v j - ratCoeff u j * ratCoeff v i) := by
+      rw [← hclear u i, ← hclear v j, ← hclear u j, ← hclear v i]
+      ring
+    rw [hdet]
+    exact IsUnit.mul (IsUnit.mul (hDdenUnit u) (hDdenUnit v)) hminorRat
+  · intro u j
+    simpa [clearedCoeff, ratCoeff] using (hclear u j).symm
+
 /-- Kernel probability of a homomorphism between finite groups, under uniform input. -/
 def localKernelProbability {G H : Type*} [Group G] [Group H]
     [Fintype G] [Fintype H] (f : G →* H) : ℝ :=
