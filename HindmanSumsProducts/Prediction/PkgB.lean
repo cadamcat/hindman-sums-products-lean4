@@ -6058,6 +6058,228 @@ private theorem pkgB_momentShiftExpansion_eq_activeTerms {K sl : ℕ}
       intro A hA
       exact hcommute A
 
+private theorem pkgB_dualMoment_fixedN_le_activeAverages {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (hT : Allowed Dm T)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hb : 0 < b) (N : ℕ)
+    (hMass : 0 < primePoolMass (MS.primeStage.pool N l).lower
+      (MS.primeStage.pool N l).upper)
+    (hP : 0 < gapSlotProbability (corrScales MS) l N
+      (T.Good (corrScales MS) l N))
+    (hreg : ∀ p : Fin T.q → ℕ, T.Good (corrScales MS) l N p →
+      momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p))
+    (I : DualInput MS B T N) :
+    Emu MS.core.parameters N B.1 (fun y => (1 + nu MS.core.parameters N B y) *
+      |dualTest MS B T l J0 N I y| ^ b) ≤
+      (gapSlotProbability (corrScales MS) l N (T.Good (corrScales MS) l N))⁻¹ *
+        ∑ active ∈ (Finset.univ : Finset
+          (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset,
+          weightedLinearFormsAverage
+            (pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b active)
+            N (fun p => T.Good (corrScales MS) l N
+              (fun j => p (momentMasterEmbedding hT j))) := by
+  classical
+  let Good : (Fin T.q → ℕ) → Prop := T.Good (corrScales MS) l N
+  let lo : Fin T.q → ℕ := fun _ => (MS.primeStage.pool N l).lower
+  let hi : Fin T.q → ℕ := fun _ => (MS.primeStage.pool N l).upper
+  let S : Finset (Fin T.q → ℕ) :=
+    Fintype.piFinset (fun i : Fin T.q => Finset.Ico (lo i) (hi i))
+  let Pow : Finset (Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    (Finset.univ : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset
+  let P := gapSlotProbability (corrScales MS) l N Good
+  let massQ (p : Fin T.q → ℕ) :=
+    independentPrimePoolMass lo hi p
+  have hpool : (corrScales MS).primeStage.pool N l = MS.primeStage.pool N l := rfl
+  let shiftBound (y : ℤ) (p : Fin T.q → ℕ) :=
+    ((T.length (corrScales MS) l J0 N p : ℝ) ^
+      (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+      ∑ v ∈ Fintype.piFinset (fun _ : Fin b =>
+        pkgB_shiftSupport T.d (T.length (corrScales MS) l J0 N p)),
+        ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+          (1 + nu MS.core.parameters N B
+            (y + (T.modulus (corrScales MS) N p : ℤ) *
+              ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0)))
+  let F (y : ℤ) (p : Fin T.q → ℕ) := I.e p * shiftAverage (Fin T.d)
+    (T.length (corrScales MS) l J0 N p) (fun u =>
+      ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+        I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+          ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0)))
+  have hGood : 0 < independentPrimePoolProbability lo hi Good := by
+    simpa [gapSlotProbability, lo, hi, Good, hpool] using hP
+  have hFG (y : ℤ) (p : Fin T.q → ℕ) (hp : Good p) :
+      |F y p| ^ b ≤ shiftBound y p := by
+    simpa [F, shiftBound] using
+      (pkgB_momentShiftReplicaProduct_bound MS B T l J0 N
+        (T.length (corrScales MS) l J0 N p) b I p y)
+  have hMassAll : ∀ i : Fin T.q, 0 < primePoolMass (lo i) (hi i) := by
+    intro i
+    simpa [lo, hi] using hMass
+  have hprimeJensen (y : ℤ) :
+    |dualTest MS B T l J0 N I y| ^ b ≤
+        P⁻¹ * ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then shiftBound y p else 0) := by
+    have h := pkgB_goodPrimeAverage_abs_pow_le_of_dom lo hi Good
+      hMassAll hGood (F y) (fun p => shiftBound y p) b (fun p hp => hFG y p hp)
+    simpa [P, F, Good, massQ, dualTest, goodSlotAverage, gapSlotProbability,
+      gapSlotMass, lo, hi, hpool] using h
+  have hmassZero (p : Fin T.q → ℕ) (hp : p ∉ S) : massQ p = 0 := by
+    simpa [massQ, independentPrimePoolMass] using
+      (pkgB_primeTupleMass_zero_of_not_mem_pi
+        lo hi p (by simpa [S] using hp))
+  have hrootNonneg (y : ℤ) : 0 ≤ 1 + nu MS.core.parameters N B y := by
+    have h := pkgB_nu_nonneg MS.core.parameters N B y
+    linarith
+  have hsumZero (y : ℤ) (p : Fin T.q → ℕ) (hp : p ∉ S) :
+      massQ p * (if Good p then shiftBound y p else 0) = 0 := by
+    rw [hmassZero p hp]
+    ring
+  have hsumSummable (y : ℤ) : Summable (fun p : Fin T.q → ℕ =>
+      massQ p * (if Good p then shiftBound y p else 0)) := by
+    apply summable_of_ne_finset_zero (s := S)
+    intro p hp
+    exact hsumZero y p hp
+  have hsumRootZero (y : ℤ) (p : Fin T.q → ℕ) (hp : p ∉ S) :
+      massQ p * (if Good p then
+        (1 + nu MS.core.parameters N B y) * shiftBound y p else 0) = 0 := by
+    rw [hmassZero p hp]
+    ring
+  have hpointwise (y : ℤ) :
+      (1 + nu MS.core.parameters N B y) * |dualTest MS B T l J0 N I y| ^ b ≤
+        P⁻¹ * ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0) := by
+    calc
+      _ ≤ (1 + nu MS.core.parameters N B y) *
+          (P⁻¹ * ∑' p : Fin T.q → ℕ,
+            massQ p * (if Good p then shiftBound y p else 0)) :=
+        mul_le_mul_of_nonneg_left (hprimeJensen y) (hrootNonneg y)
+      _ = P⁻¹ *
+          (∑' p : Fin T.q → ℕ,
+            (1 + nu MS.core.parameters N B y) *
+              (massQ p * (if Good p then shiftBound y p else 0))) := by
+        calc
+          _ = P⁻¹ * ((1 + nu MS.core.parameters N B y) *
+              ∑' p : Fin T.q → ℕ,
+                massQ p * (if Good p then shiftBound y p else 0)) := by ring
+          _ = _ := by
+            apply congrArg (fun z : ℝ => P⁻¹ * z)
+            exact (hsumSummable y).tsum_mul_left
+              (1 + nu MS.core.parameters N B y) |>.symm
+      _ = _ := by
+        congr 1
+        apply tsum_congr
+        intro p
+        by_cases hp : Good p <;> simp [hp] <;> ring
+  have hpointEmu := pkgB_Emu_mono MS.core.parameters N B.1
+    (fun y => hpointwise y)
+  have hEmuPrime :
+      Emu MS.core.parameters N B.1 (fun y =>
+        ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) =
+      ∑ p ∈ S, massQ p * (if Good p then
+        Emu MS.core.parameters N B.1
+          (fun y => (1 + nu MS.core.parameters N B y) * shiftBound y p) else 0) := by
+    calc
+      _ = Emu MS.core.parameters N B.1 (fun y =>
+            ∑ p ∈ S, massQ p * (if Good p then
+              (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) := by
+        congr 1
+        funext y
+        apply tsum_eq_sum
+        intro p hp
+        exact hsumRootZero y p hp
+      _ = ∑ p ∈ S, Emu MS.core.parameters N B.1
+            (fun y => massQ p * (if Good p then
+              (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) :=
+        Emu_finset_sum MS.core.parameters N B.1 S
+          (fun p y => massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0))
+      _ = _ := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        by_cases hgood : Good p
+        · simp only [if_pos hgood]
+          rw [Emu_mul_left]
+        · simp [hgood, Emu]
+  have hExpansion (p : Fin T.q → ℕ) :
+      Emu MS.core.parameters N B.1
+        (fun y => (1 + nu MS.core.parameters N B y) * shiftBound y p) =
+      ∑ A ∈ Pow, Emu MS.core.parameters N B.1
+        (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) := by
+    have h := pkgB_momentShiftExpansion_eq_activeTerms MS B T l J0 N b p
+    have hfun : (fun y => (1 + nu MS.core.parameters N B y) * shiftBound y p) =
+        (fun y => (1 + nu MS.core.parameters N B y) *
+          ((T.length (corrScales MS) l J0 N p : ℝ) ^
+            (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+            ∑ v ∈ Fintype.piFinset (fun _ : Fin b =>
+              pkgB_shiftSupport T.d (T.length (corrScales MS) l J0 N p)),
+              ∏ k : Fin b, ∏ ω ∈
+                (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+                (1 + nu MS.core.parameters N B
+                  (y + (T.modulus (corrScales MS) N p : ℤ) *
+                    ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0)))) := by
+      funext y
+      dsimp [shiftBound]
+      ring_nf
+    rw [hfun]
+    simpa [Pow, Fintype.card_fin] using h
+  let activeTerm (p : Fin T.q → ℕ)
+      (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    Emu MS.core.parameters N B.1
+      (pkgB_momentActiveShiftTerm MS B T l J0 N b p A)
+  have hswap :
+      (∑ p ∈ S, massQ p *
+        (if Good p then ∑ A ∈ Pow, activeTerm p A else 0)) =
+      ∑ A ∈ Pow, ∑ p ∈ S, massQ p * (if Good p then activeTerm p A else 0) := by
+    calc
+      _ = ∑ p ∈ S, ∑ A ∈ Pow, massQ p * (if Good p then activeTerm p A else 0) := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        by_cases hg : Good p
+        · simp [hg, Finset.mul_sum]
+        · simp [hg]
+      _ = _ := Finset.sum_comm
+  calc
+    _ ≤ Emu MS.core.parameters N B.1 (fun y => P⁻¹ *
+        ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) := hpointEmu
+    _ = P⁻¹ * ∑ p ∈ S, massQ p * (if Good p then
+          ∑ A ∈ Pow, Emu MS.core.parameters N B.1
+            (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) else 0) := by
+      rw [Emu_mul_left, hEmuPrime]
+      apply congrArg (fun z : ℝ => P⁻¹ * z)
+      apply Finset.sum_congr rfl
+      intro p hp
+      by_cases hgood : Good p
+      · simp [hgood, activeTerm, hExpansion p]
+      · simp [hgood]
+    _ = P⁻¹ * ∑ A ∈ Pow, weightedLinearFormsAverage
+          (pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b A)
+          N (fun p => T.Good (corrScales MS) l N
+            (fun j => p (momentMasterEmbedding hT j))) := by
+      apply congrArg (fun z : ℝ => P⁻¹ * z)
+      rw [hswap]
+      apply Finset.sum_congr rfl
+      intro A hA
+      have hzero (p : Fin T.q → ℕ) (hp : p ∉ S) :
+          massQ p * (if Good p then
+            Emu MS.core.parameters N B.1
+              (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) else 0) = 0 := by
+        rw [hmassZero p hp]
+        ring
+      calc
+        _ = ∑' p : Fin T.q → ℕ,
+              massQ p * (if Good p then
+                Emu MS.core.parameters N B.1
+                  (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) else 0) := by
+          exact (tsum_eq_sum (s := S) hzero).symm
+        _ = _ :=
+          (pkgB_momentWeightedLinearFormsAverage_eq_goodActiveShiftTerm
+            MS B l hgap T hT J0 hJ0 b hb N A hMass hreg).symm
+
 end Prediction
 
 end HindmanSumsProducts
