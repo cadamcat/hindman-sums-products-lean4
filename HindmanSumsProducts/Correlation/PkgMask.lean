@@ -5252,6 +5252,14 @@ theorem maskEmptyDivisorTemplate_law {K : ℕ}
       (fun i : Fin 0 => A.X N ((maskEmptyDivisorTemplate (K := K)).cutoff i)) σ = _
   exact hformula _
 
+theorem nuB_unitLaw_eq_one (y : ℤ) :
+    nuB (fun σ : ℕ => if σ = 1 then (1 : ℝ) else 0) y = 1 := by
+  unfold nuB
+  rw [tsum_eq_single 1]
+  · simp
+  · intro σ hσ
+    simp [hσ]
+
 theorem harmonicResidueError_mono (X W k K : ℕ) (hX : 0 < X)
     (hlog : Real.log (X : ℝ) > (W : ℝ) / X) (hk : k ≤ K) :
     harmonicResidueError X W k ≤ harmonicResidueError X W K := by
@@ -5547,6 +5555,278 @@ noncomputable def maskWeightedLinearFormsData
         simpa [mul_assoc] using hmul
       simpa [epsCRT, Vseq, mul_assoc] using hconst
   }
+
+noncomputable def maskRowSubsetAverage {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (I : Finset (Fin r)) : ℝ :=
+  gapSlotAverage S C.gap N fun p =>
+    ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
+      ∏ R ∈ I,
+        atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i))
+            (fun k => (z k : ℚ)))
+
+theorem maskWeightedLinearFormsAverage_eq_subsetAverage_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm)
+    (I : Finset (Fin r)) :
+    ∀ᶠ N in atTop,
+      FromArithmetic.weightedLinearFormsAverage
+          (maskWeightedLinearFormsData S C a ha Sh ι hlisted I) N
+          (fun p => p ∈ independentPrimePoolSupport
+            (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+            (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)) =
+        maskRowSubsetAverage S C a N Sh ι I := by
+  classical
+  let D := maskWeightedLinearFormsData S C a ha Sh ι hlisted I
+  have hgood := maskRowDataGoodDomain_eventually S C a ha Sh ι hlisted
+  have hrowden := rowForm_den_one_eventually (q := q) S C a ha
+  have hdivisor (R : Fin r) : D.divisor R =
+      if R ∈ I then maskRowDivisorTemplate C Sh R else maskEmptyDivisorTemplate := rfl
+  have hcoeff (N : ℕ) (p : Fin s → ℕ) (R : Fin r) (j : Fin m) :
+      D.rowCoeff N p R j = rowShapeLinearCoefficients Sh ι
+        (chainScale S.core.parameters C a N) N p R j := rfl
+  filter_upwards [hgood, hrowden] with N hgood hrowden
+  let E : (Fin s → ℕ) → Prop := fun p => p ∈ independentPrimePoolSupport
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)
+  have hν (p : Fin s → ℕ) (z : Fin m → ℤ) (R : Fin r)
+      (hp : E p) :
+      nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R))
+          (FromArithmetic.linearRowValue D.rowCoeff N p R z).num =
+        if R ∈ I then chainWeight S.core.parameters C N (Sh.row R).anchor
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i)) (fun k => (z k : ℚ))).num else 1 := by
+    by_cases hR : R ∈ I
+    · have hlaw : FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R) =
+          parameterTailProductLaw S.core.parameters N (C.block (Sh.row R).anchor).2.val := by
+        rw [hdivisor, if_pos hR]
+        funext σ
+        exact maskRowDivisorTemplate_law_eq_tail S C Sh R N σ
+      have hrowval : FromArithmetic.linearRowValue D.rowCoeff N p R z =
+          rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+            (fun i => p (ι i)) (fun k => (z k : ℚ)) := by
+        calc
+          FromArithmetic.linearRowValue D.rowCoeff N p R z =
+              FromArithmetic.linearRowValue
+                (rowShapeLinearCoefficients Sh ι
+                  (chainScale S.core.parameters C a N)) N p R z := by
+                  unfold FromArithmetic.linearRowValue
+                  apply Finset.sum_congr rfl
+                  intro j hj
+                  rw [hcoeff N p R j]
+          _ = rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                (fun i => p (ι i)) (fun k => (z k : ℚ)) :=
+                linearRowValue_rowShape Sh ι (chainScale S.core.parameters C a N) N p R z
+      rw [hlaw, hrowval]
+      simp [chainWeight, hR]
+    · have hlaw : FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R) =
+          (fun σ => if σ = 1 then 1 else 0) := by
+        rw [hdivisor, if_neg hR]
+        funext σ
+        exact maskEmptyDivisorTemplate_law S.core.parameters N σ
+      rw [hlaw]
+      simp [hR, nuB_unitLaw_eq_one]
+  unfold FromArithmetic.weightedLinearFormsAverage maskRowSubsetAverage gapSlotAverage
+  apply tsum_congr
+  intro p
+  have hmassEq :
+      independentPrimePoolMass
+        (fun i => (S.primeStage.pool N (D.gap i)).lower)
+        (fun i => (S.primeStage.pool N (D.gap i)).upper) p =
+      gapSlotMass S C.gap N p := by
+    simp [D, maskWeightedLinearFormsData, gapSlotMass]
+  rw [hmassEq]
+  by_cases hp : E p
+  · simp only [E, hp, if_pos, one_mul, mul_one]
+    apply congrArg (fun x : ℝ => gapSlotMass S C.gap N p * x)
+    apply tsum_congr
+    intro z
+    have hprod :
+        (∏ R : Fin r,
+          nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R))
+            (FromArithmetic.linearRowValue D.rowCoeff N p R z).num) =
+        ∏ R ∈ I,
+          chainWeight S.core.parameters C N (Sh.row R).anchor
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))).num := by
+      calc
+        _ = ∏ R : Fin r, if R ∈ I then
+              chainWeight S.core.parameters C N (Sh.row R).anchor
+                (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                  (fun i => p (ι i)) (fun k => (z k : ℚ))).num else 1 := by
+                apply Finset.prod_congr rfl
+                intro R hR
+                exact hν p z R hp
+        _ = ∏ R ∈ I,
+              chainWeight S.core.parameters C N (Sh.row R).anchor
+                (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+                  (fun i => p (ι i)) (fun k => (z k : ℚ))).num := by
+                simp [Finset.prod_ite_mem]
+    have hrow (R : Fin r) :
+        atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))) =
+          chainWeight S.core.parameters C N (Sh.row R).anchor
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))).num := by
+      have hden := hrowden (Sh.row R) (fun i => p (ι i)) z
+      simp [atQ, hden]
+    have hprod' :
+        (∏ R ∈ I,
+          atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ)))) =
+        ∏ R ∈ I,
+          chainWeight S.core.parameters C N (Sh.row R).anchor
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))).num := by
+      apply Finset.prod_congr rfl
+      intro R hR
+      exact hrow R
+    change pivotMass S.core.parameters C N z *
+        (∏ R : Fin r,
+          nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor R))
+            (FromArithmetic.linearRowValue D.rowCoeff N p R z).num) =
+      pivotMass S.core.parameters C N z *
+        (∏ R ∈ I,
+          atQ (chainWeight S.core.parameters C N (Sh.row R).anchor)
+            (rowForm (chainScale S.core.parameters C a N) (Sh.row R)
+              (fun i => p (ι i)) (fun k => (z k : ℚ))))
+    rw [hprod, hprod']
+  · have hzero := independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) p hp
+    have hgapZero : gapSlotMass S C.gap N p = 0 := by
+      simpa [gapSlotMass] using hzero
+    simp [E, hp, hzero, hgapZero]
+
+theorem independentPrimePoolProbability_support_eq_one {q : ℕ}
+    (lo hi : Fin q → ℕ) (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
+    independentPrimePoolProbability lo hi
+      (fun p => p ∈ independentPrimePoolSupport lo hi) = 1 := by
+  classical
+  letI : DecidablePred (fun p : Fin q → ℕ => p ∈ independentPrimePoolSupport lo hi) :=
+    Classical.decPred _
+  unfold independentPrimePoolProbability
+  calc
+    (∑' p : Fin q → ℕ,
+        independentPrimePoolMass lo hi p *
+          (if p ∈ independentPrimePoolSupport lo hi then 1 else 0)) =
+      ∑' p : Fin q → ℕ, independentPrimePoolMass lo hi p := by
+        apply tsum_congr
+        intro p
+        by_cases hp : p ∈ independentPrimePoolSupport lo hi
+        · simp [hp]
+        · have hzero := independentPrimePoolMass_zero_of_not_mem_support lo hi p hp
+          simp [hp, hzero]
+    _ = 1 := independentPrimePoolMass_tsum_one lo hi hMass
+
+theorem maskRowSubsetAverage_le_two_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm)
+    (I : Finset (Fin r)) :
+    ∀ᶠ N in atTop, maskRowSubsetAverage S C a N Sh ι I ≤ 2 := by
+  classical
+  let D := maskWeightedLinearFormsData S C a ha Sh ι hlisted I
+  let E : ℕ → (Fin s → ℕ) → Prop := fun N p => p ∈ independentPrimePoolSupport
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)
+  obtain ⟨C₀, hC₀, hprop⟩ := FromArithmetic.prop_linear_forms D
+  have hgood := maskRowDataGoodDomain_eventually S C a ha Sh ι hlisted
+  have hrowEq := maskWeightedLinearFormsAverage_eq_subsetAverage_eventually
+    S C a ha Sh ι hlisted I
+  have hpoolMass := primePoolMass_pos_eventually S C.gap
+  have hlogs : ∀ᶠ N in atTop, ∀ i : Fin m,
+      Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+        (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1 :=
+    Filter.eventually_all.2 fun i => pivot_sampling_log_condition_eventually S C i
+  have hbaseNonneg : ∀ᶠ N in atTop, 0 ≤ D.epsilonBase N := by
+    filter_upwards [hlogs] with N hN
+    change 0 ≤ pivotBaseResidueErrorSum (r := r) S C N
+    unfold pivotBaseResidueErrorSum
+    apply Finset.sum_nonneg
+    intro i hi
+    have hXpos : (0 : ℝ) < (S.core.parameters.X N (C.block i).1 : ℝ) := by
+      exact_mod_cast S.core.parameters.Xpos N (C.block i).1
+    have hden : 0 < (S.core.parameters.X N (C.block i).1 : ℝ) *
+        (Real.log (S.core.parameters.X N (C.block i).1 : ℝ) -
+          (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) :=
+      mul_pos hXpos (sub_pos.mpr (hN i))
+    unfold FromArithmetic.harmonicResidueUniformError
+      FromArithmetic.harmonicResidueError
+    exact div_nonneg (by positivity) hden.le
+  have hcrtNonneg (N : ℕ) : 0 ≤ D.epsilonCRT N := by
+    change 0 ≤ (s : ℝ) * finiteL1 _ _
+    apply mul_nonneg (by positivity)
+    unfold finiteL1
+    apply Finset.sum_nonneg
+    intro y hy
+    exact abs_nonneg _
+  have hVone : ∀ᶠ N in atTop, 1 ≤ (D.V N : ℝ) := by
+    filter_upwards [D.V_tendsto.eventually_gt_atTop 1] with N hN
+    exact_mod_cast hN.le
+  have hbasePow : Tendsto
+      (fun N => D.epsilonBase N * (D.V N : ℝ) ^ (r : ℝ)) atTop (nhds 0) :=
+    D.epsilonBase_superpolynomial.mul_rpow_tendsto hbaseNonneg hVone r
+  have hcrtPow : Tendsto
+      (fun N => D.epsilonCRT N * (D.V N : ℝ) ^ (r : ℝ)) atTop (nhds 0) :=
+    D.epsilonCRT_superpolynomial.mul_rpow_tendsto
+      (Filter.Eventually.of_forall hcrtNonneg) hVone r
+  have hpow : Tendsto
+      (fun N => (D.V N : ℝ) ^ r * (D.epsilonBase N + D.epsilonCRT N))
+      atTop (nhds 0) := by
+    have hadd := hbasePow.add hcrtPow
+    simpa [Real.rpow_natCast, mul_add, mul_comm, mul_left_comm, mul_assoc] using hadd
+  have herror : Tendsto
+      (fun N : ℕ => C₀ * (1 / ((N + 1 : ℕ) : ℝ) +
+        (D.V N : ℝ) ^ r * (D.epsilonBase N + D.epsilonCRT N))) atTop (nhds 0) := by
+    have hsum := tendsto_one_div_add_atTop_nhds_zero_nat.add hpow
+    simpa using (tendsto_const_nhds.mul hsum)
+  have hsmall : ∀ᶠ N in atTop,
+      C₀ * (1 / ((N + 1 : ℕ) : ℝ) +
+        (D.V N : ℝ) ^ r * (D.epsilonBase N + D.epsilonCRT N)) < 1 :=
+    herror.eventually (Iio_mem_nhds (by norm_num : (0 : ℝ) < 1))
+  have hprob (N : ℕ)
+      (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper) :
+      FromArithmetic.weightedLinearFormsEventProbability D N (E N) = 1 := by
+    letI : DecidablePred (fun p : Fin s → ℕ => p ∈ independentPrimePoolSupport
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)) := Classical.decPred _
+    change independentPrimePoolProbability
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)
+      (fun p => p ∈ independentPrimePoolSupport
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)) = 1
+    exact independentPrimePoolProbability_support_eq_one
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper)
+      (fun _ => hMass)
+  filter_upwards [hgood, hrowEq, hpoolMass, hsmall]
+    with N hgoodN hrowEqN hMassN hsmallN
+  have happrox := hprop N (E N) (fun p hp => hgoodN p hp)
+  rw [hprob N hMassN] at happrox
+  have hsmallN' : C₀ * (1 / ((N : ℝ) + 1) +
+      (D.V N : ℝ) ^ r * (D.epsilonBase N + D.epsilonCRT N)) < 1 := by
+    simpa only [Nat.cast_add, Nat.cast_one] using hsmallN
+  have habs :
+      |FromArithmetic.weightedLinearFormsAverage D N (E N) - 1| < 1 :=
+    lt_of_le_of_lt happrox hsmallN'
+  have hupper : FromArithmetic.weightedLinearFormsAverage D N (E N) ≤ 2 := by
+    have h := abs_lt.mp habs
+    linarith
+  rw [← hrowEqN]
+  exact hupper
 
 
 noncomputable def gapPivotMass {K s m q : ℕ} {Aset : Finset ℚ}
