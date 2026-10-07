@@ -4300,4 +4300,197 @@ theorem c_test2_uniformUnitCRT_projection (w e V : ℕ)
     apply Finset.prod_eq_zero (Finset.mem_univ p0)
     simp [hp0]
 
+noncomputable def c_test2_finitePushforwardLaw {α β : Type*} [Fintype α] [Fintype β]
+    (f : α → β) (μ : α → ℝ) (y : β) : ℝ :=
+  ∑ x, μ x * if f x = y then 1 else 0
+
+theorem c_test2_finiteL1_pushforward_le {α β : Type*} [Fintype α] [Fintype β]
+    (f : α → β) (μ ν : α → ℝ) :
+    finiteL1 (c_test2_finitePushforwardLaw f μ)
+      (c_test2_finitePushforwardLaw f ν) ≤ finiteL1 μ ν := by
+  classical
+  have hsub (y : β) :
+      c_test2_finitePushforwardLaw f μ y -
+        c_test2_finitePushforwardLaw f ν y =
+      ∑ x, (μ x - ν x) * if f x = y then 1 else 0 := by
+    unfold c_test2_finitePushforwardLaw
+    rw [← Finset.sum_sub_distrib]
+    apply Finset.sum_congr rfl
+    intro x hx
+    by_cases h : f x = y <;> simp [h] <;> ring
+  unfold finiteL1
+  calc
+    _ = ∑ y, |∑ x, (μ x - ν x) * if f x = y then 1 else 0| := by
+      apply Finset.sum_congr rfl
+      intro y hy
+      rw [← hsub y]
+    _ ≤ ∑ y, ∑ x, |(μ x - ν x) * if f x = y then 1 else 0| := by
+      apply Finset.sum_le_sum
+      intro y hy
+      exact Finset.abs_sum_le_sum_abs _ _
+    _ = ∑ x, ∑ y, |(μ x - ν x) * if f x = y then 1 else 0| := by
+      rw [Finset.sum_comm]
+    _ = ∑ x, |μ x - ν x| := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      rw [Finset.sum_eq_single (f x)]
+      · simp
+      · intro y hy hne
+        simp [show f x ≠ y from fun h => hne h.symm]
+      · simp
+
+theorem c_test2_fintype_sum_div_mul {α : Type*} [Fintype α]
+    (f g : α → ℝ) (c : ℝ) :
+    (∑ x, f x / c * g x) = (∑ x, f x * g x) / c := by
+  calc
+    _ = ∑ x, (f x * g x) / c := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      ring
+    _ = _ := by
+      simpa using
+        (Finset.sum_div (Finset.univ : Finset α) (fun x => f x * g x) c).symm
+
+theorem c_test2_crtProjection_of_integer (w e V x : ℕ) :
+    (c_test2_crtFactorEquiv w e V
+      ⟨x % FromArithmetic.masterCRTModulus w e V,
+        Nat.mod_lt _ (by
+          rw [c_test2_masterCRTModulus_factor]
+          apply Nat.mul_pos
+          · exact pow_pos (primorial_pos w) e
+          · apply Finset.prod_pos
+            intro p hp
+            exact (Finset.mem_filter.mp p.2).2.pos)⟩).2 =
+      FromArithmetic.integerCRTResidues w V x := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  let R := FromArithmetic.CRTPrimeRange w V
+  have hQfactor : Q = (primorial w) ^ e * ∏ p : R, p.1 := by
+    dsimp [Q]
+    exact c_test2_masterCRTModulus_factor w e V
+  have hQpos : 0 < Q := by
+    rw [hQfactor]
+    apply Nat.mul_pos
+    · exact pow_pos (primorial_pos w) e
+    · apply Finset.prod_pos
+      intro p hp
+      exact (Finset.mem_filter.mp p.2).2.pos
+  have hdiv (p : R) : p.1 ∣ Q := by
+    have hpProd : p.1 ∣ ∏ q : R, q.1 :=
+      Finset.dvd_prod_of_mem _ (Finset.mem_univ p)
+    rw [hQfactor]
+    rcases hpProd with ⟨k, hk⟩
+    refine ⟨(primorial w) ^ e * k, ?_⟩
+    calc
+      (primorial w) ^ e * ∏ q : R, q.1 =
+          (primorial w) ^ e * (p.1 * k) := by rw [hk]
+      _ = p.1 * ((primorial w) ^ e * k) := by ring
+  have hQlt : x % Q < Q := Nat.mod_lt _ hQpos
+  have hres :
+      (c_test2_crtFactorEquiv w e V ⟨x % Q, hQlt⟩).2 =
+        FromArithmetic.integerCRTResidues w V x := by
+    funext p
+    apply Fin.ext
+    rw [c_test2_crtFactorEquiv_prime_apply, FromArithmetic.integerCRTResidues]
+    exact Nat.mod_mod_of_dvd x (hdiv p)
+  simpa [Q] using hres
+
+theorem c_test2_primePoolCRT_pushforward (w e V lo hi : ℕ)
+    (r : FromArithmetic.CRTResidues w V) :
+    c_test2_finitePushforwardLaw
+      (fun a : Fin (FromArithmetic.masterCRTModulus w e V) =>
+        (c_test2_crtFactorEquiv w e V a).2)
+      (primePoolResidueLaw lo hi (FromArithmetic.masterCRTModulus w e V)) r =
+      ∑' x : ℕ, primePoolLaw lo hi x *
+        if FromArithmetic.integerCRTResidues w V x = r then 1 else 0 := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  let R := FromArithmetic.CRTPrimeRange w V
+  let crt : Fin Q → FromArithmetic.CRTResidues w V := fun a =>
+    (c_test2_crtFactorEquiv w e V a).2
+  let pool := (Finset.Ico lo hi).filter Nat.Prime
+  have hQpos : 0 < Q := by
+    rw [show Q = (primorial w) ^ e * ∏ p : R, p.1 from by
+      dsimp [Q]
+      exact c_test2_masterCRTModulus_factor w e V]
+    apply Nat.mul_pos
+    · exact pow_pos (primorial_pos w) e
+    · apply Finset.prod_pos
+      intro p hp
+      exact (Finset.mem_filter.mp p.2).2.pos
+  have hzero (x : ℕ) (hx : x ∉ pool) : primePoolLaw lo hi x = 0 := by
+    unfold primePoolLaw
+    by_cases h : lo ≤ x ∧ x < hi ∧ x.Prime
+    · have hxpool : x ∈ pool := by
+        simp [pool, Finset.mem_filter, Finset.mem_Ico, h]
+      exact (hx hxpool).elim
+    · simp [h]
+  have htsum :
+      (∑' x : ℕ, primePoolLaw lo hi x *
+        if FromArithmetic.integerCRTResidues w V x = r then 1 else 0) =
+      ∑ x ∈ pool, primePoolLaw lo hi x *
+        if FromArithmetic.integerCRTResidues w V x = r then 1 else 0 := by
+    apply tsum_eq_sum (s := pool)
+    intro x hx
+    rw [hzero x hx]
+    simp
+  have hsumReindex :
+      (∑ a : Fin Q, (∑ x ∈ pool,
+          (if x % Q = a.val then 1 / (x : ℝ) else 0)) *
+          (if crt a = r then 1 else 0)) =
+        ∑ x ∈ pool, (1 / (x : ℝ)) *
+          (if FromArithmetic.integerCRTResidues w V x = r then 1 else 0) := by
+    calc
+      _ = ∑ a : Fin Q, ∑ x ∈ pool,
+          (if x % Q = a.val then 1 / (x : ℝ) else 0) *
+            (if crt a = r then 1 else 0) := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [Finset.sum_mul]
+      _ = ∑ x ∈ pool, ∑ a : Fin Q,
+          (if x % Q = a.val then 1 / (x : ℝ) else 0) *
+            (if crt a = r then 1 else 0) := by
+        rw [Finset.sum_comm]
+      _ = ∑ x ∈ pool, (1 / (x : ℝ)) *
+          (if FromArithmetic.integerCRTResidues w V x = r then 1 else 0) := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        let a₀ : Fin Q := ⟨x % Q, Nat.mod_lt _ hQpos⟩
+        have hcrt : crt a₀ = FromArithmetic.integerCRTResidues w V x := by
+          simpa [crt, Q] using c_test2_crtProjection_of_integer w e V x
+        rw [Finset.sum_eq_single a₀]
+        · simp [a₀, hcrt]
+        · intro a ha hne
+          have hneq : x % Q ≠ a.val := by
+            intro h
+            apply hne
+            exact Fin.ext h.symm
+          simp [hneq]
+        · simp
+  calc
+    _ = (∑ a : Fin Q, (∑ x ∈ pool,
+          (if x % Q = a.val then 1 / (x : ℝ) else 0)) *
+          (if crt a = r then 1 else 0)) / primePoolMass lo hi := by
+      simpa [c_test2_finitePushforwardLaw, primePoolResidueLaw, Q, crt, pool] using
+        c_test2_fintype_sum_div_mul
+          (fun a : Fin Q => ∑ x ∈ pool,
+            if x % Q = a.val then 1 / (x : ℝ) else 0)
+          (fun a => if crt a = r then 1 else 0) (primePoolMass lo hi)
+    _ = (∑ x ∈ pool, (1 / (x : ℝ)) *
+          (if FromArithmetic.integerCRTResidues w V x = r then 1 else 0)) /
+          primePoolMass lo hi := by rw [hsumReindex]
+    _ = ∑ x ∈ pool, ((1 / (x : ℝ)) / primePoolMass lo hi) *
+          (if FromArithmetic.integerCRTResidues w V x = r then 1 else 0) := by
+      rw [Finset.sum_div]
+      apply Finset.sum_congr rfl
+      intro x hx
+      ring
+    _ = ∑ x ∈ pool, primePoolLaw lo hi x *
+          (if FromArithmetic.integerCRTResidues w V x = r then 1 else 0) := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      have hx' := Finset.mem_filter.mp hx
+      simp [primePoolLaw, Finset.mem_Ico.mp hx'.1, hx'.2]
+    _ = _ := htsum.symm
+
 end HindmanSumsProducts
