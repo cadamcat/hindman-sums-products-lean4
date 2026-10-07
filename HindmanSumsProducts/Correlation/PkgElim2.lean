@@ -532,6 +532,65 @@ theorem c_elim2_shiftAverage_eq_uniformFintypeAverage {α : Type u} [Fintype α]
   unfold shiftAverage c_elim2_uniformFintypeAverage
   rw [hsum, hcardR]
 
+theorem c_elim2_shiftAverage_const {α : Type u} [Fintype α] [DecidableEq α]
+    (L : ℕ) (hL : 0 < L) (x : ℝ) :
+    shiftAverage α L (fun _ => x) = x := by
+  letI : Nonempty (α → Fin 2 → Fin L) := ⟨fun _ _ => ⟨0, hL⟩⟩
+  rw [c_elim2_shiftAverage_eq_uniformFintypeAverage]
+  exact c_elim2_uniformFintypeAverage_const x
+
+theorem c_elim2_goodRowCorrelation_eq_eliminationAverage
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hL : ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      0 < shiftLength S C.gap J0 N dirs.poly p) :
+    goodRowCorrelation S C a N dirs tests f =
+      eliminationAverage S C N dirs tests J0 (fun p z _ =>
+        ∏ R, atQ (f R p)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p z)) := by
+  classical
+  let Good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
+  let G (p : Fin q → ℕ) (z : Fin m → ℚ) :=
+    ∏ R, atQ (f R p) (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p z)
+  unfold goodRowCorrelation eliminationAverage goodSlotAverage
+  congr 1
+  apply tsum_congr
+  intro p
+  by_cases hp : Good p
+  · simp only [Good, if_pos hp]
+    congr 1
+    apply tsum_congr
+    intro z
+    rw [c_elim2_shiftAverage_const (shiftLength S C.gap J0 N dirs.poly p)
+      (hL p hp) (G p (fun k => (z k : ℚ)))]
+  · simp [hp, Good]
+
+theorem c_elim2_arithmeticL1_translation_le_uniformError
+    {X W H : ℕ} (hW : 0 < W) (hX : 2 ≤ X)
+    (hlog : Real.log (X : ℝ) > (W : ℝ) / X) {h : ℤ}
+    (hdiv : ∃ m : ℤ, h = (W : ℤ) * m)
+    (hh : |(h : ℝ)| ≤ (H : ℝ)) :
+    arithmeticL1 (translatedLaw (harmonicLaw X W) h) (harmonicLaw X W) ≤
+      FromArithmetic.harmonicTranslationUniformError X W H := by
+  have hbound := (FromArithmetic.sampling_pointwise_claim X W hW hX hlog).translation
+    hX hlog h hdiv
+  unfold FromArithmetic.harmonicTranslationUniformError
+  calc
+    arithmeticL1 (translatedLaw (harmonicLaw X W) h) (harmonicLaw X W) ≤
+        min 2 (2 * |(h : ℝ)| / ((X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X))) := hbound
+    _ ≤ min 2 (2 * (H : ℝ) / ((X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X))) := by
+      apply min_le_min
+      · exact le_rfl
+      · have hden : 0 ≤ (X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X) := by
+          apply mul_nonneg
+          · positivity
+          · linarith
+        exact div_le_div_of_nonneg_right
+          (mul_le_mul_of_nonneg_left hh (by norm_num)) hden
+
 noncomputable def c_elim2_shiftCoordPartitionEquiv {α : Type u}
     [DecidableEq α] (E : Finset α) :
     (α × Fin 2) ≃ c_elim2_ShiftCoord E ⊕ {i : α // i ∉ E} := by
