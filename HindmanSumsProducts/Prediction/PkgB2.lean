@@ -2221,6 +2221,35 @@ noncomputable def pkgB2_rowCoefficientArray {K sl b : ℕ} {As : Finset ℚ}
       direction E ((pkgB2_occurrenceEnum T E) u)
         ((pkgB2_coordEnum T) j)
 
+private theorem pkgB2_rowCoefficientArray_ownDirection_zero {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (E : Finset (pkgB2_Nonroot T))
+    (N : ℕ) (p : Fin (b * sl) → ℕ) (u : Fin (Fintype.card (pkgB2_Occurrence T E)))
+    (r : pkgB2_Nonroot T) (hrow : (pkgB2_occurrenceEnum T E u).1 = Sum.inr r) :
+    pkgB2_rowCoefficientArray MS T hT J0 gap direction E N p u
+      ((pkgB2_coordEnum T).symm (.inr (r, (0 : Fin 2)))) = 0 := by
+  classical
+  let Mnat : Fin b → ℕ := fun k =>
+    (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k)
+  let Mint : Fin b → ℤ := fun k => (Mnat k : ℤ)
+  have hresponse : pkgB2_response T Mint r
+      (pkgB2_directionLift (T r.1).d (direction r)) (.inr r) = 0 := by
+    apply pkgB2_response_self
+    simpa [pkgB2_directionLift_zero, pkgB2_directionLift_sum] using (hdir r).2.1
+  have hcoeffInt : pkgB2_occurrenceCoefficientInt T Mnat direction E
+      (pkgB2_occurrenceEnum T E u) (.inr (r, (0 : Fin 2))) = 0 := by
+    simp [pkgB2_occurrenceCoefficientInt, pkgB2_copyCoeffInt,
+      pkgB2_activeRow, hrow, hresponse, Mint]
+  have hcoeff : pkgB2_occurrenceCoefficient T Mnat direction E
+      (pkgB2_occurrenceEnum T E u) (.inr (r, (0 : Fin 2))) = 0 := by
+    simp [pkgB2_occurrenceCoefficient, hcoeffInt]
+  unfold pkgB2_rowCoefficientArray
+  rw [Equiv.apply_symm_apply]
+  simpa [Mnat] using hcoeff
+
 private theorem pkgB2_rowCoefficientArray_anchor {K sl b : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k))
@@ -3808,6 +3837,87 @@ private theorem pkgB2_harmonicNatLaw_zero_outside (X W n : ℕ)
       ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩
   simp [harmonicNatLaw, hnot]
 
+private theorem pkgB2_harmonicNatLaw_nonneg (X W n : ℕ) :
+    0 ≤ harmonicNatLaw X W n := by
+  have hnorm : 0 ≤ harmonicNormalizer X W := by
+    unfold harmonicNormalizer
+    apply Finset.sum_nonneg
+    intro m hm
+    exact one_div_nonneg.mpr (Nat.cast_nonneg m)
+  unfold harmonicNatLaw
+  split_ifs <;> positivity
+
+private theorem pkgB2_parameterTailProductLaw_tsum_one {K : ℕ}
+    (A : Parameters K) (N : ℕ) (Tails : Finset (Fin K))
+    (hX : ∀ i, 4 * primorial (N + 1) ≤ A.X N i) :
+    ∑' σ : ℕ, parameterTailProductLaw A N Tails σ = 1 := by
+  classical
+  let W := primorial (N + 1)
+  let S : Fin K → Finset ℕ := fun i => pkgB2_harmonicNatSupport (A.X N i) W
+  let Tuples : Finset (Fin K → ℕ) := Fintype.piFinset S
+  let prodTail : (Fin K → ℕ) → ℕ := fun t => ∏ j ∈ Tails, t j
+  let weight : (Fin K → ℕ) → ℝ := fun t => ∏ i, harmonicNatLaw (A.X N i) W (t i)
+  have hweight_zero (t : Fin K → ℕ) (ht : t ∉ Tuples) : weight t = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hμ : harmonicNatLaw (A.X N i) W (t i) = 0 :=
+      pkgB2_harmonicNatLaw_zero_outside (A.X N i) W (t i) (by simpa [S] using hi)
+    dsimp [weight]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hμ
+  have hweight_nonneg (t : Fin K → ℕ) : 0 ≤ weight t := by
+    dsimp [weight]
+    exact Finset.prod_nonneg fun i hi => pkgB2_harmonicNatLaw_nonneg _ _ _
+  have hterm_zero_out (σ : ℕ) (t : Fin K → ℕ) (ht : t ∉ Tuples) :
+      (if prodTail t = σ then (1 : ℝ) else 0) * weight t = 0 := by
+    simp [hweight_zero t ht]
+  have hLawZero (σ : ℕ) (hσ : σ ∉ Tuples.image prodTail) :
+      parameterTailProductLaw A N Tails σ = 0 := by
+    unfold parameterTailProductLaw
+    rw [tsum_eq_sum (s := Tuples) (hterm_zero_out σ)]
+    apply Finset.sum_eq_zero
+    intro t ht
+    have hp : prodTail t ≠ σ := by
+      intro heq
+      apply hσ
+      exact Finset.mem_image.mpr ⟨t, ht, heq⟩
+    simp [hp]
+  have hLawEq (σ : ℕ) : parameterTailProductLaw A N Tails σ =
+      ∑ t ∈ Tuples, (if prodTail t = σ then (1 : ℝ) else 0) * weight t := by
+    unfold parameterTailProductLaw
+    rw [tsum_eq_sum (s := Tuples) (hterm_zero_out σ)]
+  have hlocal (i : Fin K) : ∑ n ∈ S i, harmonicNatLaw (A.X N i) W n = 1 := by
+    have hsum : (∑ n ∈ S i, harmonicNatLaw (A.X N i) W n) =
+        ∑' n : ℕ, harmonicNatLaw (A.X N i) W n :=
+      (tsum_eq_sum (s := S i) (fun n hn =>
+        pkgB2_harmonicNatLaw_zero_outside (A.X N i) W n (by simpa [S] using hn))).symm
+    rw [hsum]
+    exact harmonicNatLaw_tsum_one (primorial_pos _) (hX i)
+  have htuple : ∑ t ∈ Tuples, weight t = 1 := by
+    calc
+      ∑ t ∈ Tuples, weight t = ∏ i : Fin K, ∑ n ∈ S i,
+          harmonicNatLaw (A.X N i) W n := by
+            simpa [Tuples, weight] using
+              (Finset.prod_univ_sum S (fun i n => harmonicNatLaw (A.X N i) W n)).symm
+      _ = 1 := by simp_rw [hlocal]; simp
+  rw [tsum_eq_sum (s := Tuples.image prodTail) hLawZero]
+  calc
+    (∑ σ ∈ Tuples.image prodTail, parameterTailProductLaw A N Tails σ) =
+        ∑ σ ∈ Tuples.image prodTail,
+          ∑ t ∈ Tuples, (if prodTail t = σ then (1 : ℝ) else 0) * weight t := by
+            apply Finset.sum_congr rfl
+            intro σ hσ
+            exact hLawEq σ
+    _ = ∑ t ∈ Tuples, weight t := by
+      rw [Finset.sum_comm]
+      apply Finset.sum_congr rfl
+      intro t ht
+      have hin : prodTail t ∈ Tuples.image prodTail :=
+        Finset.mem_image.mpr ⟨t, ht, rfl⟩
+      simp [Finset.sum_ite_eq', hin]
+    _ = 1 := htuple
+
 private theorem pkgB2_divisorLaw_support_witness {K : ℕ} (A : Parameters K) (N : ℕ)
     (D : DivisorTemplate K K) (σ : ℕ)
     (hσ : divisorTemplateLaw A N D σ ≠ 0) :
@@ -3909,6 +4019,158 @@ private theorem pkgB2_tailProduct_bounds {K : ℕ} (A : Parameters K) (B : Block
       _ = ∏ j ∈ B.2.val, (A.X N j) ^ 2 := hprod.trans hsubtype
       _ ≤ 2 + A.M N + ∏ j ∈ B.2.val, (A.X N j) ^ 2 := by omega
       _ = pkgB2_blockScale A B N := rfl
+
+private theorem pkgB2_parameterTailProductLaw_support_witness {K : ℕ}
+    (A : Parameters K) (N : ℕ) (Tails : Finset (Fin K)) (σ : ℕ)
+    (hσ : parameterTailProductLaw A N Tails σ ≠ 0) :
+    ∃ t : Fin K → ℕ,
+      t ∈ Fintype.piFinset
+        (fun i => pkgB2_harmonicNatSupport (A.X N i) (primorial (N + 1))) ∧
+      (∏ i ∈ Tails, t i) = σ := by
+  classical
+  let W := primorial (N + 1)
+  let S : Fin K → Finset ℕ := fun i => pkgB2_harmonicNatSupport (A.X N i) W
+  let Tuples : Finset (Fin K → ℕ) := Fintype.piFinset S
+  let prodTail : (Fin K → ℕ) → ℕ := fun t => ∏ j ∈ Tails, t j
+  let weight : (Fin K → ℕ) → ℝ := fun t => ∏ i, harmonicNatLaw (A.X N i) W (t i)
+  have hweight_zero (t : Fin K → ℕ) (ht : t ∉ Tuples) : weight t = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hμ := pkgB2_harmonicNatLaw_zero_outside (A.X N i) W (t i)
+      (by simpa [S] using hi)
+    dsimp [weight]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hμ
+  have hterm_zero (t : Fin K → ℕ) (ht : t ∉ Tuples) :
+      (if prodTail t = σ then (1 : ℝ) else 0) * weight t = 0 := by
+    simp [hweight_zero t ht]
+  have hLawEq : parameterTailProductLaw A N Tails σ =
+      ∑ t ∈ Tuples, (if prodTail t = σ then (1 : ℝ) else 0) * weight t := by
+    unfold parameterTailProductLaw
+    rw [tsum_eq_sum (s := Tuples) hterm_zero]
+  have hsum_ne :
+      (∑ t ∈ Tuples, (if prodTail t = σ then (1 : ℝ) else 0) * weight t) ≠ 0 := by
+    intro hz
+    apply hσ
+    rw [hLawEq, hz]
+  have hterm_exists : ∃ t ∈ Tuples,
+      (if prodTail t = σ then (1 : ℝ) else 0) * weight t ≠ 0 := by
+    by_contra hnone
+    have hzero : ∀ t ∈ Tuples,
+        (if prodTail t = σ then (1 : ℝ) else 0) * weight t = 0 := by
+      intro t ht
+      by_contra hne
+      exact hnone ⟨t, ht, hne⟩
+    exact hsum_ne (Finset.sum_eq_zero hzero)
+  obtain ⟨t, ht, hterm⟩ := hterm_exists
+  have hprod : prodTail t = σ := by
+    by_contra hneq
+    apply hterm
+    simp [hneq]
+  refine ⟨t, ?_, ?_⟩
+  · simpa [Tuples, S] using ht
+  · exact hprod
+
+private theorem pkgB2_parameterTailProductLaw_support_bounds {K : ℕ}
+    (A : Parameters K) (B : Block K) (N σ : ℕ)
+    (hσ : parameterTailProductLaw A N B.2.val σ ≠ 0) :
+    1 ≤ σ ∧ σ ≤ pkgB2_blockScale A B N := by
+  classical
+  obtain ⟨t, ht, hprod⟩ :=
+    pkgB2_parameterTailProductLaw_support_witness A N B.2.val σ hσ
+  let tailTuple : Fin (Fintype.card (pkgB2_TailIndex K B)) → ℕ :=
+    fun i => t (pkgB2_tailEnum B i).1
+  have hraw (i : Fin (Fintype.card (pkgB2_TailIndex K B))) :
+      A.X N (pkgB2_tailEnum B i).1 ≤ tailTuple i ∧
+      tailTuple i < (A.X N (pkgB2_tailEnum B i).1) ^ 2 := by
+    have hi : t (pkgB2_tailEnum B i).1 ∈
+        pkgB2_harmonicNatSupport (A.X N (pkgB2_tailEnum B i).1) (primorial (N + 1)) :=
+      Fintype.mem_piFinset.mp ht (pkgB2_tailEnum B i).1
+    exact ⟨(Finset.mem_Ico.mp (Finset.mem_filter.mp hi).1).1,
+      (Finset.mem_Ico.mp (Finset.mem_filter.mp hi).1).2⟩
+  have hbound := pkgB2_tailProduct_bounds A B N tailTuple hraw
+  have hprodEq : ∏ i, tailTuple i = ∏ j ∈ B.2.val, t j := by
+    calc
+      ∏ i, tailTuple i = ∏ j : pkgB2_TailIndex K B, t j.1 :=
+        Fintype.prod_equiv (pkgB2_tailEnum B) _ _ (fun i => rfl)
+      _ = ∏ j ∈ B.2.val, t j := by
+        change (∏ j : {j : Fin K // j ∈ B.2.val}, t j.1) = _
+        symm
+        exact Finset.prod_subtype B.2.val (by intro j; rfl) (fun j => t j)
+  constructor
+  · calc
+      1 ≤ ∏ i, tailTuple i := hbound.1
+      _ = ∏ j ∈ B.2.val, t j := hprodEq
+      _ = σ := hprod
+  · calc
+      σ = ∏ j ∈ B.2.val, t j := hprod.symm
+      _ = ∏ i, tailTuple i := hprodEq.symm
+      _ ≤ pkgB2_blockScale A B N := hbound.2
+
+private theorem pkgB2_nu_nonneg_le_blockScale {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (N : ℕ) (y : ℤ)
+    (hX : ∀ i, 4 * primorial (N + 1) ≤ MS.core.parameters.X N i) :
+    0 ≤ nu MS.core.parameters N B y ∧
+      nu MS.core.parameters N B y ≤ (pkgB2_blockScale MS.core.parameters B N : ℝ) := by
+  classical
+  let Scoord : Fin K → Finset ℕ := fun i => pkgB2_harmonicNatSupport
+    (MS.core.parameters.X N i) (primorial (N + 1))
+  let Tuples : Finset (Fin K → ℕ) := Fintype.piFinset Scoord
+  let prodTail : (Fin K → ℕ) → ℕ := fun t => ∏ j ∈ B.2.val, t j
+  let S : Finset ℕ := Tuples.image prodTail
+  let tailLaw : ℕ → ℝ := parameterTailProductLaw MS.core.parameters N B.2.val
+  have hLawZero (σ : ℕ) (hσ : σ ∉ S) : tailLaw σ = 0 := by
+    by_contra hne
+    obtain ⟨t, ht, hprod⟩ :=
+      pkgB2_parameterTailProductLaw_support_witness MS.core.parameters N B.2.val σ hne
+    apply hσ
+    exact Finset.mem_image.mpr ⟨t, ht, hprod⟩
+  have hLawNonneg (σ : ℕ) : 0 ≤ tailLaw σ := by
+    unfold tailLaw parameterTailProductLaw
+    apply tsum_nonneg
+    intro t
+    have hw : 0 ≤ ∏ i, harmonicNatLaw (MS.core.parameters.X N i)
+        (primorial (N + 1)) (t i) :=
+      Finset.prod_nonneg fun i hi => pkgB2_harmonicNatLaw_nonneg _ _ _
+    split_ifs <;> positivity
+  have htotal : ∑' σ : ℕ, tailLaw σ = 1 :=
+    pkgB2_parameterTailProductLaw_tsum_one MS.core.parameters N B.2.val hX
+  have hsum : ∑ σ ∈ S, tailLaw σ = 1 := by
+    have hz : ∀ σ ∉ S, tailLaw σ = 0 := hLawZero
+    simpa [tailLaw] using (tsum_eq_sum (s := S) hz).symm.trans htotal
+  have htermZero (σ : ℕ) (hσ : σ ∉ S) :
+      tailLaw σ * (σ : ℝ) * (if (σ : ℤ) ∣ y then 1 else 0) = 0 := by
+    simp [hLawZero σ hσ]
+  unfold nu nuB
+  rw [tsum_eq_sum (s := S) htermZero]
+  constructor
+  · apply Finset.sum_nonneg
+    intro σ hσ
+    exact mul_nonneg (mul_nonneg (hLawNonneg σ) (by positivity)) (by split_ifs <;> positivity)
+  · have hpoint (σ : ℕ) (hσ : σ ∈ S) :
+        tailLaw σ * (σ : ℝ) * (if (σ : ℤ) ∣ y then 1 else 0) ≤
+          tailLaw σ * (pkgB2_blockScale MS.core.parameters B N : ℝ) := by
+      by_cases hdiv : (σ : ℤ) ∣ y
+      · simp only [if_pos hdiv, mul_one]
+        by_cases hlaw : tailLaw σ = 0
+        · simp [hlaw]
+        · have hbound := pkgB2_parameterTailProductLaw_support_bounds
+            MS.core.parameters B N σ hlaw
+          have hcast : (σ : ℝ) ≤ (pkgB2_blockScale MS.core.parameters B N : ℝ) := by
+            exact_mod_cast hbound.2
+          exact mul_le_mul_of_nonneg_left hcast (hLawNonneg σ)
+      · simp only [if_neg hdiv, mul_zero]
+        exact mul_nonneg (hLawNonneg σ) (by positivity)
+    calc
+      _ ≤ ∑ σ ∈ S, tailLaw σ * (pkgB2_blockScale MS.core.parameters B N : ℝ) := by
+        apply Finset.sum_le_sum
+        intro σ hσ
+        exact hpoint σ hσ
+      _ = (∑ σ ∈ S, tailLaw σ) * (pkgB2_blockScale MS.core.parameters B N : ℝ) := by
+        rw [Finset.sum_mul]
+      _ = (pkgB2_blockScale MS.core.parameters B N : ℝ) := by rw [hsum, one_mul]
 
 private theorem pkgB2_divisorFamily_support_specs {K sl q : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
@@ -6229,6 +6491,42 @@ noncomputable def pkgB2_stateRowValue {K sl b : ℕ} {As : Finset ℚ}
     (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) : ℤ :=
   (linearRowValue (pkgB2_rowCoefficientArray MS T hT J0 gap direction E)
     N p o x).num
+
+private theorem pkgB2_linearRowValue_update_eq {q d m : ℕ}
+    (rowCoeff : ℕ → (Fin m → ℕ) → Fin q → Fin d → ℚ)
+    (N : ℕ) (p : Fin m → ℕ) (u : Fin q) (j0 : Fin d)
+    (x : Fin d → ℤ) (z : ℤ) (hzero : rowCoeff N p u j0 = 0) :
+    linearRowValue rowCoeff N p u (Function.update x j0 z) =
+      linearRowValue rowCoeff N p u x := by
+  classical
+  unfold linearRowValue
+  apply Finset.sum_congr rfl
+  intro j hj
+  by_cases h : j = j0
+  · subst j
+    simp [hzero]
+  · rw [Function.update_of_ne h]
+
+private theorem pkgB2_stateRowValue_update_own {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (E : Finset (pkgB2_Nonroot T))
+    (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (u : Fin (Fintype.card (pkgB2_Occurrence T E))) (r : pkgB2_Nonroot T)
+    (hrow : (pkgB2_occurrenceEnum T E u).1 = Sum.inr r)
+    (x : Fin (Fintype.card (pkgB2_Coord T)) → ℤ) (z : ℤ) :
+    pkgB2_stateRowValue MS T hT J0 gap direction E N p u x =
+      pkgB2_stateRowValue MS T hT J0 gap direction E N p u
+        (Function.update x ((pkgB2_coordEnum T).symm (.inr (r, (0 : Fin 2)))) z) := by
+  unfold pkgB2_stateRowValue
+  apply congrArg (fun q : ℚ => q.num)
+  exact (pkgB2_linearRowValue_update_eq
+    (pkgB2_rowCoefficientArray MS T hT J0 gap direction E) N p u
+    ((pkgB2_coordEnum T).symm (.inr (r, (0 : Fin 2)))) x z
+    (pkgB2_rowCoefficientArray_ownDirection_zero MS T hT J0 gap direction hdir
+      E N p u r hrow)).symm
 
 /-- The row product after a set of translation directions has been eliminated. The eliminated
 nonroot rows carry their Cauchy–Schwarz weight `(1+ν)`; the remaining rows retain the user `g`. -/
