@@ -911,6 +911,20 @@ theorem c_test2_rationalResidue_natCast {r : ℕ} (hr : r.Prime) (n : ℕ) :
   letI : Fact r.Prime := ⟨hr⟩
   simp [FromArithmetic.rationalResidue]
 
+theorem c_test2_prime_not_divides_masterModulus {K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N r : ℕ)
+    (hr : r.Prime) (hlarge : N + 1 < r) :
+    ¬ (r : ℤ) ∣ (S.core.parameters.M N : ℤ) := by
+  obtain ⟨e, he⟩ := S.core.modulus_power N
+  have hW : ¬ r ∣ primorial (N + 1) := by
+    intro hdiv
+    exact Nat.not_le_of_gt hlarge (hr.dvd_primorial_iff.mp hdiv)
+  intro hdiv
+  have hdivNat : r ∣ S.core.parameters.M N := Int.natCast_dvd.mp hdiv
+  rw [he] at hdivNat
+  exact hW (hr.dvd_of_dvd_pow hdivNat)
+
 theorem c_test2_scaleRatio_rationalResidue_ne_zero {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (c : Fin m → ℤ)
@@ -925,25 +939,15 @@ theorem c_test2_scaleRatio_rationalResidue_ne_zero {K s m : ℕ}
     FromArithmetic.rationalResidue r hr ((c i : ℚ) / (c d : ℚ)) ≠ 0 := by
   obtain ⟨rho, hrhoPos, hrhoQ, hWrho, hrhoM⟩ :=
     c_test2_scaleRatioNat_public S N c hpos hratio hmod i d hid
-  have hWnot : ¬ r ∣ primorial (N + 1) := by
-    intro hdiv
-    exact (Nat.not_le_of_gt hlarge) (hr.dvd_primorial_iff.mp hdiv)
-  have hMnot : ¬ r ∣ S.core.parameters.M N := by
-    intro hdiv
-    obtain ⟨e, he⟩ := S.core.modulus_power N
-    have hdivPow : r ∣ primorial (N + 1) ^ e := by
-      rw [he] at hdiv
-      exact hdiv
-    exact hWnot (hr.dvd_of_dvd_pow hdivPow)
+  have hMnot := c_test2_prime_not_divides_masterModulus S N r hr hlarge
   have hrhoNot : ¬ r ∣ rho := by
     intro hdiv
     apply hMnot
-    exact Nat.dvd_trans hdiv hrhoM
+    exact dvd_trans (Int.natCast_dvd_natCast.mpr hdiv) (Int.natCast_dvd_natCast.mpr hrhoM)
   have hcastNZ : (rho : ZMod r) ≠ 0 := by
     intro hz
     exact hrhoNot ((ZMod.natCast_eq_zero_iff rho r).mp hz)
-  have hres : FromArithmetic.rationalResidue r hr ((rho : ℕ) : ℚ) = (rho : ZMod r) :=
-    c_test2_rationalResidue_natCast hr rho
+  have hres := c_test2_rationalResidue_natCast hr rho
   rw [hrhoQ] at hres
   rw [hres]
   exact hcastNZ
@@ -3851,5 +3855,237 @@ theorem c_test2_divisorTemplateLaw_eq_parameterTailProductLaw {n : ℕ}
       FromArithmetic.parameterTailProductLaw A N T σ := by
   rw [c_test2_parameterTailProductLaw_eq_harmonicProductLaw A N T hNorm σ]
   rfl
+
+private theorem c_test2_nat_finset_product_dvd {ι : Type*} [DecidableEq ι]
+    (s : Finset ι) (f : ι → ℕ)
+    (hcop : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Nat.Coprime (f i) (f j))
+    {d : ℕ} (hdvd : ∀ i ∈ s, f i ∣ d) : (∏ i ∈ s, f i) ∣ d := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | @insert a s ha ih =>
+      have hcop' : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Nat.Coprime (f i) (f j) := by
+        intro i hi j hj hij
+        exact hcop i (Finset.mem_insert_of_mem hi) j (Finset.mem_insert_of_mem hj) hij
+      have hdvd' : ∀ i ∈ s, f i ∣ d := by
+        intro i hi
+        exact hdvd i (Finset.mem_insert_of_mem hi)
+      have hrest : (∏ i ∈ s, f i) ∣ d := ih hcop' hdvd'
+      have hcopProd : Nat.Coprime (f a) (∏ i ∈ s, f i) := by
+        rw [Nat.coprime_prod_right_iff]
+        intro i hi
+        exact hcop a (Finset.mem_insert_self a s) i (Finset.mem_insert_of_mem hi)
+          (by intro h; subst i; exact ha hi)
+      have hfirst : f a ∣ d := hdvd a (Finset.mem_insert_self a s)
+      simpa [Finset.prod_insert, ha] using hcopProd.mul_dvd_of_dvd_of_dvd hfirst hrest
+
+theorem c_test2_totient_prime_product {ι : Type*} [DecidableEq ι]
+    (s : Finset ι) (p : ι → ℕ)
+    (hp : ∀ i ∈ s, (p i).Prime)
+    (hcop : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Nat.Coprime (p i) (p j)) :
+    Nat.totient (∏ i ∈ s, p i) = ∏ i ∈ s, (p i - 1) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | @insert a s ha ih =>
+      have hcop' : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Nat.Coprime (p i) (p j) := by
+        intro i hi j hj hij
+        exact hcop i (Finset.mem_insert_of_mem hi) j (Finset.mem_insert_of_mem hj) hij
+      have hp' : ∀ i ∈ s, (p i).Prime := by
+        intro i hi
+        exact hp i (Finset.mem_insert_of_mem hi)
+      have hcopProd : Nat.Coprime (p a) (∏ i ∈ s, p i) := by
+        rw [Nat.coprime_prod_right_iff]
+        intro i hi
+        exact hcop a (Finset.mem_insert_self a s) i (Finset.mem_insert_of_mem hi)
+          (by intro h; subst i; exact ha hi)
+      rw [Finset.prod_insert ha, Nat.totient_mul hcopProd,
+        Nat.totient_prime (hp a (Finset.mem_insert_self a s)), ih hp' hcop']
+      simp [Finset.prod_insert, ha]
+
+noncomputable def c_test2_finsetCRTEquiv {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (s : Finset ι) (modulus : ι → ℕ)
+    (hpos : ∀ i ∈ s, 0 < modulus i)
+    (hcop : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Nat.Coprime (modulus i) (modulus j)) :
+    Fin (∏ i ∈ s, modulus i) ≃ (∀ i : {x // x ∈ s}, Fin (modulus i.1)) := by
+  classical
+  let Q := ∏ i ∈ s, modulus i
+  let solve (r : ∀ i : {x // x ∈ s}, Fin (modulus i.1)) : Fin Q := by
+    let residues : ι → ℕ := fun i => if hi : i ∈ s then (r ⟨i, hi⟩).val else 0
+    let crt := Nat.chineseRemainderOfFinset residues
+      modulus s (by intro i hi; exact (hpos i hi).ne') hcop
+    have hlt : crt.val < Q := by
+      simpa [Q] using Nat.chineseRemainderOfFinset_lt_prod
+        (a := residues) (s := modulus) (fun i hi => (hpos i hi).ne') hcop
+    exact ⟨crt.val, hlt⟩
+  refine {
+    toFun := fun x i => ⟨x.val % modulus i.1, Nat.mod_lt _ (hpos i.1 i.2)⟩
+    invFun := solve
+    left_inv := ?_
+    right_inv := ?_ }
+  · intro x
+    apply Fin.ext
+    dsimp [solve]
+    let residues : ι → ℕ := fun i => if hi : i ∈ s then x.val % modulus i else 0
+    let crt := Nat.chineseRemainderOfFinset residues modulus s
+      (by intro i hi; exact (hpos i hi).ne') hcop
+    change crt.val = x.val
+    have hcrt : ∀ i ∈ s,
+        Nat.ModEq (modulus i) x.val crt.val := by
+      intro i hi
+      have h := crt.property i hi
+      change crt.val % modulus i = residues i % modulus i at h
+      simp [residues, hi] at h
+      exact h.symm
+    have hcrtLt : crt.val < Q := by
+      simpa [Q] using Nat.chineseRemainderOfFinset_lt_prod
+        (a := residues) (s := modulus) (fun i hi => (hpos i hi).ne') hcop
+    by_cases hxy : x.val ≤ crt.val
+    · have hd : Q ∣ crt.val - x.val := by
+        apply c_test2_nat_finset_product_dvd s modulus hcop
+        intro i hi
+        exact (hcrt i hi).dvd'
+      have hlt : crt.val - x.val < Q := lt_of_le_of_lt (Nat.sub_le _ _) hcrtLt
+      have hz := Nat.eq_zero_of_dvd_of_lt hd hlt
+      have hcx : crt.val ≤ x.val := (Nat.sub_eq_zero_iff_le.mp hz)
+      exact Nat.le_antisymm hcx hxy
+    · have hyx : crt.val ≤ x.val := by omega
+      have hd : Q ∣ x.val - crt.val := by
+        apply c_test2_nat_finset_product_dvd s modulus hcop
+        intro i hi
+        exact (hcrt i hi).symm.dvd'
+      have hlt : x.val - crt.val < Q := lt_of_le_of_lt (Nat.sub_le _ _) x.isLt
+      have hz := Nat.eq_zero_of_dvd_of_lt hd hlt
+      have hxc : x.val ≤ crt.val := (Nat.sub_eq_zero_iff_le.mp hz)
+      exact Nat.le_antisymm hyx hxc
+  · intro r
+    funext i
+    apply Fin.ext
+    dsimp [solve]
+    let residues : ι → ℕ := fun j => if hj : j ∈ s then (r ⟨j, hj⟩).val else 0
+    let crt := Nat.chineseRemainderOfFinset residues
+      modulus s (by intro i hi; exact (hpos i hi).ne') hcop
+    change crt.val % modulus i.1 = (r i).val
+    have h := crt.property i.1 i.2
+    change crt.val % modulus i.1 = residues i.1 % modulus i.1 at h
+    simpa [residues, i.2, Nat.mod_eq_of_lt (r i).isLt] using h
+
+@[simp] theorem c_test2_finCast_val {n m : ℕ} (h : n = m) (x : Fin n) :
+    (Equiv.cast (congrArg Fin h) x).val = x.val := by
+  cases h
+  rfl
+
+noncomputable def c_test2_crtFactorEquiv (w e V : ℕ) :
+    Fin (FromArithmetic.masterCRTModulus w e V) ≃
+      Fin ((primorial w) ^ e) × FromArithmetic.CRTResidues w V := by
+  classical
+  let Range := FromArithmetic.CRTPrimeRange w V
+  let Idx := Option Range
+  let B := (primorial w) ^ e
+  let mod : Idx → ℕ := fun i => i.elim B fun p => p.1
+  let eOption : Option Range ≃ Range ⊕ PUnit.{1} :=
+    Equiv.optionEquivSumPUnit.{0, 0} Range
+  have hmodProd : (∏ i : Idx, mod i) = FromArithmetic.masterCRTModulus w e V := by
+    let Pset := (Finset.Ioc w (V + 1)).filter Nat.Prime
+    have hsub : (∏ p : Range, p.1) = ∏ p ∈ Pset, p := by
+      change (∏ p : {x : ℕ // x ∈ Pset}, p.1) = ∏ p ∈ Pset, p
+      exact (Finset.prod_subtype Pset (fun _ => Iff.rfl) fun x : ℕ => x).symm
+    have hmodfun (i : Idx) : mod i =
+        Sum.elim (fun p : Range => p.1) (fun _ : PUnit.{1} => B) (eOption i) := by
+      cases i <;> simp [mod, eOption, Equiv.optionEquivSumPUnit]
+    calc
+      _ = ∏ p : Range ⊕ PUnit.{1},
+            Sum.elim (fun p : Range => p.1) (fun _ : PUnit.{1} => B) p := by
+          apply Fintype.prod_equiv eOption
+          intro i
+          exact hmodfun i
+      _ = (∏ p : Range, p.1) * B := by simp [Finset.prod_sumElim]
+      _ = B * ∏ p ∈ Pset, p := by rw [hsub]; ring
+      _ = FromArithmetic.masterCRTModulus w e V := by
+        rfl
+  have hpos : ∀ i : Idx, 0 < mod i := by
+    intro i
+    cases i with
+    | none => exact pow_pos (primorial_pos w) e
+    | some p => exact (Finset.mem_filter.mp p.2).2.pos
+  have hbaseCop (p : Range) : Nat.Coprime B p.1 := by
+    have hp : p.1.Prime := (Finset.mem_filter.mp p.2).2
+    have hw : w < p.1 := (Finset.mem_Ioc.mp (Finset.mem_filter.mp p.2).1).1
+    have hpW : ¬ p.1 ∣ primorial w := by
+      intro h
+      exact (Nat.not_le_of_gt hw) (hp.dvd_primorial_iff.mp h)
+    have hpB : Nat.Coprime p.1 B := hp.coprime_iff_not_dvd.mpr (by
+      intro h
+      exact hpW (hp.dvd_of_dvd_pow h))
+    exact hpB.symm
+  have hcop : ∀ i ∈ (Finset.univ : Finset Idx), ∀ j ∈ Finset.univ,
+      i ≠ j → Nat.Coprime (mod i) (mod j) := by
+    intro i hi j hj hij
+    cases i with
+    | none =>
+      cases j with
+      | none => exact False.elim (hij rfl)
+      | some p => exact hbaseCop p
+    | some p =>
+      cases j with
+      | none => exact (hbaseCop p).symm
+      | some q =>
+        have hp : p.1.Prime := (Finset.mem_filter.mp p.2).2
+        have hq : q.1.Prime := (Finset.mem_filter.mp q.2).2
+        have hpq : p.1 ≠ q.1 := by
+          intro heq
+          apply hij
+          exact congrArg Option.some (Subtype.ext heq)
+        apply hp.coprime_iff_not_dvd.mpr
+        intro hdiv
+        exact hpq ((Nat.prime_dvd_prime_iff_eq hp hq).mp hdiv)
+  let e0 := c_test2_finsetCRTEquiv (Finset.univ : Finset Idx) mod
+    (by intro i hi; exact hpos i) hcop
+  have e1 : Fin (FromArithmetic.masterCRTModulus w e V) ≃
+      (∀ i : {x : Idx // x ∈ Finset.univ}, Fin (mod i.1)) := by
+    refine {
+      toFun := fun a => e0 ⟨a.val, by simpa [hmodProd] using a.isLt⟩
+      invFun := fun x => ⟨(e0.symm x).val, by simpa [hmodProd] using (e0.symm x).isLt⟩
+      left_inv := ?_
+      right_inv := ?_ }
+    · intro a
+      apply Fin.ext
+      simpa using congrArg Fin.val (e0.symm_apply_apply ⟨a.val, by simpa [hmodProd] using a.isLt⟩)
+    · intro x
+      change e0 ⟨(e0.symm x).val, by simpa [hmodProd] using (e0.symm x).isLt⟩ = x
+      calc
+        _ = e0 (e0.symm x) := by
+          congr 1
+        _ = x := e0.apply_symm_apply x
+  let e2 : (∀ i : {x : Idx // x ∈ Finset.univ}, Fin (mod i.1)) ≃
+      Fin B × FromArithmetic.CRTResidues w V := by
+    refine {
+      toFun := fun f => (f ⟨none, Finset.mem_univ _⟩, fun p => f ⟨some p, Finset.mem_univ _⟩)
+      invFun := fun x i => match i.1 with
+        | none => x.1
+        | some p => x.2 p
+      left_inv := ?_
+      right_inv := ?_ }
+    · intro f
+      funext i
+      rcases i with ⟨i, hi⟩
+      cases i <;> rfl
+    · intro x
+      rcases x with ⟨b, r⟩
+      apply Prod.ext
+      · rfl
+      · funext p
+        rfl
+  exact e1.trans e2
+
+@[simp] theorem c_test2_crtFactorEquiv_base_apply (w e V : ℕ)
+    (a : Fin (FromArithmetic.masterCRTModulus w e V)) :
+    ((c_test2_crtFactorEquiv w e V a).1).val = a.val % ((primorial w) ^ e) := by
+  simp [c_test2_crtFactorEquiv, c_test2_finsetCRTEquiv, c_test2_finCast_val]
+
+@[simp] theorem c_test2_crtFactorEquiv_prime_apply (w e V : ℕ)
+    (a : Fin (FromArithmetic.masterCRTModulus w e V)) (p : FromArithmetic.CRTPrimeRange w V) :
+    ((c_test2_crtFactorEquiv w e V a).2 p).val = a.val % p.1 := by
+  simp [c_test2_crtFactorEquiv, c_test2_finsetCRTEquiv, c_test2_finCast_val]
 
 end HindmanSumsProducts
