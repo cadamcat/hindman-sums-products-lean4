@@ -1194,6 +1194,89 @@ theorem c_elim2_boxShiftValue_endpoint {α : Type u} [Fintype α]
               (c_elim2_boxEndpointChoice t₀ t₁ b) c :=
                 (hsame (c_elim2_boxEndpointChoice t₀ t₁ b)).symm
 
+theorem c_elim2_boxTargetArgument_endpoint {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β)
+    (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b))
+    (ω : c_elim2_BoxBranch E) (bit : Fin 2) :
+    c_elim2_boxTargetArgument D (insert R E) b
+      (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+      ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, bit)) =
+    c_elim2_boxTargetArgument D E b
+      (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+        (c_elim2_boxEndpointChoice t₀ t₁ bit)) ω := by
+  unfold c_elim2_boxTargetArgument
+  congr 1
+  apply Finset.sum_congr rfl
+  intro i hi
+  rw [c_elim2_boxShiftValue_endpoint]
+
+theorem c_elim2_boxRowArgument_endpoint {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β) (I : α)
+    (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b))
+    (ω : c_elim2_BoxBranch E) (bit : Fin 2) :
+    c_elim2_boxRowArgument D (insert R E) b I
+      (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+      (c_elim2_boxBranchFull (insert R E)
+        ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, bit))) =
+    c_elim2_boxRowArgument D E b I
+      (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+        (c_elim2_boxEndpointChoice t₀ t₁ bit))
+      (c_elim2_boxBranchFull E ω) := by
+  unfold c_elim2_boxRowArgument
+  congr 1
+  apply Finset.sum_congr rfl
+  intro i hi
+  rw [c_elim2_boxShiftValue_endpoint]
+
+theorem c_elim2_boxTargetProduct_insert_endpoint {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β)
+    (o : c_elim2_ShiftOutside E R (D.shiftLength b))
+    (t₀ t₁ : Fin (D.shiftLength b)) :
+    c_elim2_boxTargetProduct D (insert R E) b
+      (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁) =
+    ∏ bit : Fin 2, c_elim2_boxTargetProduct D E b
+      (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+        (c_elim2_boxEndpointChoice t₀ t₁ bit)) := by
+  classical
+  let e := c_elim2_boxBranchInsertEquiv E R hR
+  unfold c_elim2_boxTargetProduct
+  calc
+    _ = ∏ p : c_elim2_BoxBranch E × Fin 2,
+        D.targetFunction b (c_elim2_boxTargetArgument D (insert R E) b
+          (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+          (e.symm p)) := by
+      exact Fintype.prod_equiv e _ _ (by intro ω; simp [e])
+    _ = ∏ bit : Fin 2, ∏ ω : c_elim2_BoxBranch E,
+        D.targetFunction b (c_elim2_boxTargetArgument D (insert R E) b
+          (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+          (e.symm (ω, bit))) := by
+      calc
+        ∏ p : c_elim2_BoxBranch E × Fin 2,
+            D.targetFunction b (c_elim2_boxTargetArgument D (insert R E) b
+              (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+              (e.symm p))
+            = ∏ p : Fin 2 × c_elim2_BoxBranch E,
+            D.targetFunction b (c_elim2_boxTargetArgument D (insert R E) b
+              (c_elim2_boxEndpointAssignment E R hR (D.shiftLength b) o t₀ t₁)
+              (e.symm (p.2, p.1))) := by
+                exact Fintype.prod_equiv (Equiv.prodComm _ _) _ _ (by intro p; rfl)
+        _ = _ := Fintype.prod_prod_type _
+    _ = ∏ bit : Fin 2, ∏ ω : c_elim2_BoxBranch E,
+        D.targetFunction b (c_elim2_boxTargetArgument D E b
+          (c_elim2_boxOldEndpointAssignment E R (D.shiftLength b) o
+            (c_elim2_boxEndpointChoice t₀ t₁ bit)) ω) := by
+      apply Fintype.prod_congr
+      intro bit
+      apply Fintype.prod_congr
+      intro ω
+      rw [c_elim2_boxTargetArgument_endpoint]
+    _ = _ := rfl
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
