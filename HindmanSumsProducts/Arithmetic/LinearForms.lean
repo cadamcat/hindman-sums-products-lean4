@@ -7236,6 +7236,358 @@ private theorem linearFormsCrtEnvelope_bounds {n q d b m : ℕ}
             rw [← Finset.sum_mul, hfacts.2.1]
             ring
 
+set_option maxHeartbeats 3000000 in
+private theorem linearForms_uniformCrtEnvelope_excess {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ)
+    (hlog : ∀ i : Fin n,
+      4 * (primorial (N + 1) : ℝ) ≤
+        Real.log (S.core.parameters.X N i : ℝ))
+    (B : ℕ) (hB : 0 < B)
+    (hsize : ∀ Q ∈ tests,
+      integerPolynomialContent Q < B ∧ Q.totalDegree ≤ B)
+    (C₁ : ℝ) (hC₁ : 0 ≤ C₁)
+    (hlocal : ∀ p : ℕ, p.Prime → ∀ L : ℕ,
+      (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (L + 1)),
+        comparisonPrimeValuationWeight (b := b) p a *
+          averagedLocalBeta
+            (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ)) p a) ≤ C₁ / (p : ℝ) ^ 2) :
+    (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+      uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) ≤
+      (6 : ℝ) ^ (b * q) *
+        ((∏ p ∈ linearFormsPrimeSet D N, (1 + C₁ / (p : ℝ) ^ 2)) - 1) := by
+  classical
+  let W : ℕ := primorial (N + 1)
+  let PrimeSet := linearFormsPrimeSet D N
+  let Alpha := {σ : Fin q → ℕ // σ ∈ linearFormsDivisorTupleSupport D N}
+  letI : Fintype Alpha := Finset.fintypeCoeSort (linearFormsDivisorTupleSupport D N)
+  let H : ℝ := 2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ)
+  have hH : 0 ≤ H := by dsimp [H]; positivity
+  let mass : Alpha → ℝ := fun x => linearFormsDivisorTupleMass D N x.val
+  let beta : Alpha → ℕ → ℝ := fun x p =>
+    averagedLocalBeta H p (linearFormsValVector x.val p)
+  let c : ℕ → ℝ := fun p => C₁ / (p : ℝ) ^ 2
+  have htests : ∀ Q ∈ tests, Q ≠ 0 := masterScale_tests_nonzero S
+  have htotal : (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+      uniformPrimeTupleCRTLaw (N + 1) (D.V N) r) = 1 := by
+    have hprod := uniformPrimeTupleCRTLaw_product (m := m) (w := N + 1)
+      (V := D.V N) (fun _ _ => (1 : ℝ))
+    calc
+      _ = ∏ p : CRTPrimeRange (N + 1) (D.V N),
+          ∑ x : Fin m → Fin p.val, uniformUnitTupleMass p.val m x := by
+            simpa using hprod
+      _ = 1 := by
+        apply Finset.prod_eq_one
+        intro p hp
+        exact uniformUnitTupleMass_total p.val m
+          (Nat.Prime.pos ((Finset.mem_filter.mp p.property).2))
+  have hsubProd (g : ℕ → ℝ) :
+      (∏ p : CRTPrimeRange (N + 1) (D.V N), g p.val) =
+        ∏ p ∈ PrimeSet, g p := by
+    simpa [PrimeSet, linearFormsPrimeSet, CRTPrimeRange] using
+      (Finset.prod_subtype
+        (p := fun p : ℕ => p ∈ PrimeSet)
+        (F := (inferInstance : Fintype (CRTPrimeRange (N + 1) (D.V N))))
+        (s := PrimeSet) (h := fun p : ℕ => Iff.rfl) (f := g)).symm
+  have hmean (σ : Fin q → ℕ) (p : CRTPrimeRange (N + 1) (D.V N)) :
+      (∑ x : Fin m → Fin p.val,
+        uniformUnitTupleMass p.val m x *
+          (1 + linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val))) ≤
+        1 + averagedLocalBeta H p.val (linearFormsValVector σ p.val) := by
+    have hμ : ∑ x : Fin m → Fin p.val, uniformUnitTupleMass p.val m x = 1 :=
+      uniformUnitTupleMass_total p.val m
+        (Nat.Prime.pos ((Finset.mem_filter.mp p.property).2))
+    have hβ := uniformUnit_localBeta_average tests htests B hB hsize p
+      (linearFormsValVector σ p.val)
+    have hsum :
+        (∑ x : Fin m → Fin p.val,
+          uniformUnitTupleMass p.val m x *
+            (1 + linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val))) =
+          (∑ x : Fin m → Fin p.val, uniformUnitTupleMass p.val m x) +
+            ∑ x : Fin m → Fin p.val,
+              uniformUnitTupleMass p.val m x *
+                linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val) := by
+      calc
+        _ = ∑ x : Fin m → Fin p.val,
+            (uniformUnitTupleMass p.val m x +
+              uniformUnitTupleMass p.val m x *
+                linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val)) := by
+                  apply Finset.sum_congr rfl
+                  intro x hx
+                  ring
+        _ = _ := by rw [Finset.sum_add_distrib]
+    have hβ' :
+        (∑ x : Fin m → Fin p.val,
+          uniformUnitTupleMass p.val m x *
+            linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val)) ≤
+          averagedLocalBeta H p.val (linearFormsValVector σ p.val) := by
+      have horder :
+          (∑ x : Fin m → Fin p.val,
+            uniformUnitTupleMass p.val m x *
+              linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val)) ≤
+            regularPrimeLocalExcess p.val (linearFormsValVector σ p.val) +
+              (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / p.val) *
+                exceptionalPrimeLocalExcess p.val (linearFormsValVector σ p.val) := by
+        simpa [add_comm] using hβ
+      have heq :
+          regularPrimeLocalExcess p.val (linearFormsValVector σ p.val) +
+            (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / p.val) *
+              exceptionalPrimeLocalExcess p.val (linearFormsValVector σ p.val) =
+            averagedLocalBeta H p.val (linearFormsValVector σ p.val) := by
+        dsimp [averagedLocalBeta, H]
+      exact horder.trans_eq heq
+    rw [hsum, hμ]
+    simpa [add_comm] using add_le_add_left hβ' 1
+  have hmeanNonneg (σ : Fin q → ℕ) (p : CRTPrimeRange (N + 1) (D.V N)) :
+      0 ≤ ∑ x : Fin m → Fin p.val,
+        uniformUnitTupleMass p.val m x *
+          (1 + linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val)) := by
+    apply Finset.sum_nonneg
+    intro x hx
+    have hp := (Finset.mem_filter.mp p.property).2
+    have hβreg := regularPrimeLocalExcess_nonneg p.val hp (linearFormsValVector σ p.val)
+    have hβexc := exceptionalPrimeLocalExcess_nonneg p.val hp (linearFormsValVector σ p.val)
+    have hβ : 0 ≤ linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val) := by
+      unfold linearFormsLocalBetaAtPrime
+      exact add_nonneg hβreg (mul_nonneg (by split_ifs <;> norm_num) hβexc)
+    have hμ : 0 ≤ uniformUnitTupleMass p.val m x := by
+      unfold uniformUnitTupleMass
+      split_ifs <;> positivity
+    exact mul_nonneg hμ (by linarith)
+  have hmeanProd (σ : Fin q → ℕ) :
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+          ∏ p : CRTPrimeRange (N + 1) (D.V N),
+            (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) ≤
+        ∏ p : CRTPrimeRange (N + 1) (D.V N),
+          (1 + averagedLocalBeta H p.val (linearFormsValVector σ p.val)) := by
+    have hfactor := uniformPrimeTupleCRTLaw_product (m := m) (w := N + 1)
+      (V := D.V N) (fun p x =>
+        1 + linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val))
+    have hprod :
+        (∏ p : CRTPrimeRange (N + 1) (D.V N),
+          ∑ x : Fin m → Fin p.val,
+            uniformUnitTupleMass p.val m x *
+              (1 + linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val))) ≤
+        ∏ p : CRTPrimeRange (N + 1) (D.V N),
+          (1 + averagedLocalBeta H p.val (linearFormsValVector σ p.val)) := by
+      apply finset_prod_le_prod_of_nonneg Finset.univ
+      · intro p hp
+        exact hmeanNonneg σ p
+      · intro p hp
+        have hp' := (Finset.mem_filter.mp p.property).2
+        have hreg := regularPrimeLocalExcess_nonneg p.val hp'
+          (linearFormsValVector σ p.val)
+        have hex := exceptionalPrimeLocalExcess_nonneg p.val hp'
+          (linearFormsValVector σ p.val)
+        dsimp [averagedLocalBeta]
+        positivity
+      · intro p hp
+        exact hmean σ p
+    calc
+      _ = ∏ p : CRTPrimeRange (N + 1) (D.V N),
+          ∑ x : Fin m → Fin p.val,
+            uniformUnitTupleMass p.val m x *
+              (1 + linearFormsLocalBetaAtPrime tests p x (linearFormsValVector σ p.val)) := by
+                simpa [linearFormsLocalBeta, linearFormsLocalBetaAtPrime] using hfactor
+      _ ≤ _ := hprod
+  have hfixed (σ : Fin q → ℕ) :
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+          ((∏ p : CRTPrimeRange (N + 1) (D.V N),
+            (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1)) ≤
+        (∏ p ∈ PrimeSet,
+          (1 + averagedLocalBeta H p (linearFormsValVector σ p))) - 1 := by
+    have hsub :
+        (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ((∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1)) =
+          (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+              ∏ p : CRTPrimeRange (N + 1) (D.V N),
+                (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1 := by
+      calc
+        _ = ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            (uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+              ∏ p : CRTPrimeRange (N + 1) (D.V N),
+                (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val)) -
+              uniformPrimeTupleCRTLaw (N + 1) (D.V N) r) := by
+                apply Finset.sum_congr rfl
+                intro r hr
+                ring
+        _ = _ := by rw [Finset.sum_sub_distrib, htotal]
+    calc
+      _ = (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1 := hsub
+      _ ≤ (∏ p : CRTPrimeRange (N + 1) (D.V N),
+          (1 + averagedLocalBeta H p.val (linearFormsValVector σ p.val))) - 1 :=
+            sub_le_sub_right (hmeanProd σ) 1
+      _ = _ := by
+            exact congrArg (fun z : ℝ => z - 1)
+              (hsubProd (fun p => 1 + averagedLocalBeta H p
+                (linearFormsValVector σ p)))
+  have hcap (σ : Fin q → ℕ) (r : Fin m → CRTResidues (N + 1) (D.V N)) :
+      linearFormsTupleEnvelope D N σ r ≤
+        (∏ p : CRTPrimeRange (N + 1) (D.V N),
+          (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1 := by
+    have hmin := min_le_right (∏ u : Fin q, (σ u : ℝ))
+      (∏ p : CRTPrimeRange (N + 1) (D.V N),
+        (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val)))
+    dsimp [linearFormsTupleEnvelope]
+    exact sub_le_sub_right hmin 1
+  have hlawNonneg (r : Fin m → CRTResidues (N + 1) (D.V N)) :
+      0 ≤ uniformPrimeTupleCRTLaw (N + 1) (D.V N) r := by
+    rw [uniformPrimeTupleCRTLaw_factor (fun p i => r i p)]
+    apply Finset.prod_nonneg
+    intro p hp
+    unfold uniformUnitTupleMass
+    split_ifs <;> positivity
+  have hprodSub (σ : Fin q → ℕ) :
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+          ((∏ p : CRTPrimeRange (N + 1) (D.V N),
+            (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1)) =
+        (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1 := by
+    calc
+      _ = ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          (uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val)) -
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r) := by
+              apply Finset.sum_congr rfl
+              intro r hr
+              ring
+      _ = _ := by rw [Finset.sum_sub_distrib, htotal]
+  have hfixedSub (σ : Fin q → ℕ) :
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+          ∏ p : CRTPrimeRange (N + 1) (D.V N),
+            (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1 ≤
+        (∏ p ∈ PrimeSet,
+          (1 + averagedLocalBeta H p (linearFormsValVector σ p))) - 1 := by
+    calc
+      _ = ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ((∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1) :=
+            (hprodSub σ).symm
+      _ ≤ _ := hfixed σ
+  have hcapAvg (σ : Fin q → ℕ) :
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsTupleEnvelope D N σ r) ≤
+      (∏ p ∈ PrimeSet,
+        (1 + averagedLocalBeta H p (linearFormsValVector σ p))) - 1 := by
+    calc
+      _ ≤ ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ((∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p
+                (linearFormsValVector σ p.val))) - 1) := by
+            apply Finset.sum_le_sum
+            intro r hr
+            exact mul_le_mul_of_nonneg_left (hcap σ r) (hlawNonneg r)
+      _ = (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+            ∏ p : CRTPrimeRange (N + 1) (D.V N),
+              (1 + linearFormsLocalBeta tests r p (linearFormsValVector σ p.val))) - 1 :=
+            hprodSub σ
+      _ ≤ _ := hfixedSub σ
+  have hswap :
+      (∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+        uniformPrimeTupleCRTLaw (N + 1) (D.V N) r * linearFormsCrtEnvelope D N r) =
+      ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ *
+          ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+              linearFormsTupleEnvelope D N σ r := by
+    unfold linearFormsCrtEnvelope
+    calc
+      _ = ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+          ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+              (linearFormsDivisorTupleMass D N σ * linearFormsTupleEnvelope D N σ r) := by
+                apply Finset.sum_congr rfl
+                intro r hr
+                rw [Finset.mul_sum]
+      _ = ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+          ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+              (linearFormsDivisorTupleMass D N σ * linearFormsTupleEnvelope D N σ r) := by
+                rw [Finset.sum_comm]
+      _ = _ := by
+            apply Finset.sum_congr rfl
+            intro σ hσ
+            calc
+              _ = ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+                  linearFormsDivisorTupleMass D N σ *
+                    (uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+                      linearFormsTupleEnvelope D N σ r) := by
+                    apply Finset.sum_congr rfl
+                    intro r hr
+                    ring
+              _ = _ := by rw [Finset.mul_sum]
+  have hjoint : ∀ U ∈ PrimeSet.powerset.erase ∅,
+      (∑ x : Alpha, mass x * ∏ p ∈ U, beta x p) ≤
+        (6 : ℝ) ^ (b * q) * ∏ p ∈ U, C₁ / (p : ℝ) ^ 2 := by
+    intro U hU
+    have hUsubset : U ⊆ PrimeSet :=
+      Finset.mem_powerset.mp (Finset.mem_erase.mp hU).2
+    have hmoment := linearForms_jointLocalBeta_moment D N hlog U hUsubset H C₁ hH hC₁ hlocal
+    have hsumSubtype :
+        (∑ x : Alpha, mass x * ∏ p ∈ U, beta x p) =
+          ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+            linearFormsDivisorTupleMass D N σ *
+              ∏ p ∈ U, averagedLocalBeta H p (linearFormsValVector σ p) := by
+      simpa [Alpha, mass, beta] using
+        (Finset.sum_subtype (F := (inferInstance : Fintype Alpha))
+          (linearFormsDivisorTupleSupport D N)
+          (fun σ => Iff.rfl)
+          (fun σ => linearFormsDivisorTupleMass D N σ *
+            ∏ p ∈ U, averagedLocalBeta H p (linearFormsValVector σ p))).symm
+    rw [hsumSubtype]
+    exact hmoment
+  have hprodExcess := LinearFormsAux.finite_joint_product_excess PrimeSet mass beta
+    ((6 : ℝ) ^ (b * q)) c hjoint
+  have hfiniteToSubtype :
+      (∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ *
+          ((∏ p ∈ PrimeSet, (1 + averagedLocalBeta H p
+            (linearFormsValVector σ p))) - 1)) =
+        ∑ x : Alpha, mass x *
+          ((∏ p ∈ PrimeSet, (1 + beta x p)) - 1) := by
+    simpa [Alpha, mass, beta] using
+      (Finset.sum_subtype (F := (inferInstance : Fintype Alpha))
+        (linearFormsDivisorTupleSupport D N)
+        (fun σ => Iff.rfl)
+        (fun σ => linearFormsDivisorTupleMass D N σ *
+          ((∏ p ∈ PrimeSet, (1 + averagedLocalBeta H p
+            (linearFormsValVector σ p))) - 1)))
+  calc
+    _ = ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ *
+          ∑ r : Fin m → CRTResidues (N + 1) (D.V N),
+            uniformPrimeTupleCRTLaw (N + 1) (D.V N) r *
+              linearFormsTupleEnvelope D N σ r := hswap
+    _ ≤ ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ *
+          ((∏ p ∈ PrimeSet, (1 + averagedLocalBeta H p
+            (linearFormsValVector σ p))) - 1) := by
+          apply Finset.sum_le_sum
+          intro σ hσ
+          exact mul_le_mul_of_nonneg_left (hcapAvg σ)
+            ((linearFormsDivisorTuple_support_facts D N).1 σ)
+    _ ≤ (6 : ℝ) ^ (b * q) * ((∏ p ∈ PrimeSet, (1 + C₁ / (p : ℝ) ^ 2)) - 1) := by
+          rw [hfiniteToSubtype]
+          simpa [c] using hprodExcess
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
