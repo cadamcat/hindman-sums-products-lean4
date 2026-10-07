@@ -444,7 +444,7 @@ theorem count_rho_to_dense (m : ℕ) (MS : MasterScales K As sl Dm)
   let G₁ : BlockFamily K r := fun N B a c y => rho A χ N B a c y
   have hρ (N : ℕ) (B : Block K) (b : ℚ) (c : Fin r) (y : ℤ) :
       0 ≤ rho A χ N B b c y ∧ rho A χ N B b c y ≤ nu A N B y := by
-    have hν := nu_nonneg A N B y
+    have hν := pkgH_nu_nonneg A N B y
     have hcolor := rationalColorIndicator_mem_Icc χ c
       (((height (A.ht N) B.set : ℚ) * b * (y : ℚ)))
     change 0 ≤ nu A N B y * rationalColorIndicator χ c
@@ -462,7 +462,7 @@ theorem count_rho_to_dense (m : ℕ) (MS : MasterScales K As sl Dm)
       |rho A χ N B b c y - F N B b c y| ≤ 1 + nu A N B y := by
     have hρ' := hρ N B b c y
     have hF' := hF.1 N B b c y
-    have hν := nu_nonneg A N B y
+    have hν := pkgH_nu_nonneg A N B y
     rw [abs_le]
     constructor
     · have : -F N B b c y ≥ -1 := by linarith [hF'.2]
@@ -474,7 +474,7 @@ theorem count_rho_to_dense (m : ℕ) (MS : MasterScales K As sl Dm)
     linarith [(hρ N B b c y).2]
   have hG₂ : ∀ N B b c y, |F N B b c y| ≤ 1 + nu A N B y := by
     intro N B b c y
-    have hν := nu_nonneg A N B y
+    have hν := pkgH_nu_nonneg A N B y
     have hF' := hF.1 N B b c y
     rw [abs_le]
     constructor
