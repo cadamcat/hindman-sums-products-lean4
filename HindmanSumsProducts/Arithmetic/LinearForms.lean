@@ -154,6 +154,58 @@ private theorem rationalRow_commonDenominator_value_int {d : ℕ}
         simp only [Int.cast_sum, Int.cast_mul]
   exact_mod_cast hQ
 
+private theorem rationalRow_cleared_modulus_divisibility {d K σ : ℕ}
+    (hdiv : σ ∣ K) (rows : Fin d → ℚ) (x : Fin d → ℤ)
+    (xmod : Fin d → ZMod K) (hxmod : ∀ j, xmod j = (x j : ZMod K))
+    (hDcop : Nat.Coprime (rationalRowDenominator rows) σ)
+    (hRden : (∑ j, rows j * (x j : ℚ)).den = 1) :
+    (ZMod.castHom hdiv (ZMod σ)
+      (∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j) = 0) ↔
+      (σ : ℤ) ∣ (∑ j, rows j * (x j : ℚ)).num := by
+  classical
+  let f : ZMod K →+* ZMod σ := ZMod.castHom hdiv (ZMod σ)
+  let R : ℚ := ∑ j, rows j * (x j : ℚ)
+  let Dden : ℕ := rationalRowDenominator rows
+  have hInt := rationalRow_commonDenominator_value_int rows x hRden
+  have hmodK : (Dden : ZMod K) * (R.num : ZMod K) =
+      ∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j := by
+    have hcast := congrArg (fun z : ℤ => (z : ZMod K)) hInt
+    have hxmod' (j : Fin d) : (x j : ZMod K) = xmod j := (hxmod j).symm
+    dsimp [Dden, R] at hcast ⊢
+    simpa only [Int.cast_mul, Int.cast_sum, Int.cast_natCast, hxmod'] using hcast
+  have hmodσ : (Dden : ZMod σ) * (R.num : ZMod σ) =
+      f (∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j) := by
+    calc
+      _ = f (Dden : ZMod K) * f (R.num : ZMod K) := by simp [f]
+      _ = f ((Dden : ZMod K) * (R.num : ZMod K)) :=
+        (map_mul f (Dden : ZMod K) (R.num : ZMod K)).symm
+      _ = f (∑ j, (rationalRowClearedCoefficient rows j : ZMod K) * xmod j) :=
+        congrArg f hmodK
+  have hDunit : IsUnit (Dden : ZMod σ) :=
+    (ZMod.isUnit_iff_coprime Dden σ).2 hDcop
+  constructor
+  · intro hzero
+    have hmul : (Dden : ZMod σ) * (R.num : ZMod σ) = 0 := by
+      rw [hmodσ]
+      exact hzero
+    have hnumzero : (R.num : ZMod σ) = 0 := by
+      have hval : (↑(hDunit.unit⁻¹) : ZMod σ) * ↑hDunit.unit = 1 := by
+        simpa using Units.inv_val hDunit.unit
+      calc
+        (R.num : ZMod σ) = 1 * (R.num : ZMod σ) := by simp
+        _ = (↑(hDunit.unit⁻¹) : ZMod σ) *
+            (↑hDunit.unit : ZMod σ) * (R.num : ZMod σ) := by rw [hval]
+        _ = (↑(hDunit.unit⁻¹) : ZMod σ) *
+            ((Dden : ZMod σ) * (R.num : ZMod σ)) := by
+              rw [hDunit.unit_spec]
+              ring
+        _ = 0 := by rw [hmul]; simp
+    exact (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mp hnumzero
+  · intro hdivNum
+    have hnumzero : (R.num : ZMod σ) = 0 :=
+      (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mpr hdivNum
+    rw [← hmodσ, hnumzero, mul_zero]
+
 private theorem zmod_int_mul (M : ℕ) (a b : ℤ) :
     (a : ZMod M) * (b : ZMod M) = ((a * b : ℤ) : ZMod M) := by
   exact (Int.cast_mul (α := ZMod M) a b).symm
