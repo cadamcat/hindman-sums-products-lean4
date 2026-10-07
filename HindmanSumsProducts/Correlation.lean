@@ -266,8 +266,8 @@ theorem correlation_cube_root_tv_bound :
   intro X W k H h hW hX hk hkX hcop h0 hH hdiv hHX
   let μ : ℤ → ℝ := harmonicLaw X W
   have hlog : Real.log X > (W : ℝ) / X := correlation_root_log_condition hW hX
-  have hsample : SamplingPointwiseBounds X W :=
-    sampling_pointwise_claim X W hW (by omega) hlog
+  have hsample : FromArithmetic.SamplingPointwiseBounds X W :=
+    FromArithmetic.sampling_pointwise_claim X W hW (by omega) hlog
   have hdilation := hsample.dilation (by omega) hlog k (by omega) hkX hcop
   have href := correlationRoot_reference_shift_numeric_bound X W k H h
     hW hX hk hkX hcop h0 hH hdiv hHX

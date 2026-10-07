@@ -10,7 +10,7 @@ open scoped Topology
 
 /-- Encode a chain tail as the finite-coordinate divisor template used by §3. -/
 noncomputable def tailDivisorTemplate {n : ℕ} (T : Finset (Fin n)) :
-    DivisorTemplate n n where
+    FromArithmetic.DivisorTemplate n n where
   arity := T.card
   arity_le := by simpa using Finset.card_le_univ T
   cutoff i := ((T.equivFinOfCardEq rfl).symm i).val
@@ -18,13 +18,13 @@ noncomputable def tailDivisorTemplate {n : ℕ} (T : Finset (Fin n)) :
 /-- An arity-zero divisor template contributes the constant weight one. -/
 theorem nuB_divisorTemplate_arity_zero {n b : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
-    (D : DivisorTemplate n b) (hD : D.arity = 0) (y : ℤ) :
-    nuB (divisorTemplateLaw A N D) y = 1 := by
+    (D : FromArithmetic.DivisorTemplate n b) (hD : D.arity = 0) (y : ℤ) :
+    nuB (FromArithmetic.divisorTemplateLaw A N D) y = 1 := by
   cases D with
   | mk arity arity_le cutoff =>
     have hzero : arity = 0 := hD
     subst arity
-    simp [nuB, divisorTemplateLaw, harmonicProductLaw]
+    simp [nuB, FromArithmetic.divisorTemplateLaw, harmonicProductLaw]
     rw [tsum_eq_single 1]
     · simp
     · intro σ hσ
@@ -78,7 +78,7 @@ theorem tendsto_weighted_variance_from_moments
 /-- The pointwise target-cube product is dominated by its product of weight bounds. -/
 theorem target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
     (p : Fin q → ℕ) (z : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ)
     (g : ℤ → ℝ)

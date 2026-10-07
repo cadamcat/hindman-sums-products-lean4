@@ -234,7 +234,7 @@ private theorem harmonicNatLaw_support_upper (X W n : ℕ)
 
 theorem parameterTailProductLaw_support_le {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
-    (hσ : parameterTailProductLaw A N T σ ≠ 0) :
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) :
     σ ≤ ∏ j ∈ T, (A.X N j) ^ 2 := by
   classical
   by_contra hnot
@@ -260,14 +260,14 @@ theorem parameterTailProductLaw_support_le {n : ℕ} (A : OAI.SourceAdmissible.P
         simp [hprod, hprodZero]
     · simp [hprod]
   apply hσ
-  unfold parameterTailProductLaw
+  unfold FromArithmetic.parameterTailProductLaw
   simp_rw [hterm]
   simp
 
 theorem chainTail_support_le_masterScaleV {n m : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (C : MasterChain n m) (d : Fin m) (σ : ℕ)
-    (hσ : parameterTailProductLaw A N (C.block d).2.val σ ≠ 0) :
-    σ ≤ masterScaleV A N C.gap := by
+    (hσ : FromArithmetic.parameterTailProductLaw A N (C.block d).2.val σ ≠ 0) :
+    σ ≤ FromArithmetic.masterScaleV A N C.gap := by
   let T := (C.block d).2.val
   let E := Finset.univ.filter (fun j : Fin n => j < C.gap)
   have hsubset : T ⊆ E := by
@@ -278,8 +278,8 @@ theorem chainTail_support_le_masterScaleV {n m : ℕ} (A : OAI.SourceAdmissible.
     apply Finset.prod_le_prod_of_subset_of_one_le hsubset
     intro j hj hjnot
     exact Nat.one_le_pow 2 (A.X N j) (A.Xpos N j)
-  have hmaster : (∏ j ∈ E, (A.X N j) ^ 2) ≤ masterScaleV A N C.gap := by
-    dsimp [masterScaleV, E]
+  have hmaster : (∏ j ∈ E, (A.X N j) ^ 2) ≤ FromArithmetic.masterScaleV A N C.gap := by
+    dsimp [FromArithmetic.masterScaleV, E]
     omega
   exact (parameterTailProductLaw_support_le A N T σ hσ).trans (hprod_le.trans hmaster)
 
@@ -385,7 +385,7 @@ noncomputable def initialMaskRemovalState {m : ℕ} (Jstar : Finset (Fin m))
 namespace MaskRemovalState
 
 def Valid {m q r K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (st : MaskRemovalState m q r) (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ) : Prop :=
   (st.shape.row st.shape.star).support = Jstar ∧
@@ -396,7 +396,7 @@ def Valid {m q r K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial 
 
 noncomputable def correlation {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) : ℝ :=
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) : ℝ :=
   gapSlotAverage S C.gap N fun p =>
     ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z *
       ((∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
@@ -406,7 +406,7 @@ noncomputable def correlation {m q r K s : ℕ} {Aset : Finset ℚ}
 
 theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
     (hmasks : st.masks = ∅) :
     st.correlation S C a N = rowCorrelation S C a N st.shape st.rowFunction := by
   simp [correlation, rowCorrelation, hmasks]
@@ -414,7 +414,7 @@ theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
 end MaskRemovalState
 
 theorem initialMaskRemovalState_valid {m K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (Jstar : Finset (Fin m))
     (hJ : 2 ≤ Jstar.card) (b g : Finset (Fin m) → ℤ → ℝ)
     (hvalid : FunctionsValid S.core.parameters C N b g) :
@@ -434,7 +434,7 @@ theorem initialMaskRemovalState_valid {m K s : ℕ} {Aset : Finset ℚ}
     rw [initialMaskShape_star_support]
 
 theorem initialMaskRemovalState_correlation {m K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (Jstar : Finset (Fin m))
     (hJ : 2 ≤ Jstar.card) (b g : Finset (Fin m) → ℤ → ℝ) :
     (initialMaskRemovalState Jstar hJ b g).correlation S C a N =
