@@ -1395,4 +1395,31 @@ theorem evLin_adjoint_sum {L : Type*} [LieRing L] [LieAlgebra ℚ L]
     ((weightFiltration F hs).lowerCentralSeries_eq_bot)] at h
   exact h
 
+noncomputable def realDhat {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
+    (F : OAI.Erdos3.NilpotentLieFiltration L s) : ℝ ⊗[ℚ] Lin F :=
+  (1 : ℝ) ⊗ₜ[ℚ] Dhat F
+
+noncomputable def realShiftAction {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
+    (F : OAI.Erdos3.NilpotentLieFiltration L s) :
+    (ℝ ⊗[ℚ] Poly F) →ₗ[ℝ] (ℝ ⊗[ℚ] Poly F) :=
+  (shiftAction F 1).baseChange ℝ
+
+private theorem realDhat_bracket_realInl {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (c : ℚ)
+    (Y : ℝ ⊗[ℚ] Poly F) :
+    ⁅(c : ℝ) • realDhat F, realInl F Y⁆ =
+      realInl F ((c : ℝ) • realShiftAction F Y) := by
+  induction Y using TensorProduct.inductionOn with
+  | tmul a Q =>
+      have hD : (c : ℝ) • realDhat F = (c : ℝ) ⊗ₜ[ℚ] Dhat F := by
+        simp [realDhat, TensorProduct.smul_tmul']
+      have hInl : realInl F (a ⊗ₜ[ℚ] Q) =
+          a ⊗ₜ[ℚ] LieAlgebra.SemiDirectSum.inl (shiftAction F) Q := by
+        simp [realInl]
+      rw [hD, hInl, LieAlgebra.ExtendScalars.bracket_tmul, bracket_Dhat_inl]
+      simp [realInl, realShiftAction, TensorProduct.smul_tmul']
+  | add Y Z hY hZ =>
+      rw [map_add, map_add, LieRing.lie_add, hY, hZ]
+      simp [realInl, realShiftAction]
+
 end HindmanSumsProducts.InverseBridge
