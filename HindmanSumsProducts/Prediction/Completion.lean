@@ -37,7 +37,141 @@ theorem parameter_choice (m : ℕ) (hm : 2 ≤ m) (η : ℝ) (hη : 0 < η) (Cd 
         corrConst m J hJ * (2 * ζ) ^ corrExponent m J hJ < η / (2 * nonsingletonCount m)) ∧
       ∃ J0 : ℕ, 0 < J0 ∧ (∀ d, d ≤ maskRowBound m - 1 → Cd d / J0 < ζ) ∧
         ∃ ε : ℝ, 0 < ε ∧ ε < η ∧ ∀ d, d ≤ maskRowBound m - 1 → 2 * ε < κ d J0 ζ := by
-  sorry
+  have hcount : 0 < nonsingletonCount m := by
+    have hpow : ∀ k : ℕ, 2 ≤ k → k + 1 < 2 ^ k := by
+      intro k
+      induction k with
+      | zero => intro hk; omega
+      | succ k ih =>
+          intro hk
+          by_cases hk2 : 2 ≤ k
+          · have hik := ih hk2
+            have hmul := Nat.mul_le_mul_left 2 hik.le
+            have hleft : k + 2 ≤ 2 * (k + 1) := by omega
+            rw [pow_succ]
+            omega
+          · have : k = 1 := by omega
+            subst k
+            norm_num
+    unfold nonsingletonCount
+    have hk := hpow m hm
+    omega
+  have hb : 0 < maskRowBound m := by
+    have hc : 0 < maskCount m := by
+      unfold maskCount
+      have hp : 2 ≤ 2 ^ m := by
+        calc
+          2 = 2 ^ 1 := by norm_num
+          _ ≤ 2 ^ m := Nat.pow_le_pow_right (by omega) (by omega)
+      omega
+    unfold maskRowBound
+    exact Nat.mul_pos hc (pow_pos (by omega) _)
+  let q : ℝ := η / (2 * nonsingletonCount m)
+  have hq : 0 < q := by
+    dsimp [q]
+    positivity
+  have hsmall : ∀ᶠ z : ℝ in 𝓝 (0 : ℝ), ∀ J : {J : Finset (Fin m) // 2 ≤ J.card},
+      corrConst m J.1 J.2 * (2 * z) ^ corrExponent m J.1 J.2 < q := by
+    apply Filter.eventually_all.mpr
+    intro J
+    let θ := corrExponent m J.1 J.2
+    have hθ : 0 < θ := by
+      dsimp [θ, corrExponent]
+      positivity
+    have hpow : ContinuousAt (fun z : ℝ => (2 * z) ^ θ) 0 := by
+      have hmul : ContinuousAt (fun z : ℝ => 2 * z) 0 := by fun_prop
+      simpa only [Function.comp_def] using
+        (Real.continuousAt_rpow_const 0 θ (Or.inr hθ.le)).comp_of_eq hmul (by norm_num)
+    have hfun : ContinuousAt (fun z : ℝ =>
+        corrConst m J.1 J.2 * (2 * z) ^ θ) 0 :=
+      continuousAt_const.mul hpow
+    have hval : corrConst m J.1 J.2 * (2 * (0 : ℝ)) ^ θ = 0 := by
+      simp [hθ.ne']
+    have hnhds : Set.Iio q ∈ 𝓝 (corrConst m J.1 J.2 * (2 * (0 : ℝ)) ^ θ) := by
+      rw [hval]
+      exact Iio_mem_nhds hq
+    filter_upwards [hfun.eventually hnhds] with z hz
+    simpa [θ] using hz
+  rcases Metric.mem_nhds_iff.mp hsmall with ⟨δ, hδ, hδball⟩
+  let ζ : ℝ := δ / 2
+  have hζ : 0 < ζ := by dsimp [ζ]; positivity
+  have hζball : ζ ∈ Metric.ball (0 : ℝ) δ := by
+    rw [Metric.mem_ball, Real.dist_eq]
+    dsimp [ζ]
+    rw [abs_of_pos (by positivity)]
+    linarith
+  have hζall := hδball hζball
+  have hζbound : ∀ (J : Finset (Fin m)) (hJ : 2 ≤ J.card),
+      corrConst m J hJ * (2 * ζ) ^ corrExponent m J hJ < q := by
+    intro J hJ
+    exact hζall ⟨J, hJ⟩
+  let Ctot : ℝ := ∑ d ∈ Finset.range (maskRowBound m), max (Cd d) 0
+  have hCtot : 0 ≤ Ctot := by
+    dsimp [Ctot]
+    exact Finset.sum_nonneg fun d hd => le_max_right _ _
+  obtain ⟨J0, hJ0large⟩ := exists_nat_gt (Ctot / ζ)
+  have hJ0pos : 0 < J0 := by
+    have hnonneg : 0 ≤ Ctot / ζ := div_nonneg hCtot hζ.le
+    have hJ0R : (0 : ℝ) < J0 := lt_of_le_of_lt hnonneg hJ0large
+    exact_mod_cast hJ0R
+  have hJ0real : 0 < (J0 : ℝ) := by exact_mod_cast hJ0pos
+  have hCratio : Ctot / J0 < ζ := by
+    apply (div_lt_iff₀ hJ0real).2
+    have hmul : Ctot / ζ < (J0 : ℝ) := hJ0large
+    have hmul' := (div_lt_iff₀ hζ).1 hmul
+    nlinarith [hmul']
+  have hCbound : ∀ d, d ≤ maskRowBound m - 1 → Cd d / J0 < ζ := by
+    intro d hd
+    have hlt : d < maskRowBound m := by
+      exact lt_of_le_of_lt hd (Nat.sub_lt hb (by norm_num))
+    have hdm : d ∈ Finset.range (maskRowBound m) := by
+      exact Finset.mem_range.mpr hlt
+    have hterm : max (Cd d) 0 ≤ Ctot := by
+      dsimp [Ctot]
+      exact Finset.single_le_sum (fun x hx => le_max_right (Cd x) 0) hdm
+    have hCd : Cd d ≤ Ctot := (le_max_left _ _).trans hterm
+    have hdiv : Cd d / J0 ≤ Ctot / J0 := div_le_div_of_nonneg_right hCd hJ0real.le
+    exact hdiv.trans_lt hCratio
+  let κtot : ℝ := ∑ d ∈ Finset.range (maskRowBound m), (κ d J0 ζ)⁻¹
+  have hκtot : 0 < κtot := by
+    dsimp [κtot]
+    apply Finset.sum_pos (fun d hd => inv_pos.mpr (hκ d J0 ζ hJ0pos hζ))
+    exact ⟨0, Finset.mem_range.mpr hb⟩
+  have hκbound : ∀ d, d ≤ maskRowBound m - 1 → κtot⁻¹ ≤ κ d J0 ζ := by
+    intro d hd
+    have hlt : d < maskRowBound m := by
+      exact lt_of_le_of_lt hd (Nat.sub_lt hb (by norm_num))
+    have hdm : d ∈ Finset.range (maskRowBound m) := by
+      exact Finset.mem_range.mpr hlt
+    have hterm : (κ d J0 ζ)⁻¹ ≤ κtot := by
+      dsimp [κtot]
+      exact Finset.single_le_sum (fun x hx => inv_nonneg.mpr (le_of_lt (hκ x J0 ζ hJ0pos hζ))) hdm
+    have hkpos := hκ d J0 ζ hJ0pos hζ
+    have hmul : 1 ≤ κtot * κ d J0 ζ := by
+      calc
+        1 = (κ d J0 ζ)⁻¹ * κ d J0 ζ := by rw [inv_mul_cancel₀ (ne_of_gt hkpos)]
+        _ ≤ κtot * κ d J0 ζ := mul_le_mul_of_nonneg_right hterm hkpos.le
+    have hle : (1 : ℝ) / κtot ≤ κ d J0 ζ :=
+      (div_le_iff₀ hκtot).2 (by nlinarith [hmul])
+    simpa [one_div] using hle
+  let ε := min (η / 2) (κtot⁻¹ / 4)
+  have hεpos : 0 < ε := by
+    dsimp [ε]
+    positivity
+  have hεη : ε < η := by
+    have : ε ≤ η / 2 := min_le_left _ _
+    linarith
+  have hεκ : ∀ d, d ≤ maskRowBound m - 1 → 2 * ε < κ d J0 ζ := by
+    intro d hd
+    have hk := hκbound d hd
+    have he : ε ≤ κtot⁻¹ / 4 := min_le_right _ _
+    calc
+      2 * ε ≤ 2 * (κtot⁻¹ / 4) := mul_le_mul_of_nonneg_left he (by norm_num)
+      _ < κtot⁻¹ := by nlinarith [inv_pos.mpr hκtot]
+      _ ≤ κ d J0 ζ := hk
+  refine ⟨ζ, hζ, ?_, J0, hJ0pos, hCbound, ε, hεpos, hεη, hεκ⟩
+  intro J hJ
+  simpa [q] using hζbound J hJ
 
 /-! ### Restriction to the principal indices (05:713–719) -/
 
@@ -73,7 +207,120 @@ powers of `R_{j_u} ≥ R_{k_u}`. -/
 theorem restrict_parameters {n : ℕ} (MS : MasterScales K As sl Dm) (pad prin : Fin n → Fin K)
     (h1 : ∀ u, pad u < prin u) (h2 : ∀ u v, u < v → prin u < pad v) :
     ∃ (A' : Parameters n) (R : Restriction MS.core.parameters A'), R.pad = pad ∧ R.prin = prin := by
-  sorry
+  let A := MS.core.parameters
+  have hprin : StrictMono prin := fun u v huv => (h2 u v huv).trans (h1 v)
+  let e : Fin n ↪ Fin K := ⟨prin, hprin.injective⟩
+  have hmapBlock (B : Block n) :
+      (mapBlock prin hprin B).set = B.set.map e := by
+    simp [mapBlock, OAI.SourceBlocks.Block.set, e]
+  have hprev (u : Fin n) (N : ℕ) :
+      OAI.SourceAdmissible.previous (fun v => A.X N (prin v)) u ≤
+        OAI.SourceAdmissible.previous (A.X N) (pad u) := by
+    let s := Finset.univ.filter (fun v : Fin n => v < u)
+    let t := Finset.univ.filter (fun i : Fin K => i < pad u)
+    have hsubset : s.map e ⊆ t := by
+      intro i hi
+      rcases Finset.mem_map.mp hi with ⟨v, hv, rfl⟩
+      apply Finset.mem_filter.mpr
+      refine ⟨Finset.mem_univ _, ?_⟩
+      exact h2 v u (Finset.mem_filter.mp hv).2
+    change (∏ v ∈ s, A.X N (prin v)) ≤ ∏ i ∈ t, A.X N i
+    calc
+      (∏ v ∈ s, A.X N (prin v)) = ∏ i ∈ s.map e, A.X N i :=
+        (Finset.prod_map s e (fun i => A.X N i)).symm
+      _ ≤ ∏ i ∈ t, A.X N i :=
+        Finset.prod_le_prod_of_subset_of_one_le hsubset (by
+          intro i hi hni
+          exact Nat.one_le_iff_ne_zero.mpr (ne_of_gt (A.Xpos N i)))
+  have hheight (N : ℕ) (S : Finset (Fin n)) :
+      OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (fun u => A.ht N (prin u)) S =
+        OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (A.ht N) (S.map e) := by
+    exact height_map_embedding e (A.ht N) S
+  let A' : Parameters n := {
+    M := A.M
+    ht := fun N u => A.ht N (prin u)
+    H := fun N u => A.H N (pad u)
+    X := fun N u => A.X N (prin u)
+    Mpos := A.Mpos
+    htpos := fun N u => A.htpos N (prin u)
+    Hpos := fun N u => A.Hpos N (pad u)
+    Xpow := fun N u => A.Xpow N (prin u)
+    Msmooth := A.Msmooth
+    htsmooth := fun N u => A.htsmooth N (prin u)
+    Mdiv := A.Mdiv
+    htdiv := fun N u => A.htdiv N (prin u)
+    singleton_bound := fun N u => A.singleton_bound N (prin u)
+    block_bound := by
+      intro N B
+      change OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (fun u => A.ht N (prin u)) B.set ≤ A.M N
+      rw [hheight, ← hmapBlock]
+      exact A.block_bound N (mapBlock prin hprin B)
+    ratio := by
+      intro N B S hS
+      have hAdd := added_map_strictMono prin hprin hS
+      let BM := mapBlock prin hprin B
+      obtain ⟨d, hd⟩ := A.ratio N BM (S.map e) hAdd
+      refine ⟨d, ?_⟩
+      calc
+        OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+            (fun u => A.ht N (prin u)) S =
+          OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height (A.ht N) (S.map e) :=
+            hheight N S
+        _ = OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+              (A.ht N) BM.set * ((primorial (N + 1) : ℤ) ^ (N + 1) * d) := hd
+        _ = OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+              (fun u => A.ht N (prin u)) B.set *
+                ((primorial (N + 1) : ℤ) ^ (N + 1) * d) := by
+              rw [hheight N B.set, ← hmapBlock B]
+    Hdiv := by
+      intro N u
+      exact A.Hdiv N (pad u)
+    Hdom := by
+      intro u
+      let Pnew : ℕ → ℕ := fun N =>
+        OAI.SourceAdmissible.previous (fun v => A.X N (prin v)) u
+      let Pold : ℕ → ℕ := fun N =>
+        OAI.SourceAdmissible.previous (A.X N) (pad u)
+      have hden (N : ℕ) :
+          OAI.AdmissibleMicrocellBoundary.earlierScale A.M Pnew N ≤
+            OAI.AdmissibleMicrocellBoundary.earlierScale A.M Pold N := by
+        unfold OAI.AdmissibleMicrocellBoundary.earlierScale Pnew Pold
+        have hp : (OAI.SourceAdmissible.previous (fun v => A.X N (prin v)) u : ℝ) ≤
+            OAI.SourceAdmissible.previous (A.X N) (pad u) := Nat.cast_le.mpr (hprev u N)
+        linarith
+      have hT (N : ℕ) : 0 < OAI.AdmissibleMicrocellBoundary.earlierScale A.M Pnew N :=
+        lt_of_lt_of_le (by norm_num) (OAI.AdmissibleMicrocellBoundary.scale_one A.M Pnew N)
+      change OAI.MicrocellScale.Dominates (fun N => (A.H N (pad u) : ℝ))
+        (fun N => OAI.AdmissibleMicrocellBoundary.earlierScale A.M Pnew N)
+      exact dominates_of_le_denominator (A.Hdom (pad u)) hT hden
+        (Filter.Eventually.of_forall fun N => by positivity)
+    Xdom := by
+      intro u
+      have hHle (N : ℕ) : (A.H N (pad u) : ℝ) ≤ (A.H N (prin u) : ℝ) := by
+        have hdiv : A.H N (pad u) ∣ A.H N (prin u) :=
+          MS.gapStage.earlier_gaps_divide N (pad u) (prin u) (h1 u)
+        exact_mod_cast Nat.le_of_dvd (A.Hpos N (prin u)) hdiv
+      have hXnonneg : ∀ᶠ N in atTop, 0 ≤ Real.log (A.X N (prin u) : ℝ) := by
+        filter_upwards [(A.Xtendsto (prin u)).eventually_ge_atTop 1] with N hN
+        exact Real.log_nonneg (by exact_mod_cast hN)
+      have hT (N : ℕ) : 0 < (A.H N (pad u) : ℝ) := by
+        exact_mod_cast A.Hpos N (pad u)
+      change OAI.MicrocellScale.Dominates (fun N => Real.log (A.X N (prin u) : ℝ))
+        (fun N => (A.H N (pad u) : ℝ))
+      exact dominates_of_le_denominator (A.Xdom (prin u)) hT hHle hXnonneg }
+  let R : Restriction A A' := {
+    pad := pad
+    prin := prin
+    pad_lt_prin := h1
+    prin_lt_pad := h2
+    M_eq := by intro N; rfl
+    ht_eq := by intro N u; rfl
+    H_eq := by intro N u; rfl
+    X_eq := by intro N u; rfl }
+  exact ⟨A', R, rfl, rfl⟩
 
 /-- A chain on `Fin n` is a master chain on the principal indices with gap the padding index
 immediately before its first pivot (05:389–391, 750–752). -/
@@ -81,7 +328,58 @@ theorem masterChain_of_restricted {n m : ℕ} {A : Parameters K} {A' : Parameter
     (R : Restriction A A') (B' : Fin m → Block n) (hB' : IsBlockChain B') (hm : 0 < m) :
     ∃ C : MasterChain K m, C.gap = R.pad (B' ⟨0, hm⟩).1 ∧
       ∀ d, C.block d = mapBlock R.prin R.prin_strictMono (B' d) := by
-  sorry
+  let u₀ : Fin m := ⟨0, hm⟩
+  have hchain : IsChain
+      (fun d => (mapBlock R.prin R.prin_strictMono (B' d)).2.val)
+      (fun d => (mapBlock R.prin R.prin_strictMono (B' d)).1) := by
+    change IsChain (fun d => (B' d).2.val) (fun d => (B' d).1) at hB'
+    rcases hB' with ⟨hne, htails, htailPivot, hpivots⟩
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · intro d
+      obtain ⟨j, hj⟩ := hne d
+      exact ⟨R.prin j, Finset.mem_map.mpr ⟨j, hj, rfl⟩⟩
+    · intro d d' hdd a ha b hb
+      rcases Finset.mem_map.mp ha with ⟨a', ha', rfl⟩
+      rcases Finset.mem_map.mp hb with ⟨b', hb', rfl⟩
+      exact R.prin_strictMono (htails d d' hdd a' ha' b' hb')
+    · intro d d' a ha
+      rcases Finset.mem_map.mp ha with ⟨a', ha', rfl⟩
+      exact R.prin_strictMono (htailPivot d d' a' ha')
+    · intro d d' hdd
+      exact R.prin_strictMono (hpivots hdd)
+  let C : MasterChain K m :=
+    { gap := R.pad (B' u₀).1
+      block := fun d => mapBlock R.prin R.prin_strictMono (B' d)
+      tails_before_gap := by
+        intro d j hj
+        rcases Finset.mem_map.mp hj with ⟨j', hj', rfl⟩
+        exact R.prin_lt_pad j' (B' u₀).1 (by
+          change IsChain (fun d => (B' d).2.val) (fun d => (B' d).1) at hB'
+          exact hB'.2.2.1 d u₀ j' hj')
+      tails_ordered := by
+        intro u d hud a ha b hb
+        exact hchain.2.1 u d hud a ha b hb
+      pivots_after_gap := by
+        intro d
+        have hle : (B' u₀).1 ≤ (B' d).1 := by
+          change IsChain (fun d => (B' d).2.val) (fun d => (B' d).1) at hB'
+          exact hB'.2.2.2.monotone (Nat.zero_le d)
+        rcases lt_or_eq_of_le hle with hlt | heq
+        · exact (R.pad_lt_prin (B' u₀).1).trans
+            ((R.prin_lt_pad (B' u₀).1 (B' d).1 hlt).trans (R.pad_lt_prin (B' d).1))
+        · have heqidx : u₀ = d := by
+            have hstrict : StrictMono (fun d => (B' d).1) := by
+              change IsChain (fun d => (B' d).2.val) (fun d => (B' d).1) at hB'
+              exact hB'.2.2.2
+            exact hstrict.injective heq
+          subst d
+          exact R.pad_lt_prin (B' u₀).1
+      pivots_ordered := by
+        intro u d hud
+        exact R.prin_strictMono (by
+          change IsChain (fun d => (B' d).2.val) (fun d => (B' d).1) at hB'
+          exact hB'.2.2.2 hud) }
+  exact ⟨C, rfl, fun _ => rfl⟩
 
 /-- The selected coarse models assemble into one charted `ModelsSystem` for the restricted
 parameters (Definition `def:piecewise-model` with `H_u = R_{k_u}`, 05:717–719): pieces of the
@@ -91,7 +389,17 @@ theorem models_system_of_selection {n s : ℕ} {A : Parameters K} {A' : Paramete
     (Φ : (u : Fin n) → Block K → ℚ → Fin r → RepFamily A (R.pad u) Fm Km) :
     ∃ S : ModelsSystem A' vs r Fm, ∀ N (B' : Block n) (v : ℚ), v ∈ vs → ∀ (c : Fin r) (y : ℤ),
       S.model N B' v c y = (Φ B'.1 (mapBlock R.prin R.prin_strictMono B') v c).eval N y := by
-  sorry
+  refine ⟨{
+    model := fun N B' v c y =>
+      (Φ B'.1 (mapBlock R.prin R.prin_strictMono B') v c).eval N y
+    K := Km
+    piece := fun N B' v hv c j l =>
+      (Φ B'.1 (mapBlock R.prin R.prin_strictMono B') v c).piece N j l
+    represents := ?_ }, ?_⟩
+  · intro N B' v hv c y
+    simp only [R.H_eq, R.M_eq, RepFamily.eval]
+  · intro N B' v hv c y
+    rfl
 
 /-! ### Counts -/
 
@@ -119,7 +427,7 @@ theorem chainCount_telescope (m : ℕ) (MS : MasterScales K As sl Dm)
         chainCount MS.core.parameters χ C a N c (G₂ N)|)
       (∑ J : {J : Finset (Fin m) // 2 ≤ J.card},
         corrConst m J.1 J.2 * (max (bound J.1) 0) ^ corrExponent m J.1 J.2) := by
-  sorry
+  exact chainCount_telescope_helper m MS hlist χ C a ha c L hL J0 hJ0 G₁ G₂ hG₁ hG₂ hG bound hcube
 
 /-- The first consequence of Proposition `prop:dense-model` (05:250–261, 05:742–748): in a
 chain count with a valid gap, all nonsingleton colour weights `ρ` can be replaced by the dense
@@ -130,7 +438,89 @@ theorem count_rho_to_dense (m : ℕ) (MS : MasterScales K As sl Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ k, a k ∈ As) (c : Fin r) :
     Tendsto (fun N => chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
       chainCount MS.core.parameters χ C a N c (F N)) atTop (𝓝 0) := by
-  sorry
+  let A := MS.core.parameters
+  let G₁ : BlockFamily K r := fun N B a c y => rho A χ N B a c y
+  have hρ (N : ℕ) (B : Block K) (b : ℚ) (c : Fin r) (y : ℤ) :
+      0 ≤ rho A χ N B b c y ∧ rho A χ N B b c y ≤ nu A N B y := by
+    have hν := nu_nonneg A N B y
+    have hcolor := rationalColorIndicator_mem_Icc χ c
+      (((height (A.ht N) B.set : ℚ) * b * (y : ℚ)))
+    change 0 ≤ nu A N B y * rationalColorIndicator χ c
+        (((height (A.ht N) B.set : ℚ) * b * (y : ℚ))) ∧
+      nu A N B y * rationalColorIndicator χ c
+        (((height (A.ht N) B.set : ℚ) * b * (y : ℚ))) ≤ nu A N B y
+    constructor
+    · exact mul_nonneg hν hcolor.1
+    · calc
+        nu A N B y * rationalColorIndicator χ c
+            (((height (A.ht N) B.set : ℚ) * b * (y : ℚ))) ≤ nu A N B y * 1 :=
+          mul_le_mul_of_nonneg_left hcolor.2 hν
+        _ = nu A N B y := by ring
+  have hdiff (N : ℕ) (B : Block K) (b : ℚ) (c : Fin r) (y : ℤ) :
+      |rho A χ N B b c y - F N B b c y| ≤ 1 + nu A N B y := by
+    have hρ' := hρ N B b c y
+    have hF' := hF.1 N B b c y
+    have hν := nu_nonneg A N B y
+    rw [abs_le]
+    constructor
+    · have : -F N B b c y ≥ -1 := by linarith [hF'.2]
+      linarith [hρ'.1, hν]
+    · linarith [hρ'.2, hF'.1]
+  have hG₁ : ∀ N B b c y, |G₁ N B b c y| ≤ 1 + nu A N B y := by
+    intro N B b c y
+    rw [abs_of_nonneg (hρ N B b c y).1]
+    linarith [(hρ N B b c y).2]
+  have hG₂ : ∀ N B b c y, |F N B b c y| ≤ 1 + nu A N B y := by
+    intro N B b c y
+    have hν := nu_nonneg A N B y
+    have hF' := hF.1 N B b c y
+    rw [abs_le]
+    constructor
+    · linarith [hν, hF'.1]
+    · linarith [hν, hF'.2]
+  have hcube : ∀ (J : Finset (Fin m)) (hJ : 2 ≤ J.card),
+      FilterUpperBound atTop (fun N => |cubeAverage MS (corrTemplate m J hJ) C.gap
+        (C.block (anchor J hJ)).1 1 N (fun y =>
+          G₁ N (C.block (anchor J hJ)) (a (anchor J hJ)) c y -
+            F N (C.block (anchor J hJ)) (a (anchor J hJ)) c y)|) 0 := by
+    intro J hJ ε hε
+    have htest := hF.2 (C.block (anchor J hJ)) (a (anchor J hJ))
+      (ha (anchor J hJ)) c C.gap (by
+        constructor
+        · intro j hj
+          exact C.tails_before_gap (anchor J hJ) j hj
+        · exact C.pivots_after_gap (anchor J hJ))
+      (corrTemplate m J hJ) (hlist J hJ) 1 (by norm_num) ε hε
+    filter_upwards [htest] with N hN
+    let gfun : ℤ → ℝ := fun y =>
+      G₁ N (C.block (anchor J hJ)) (a (anchor J hJ)) c y -
+        F N (C.block (anchor J hJ)) (a (anchor J hJ)) c y
+    let I : DualInput MS (C.block (anchor J hJ)) (corrTemplate m J hJ) N :=
+      ⟨fun _ => 1, fun _ _ => gfun,
+        fun _ => by norm_num,
+        fun _ _ y => hdiff N (C.block (anchor J hJ)) (a (anchor J hJ)) c y⟩
+    have hpair := cubeAverage_eq_dualPairing MS (C.block (anchor J hJ))
+      (corrTemplate m J hJ) C.gap 1 N gfun
+      (fun y => hdiff N (C.block (anchor J hJ)) (a (anchor J hJ)) c y)
+    rw [hpair]
+    simpa [I, gfun] using hN I
+  have htel := chainCount_telescope m MS hlist χ C a ha c atTop le_rfl 1 (by norm_num)
+    G₁ F hG₁ hG₂ (fun N B b c y => hdiff N B b c y) (fun _ => 0) hcube
+  have hsum : (∑ J : {J : Finset (Fin m) // 2 ≤ J.card},
+      corrConst m J.1 J.2 * (max ((fun _ : Finset (Fin m) => 0) J.1) 0) ^
+        corrExponent m J.1 J.2) = 0 := by
+    apply Finset.sum_eq_zero
+    intro J hJ
+    simp only [max_self]
+    rw [Real.zero_rpow (ne_of_gt (by
+      dsimp [corrExponent]
+      positivity))]
+    ring
+  have hbound : FilterUpperBound atTop
+      (fun N => |chainCount A χ C a N c (G₁ N) - chainCount A χ C a N c (F N)|) 0 := by
+    rw [← hsum]
+    exact htel
+  exact filterUpperBound_abs_tendsto_zero hbound
 
 /-- The weighted count of the Principle (eq:weighted-count, measure form of `Framework.lean`)
 for a chain on the principal indices equals the master chain count with `G = ρ` and
@@ -144,7 +534,112 @@ theorem weightedCount_eq_chainCount {n m : ℕ} {A : Parameters K} {A' : Paramet
     (hμ : ∀ N (hX : ∀ i, 4 * primorial (N + 1) ≤ A'.X N i), μ N = A'.law N hX) :
     ∀ᶠ N in atTop, weightedCountUnder A' (μ N) N χ c b B' =
       chainCount A χ C (fun d => blockScale b (B' d)) N c (rho A χ N) := by
-  sorry
+  classical
+  have hXA : ∀ᶠ N in atTop, ∀ j, 4 * primorial (N + 1) ≤ A.X N j := by
+    have hall : ∀ᶠ N in atTop, ∀ j ∈ (Finset.univ : Finset (Fin K)),
+        4 * primorial (N + 1) ≤ A.X N j := by
+      apply (eventually_all_finset (Finset.univ : Finset (Fin K))).2
+      intro j hj
+      exact A.eventual_X j
+    filter_upwards [hall] with N hN
+    intro j
+    exact hN j (Finset.mem_univ j)
+  have hXA' : ∀ᶠ N in atTop, ∀ i, 4 * primorial (N + 1) ≤ A'.X N i := by
+    have hall : ∀ᶠ N in atTop, ∀ i ∈ (Finset.univ : Finset (Fin n)),
+        4 * primorial (N + 1) ≤ A'.X N i := by
+      apply (eventually_all_finset (Finset.univ : Finset (Fin n))).2
+      intro i hi
+      exact A'.eventual_X i
+    filter_upwards [hall] with N hN
+    intro i
+    exact hN i (Finset.mem_univ i)
+  filter_upwards [hXA, hXA'] with N hXA hXA'
+  let a : Fin m → ℚ := fun d => blockScale b (B' d)
+  let e : Fin n ↪ Fin K := ⟨R.prin, R.prin_strictMono.injective⟩
+  have hmapBlock (B : Block n) :
+      (mapBlock R.prin R.prin_strictMono B).set = B.set.map e := by
+    simp [mapBlock, OAI.SourceBlocks.Block.set, e]
+  have hht : A'.ht N = fun i => A.ht N (R.prin i) := by
+    funext i
+    exact R.ht_eq N i
+  have hheight (d : Fin m) :
+      OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (A'.ht N) (B' d).set =
+        OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+          (A.ht N) (C.block d).set := by
+    rw [hht, hC d, hmapBlock]
+    exact height_map_embedding e (A.ht N) (B' d).set
+  have hscale : ∀ d,
+      (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+        (A'.ht N) (B' d).set : ℚ) * blockScale b (B' d) = chainScale A C a N d := by
+    intro d
+    rw [hheight d]
+    rfl
+  have hTail : ∀ d, (C.block d).2.val =
+      (B' d).2.val.map ⟨R.prin, R.prin_strictMono.injective⟩ := by
+    intro d
+    rw [hC d]
+    rfl
+  have hXroot (d : Fin m) : A.X N (C.block d).1 = A'.X N (B' d).1 := by
+    rw [hC d]
+    exact (R.X_eq N (B' d).1).symm
+  have hXfun : (fun d => A'.X N (B' d).1) = (fun d => A.X N (C.block d).1) :=
+    funext fun d => (hXroot d).symm
+  have hD :
+      OAI.ProductExposureLaw.outsideDomain (fun d => A'.X N (B' d).1)
+          (primorial (N + 1)) =
+        OAI.ProductExposureLaw.outsideDomain (fun d => A.X N (C.block d).1)
+          (primorial (N + 1)) := by
+    rw [hXfun]
+  let F : (Fin m → ℤ) → ℝ := fun z =>
+    (∏ U ∈ Finset.univ.filter Finset.Nonempty,
+      countMask A χ C a N c U (∏ k ∈ U, z k)) *
+    ∏ J ∈ Finset.univ.filter Finset.Nonempty,
+      atQ (countFunctions A C a N c (rho A χ N) J)
+        (chainForm (chainScale A C a N) J z)
+  have hchain : chainCount A χ C a N c (rho A χ N) =
+      ∑ t ∈ OAI.ProductExposureLaw.outsideDomain
+        (fun d => A.X N (C.block d).1) (primorial (N + 1)),
+        (∏ d, harmonicNatLaw (A.X N (C.block d).1) (primorial (N + 1)) (t d)) *
+          F (fun d => (t d : ℤ)) := by
+    simpa [chainCount, maskedCorrelation, F] using
+      (pivotMass_tsum_eq_nat_sum A C N F)
+  have hweights (t : Fin m → ℕ) :
+      (∏ d, harmonicNatLaw (A'.X N (B' d).1) (primorial (N + 1)) (t d)) =
+        ∏ d, harmonicNatLaw (A.X N (C.block d).1) (primorial (N + 1)) (t d) := by
+    apply Finset.prod_congr rfl
+    intro d hd
+    rw [← hXroot d]
+  have hterms :
+      (∑ t ∈ OAI.ProductExposureLaw.outsideDomain
+          (fun d => A'.X N (B' d).1) (primorial (N + 1)),
+        (∏ d, harmonicNatLaw (A'.X N (B' d).1) (primorial (N + 1)) (t d)) *
+          weightedCountIntegrandUnder A' (A'.law N hXA') N χ c b B' t) =
+      ∑ t ∈ OAI.ProductExposureLaw.outsideDomain
+          (fun d => A.X N (C.block d).1) (primorial (N + 1)),
+        (∏ d, harmonicNatLaw (A.X N (C.block d).1) (primorial (N + 1)) (t d)) *
+          F (fun d => (t d : ℤ)) := by
+    rw [hD]
+    apply Finset.sum_congr rfl
+    intro t ht
+    rw [hweights t]
+    have hterm := weightedCountIntegrandUnder_eq_maskedCorrelationTerm
+      A A' N hXA hXA' R.prin R.prin_strictMono.injective (fun i => R.X_eq N i)
+      C B' b χ c a hscale hTail t
+    rw [hterm]
+  calc
+    weightedCountUnder A' (μ N) N χ c b B' =
+        weightedCountUnder A' (A'.law N hXA') N χ c b B' := by
+      rw [hμ N hXA']
+    _ =
+        ∑ t ∈ OAI.ProductExposureLaw.outsideDomain
+          (fun d => A'.X N (B' d).1) (primorial (N + 1)),
+          (∏ d, harmonicNatLaw (A'.X N (B' d).1) (primorial (N + 1)) (t d)) *
+            weightedCountIntegrandUnder A' (A'.law N hXA') N χ c b B' t := by
+      unfold weightedCountUnder
+      exact integral_pivotMarginals_eq_sum A' N hXA' B'
+        (weightedCountIntegrandUnder A' (A'.law N hXA') N χ c b B')
+    _ = chainCount A χ C a N c (rho A χ N) := hterms.trans hchain.symm
 
 /-- The final product-law step (05:768–775, Corollary `cor:product-law`, blueprint P.8f with
 X.4): the model integrand mean of the Principle equals, up to `o(1)`, the master chain count with
