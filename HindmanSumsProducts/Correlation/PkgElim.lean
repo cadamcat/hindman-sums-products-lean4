@@ -5244,6 +5244,100 @@ theorem pkgElim_weightedMomentAverage_eq_probability_mul
       unfold gapSlotAverage
       ring
 
+theorem pkgElim_uniformIntegerProduct_average {α : Type*} [Fintype α]
+    [DecidableEq α] (L : ℕ) (hL : 0 < L) (F : (α → ℤ) → ℝ) :
+    ∑' x : α → ℤ,
+      (∏ i, FromArithmetic.uniformIntegerIntervalLaw 0 L (x i)) * F x =
+    (1 / (L : ℝ)) ^ Fintype.card α *
+      ∑ u ∈ Fintype.piFinset (fun _ : α => Finset.range L),
+        F (fun i => (u i : ℤ)) := by
+  classical
+  let IZ : Finset ℤ := Finset.Ico 0 (L : ℤ)
+  let SNat : Finset (α → ℕ) := Fintype.piFinset fun _ : α => Finset.range L
+  let SInt : Finset (α → ℤ) := Fintype.piFinset fun _ : α => IZ
+  let castPi : (α → ℕ) → (α → ℤ) := fun u i => (u i : ℤ)
+  have hcastInj : Function.Injective castPi := by
+    intro u v h
+    funext i
+    exact Int.ofNat.inj (congrFun h i)
+  have hImage : SNat.image castPi = SInt := by
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨u, hu, rfl⟩ := Finset.mem_image.mp hx
+      apply Fintype.mem_piFinset.mpr
+      intro i
+      have hu' : ∀ i, u i ∈ Finset.range L := by
+        exact Fintype.mem_piFinset.mp (by simpa [SNat] using hu)
+      have hi : u i ∈ Finset.range L := hu' i
+      rcases Finset.mem_range.mp hi with hi
+      change (u i : ℤ) ∈ Finset.Ico 0 (L : ℤ)
+      exact Finset.mem_Ico.mpr ⟨by omega, by exact_mod_cast hi⟩
+    · intro hx
+      have hx' : ∀ i, x i ∈ IZ := by
+        exact Fintype.mem_piFinset.mp (by simpa [SInt] using hx)
+      let u : α → ℕ := fun i => (x i).toNat
+      refine Finset.mem_image.mpr ⟨u, ?_, ?_⟩
+      · apply Fintype.mem_piFinset.mpr
+        intro i
+        have hi := Finset.mem_Ico.mp (by simpa [IZ] using hx' i)
+        have hlt : (x i).toNat < L := by
+          have hcast : ((x i).toNat : ℤ) = x i := Int.toNat_of_nonneg hi.1
+          have hltZ : ((x i).toNat : ℤ) < (L : ℤ) := by
+            rw [hcast]
+            exact hi.2
+          exact_mod_cast hltZ
+        exact Finset.mem_range.mpr hlt
+      · funext i
+        dsimp [u, castPi]
+        exact Int.toNat_of_nonneg (Finset.mem_Ico.mp (by simpa [IZ] using hx' i)).1
+  have hsupp : ∀ x ∉ SInt,
+      (∏ i, FromArithmetic.uniformIntegerIntervalLaw 0 L (x i)) * F x = 0 := by
+    intro x hx
+    have hnot : ∃ i, x i ∉ IZ := by
+      by_contra h
+      push_neg at h
+      apply hx
+      exact Fintype.mem_piFinset.mpr (by simpa [SInt] using h)
+    obtain ⟨i, hi⟩ := hnot
+    have hzero : FromArithmetic.uniformIntegerIntervalLaw 0 L (x i) = 0 := by
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      rw [if_neg]
+      intro hmem
+      exact hi (Finset.mem_Ico.mpr (by simpa using hmem))
+    rw [Finset.prod_eq_zero (Finset.mem_univ i) hzero]
+    simp
+  have hprod (u : α → ℕ) (hu : u ∈ SNat) :
+      ∏ i, FromArithmetic.uniformIntegerIntervalLaw 0 L (castPi u i) =
+        (1 / (L : ℝ)) ^ Fintype.card α := by
+    have hu' : ∀ i, u i ∈ Finset.range L := by
+      exact Fintype.mem_piFinset.mp (by simpa [SNat] using hu)
+    calc
+      _ = ∏ _i : α, (1 / (L : ℝ)) := by
+        apply Finset.prod_congr rfl
+        intro i hi
+        have hii := Finset.mem_range.mp (hu' i)
+        simp [castPi, FromArithmetic.uniformIntegerIntervalLaw, hii]
+      _ = _ := by simp
+  let g : (α → ℤ) → ℝ := fun x =>
+    (∏ i, FromArithmetic.uniformIntegerIntervalLaw 0 L (x i)) * F x
+  calc
+    _ = ∑ x ∈ SInt, g x := by
+      unfold g
+      rw [tsum_eq_sum (L := SummationFilter.unconditional (α → ℤ)) (f := fun x =>
+        (∏ i, FromArithmetic.uniformIntegerIntervalLaw 0 L (x i)) * F x)
+        (s := SInt) hsupp]
+    _ = ∑ u ∈ SNat, g (castPi u) := by
+      rw [← hImage]
+      rw [Finset.sum_image (s := SNat) (g := castPi) (f := g)
+        (by intro u hu v hv heq; exact hcastInj heq)]
+    _ = (1 / (L : ℝ)) ^ Fintype.card α *
+          ∑ u ∈ SNat, F (fun i => (u i : ℤ)) := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro u hu
+      simp [g, castPi, hprod u hu]
+
 theorem pkgElim_expandedAuxiliaryMoment_tendsto_one
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
