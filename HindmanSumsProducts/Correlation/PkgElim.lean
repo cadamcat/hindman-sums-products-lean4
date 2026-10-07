@@ -4034,13 +4034,14 @@ noncomputable def pkgElim_momentOldResidueError {K m q r s : ℕ} {Aset : Finset
   let V := masterScaleV S.core.parameters N C.gap
   let T := (S.primeStage.pool N C.gap).upper + V
   let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
-  2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ)
+  2 * (T : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ)
 
 noncomputable def pkgElim_momentRootResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (N : ℕ) : ℝ :=
-  2 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) /
+  2 * ((S.primeStage.pool N C.gap).upper +
+    masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) /
     (S.core.parameters.H N C.gap : ℝ)
 
 noncomputable def pkgElim_momentBaseError {K m q r s : ℕ} {Aset : Finset ℚ}
@@ -4166,16 +4167,26 @@ theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
       have hDminLeL : (Dmin : ℝ) ≤ (Lmax : ℝ) := by
         rw [hLmax]
         exact_mod_cast hDminLeL
+      have hVleT : V ≤ T := by dsimp [T]; omega
+      have hVpowLe : (V : ℝ) ^ Fintype.card (Occurrence Sh) ≤
+          (T : ℝ) ^ Fintype.card (Occurrence Sh) := by
+        exact_mod_cast Nat.pow_le_pow_left hVleT (Fintype.card (Occurrence Sh))
       have hTV1 : 2 * (Kdiv : ℝ) / (Lmax : ℝ) ≤
           2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Lmax : ℝ) :=
         div_le_div_of_nonneg_right hnum (by positivity)
-      have hTV2 : 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Lmax : ℝ) ≤
+      have hTV2a : 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Lmax : ℝ) ≤
           2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) :=
         div_le_div_of_nonneg_left (by positivity) hDminPos hDminLeL
+      have hTV2b : 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) ≤
+          2 * (T : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) := by
+        apply div_le_div_of_nonneg_right _ hDminPos.le
+        exact mul_le_mul_of_nonneg_left hVpowLe (by norm_num)
+      have hTV2 := hTV2a.trans hTV2b
       have hbound : 2 * (Kdiv : ℝ) / (Lmax : ℝ) ≤
           pkgElim_momentOldResidueError S C Sh J0 B N := by
         calc
-          _ ≤ 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) := hTV1.trans hTV2
+          _ ≤ 2 * (T : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) :=
+            hTV1.trans hTV2
           _ = pkgElim_momentOldResidueError S C Sh J0 B N := by
             simp [pkgElim_momentOldResidueError, V, T, Dmin]
       change finiteL1 (integerResidueLaw Kdiv hKdiv
@@ -4185,16 +4196,22 @@ theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     | inr root =>
       have hH : 0 < S.core.parameters.H N C.gap := S.core.parameters.Hpos N C.gap
       have htv := uniformIntegerInterval_residue_tv hKdiv hH
-      have hKleR : (Kdiv : ℝ) ≤
-          (masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) := by
-        exact_mod_cast hKle
+      let T := (S.primeStage.pool N C.gap).upper +
+        masterScaleV S.core.parameters N C.gap
+      have hVleT : masterScaleV S.core.parameters N C.gap ≤ T := by
+        dsimp [T]
+        omega
+      have hKleT : Kdiv ≤ T ^ Fintype.card (Occurrence Sh) :=
+        le_trans hKle (Nat.pow_le_pow_left hVleT (Fintype.card (Occurrence Sh)))
+      have hKleR : (Kdiv : ℝ) ≤ (T : ℝ) ^ Fintype.card (Occurrence Sh) := by
+        exact_mod_cast hKleT
       have hnum : 2 * (Kdiv : ℝ) ≤
-          2 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) :=
+          2 * (T : ℝ) ^ Fintype.card (Occurrence Sh) :=
         mul_le_mul_of_nonneg_left hKleR (by norm_num)
       have hHpos : 0 < (S.core.parameters.H N C.gap : ℝ) := by exact_mod_cast hH
       have hbound : 2 * (Kdiv : ℝ) / (S.core.parameters.H N C.gap : ℝ) ≤
           pkgElim_momentRootResidueError S C Sh N := by
-        simpa [pkgElim_momentRootResidueError] using
+        simpa [pkgElim_momentRootResidueError, T] using
           div_le_div_of_nonneg_right hnum hHpos.le
       change finiteL1 (integerResidueLaw Kdiv hKdiv
         (FromArithmetic.uniformIntegerIntervalLaw 0 (S.core.parameters.H N C.gap)))
