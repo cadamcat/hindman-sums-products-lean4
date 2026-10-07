@@ -4723,6 +4723,107 @@ private theorem pkgB_shiftAverage_abs_pow_le_replica {d b L : ℕ}
       pow_le_pow_left₀ (abs_nonneg _) habs b
     _ = _ := by simpa [S, e, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hrep
 
+private theorem pkgB_finite_weighted_abs_pow_le {α : Type*} [DecidableEq α]
+    (s : Finset α) (w f : α → ℝ) (b : ℕ)
+    (hw : ∀ a ∈ s, 0 ≤ w a) (hsum : ∑ a ∈ s, w a = 1) :
+    |∑ a ∈ s, w a * f a| ^ b ≤ ∑ a ∈ s, w a * |f a| ^ b := by
+  have htriangle : |∑ a ∈ s, w a * f a| ≤ ∑ a ∈ s, w a * |f a| := by
+    calc
+      |∑ a ∈ s, w a * f a| ≤ ∑ a ∈ s, |w a * f a| :=
+        Finset.abs_sum_le_sum_abs _ _
+      _ = ∑ a ∈ s, w a * |f a| := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [abs_mul, abs_of_nonneg (hw a ha)]
+  calc
+    |∑ a ∈ s, w a * f a| ^ b ≤ (∑ a ∈ s, w a * |f a|) ^ b :=
+      pow_le_pow_left₀ (abs_nonneg _) htriangle b
+    _ ≤ ∑ a ∈ s, w a * |f a| ^ b :=
+      Real.pow_arith_mean_le_arith_mean_pow s w (fun a => |f a|) hw hsum
+        (fun a ha => abs_nonneg (f a)) b
+
+private theorem pkgB_primePoolLaw_nonneg_of_mass_pos (lo hi p : ℕ)
+    (hMass : 0 < primePoolMass lo hi) : 0 ≤ primePoolLaw lo hi p := by
+  unfold primePoolLaw
+  split_ifs with h
+  · have hp : (0 : ℝ) < (p : ℝ) := by exact_mod_cast h.2.2.pos
+    exact div_nonneg (div_nonneg (by norm_num) hp.le) hMass.le
+  · exact le_of_eq rfl
+
+private theorem pkgB_goodPrimeAverage_abs_pow_le {q : ℕ}
+    (lo hi : Fin q → ℕ) (Good : (Fin q → ℕ) → Prop) [DecidablePred Good]
+    (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i))
+    (hGood : 0 < independentPrimePoolProbability lo hi Good)
+    (F : (Fin q → ℕ) → ℝ) (b : ℕ) :
+    |(independentPrimePoolProbability lo hi Good)⁻¹ *
+      ∑' p : Fin q → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then F p else 0)| ^ b ≤
+      (independentPrimePoolProbability lo hi Good)⁻¹ *
+        ∑' p : Fin q → ℕ,
+          independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0) := by
+  classical
+  let S : Finset (Fin q → ℕ) := Fintype.piFinset fun i => Finset.Ico (lo i) (hi i)
+  let P := independentPrimePoolProbability lo hi Good
+  let w : (Fin q → ℕ) → ℝ := fun p => P⁻¹ * independentPrimePoolMass lo hi p *
+    (if Good p then 1 else 0)
+  have hMassNonneg (p : Fin q → ℕ) : 0 ≤ independentPrimePoolMass lo hi p := by
+    unfold independentPrimePoolMass
+    apply Finset.prod_nonneg
+    intro i hmem
+    exact pkgB_primePoolLaw_nonneg_of_mass_pos (lo i) (hi i) (p i) (hMass i)
+  have hmassZero (p : Fin q → ℕ) (hp : p ∉ S) :
+      independentPrimePoolMass lo hi p = 0 := by
+    simpa [independentPrimePoolMass] using
+      (pkgB_primeTupleMass_zero_of_not_mem_pi lo hi p (by simpa [S] using hp))
+  have hnum (H : (Fin q → ℕ) → ℝ) :
+      ∑' p : Fin q → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then H p else 0) =
+      ∑ p ∈ S, independentPrimePoolMass lo hi p * (if Good p then H p else 0) := by
+    apply tsum_eq_sum (s := S)
+    intro p hp
+    simp [hmassZero p hp]
+  have hPsum : P =
+      ∑ p ∈ S, independentPrimePoolMass lo hi p * (if Good p then 1 else 0) := by
+    dsimp [P]
+    unfold independentPrimePoolProbability
+    simpa using hnum (fun _ => 1)
+  have hwNonneg : ∀ p ∈ S, 0 ≤ w p := by
+    intro p hp
+    dsimp [w]
+    positivity [hMassNonneg p]
+  have hwSum : ∑ p ∈ S, w p = 1 := by
+    calc
+      ∑ p ∈ S, w p = P⁻¹ *
+          ∑ p ∈ S, independentPrimePoolMass lo hi p * (if Good p then 1 else 0) := by
+        dsimp [w]
+        rw [Finset.mul_sum]
+        apply Finset.sum_congr rfl
+        intro p hp
+        ring
+      _ = P⁻¹ * P := by rw [← hPsum]
+      _ = 1 := by dsimp [P]; field_simp [ne_of_gt hGood]
+  have havg (H : (Fin q → ℕ) → ℝ) :
+      P⁻¹ * ∑ p ∈ S, independentPrimePoolMass lo hi p *
+          (if Good p then H p else 0) =
+        ∑ p ∈ S, w p * H p := by
+    dsimp [w]
+    rw [Finset.mul_sum]
+    apply Finset.sum_congr rfl
+    intro p hp
+    by_cases h : Good p <;> simp [h] <;> ring
+  calc
+    _ = |∑ p ∈ S, w p * F p| ^ b := by
+      rw [hnum, havg]
+    _ ≤ ∑ p ∈ S, w p * |F p| ^ b :=
+      pkgB_finite_weighted_abs_pow_le S w F b hwNonneg hwSum
+    _ = P⁻¹ * ∑ p ∈ S,
+          independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0) :=
+      (havg (fun p => |F p| ^ b)).symm
+    _ = P⁻¹ * ∑' p : Fin q → ℕ,
+          independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0) := by
+      rw [← hnum (fun p => |F p| ^ b)]
+    _ = _ := rfl
+
 end Prediction
 
 end HindmanSumsProducts
