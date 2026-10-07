@@ -3584,6 +3584,41 @@ theorem harmonicResidueLaw_sum_one (X W modulus : ℕ) (hmodulus : 0 < modulus)
       exact harmonicLaw_zero_of_not_mem_support X W z hz
     _ = 1 := harmonicLaw_tsum_one_of_normalizer_pos X W hX hNorm
 
+theorem sourceParameter_M_tendsto_atTop {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) : Tendsto A.M atTop atTop := by
+  have hpow : ∀ N : ℕ, N + 1 ≤ 2 ^ (N + 1) := by
+    intro N
+    induction N with
+    | zero => norm_num
+    | succ N ih =>
+      calc
+        N + 1 + 1 ≤ 2 * (N + 1) := by omega
+        _ = (N + 1) * 2 := by omega
+        _ ≤ 2 ^ (N + 1) * 2 := Nat.mul_le_mul_right 2 ih
+        _ = 2 ^ (N + 1 + 1) := by
+          simp [pow_succ, Nat.add_assoc, Nat.mul_assoc]
+  have hMbound : ∀ᶠ N in atTop, N ≤ A.M N := by
+    filter_upwards [eventually_atTop.2 ⟨1, fun N hN => hN⟩] with N hN
+    have hprime : Nat.Prime 2 := by norm_num
+    have hdivW : 2 ∣ primorial (N + 1) :=
+      hprime.dvd_primorial_iff.mpr (by omega)
+    have hW : 2 ≤ primorial (N + 1) :=
+      Nat.le_of_dvd (primorial_pos (N + 1)) hdivW
+    have hpowW : 2 ^ (N + 1) ≤ primorial (N + 1) ^ (N + 1) :=
+      Nat.pow_le_pow_left hW (N + 1)
+    have hpowM : primorial (N + 1) ^ (N + 1) ≤ A.M N :=
+      Nat.le_of_dvd (A.Mpos N) (A.Mdiv N)
+    exact (Nat.le_succ N).trans ((hpow N).trans (hpowW.trans hpowM))
+  exact tendsto_atTop_mono' atTop hMbound tendsto_id
+
+theorem masterScaleV_tendsto_atTop {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (l : Fin n) :
+    Tendsto (fun N => masterScaleV A N l) atTop atTop := by
+  apply tendsto_atTop_mono' atTop _ (sourceParameter_M_tendsto_atTop A)
+  filter_upwards with N
+  unfold masterScaleV
+  omega
+
 theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
