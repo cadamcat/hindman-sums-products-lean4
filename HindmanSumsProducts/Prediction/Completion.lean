@@ -1,5 +1,6 @@
 import HindmanSumsProducts.Prediction.Subgroup
 import HindmanSumsProducts.Prediction.PkgH
+import HindmanSumsProducts.Prediction.PkgH2
 
 /-!
 # Completion of the Prediction Principle (§5.4, `05_prediction.tex` 685–783)
@@ -188,7 +189,9 @@ theorem calibration_from_testing {n s : ℕ} (MS : MasterScales K As sl Dm)
     (hμ : ∀ N (hX : ∀ i, 4 * primorial (N + 1) ≤ A'.X N i), μ N = A'.law N hX) :
     UltrafilterUpperBound U (fun N => calibrationProbabilityUnder (μ N) S χ N B' a c τ)
       (3 * τ + ε) := by
-  sorry
+  exact calibration_from_testing_helper MS h1 χ F hF U hU
+    R.pad R.prin R.prin_strictMono R.pad_lt_prin R.prin_lt_pad R.ht_eq R.X_eq
+    vs hvs S Φ hS B' a ha c τ ε hτ hproj μ hμ
 
 /-! ### The Prediction Principle -/
 
