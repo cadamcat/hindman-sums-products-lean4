@@ -2038,6 +2038,66 @@ theorem c_elim2_boxStateAverage_eq_next {α β : Type u} [Fintype α]
     Equiv.apply_symm_apply, L] using
     (hpoint o t₀ t₁).symm
 
+theorem c_elim2_abs_prod_le_of_nonneg {α : Type u} [DecidableEq α] (s : Finset α)
+    (f g : α → ℝ) (hg : ∀ a ∈ s, 0 ≤ g a)
+    (hfg : ∀ a ∈ s, |f a| ≤ g a) :
+    |∏ a ∈ s, f a| ≤ ∏ a ∈ s, g a := by
+  rw [Finset.abs_prod]
+  suffices h : ∀ s : Finset α, (∀ a ∈ s, 0 ≤ g a) →
+      (∀ a ∈ s, |f a| ≤ g a) → (∏ a ∈ s, |f a|) ≤ ∏ a ∈ s, g a by
+    exact h s hg hfg
+  intro s
+  induction s using Finset.induction_on with
+  | empty => intro; simp
+  | @insert a s ha ih =>
+      intro hg hfg
+      rw [Finset.prod_insert ha, Finset.prod_insert ha]
+      have hrestNonneg : ∀ x ∈ s, 0 ≤ g x := by
+        intro x hx
+        exact hg x (Finset.mem_insert_of_mem hx)
+      have hrestBound : ∀ x ∈ s, |f x| ≤ g x := by
+        intro x hx
+        exact hfg x (Finset.mem_insert_of_mem hx)
+      have hprodAbs : 0 ≤ ∏ x ∈ s, |f x| :=
+        Finset.prod_nonneg (fun x hx => abs_nonneg (f x))
+      have hprodWeight : 0 ≤ ∏ x ∈ s, g x := Finset.prod_nonneg hrestNonneg
+      exact mul_le_mul (hfg a (Finset.mem_insert_self a s))
+        (ih hrestNonneg hrestBound) hprodAbs
+        (hg a (Finset.mem_insert_self a s))
+
+theorem c_elim2_boxActiveRowFactor_abs_le_weightRowFactor {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β)
+    (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (hweight : ∀ ω : c_elim2_BoxBranch E,
+      0 ≤ D.rowWeight R b
+        (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω)))
+    (hbound : ∀ ω : c_elim2_BoxBranch E,
+      |D.rowFunction R b
+        (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))| ≤
+      D.rowWeight R b
+        (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))) :
+    |c_elim2_boxActiveRowFactor D E R b u| ≤
+      c_elim2_boxWeightRowFactor D E R b u := by
+  classical
+  unfold c_elim2_boxActiveRowFactor c_elim2_boxWeightRowFactor
+  apply c_elim2_abs_prod_le_of_nonneg Finset.univ
+  · intro ω hω
+    exact hweight ω
+  · intro ω hω
+    exact hbound ω
+
+theorem c_elim2_boxWeightRowFactor_nonneg {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (b : β) (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (hweight : ∀ ω : c_elim2_BoxBranch E,
+      0 ≤ D.rowWeight R b
+        (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))) :
+    0 ≤ c_elim2_boxWeightRowFactor D E R b u := by
+  classical
+  unfold c_elim2_boxWeightRowFactor
+  exact Finset.prod_nonneg (fun ω hω => hweight ω)
+
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
     (insert R E).erase I = insert R (E.erase I) := by
