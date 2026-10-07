@@ -4820,6 +4820,7 @@ theorem c_test2_rowCoefficientNatFactors {K s m q : ℕ}
       (∀ i, i < T.anchor →
         (rho i : ℚ) = chainScale S.core.parameters C a N i /
           chainScale S.core.parameters C a N T.anchor) ∧
+      (∀ i, T.anchor ≤ i → rho i = 1) ∧
       (∀ i, alpha i =
         if hi : i < T.anchor then rho i * c_test2_rowValueNat T p i
         else if i = T.anchor then c_test2_rowValueNat T p i else 0) := by
@@ -4855,7 +4856,7 @@ theorem c_test2_rowCoefficientNatFactors {K s m q : ℕ}
     have hle := Finset.le_max' T.support i hmem
     change i ≤ T.anchor at hle
     omega
-  refine ⟨alpha, rho, ?_, ?_, ?_⟩
+  refine ⟨alpha, rho, ?_, ?_, ?_, ?_⟩
   · intro i
     by_cases hi : i < T.anchor
     · simp only [alpha, dif_pos hi, Nat.cast_mul]
@@ -4878,6 +4879,9 @@ theorem c_test2_rowCoefficientNatFactors {K s m q : ℕ}
           simp [RowTemplate.value, hnone i hi']
         simp [alpha, hi, hEq, hzero]
   · exact fun i hi => hrho i hi
+  · intro i hi
+    have hnot : ¬ i < T.anchor := Nat.not_lt.mpr hi
+    simp [rho, hnot]
   · intro i
     by_cases hi : i < T.anchor <;> simp [alpha, rho, hi]
 
@@ -4973,7 +4977,7 @@ theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
       · exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hei) (p' i) r').2
           (hprimeCoprime i)
     simpa [c_test2_rowValueNat, he] using hprod
-  obtain ⟨alpha, rho, hrep, _, hformula⟩ :=
+  obtain ⟨alpha, rho, hrep, _, hRhoAnchor, hformula⟩ :=
     c_test2_rowCoefficientNatFactors S C a N hscale T p'
   have hAnchorAlpha : alpha T.anchor = c_test2_rowValueNat T p' T.anchor := by
     simpa using hformula T.anchor
@@ -4988,6 +4992,375 @@ theorem c_test2_rowWeighted_primitive {K s m q r : ℕ}
   have hdiv : r' ∣ c_test2_rowValueNat T p' T.anchor :=
     (ZMod.natCast_eq_zero_iff _ _).mp hz
   exact (hr.coprime_iff_not_dvd.mp hmonCoprime.symm) hdiv
+
+theorem c_test2_rowWeighted_pairwise {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (ι : Fin q ↪ Fin s) (tests : Finset (IntegerPolynomial q))
+    (hlisted : TestsListed Dm ι tests) (hdirsTests : dirs.tests ⊆ tests)
+    (N : ℕ) (p : Fin s → ℕ)
+    (hgood : c_test2_rowWeightedGoodDomain S C a ι Sh dirs tests N p)
+    (r' : ℕ) (hr : r'.Prime) (hlarge : N + 1 < r')
+    (hrV : r' ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap)
+    (hnoD : ∀ Q ∈ Dm,
+      ¬ ((r' : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ))))
+    (u v : Fin r) (huv : u ≠ v) :
+    ∃ i j,
+      FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+        FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p v j) ≠
+      FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+        FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p v i) := by
+  classical
+  letI : Fact r'.Prime := ⟨hr⟩
+  have hscale : c_test2_ScaleData S C a N := hgood.1
+  have htuple : GoodTuple S C.gap N tests dirs.poly
+      (fun i => p (ι i)) := hgood.2.2.2
+  let p' : Fin q → ℕ := fun i => p (ι i)
+  let T := Sh.row u
+  let U := Sh.row v
+  have hnonparallel : ¬ T.Parallel U := Sh.nonparallel u v huv
+  obtain ⟨i, j, hwitness⟩ := c_test2_nonparallel_minor_witness T U hnonparallel
+  let Q : IntegerPolynomial q := T.poly i * U.poly j - T.poly j * U.poly i
+  have hminorNe : T.poly i * U.poly j - T.poly j * U.poly i ≠ 0 := by
+    rcases hwitness with h | h | h
+    · exact h.2.2.2.2
+    · exact h.2.2.2
+    · exact h.2.2.2
+  have hQne : Q ≠ 0 := by simpa [Q] using hminorNe
+  have hQmem : Q ∈ templateMinors Sh := by
+    unfold templateMinors
+    apply Finset.mem_filter.mpr
+    refine ⟨?_, hQne⟩
+    let z : Fin r × Fin r × Fin m × Fin m := ⟨u, ⟨v, ⟨i, j⟩⟩⟩
+    apply Finset.mem_image.mpr
+    refine ⟨z, Finset.mem_univ z, ?_⟩
+    rfl
+  have hQdirs : Q ∈ dirs.tests := by
+    unfold RowDirections.tests
+    simp [hQmem]
+  have hQtest : Q ∈ tests := hdirsTests hQdirs
+  have hQnoDiv : ¬ ((r' : ℤ) ∣
+      evalIntegerPolynomial Q (fun i => (p' i : ℤ))) := by
+    intro hdiv
+    apply hnoD (MvPolynomial.rename ι Q) (hlisted Q hQtest)
+    rw [c_test2_evalIntegerPolynomial_rename]
+    exact hdiv
+  have hQmod :
+      (evalIntegerPolynomial Q (fun i => (p' i : ℤ)) : ZMod r') ≠ 0 := by
+    intro hz
+    apply hQnoDiv
+    exact (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mp hz
+  have hQmod' :
+      ((c_test2_rowValueNat T p' i * c_test2_rowValueNat U p' j -
+        c_test2_rowValueNat T p' j * c_test2_rowValueNat U p' i : ℤ) : ZMod r') ≠ 0 := by
+    simpa [Q, c_test2_rowTemplate_minor_eval] using hQmod
+  obtain ⟨alphaT, rhoT, hrepT, hrhoT, hRhoAnchorT, hformT⟩ :=
+    c_test2_rowCoefficientNatFactors S C a N hscale T p'
+  obtain ⟨alphaU, rhoU, hrepU, hrhoU, hRhoAnchorU, hformU⟩ :=
+    c_test2_rowCoefficientNatFactors S C a N hscale U p'
+  have hresT (k : Fin m) :
+      FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p u k) =
+        (alphaT k : ZMod r') := by
+    have hval : c_test2_rowWeightedCoeff S C a ι Sh N p u k =
+        (alphaT k : ℚ) := by
+      simpa [c_test2_rowWeightedCoeff, p', T] using hrepT k
+    rw [hval, c_test2_rationalResidue_natCast]
+  have hresU (k : Fin m) :
+      FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p v k) =
+        (alphaU k : ZMod r') := by
+    have hval : c_test2_rowWeightedCoeff S C a ι Sh N p v k =
+        (alphaU k : ℚ) := by
+      simpa [c_test2_rowWeightedCoeff, p', U] using hrepU k
+    rw [hval, c_test2_rationalResidue_natCast]
+  have hmonZeroT (k : Fin m) (hk : k ∉ T.support) :
+      c_test2_rowValueNat T p' k = 0 := by
+    cases he : T.entry k with
+    | none => simp [c_test2_rowValueNat, he]
+    | some e =>
+        have hmem : k ∈ T.support := by simp [RowTemplate.support, he]
+        exact (hk hmem).elim
+  have hmonZeroU (k : Fin m) (hk : k ∉ U.support) :
+      c_test2_rowValueNat U p' k = 0 := by
+    cases he : U.entry k with
+    | none => simp [c_test2_rowValueNat, he]
+    | some e =>
+        have hmem : k ∈ U.support := by simp [RowTemplate.support, he]
+        exact (hk hmem).elim
+  have hfactorT (k : Fin m) :
+      (alphaT k : ZMod r') =
+        (rhoT k : ZMod r') * (c_test2_rowValueNat T p' k : ZMod r') := by
+    by_cases hlt : k < T.anchor
+    · have h := hformT k
+      simp only [dif_pos hlt] at h
+      rw [h]
+      simp
+    · by_cases heq : k = T.anchor
+      · subst k
+        have hρ : rhoT T.anchor = 1 := hRhoAnchorT T.anchor le_rfl
+        have hNat : alphaT T.anchor =
+            c_test2_rowValueNat T p' T.anchor := by simpa [hρ] using hformT T.anchor
+        simpa [hρ] using congrArg (fun n : ℕ => (n : ZMod r')) hNat
+      · have hnot : k ∉ T.support := by
+          intro hk
+          have hle := Finset.le_max' T.support k hk
+          change k ≤ T.anchor at hle
+          omega
+        have h := hformT k
+        have hz := hmonZeroT k hnot
+        simp [h, hlt, heq, hz]
+  have hfactorU (k : Fin m) :
+      (alphaU k : ZMod r') =
+        (rhoU k : ZMod r') * (c_test2_rowValueNat U p' k : ZMod r') := by
+    by_cases hlt : k < U.anchor
+    · have h := hformU k
+      simp only [dif_pos hlt] at h
+      rw [h]
+      simp
+    · by_cases heq : k = U.anchor
+      · subst k
+        have hρ : rhoU U.anchor = 1 := hRhoAnchorU U.anchor le_rfl
+        have hNat : alphaU U.anchor =
+            c_test2_rowValueNat U p' U.anchor := by simpa [hρ] using hformU U.anchor
+        simpa [hρ] using congrArg (fun n : ℕ => (n : ZMod r')) hNat
+      · have hnot : k ∉ U.support := by
+          intro hk
+          have hle := Finset.le_max' U.support k hk
+          change k ≤ U.anchor at hle
+          omega
+        have h := hformU k
+        have hz := hmonZeroU k hnot
+        simp [h, hlt, heq, hz]
+  let cint := Classical.choose hscale
+  rcases Classical.choose_spec hscale with ⟨hc, hcpos, hratio, hmod⟩
+  have hratioCastT (k : Fin m) (hk : k ∈ T.support) :
+      (rhoT k : ℚ) =
+        chainScale S.core.parameters C a N k /
+          chainScale S.core.parameters C a N T.anchor := by
+    by_cases hlt : k < T.anchor
+    · exact hrhoT k hlt
+    · have heq : k = T.anchor := by
+        have hle := Finset.le_max' T.support k hk
+        change k ≤ T.anchor at hle
+        omega
+      subst k
+      have hcQ : (cint T.anchor : ℚ) =
+          chainScale S.core.parameters C a N T.anchor := by
+        simpa [cint, chainScale] using hc T.anchor
+      have hcne : chainScale S.core.parameters C a N T.anchor ≠ 0 := by
+        have hp : (0 : ℚ) < chainScale S.core.parameters C a N T.anchor := by
+          rw [← hcQ]
+          exact_mod_cast hcpos T.anchor
+        exact ne_of_gt hp
+      rw [hRhoAnchorT T.anchor le_rfl, div_self hcne]
+      norm_num
+  have hratioCastU (k : Fin m) (hk : k ∈ U.support) :
+      (rhoU k : ℚ) =
+        chainScale S.core.parameters C a N k /
+          chainScale S.core.parameters C a N U.anchor := by
+    by_cases hlt : k < U.anchor
+    · exact hrhoU k hlt
+    · have heq : k = U.anchor := by
+        have hle := Finset.le_max' U.support k hk
+        change k ≤ U.anchor at hle
+        omega
+      subst k
+      have hcQ : (cint U.anchor : ℚ) =
+          chainScale S.core.parameters C a N U.anchor := by
+        simpa [cint, chainScale] using hc U.anchor
+      have hcne : chainScale S.core.parameters C a N U.anchor ≠ 0 := by
+        have hp : (0 : ℚ) < chainScale S.core.parameters C a N U.anchor := by
+          rw [← hcQ]
+          exact_mod_cast hcpos U.anchor
+        exact ne_of_gt hp
+      rw [hRhoAnchorU U.anchor le_rfl, div_self hcne]
+      norm_num
+  have hrhoNZT (k : Fin m) (hk : k ∈ T.support) :
+      (rhoT k : ZMod r') ≠ 0 := by
+    by_cases hlt : k < T.anchor
+    · have hratioNZ := c_test2_scaleRatio_rationalResidue_ne_zero
+        S N cint hcpos hratio hmod k T.anchor hlt r' hr hlarge
+      have hcQ (d : Fin m) :
+          (cint d : ℚ) = chainScale S.core.parameters C a N d := by
+        simpa [cint, chainScale] using hc d
+      rw [hcQ k, hcQ T.anchor] at hratioNZ
+      have hres : FromArithmetic.rationalResidue r' hr ((rhoT k : ℕ) : ℚ) ≠ 0 := by
+        rw [hratioCastT k hk]
+        exact hratioNZ
+      rw [c_test2_rationalResidue_natCast] at hres
+      exact hres
+    · have heq : k = T.anchor := by
+        have hle := Finset.le_max' T.support k hk
+        change k ≤ T.anchor at hle
+        omega
+      subst k
+      rw [hRhoAnchorT T.anchor le_rfl]
+      simp
+  have hrhoNZU (k : Fin m) (hk : k ∈ U.support) :
+      (rhoU k : ZMod r') ≠ 0 := by
+    by_cases hlt : k < U.anchor
+    · have hratioNZ := c_test2_scaleRatio_rationalResidue_ne_zero
+        S N cint hcpos hratio hmod k U.anchor hlt r' hr hlarge
+      have hcQ (d : Fin m) :
+          (cint d : ℚ) = chainScale S.core.parameters C a N d := by
+        simpa [cint, chainScale] using hc d
+      rw [hcQ k, hcQ U.anchor] at hratioNZ
+      have hres : FromArithmetic.rationalResidue r' hr ((rhoU k : ℕ) : ℚ) ≠ 0 := by
+        rw [hratioCastU k hk]
+        exact hratioNZ
+      rw [c_test2_rationalResidue_natCast] at hres
+      exact hres
+    · have heq : k = U.anchor := by
+        have hle := Finset.le_max' U.support k hk
+        change k ≤ U.anchor at hle
+        omega
+      subst k
+      rw [hRhoAnchorU U.anchor le_rfl]
+      simp
+  have hCross (i j : Fin m) (hiT : i ∈ T.support) (hjT : j ∈ T.support)
+      (hiU : i ∈ U.support) (hjU : j ∈ U.support) :
+      (rhoT i : ZMod r') * (rhoU j : ZMod r') =
+        (rhoT j : ZMod r') * (rhoU i : ZMod r') := by
+    have hrat :
+        (rhoT i : ℚ) * (rhoU j : ℚ) =
+          (rhoT j : ℚ) * (rhoU i : ℚ) := by
+      rw [hratioCastT i hiT, hratioCastU j hjU, hratioCastT j hjT, hratioCastU i hiU]
+      ring
+    have hnat : rhoT i * rhoU j = rhoT j * rhoU i := by exact_mod_cast hrat
+    simpa using congrArg (fun z : ℕ => (z : ZMod r')) hnat
+  have hdetResidue :
+      FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p u i) *
+        FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p v j) -
+      FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p u j) *
+        FromArithmetic.rationalResidue r' hr
+          (c_test2_rowWeightedCoeff S C a ι Sh N p v i) =
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') -
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') := by
+    rw [hresT i, hresU j, hresT j, hresU i]
+  have hbaseMinor :
+      ((c_test2_rowValueNat T p' i * c_test2_rowValueNat U p' j -
+        c_test2_rowValueNat T p' j * c_test2_rowValueNat U p' i : ℤ) : ZMod r') ≠ 0 :=
+    hQmod'
+  have hbaseMinorZ :
+      (c_test2_rowValueNat T p' i : ZMod r') *
+          (c_test2_rowValueNat U p' j : ZMod r') -
+        (c_test2_rowValueNat T p' j : ZMod r') *
+          (c_test2_rowValueNat U p' i : ZMod r') ≠ 0 := by
+    simpa only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, Nat.cast_mul] using hbaseMinor
+  rcases hwitness with hcommon | hexcl | hexcl
+  · rcases hcommon with ⟨hiT, hiU, hjT, hjU, hminor⟩
+    have hdetEq :
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') -
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') =
+        (rhoT i : ZMod r') * (rhoU j : ZMod r') *
+          ((c_test2_rowValueNat T p' i : ZMod r') *
+              (c_test2_rowValueNat U p' j : ZMod r') -
+            (c_test2_rowValueNat T p' j : ZMod r') *
+              (c_test2_rowValueNat U p' i : ZMod r')) := by
+      rw [hfactorT i, hfactorU j, hfactorT j, hfactorU i]
+      calc
+        _ = (rhoT i : ZMod r') * (rhoU j : ZMod r') *
+              (c_test2_rowValueNat T p' i : ZMod r') *
+              (c_test2_rowValueNat U p' j : ZMod r') -
+            (rhoT j : ZMod r') * (rhoU i : ZMod r') *
+              (c_test2_rowValueNat T p' j : ZMod r') *
+              (c_test2_rowValueNat U p' i : ZMod r') := by ring
+        _ = (rhoT j : ZMod r') * (rhoU i : ZMod r') *
+              (c_test2_rowValueNat T p' i : ZMod r') *
+              (c_test2_rowValueNat U p' j : ZMod r') -
+            (rhoT j : ZMod r') * (rhoU i : ZMod r') *
+              (c_test2_rowValueNat T p' j : ZMod r') *
+              (c_test2_rowValueNat U p' i : ZMod r') := by
+          rw [hCross i j hiT hjT hiU hjU]
+        _ = (rhoT j : ZMod r') * (rhoU i : ZMod r') *
+              ((c_test2_rowValueNat T p' i : ZMod r') *
+                  (c_test2_rowValueNat U p' j : ZMod r') -
+                (c_test2_rowValueNat T p' j : ZMod r') *
+                  (c_test2_rowValueNat U p' i : ZMod r')) := by ring
+        _ = (rhoT i : ZMod r') * (rhoU j : ZMod r') *
+              ((c_test2_rowValueNat T p' i : ZMod r') *
+                  (c_test2_rowValueNat U p' j : ZMod r') -
+                (c_test2_rowValueNat T p' j : ZMod r') *
+                  (c_test2_rowValueNat U p' i : ZMod r')) := by
+          rw [← hCross i j hiT hjT hiU hjU]
+    have hdetNZ :
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') ≠
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') := by
+      apply sub_ne_zero.mp
+      rw [hdetEq]
+      exact mul_ne_zero (mul_ne_zero (hrhoNZT i hiT) (hrhoNZU j hjU)) hbaseMinorZ
+    refine ⟨i, j, ?_⟩
+    apply sub_ne_zero.mp
+    rw [hdetResidue]
+    exact sub_ne_zero.mpr hdetNZ
+  · rcases hexcl with ⟨hiT, hiNotU, hjU, hminor⟩
+    have hdetEq :
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') -
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') =
+        (rhoT i : ZMod r') * (rhoU j : ZMod r') *
+          ((c_test2_rowValueNat T p' i : ZMod r') *
+              (c_test2_rowValueNat U p' j : ZMod r')) := by
+      rw [hfactorT i, hfactorU j, hfactorT j, hfactorU i,
+        hmonZeroU i hiNotU]
+      simp
+      ring
+    have hbase :
+        ((c_test2_rowValueNat T p' i * c_test2_rowValueNat U p' j : ℕ) : ZMod r') ≠ 0 := by
+      have hzero := hmonZeroU i hiNotU
+      simpa [hzero] using hbaseMinor
+    have hbaseZ :
+        (c_test2_rowValueNat T p' i : ZMod r') *
+          (c_test2_rowValueNat U p' j : ZMod r') ≠ 0 := by
+      simpa only [Nat.cast_mul] using hbase
+    have hdetNZ :
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') ≠
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') := by
+      apply sub_ne_zero.mp
+      rw [hdetEq]
+      exact mul_ne_zero (mul_ne_zero (hrhoNZT i hiT) (hrhoNZU j hjU)) hbaseZ
+    refine ⟨i, j, ?_⟩
+    apply sub_ne_zero.mp
+    rw [hdetResidue]
+    exact sub_ne_zero.mpr hdetNZ
+  · rcases hexcl with ⟨hiU, hiNotT, hjT, hminor⟩
+    have hdetEq :
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') -
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') =
+        -((rhoT j : ZMod r') * (rhoU i : ZMod r') *
+          ((c_test2_rowValueNat T p' j : ZMod r') *
+            (c_test2_rowValueNat U p' i : ZMod r'))) := by
+      rw [hfactorT i, hfactorU j, hfactorT j, hfactorU i,
+        hmonZeroT i hiNotT]
+      simp
+      ring
+    have hbase :
+        ((c_test2_rowValueNat T p' j * c_test2_rowValueNat U p' i : ℕ) : ZMod r') ≠ 0 := by
+      have hzero := hmonZeroT i hiNotT
+      simpa [hzero] using hbaseMinor
+    have hbaseZ :
+        (c_test2_rowValueNat T p' j : ZMod r') *
+          (c_test2_rowValueNat U p' i : ZMod r') ≠ 0 := by
+      simpa only [Nat.cast_mul] using hbase
+    have hdetNZ :
+        (alphaT i : ZMod r') * (alphaU j : ZMod r') ≠
+          (alphaT j : ZMod r') * (alphaU i : ZMod r') := by
+      apply sub_ne_zero.mp
+      rw [hdetEq]
+      exact neg_ne_zero.mpr
+        (mul_ne_zero (mul_ne_zero (hrhoNZT j hjT) (hrhoNZU i hiU)) hbaseZ)
+    refine ⟨i, j, ?_⟩
+    apply sub_ne_zero.mp
+    rw [hdetResidue]
+    exact sub_ne_zero.mpr hdetNZ
 
 noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
@@ -5186,7 +5559,7 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
         (A.X N (C.block i).1) (primorial (N + 1)) (V N ^ r)) hErr
   · intro N p x hgood hNZ u
     have hscale : c_test2_ScaleData S C a N := hgood.1
-    obtain ⟨alpha, rho, hrep, _, _⟩ := c_test2_rowCoefficientNatFactors
+    obtain ⟨alpha, rho, hrep, _, _, _⟩ := c_test2_rowCoefficientNatFactors
       S C a N hscale (Sh.row u) (fun i => p (ι i))
     have hcoeff : ∀ j, rowCoeff N p u j = (alpha j : ℚ) := by
       intro j
@@ -5200,7 +5573,7 @@ noncomputable def c_test2_weightedRowData {K s m q r : ℕ}
     simp only [Rat.den_intCast]
   · intro N p hgood r' hr hlarge hrV u j
     have hscale : c_test2_ScaleData S C a N := hgood.1
-    obtain ⟨alpha, rho, hrep, _, _⟩ := c_test2_rowCoefficientNatFactors
+    obtain ⟨alpha, rho, hrep, _, _, _⟩ := c_test2_rowCoefficientNatFactors
       S C a N hscale (Sh.row u) (fun i => p (ι i))
     have hcoeff : rowCoeff N p u j = (alpha j : ℚ) := by
       simpa [rowCoeff, c_test2_rowWeightedCoeff] using hrep j
