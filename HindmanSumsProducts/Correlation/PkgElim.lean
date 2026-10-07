@@ -1631,6 +1631,61 @@ theorem masterCRTModulus_optionPiFinEquiv_some {w e V : ℕ} (he : 0 < e)
     simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using hval
   simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using congrArg Fin.val hfin
 
+theorem masterCRTModulus_optionPiFinEquiv_none {w e V : ℕ} (he : 0 < e)
+    (a : Fin (FromArithmetic.masterCRTModulus w e V)) :
+    (masterCRTModulus_optionPiFinEquiv he a none).val =
+      a.val % (primorial w ^ e) := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  let B := primorial w ^ e
+  have hQ : 0 < Q := by dsimp [Q]; exact masterCRTModulus_pos
+  have hB : 0 < B := by dsimp [B]; exact pow_pos (primorial_pos w) e
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  letI : NeZero B := ⟨Nat.ne_of_gt hB⟩
+  have hcoord :
+      (masterCRTModulus_optionPiRingEquiv he ((ZMod.finEquiv Q) a)) none =
+        (a.val : ZMod B) := by
+    unfold masterCRTModulus_optionPiRingEquiv
+    rw [RingEquiv.trans_apply]
+    rw [ZMod.prodEquivPi_apply]
+    rw [zmod_finEquiv_apply a]
+    rw [map_natCast]
+    have hdiv : B ∣
+        ∏ i : Option (FromArithmetic.CRTPrimeRange w V),
+          masterCRTOptionFactor (w := w) (e := e) (V := V) i :=
+      Finset.dvd_prod_of_mem _ (Finset.mem_univ none)
+    change (ZMod.cast (a.val : ZMod
+      (∏ i : Option (FromArithmetic.CRTPrimeRange w V),
+        masterCRTOptionFactor (w := w) (e := e) (V := V) i)) : ZMod B) =
+      (a.val : ZMod B)
+    exact ZMod.cast_natCast hdiv a.val
+  change (crtOptionZModFinEquiv none
+    ((masterCRTModulus_optionPiRingEquiv he) ((ZMod.finEquiv Q) a) none)).val =
+      a.val % B
+  rw [hcoord]
+  have hfin : crtOptionZModFinEquiv none (a.val : ZMod B) =
+      (⟨a.val % B, by simpa [masterCRTOptionFactor] using Nat.mod_lt a.val hB⟩ :
+        Fin (masterCRTOptionFactor (w := w) (e := e) (V := V) none)) := by
+    change (ZMod.finEquiv B).symm.toEquiv (a.val : ZMod B) = _
+    have hcast : (ZMod.finEquiv B)
+        (⟨a.val % B, Nat.mod_lt _ hB⟩ : Fin B) = (a.val : ZMod B) := by
+      rw [zmod_finEquiv_apply ⟨a.val % B, Nat.mod_lt _ hB⟩]
+      apply ZMod.val_injective B
+      simp [ZMod.val_natCast, Nat.mod_mod]
+    have hval : ((ZMod.finEquiv B).symm.toEquiv (a.val : ZMod B)).val = a.val % B := by
+      have h := congrArg (fun z : ZMod B => ((ZMod.finEquiv B).symm.toEquiv z).val) hcast
+      simpa using h.symm
+    apply Fin.ext
+    simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using hval
+  simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using congrArg Fin.val hfin
+
+noncomputable def masterCRTModulus_finCRTEquiv {w e V : ℕ} (he : 0 < e) :
+    Fin (FromArithmetic.masterCRTModulus w e V) ≃
+      Fin (primorial w ^ e) ×
+        (∀ p : FromArithmetic.CRTPrimeRange w V, Fin p.val) := by
+  simpa [masterCRTOptionFactor] using
+    (masterCRTModulus_optionPiFinEquiv he).trans Equiv.piOptionEquivProd
+
 theorem natCoprime_masterCRTModulus_factorization {w e V x : ℕ} :
     Nat.Coprime x (FromArithmetic.masterCRTModulus w e V) ↔
       Nat.Coprime x (primorial w ^ e) ∧
