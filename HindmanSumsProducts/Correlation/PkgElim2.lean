@@ -3658,4 +3658,290 @@ theorem c_elim2_pivotTranslationError_superpolynomial
   simpa [V, W, X, T, G, Hshift, hSampleSeq,
     FromArithmetic.harmonicTranslationUniformError] using hSampling.2.1
 
+noncomputable abbrev c_elim2_GoodPivotPair {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) :=
+  {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests} ×
+    {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N}
+
+noncomputable def c_elim2_goodPivotShiftLength {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (J0 N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p : Fin q → ℕ) : ℕ :=
+  shiftLength S C.gap J0 N dirs.poly p
+
+noncomputable def c_elim2_stateLiftIntegrand
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (E : Finset (NonTarget Sh))
+    (L : c_elim2_GoodPivotPair S C N Sh dirs tests → ℕ)
+    (G : ∀ b : c_elim2_GoodPivotPair S C N Sh dirs tests,
+      (c_elim2_ShiftCoord E → Fin (L b)) → ℝ)
+    (hL : ∀ b, 0 < L b) :
+    (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ := by
+  classical
+  let Zsupport := c_elim2_pivotSupport S.core.parameters C N
+  exact fun p z u =>
+    if hp : p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests then
+      if hz : (∀ k, (z k).den = 1) ∧ (fun k => (z k).num) ∈ Zsupport then
+        let b : c_elim2_GoodPivotPair S C N Sh dirs tests :=
+          (⟨p, hp⟩, ⟨fun k => (z k).num, hz.2⟩)
+        let len := L b
+        let uFin : NonTarget Sh → Fin 2 → Fin len := fun i j =>
+          ⟨u i j % len, Nat.mod_lt _ (hL b)⟩
+        G b ((c_elim2_shiftAssignmentPartitionEquiv E len uFin).1)
+      else 0
+    else 0
+
+set_option maxHeartbeats 1000000 in
+theorem c_elim2_eliminationAverage_eq_jointStateAverage
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ) (E : Finset (NonTarget Sh))
+    (L : c_elim2_GoodPivotPair S C N Sh dirs tests → ℕ)
+    (G : ∀ b : c_elim2_GoodPivotPair S C N Sh dirs tests,
+      (c_elim2_ShiftCoord E → Fin (L b)) → ℝ)
+    (hL : ∀ b, 0 < L b)
+    (hLdef : ∀ b, L b = shiftLength S C.gap J0 N dirs.poly b.1.1) :
+    eliminationAverage S C N dirs tests J0
+        (c_elim2_stateLiftIntegrand S C N Sh dirs tests E L G hL) =
+      c_elim2_jointStateAverage E
+        (fun b => (gapSlotProbability S C.gap N
+          (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
+          gapSlotMass S C.gap N b.1.1 * pivotMass S.core.parameters C N b.2.val)
+        L G := by
+  classical
+  let PGood := {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests}
+  let ZSub := {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N}
+  let β := c_elim2_GoodPivotPair S C N Sh dirs tests
+  let prob := gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly)
+  let μ : β → ℝ := fun b => prob⁻¹ * gapSlotMass S C.gap N b.1.1 *
+    pivotMass S.core.parameters C N b.2.val
+  let F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ :=
+    c_elim2_stateLiftIntegrand S C N Sh dirs tests E L G hL
+  have hshift (p : PGood) (z : ZSub) :
+      shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+        (fun u => F p.1 (fun k => (z.1 k : ℚ)) u) =
+      c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+    rw [← hLdef (p, z)]
+    have hLp := hL (p, z)
+    apply c_elim2_shiftAverage_eq_shiftStateAverage_of_depends E (L (p, z)) hLp
+    intro u
+    have hDen : ∀ k, ((z.1 k : ℚ).den) = 1 := by intro k; simp
+    have hNum : (fun k => ((z.1 k : ℚ).num)) = z.1 := by
+      funext k
+      simp
+    have hZmem : (fun k => ((z.1 k : ℚ).num)) ∈
+        c_elim2_pivotSupport S.core.parameters C N := by
+      simpa [hNum] using z.property
+    have hZok : (∀ k, (z.1 k : ℚ).den = 1) ∧
+        (fun k => ((z.1 k : ℚ).num)) ∈ c_elim2_pivotSupport S.core.parameters C N :=
+      ⟨hDen, hZmem⟩
+    let b' : c_elim2_GoodPivotPair S C N Sh dirs tests :=
+      (⟨p.1, p.property⟩, ⟨fun k => ((z.1 k : ℚ).num), hZmem⟩)
+    have hb' : b' = (p, z) := by
+      apply Prod.ext
+      · apply Subtype.ext
+        rfl
+      · apply Subtype.ext
+        exact hNum
+    simp only [F, c_elim2_stateLiftIntegrand,
+      dif_pos p.property, dif_pos hZok]
+    change G b'
+      ((c_elim2_shiftAssignmentPartitionEquiv E (L b')
+        (fun i j => ⟨(u i j).val % L b', Nat.mod_lt _ (hL b')⟩)).1) =
+      G (p, z) ((c_elim2_shiftAssignmentPartitionEquiv E (L (p, z)) u).1)
+    rw [hb']
+    have huFin :
+        (fun i j =>
+          (⟨(u i j).val % L (p, z), Nat.mod_lt _ (hL (p, z))⟩ : Fin (L (p, z)))) = u := by
+      funext i j
+      apply Fin.ext
+      exact Nat.mod_eq_of_lt (u i j).isLt
+    rw [huFin]
+  have hfinite := c_elim2_eliminationAverage_eq_finiteGoodSupport
+    S C N Sh dirs tests J0 F
+  have hjoint : c_elim2_jointStateAverage E μ L G =
+      prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+        gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+          c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+    unfold c_elim2_jointStateAverage
+    rw [Fintype.sum_prod_type]
+    calc
+      _ = ∑ p : PGood, ∑ z : ZSub,
+          prob⁻¹ * (gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            c_elim2_shiftStateAverage E (L (p, z)) (G (p, z))) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              apply Finset.sum_congr rfl
+              intro z hz
+              simp [μ, mul_assoc, mul_left_comm, mul_comm]
+      _ = ∑ p : PGood, prob⁻¹ *
+          ∑ z : ZSub, gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              rw [← Finset.mul_sum]
+      _ = _ := by rw [← Finset.mul_sum]
+  calc
+    eliminationAverage S C N dirs tests J0 F =
+        prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+              (F p.1 (fun k => (z.1 k : ℚ))) := hfinite
+    _ = prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+              apply congrArg (fun x : ℝ => prob⁻¹ * x)
+              apply Finset.sum_congr rfl
+              intro p hp
+              apply Finset.sum_congr rfl
+              intro z hz
+              rw [hshift p z]
+    _ = c_elim2_jointStateAverage E μ L G := hjoint.symm
+
+noncomputable def c_elim2_univSubtypeEquiv {α : Type u} [Fintype α] [DecidableEq α] :
+    {i : α // i ∈ (Finset.univ : Finset α)} ≃ α :=
+  { toFun := Subtype.val
+    invFun := fun i => ⟨i, Finset.mem_univ i⟩
+    left_inv := by intro i; exact Subtype.ext rfl
+    right_inv := by intro i; rfl }
+
+noncomputable def c_elim2_univEraseSubtypeEquiv {α : Type u} [Fintype α] [DecidableEq α]
+    (I : α) :
+    {j : α // j ∈ (Finset.univ : Finset α).erase I} ≃ {j : α // j ≠ I} :=
+  { toFun := fun j => ⟨j.1, (Finset.mem_erase.mp j.2).1⟩
+    invFun := fun j => ⟨j.1, Finset.mem_erase.mpr ⟨j.2, Finset.mem_univ _⟩⟩
+    left_inv := by intro j; apply Subtype.ext; rfl
+    right_inv := by intro j; apply Subtype.ext; rfl }
+
+noncomputable def c_elim2_boxRetainedBranchEquiv {α : Type u} [Fintype α]
+    [DecidableEq α] (I : α) :
+    c_elim2_BoxRetainedBranch (Finset.univ : Finset α) I ≃
+      ({j : α // j ≠ I} → Fin 2) :=
+  Equiv.arrowCongr (c_elim2_univEraseSubtypeEquiv I) (Equiv.refl (Fin 2))
+
+theorem c_elim2_boxTargetProduct_univ_reindex {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (b : β)
+    (u : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b)) :
+    c_elim2_boxTargetProduct D Finset.univ b u =
+      ∏ ω : α → Fin 2,
+        D.targetFunction b (c_elim2_boxTargetArgument D Finset.univ b u
+          ((Equiv.arrowCongr (c_elim2_univSubtypeEquiv (α := α))
+            (Equiv.refl (Fin 2))).symm ω)) := by
+  classical
+  let e := Equiv.arrowCongr (c_elim2_univSubtypeEquiv (α := α)) (Equiv.refl (Fin 2))
+  unfold c_elim2_boxTargetProduct
+  exact Fintype.prod_equiv e
+    (fun ω => D.targetFunction b (c_elim2_boxTargetArgument D Finset.univ b u ω))
+    (fun ω => D.targetFunction b (c_elim2_boxTargetArgument D Finset.univ b u (e.symm ω)))
+    (by
+      intro ω
+      exact congrArg (fun η => D.targetFunction b
+        (c_elim2_boxTargetArgument D Finset.univ b u η)) (e.symm_apply_apply ω))
+
+theorem c_elim2_boxRetainedProduct_univ_reindex {α β : Type u}
+    [Fintype α] [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (b : β)
+    (u : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b)) :
+    c_elim2_boxRetainedProduct D Finset.univ b u =
+      ∏ I : α, ∏ η : {j : α // j ≠ I} → Fin 2,
+        D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+          (c_elim2_boxRetainedBranchFull Finset.univ I
+            ((c_elim2_boxRetainedBranchEquiv I).symm η))) := by
+  classical
+  let Rows := {i : α // i ∈ (Finset.univ : Finset α)}
+  let eI := c_elim2_univSubtypeEquiv (α := α)
+  let rowSub : Rows → ℝ := fun I =>
+    ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1,
+      D.rowWeight I.1 b (c_elim2_boxRowArgument D Finset.univ b I.1 u
+        (c_elim2_boxRetainedBranchFull Finset.univ I.1 η))
+  let rowFull : α → ℝ := fun I =>
+    ∏ η : {j : α // j ≠ I} → Fin 2,
+      D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+        (c_elim2_boxRetainedBranchFull Finset.univ I
+          ((c_elim2_boxRetainedBranchEquiv I).symm η)))
+  have hInner (I : α) : rowSub (eI.symm I) = rowFull I := by
+    dsimp [rowSub, rowFull]
+    exact Fintype.prod_equiv (c_elim2_boxRetainedBranchEquiv I)
+      (fun η : c_elim2_BoxRetainedBranch Finset.univ I =>
+        D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+          (c_elim2_boxRetainedBranchFull Finset.univ I η)))
+      (fun η : {j : α // j ≠ I} → Fin 2 =>
+        D.rowWeight I b (c_elim2_boxRowArgument D Finset.univ b I u
+          (c_elim2_boxRetainedBranchFull Finset.univ I
+            ((c_elim2_boxRetainedBranchEquiv I).symm η))))
+      (by intro η; simp)
+  have hOuter : (∏ I : Rows, rowSub I) = ∏ I : α, rowFull I :=
+    Fintype.prod_equiv eI rowSub rowFull (by intro I; exact hInner I)
+  simpa [c_elim2_boxRetainedProduct, Rows, rowSub, rowFull] using hOuter
+
+theorem c_elim2_boxRowArgument_univ_retained
+    {α β : Type u} [Fintype α] [DecidableEq α] {m q : ℕ}
+    (D : c_elim2_AdditiveBoxData α β) (I : α) (b : β)
+    (u : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b))
+    (v : α → Fin 2 → Fin (D.shiftLength b))
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (vdir : α → Fin m → ℚ)
+    (η : {R : α // R ≠ I} → Fin 2)
+    (hbase : D.rowBase I b = rowForm c T p z)
+    (hcoef : ∀ j, j ≠ I → (D.rowCoefficient I j b : ℚ) = rowForm c T p (vdir j))
+    (hu : ∀ coord : c_elim2_ShiftCoord (Finset.univ : Finset α),
+      u coord = v coord.val.1 coord.val.2) :
+    c_elim2_boxRowArgument D Finset.univ b I u
+      (c_elim2_boxRetainedBranchFull Finset.univ I
+        ((c_elim2_boxRetainedBranchEquiv I).symm η)) =
+      rowForm c T p (fun k => z k + ∑ R : {R : α // R ≠ I},
+        ((v R.1 (η R)).val : ℚ) * vdir R.1 k) := by
+  classical
+  let Erase := {j : α // j ∈ (Finset.univ : Finset α).erase I}
+  let Ne := {j : α // j ≠ I}
+  let e := c_elim2_univEraseSubtypeEquiv I
+  let eBranch := c_elim2_boxRetainedBranchEquiv I
+  let branch : α → Fin 2 :=
+    c_elim2_boxRetainedBranchFull Finset.univ I (eBranch.symm η)
+  have hRow := c_elim2_boxRowArgument_linear D Finset.univ I b u branch c T p z vdir
+    hbase hcoef
+  have hsum (k : Fin m) :
+      (∑ j ∈ (Finset.univ : Finset α).erase I,
+        (c_elim2_boxShiftValue Finset.univ u branch j : ℚ) * vdir j k) =
+      ∑ R : Ne, ((v R.1 (η R)).val : ℚ) * vdir R.1 k := by
+    have hattach :
+        (∑ j ∈ (Finset.univ : Finset α).erase I,
+          (c_elim2_boxShiftValue Finset.univ u branch j : ℚ) * vdir j k) =
+        ∑ j : Erase,
+          (c_elim2_boxShiftValue Finset.univ u branch j.1 : ℚ) * vdir j.1 k := by
+      simpa only [Finset.attach_eq_univ] using
+        (Finset.sum_attach ((Finset.univ : Finset α).erase I)
+          (fun j => (c_elim2_boxShiftValue Finset.univ u branch j : ℚ) * vdir j k)).symm
+    calc
+      _ = ∑ j : Erase,
+          (c_elim2_boxShiftValue Finset.univ u branch j.1 : ℚ) * vdir j.1 k := hattach
+      _ = ∑ R : Ne,
+          (c_elim2_boxShiftValue Finset.univ u branch (e.symm R).1 : ℚ) *
+            vdir (e.symm R).1 k := by
+              exact Fintype.sum_equiv e _ _ (by intro j; simp [e])
+      _ = ∑ R : Ne, ((v R.1 (η R)).val : ℚ) * vdir R.1 k := by
+        apply Finset.sum_congr rfl
+        intro R hR
+        have hbit : branch R.1 = η R := by
+          have heval : (eBranch (eBranch.symm η)) R = η R :=
+            congrFun (eBranch.apply_symm_apply η) R
+          simpa [branch, c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull,
+            eBranch, e, c_elim2_boxRetainedBranchEquiv,
+            c_elim2_univEraseSubtypeEquiv, R.2] using heval
+        have hshift := c_elim2_boxShiftValue_eq_fullAssignment
+          (E := (Finset.univ : Finset α)) u v branch R.1 hu
+          (by intro h; exact (h (Finset.mem_univ _)).elim)
+        have hval : (e.symm R).1 = R.1 := by
+          simp [e, c_elim2_univEraseSubtypeEquiv]
+        rw [hval, hshift, hbit]
+  rw [hRow]
+  apply congrArg (rowForm c T p)
+  funext k
+  exact congrArg (fun x : ℚ => z k + x) (hsum k)
+
 end HindmanSumsProducts
