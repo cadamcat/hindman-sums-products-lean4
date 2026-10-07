@@ -7973,6 +7973,63 @@ The proof of `prop_linear_forms` is assembled from four parts:
   eventually `O(1/(N+1))`.
 -/
 
+/-- A normalized kernel count is at most the codomain cardinality. -/
+private theorem opus_p1_normalizedKernelCount_le_card {G H : Type*} [Group G] [Group H]
+    [Fintype G] [Fintype H] (f : G →* H) :
+    normalizedKernelCount f ≤ (Fintype.card H : ℝ) := by
+  have hcard := finite_group_kernel_cardinality f
+  have hcardR : (Fintype.card G : ℝ) =
+      (Fintype.card f.ker : ℝ) * (Fintype.card f.range : ℝ) := by
+    exact_mod_cast hcard
+  have hK : (0 : ℝ) < (Fintype.card f.ker : ℝ) := by positivity
+  have hR : (1 : ℝ) ≤ (Fintype.card f.range : ℝ) := by
+    exact_mod_cast Fintype.card_pos
+  change (Fintype.card H : ℝ) *
+    ((Fintype.card f.ker : ℝ) / (Fintype.card G : ℝ)) ≤ Fintype.card H
+  rw [hcardR]
+  have hfrac : (Fintype.card f.ker : ℝ) /
+      ((Fintype.card f.ker : ℝ) * (Fintype.card f.range : ℝ)) ≤ 1 := by
+    rw [div_le_one (by positivity)]
+    nlinarith
+  calc
+    _ ≤ (Fintype.card H : ℝ) * 1 := mul_le_mul_of_nonneg_left hfrac (by positivity)
+    _ = _ := mul_one _
+
+/-- At the CRT residues of integer slots, the local test event is the integer test event. -/
+private theorem opus_p1_localBeta_integerCRT {q m w V : ℕ}
+    (tests : Finset (IntegerPolynomial m)) (slots : Fin m → ℕ)
+    (p : CRTPrimeRange w V) (a : Fin q → ℕ) :
+    linearFormsLocalBeta tests (fun i => integerCRTResidues w V (slots i)) p a =
+      regularPrimeLocalExcess p.val a +
+        (if ∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ))
+          then 1 else 0) * exceptionalPrimeLocalExcess p.val a := by
+  have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  haveI : NeZero p.val := ⟨hp.ne_zero⟩
+  have key (x : Fin m → ℤ) (Q : IntegerPolynomial m) :
+      ((evalIntegerPolynomial Q x : ℤ) : ZMod p.val) =
+        MvPolynomial.eval₂ ((Int.castRingHom (ZMod p.val)).comp (RingHom.id ℤ))
+          (Int.castRingHom (ZMod p.val) ∘ x) Q :=
+    MvPolynomial.eval₂_comp_left (Int.castRingHom (ZMod p.val)) (RingHom.id ℤ) x Q
+  have hfun : (Int.castRingHom (ZMod p.val) ∘
+        fun i => (((integerCRTResidues w V (slots i) p).val : ℕ) : ℤ)) =
+      (Int.castRingHom (ZMod p.val) ∘ fun i => ((slots i : ℕ) : ℤ)) := by
+    funext i
+    simp [integerCRTResidues, ZMod.natCast_mod]
+  have hiff :
+      (∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q
+          (fun i => (((integerCRTResidues w V (slots i) p).val : ℕ) : ℤ))) ↔
+        (∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ))) := by
+    apply exists_congr
+    intro Q
+    apply and_congr_right
+    intro _
+    rw [← ZMod.intCast_zmod_eq_zero_iff_dvd, ← ZMod.intCast_zmod_eq_zero_iff_dvd,
+      key, key, hfun]
+  unfold linearFormsLocalBeta
+  by_cases h : ∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ))
+  · rw [if_pos (hiff.mpr h), if_pos h]
+  · rw [if_neg (fun h' => h (hiff.mp h')), if_neg h]
+
 /-- Part 1. For a divisor tuple of nonzero mass and good slots, the normalized kernel count of
 the global cleared-row map is at least one, and its excess is at most the capped CRT tuple
 envelope evaluated at the slots' CRT residues. -/
@@ -7998,7 +8055,133 @@ private theorem linearFormsTupleKernel_envelope {n q d b m : ℕ}
                 (fun j => D.rowCoeff N slots u j) j : ZMod K))).toMultiplicative - 1 ≤
         linearFormsTupleEnvelope D N σ
           (fun i => integerCRTResidues (N + 1) (D.V N) (slots i)) := by
-  sorry
+  have hσpos (u : Fin q) : 1 ≤ σ u := D.divisor_positive N u (σ u) (hσ u)
+  have hσle (u : Fin q) : σ u ≤ D.V N := D.divisor_bounded N u (σ u) (hσ u)
+  have hσcop (u : Fin q) : Nat.Coprime (σ u) (primorial (N + 1)) :=
+    divisorTemplateLaw_coprime_primorial D N u (σ u) (hσ u)
+  have hσne (u : Fin q) : σ u ≠ 0 := by
+    have := hσpos u
+    omega
+  have hKne : K ≠ 0 := Nat.pos_iff_ne_zero.mp hK
+  generalize hcoeffDef : (fun u j =>
+    ((rationalRowClearedCoefficient (fun j => D.rowCoeff N slots u j) j : ℤ) : ZMod K)) =
+      coeff
+  have hcoeffApply (u : Fin q) (j : Fin d) :
+      coeff u j =
+        ((rationalRowClearedCoefficient (fun j => D.rowCoeff N slots u j) j : ℤ) : ZMod K) := by
+    rw [← hcoeffDef]
+  -- α ≤ K
+  have hcardH : (Fintype.card (Multiplicative ((u : Fin q) → ZMod (σ u))) : ℝ) = (K : ℝ) := by
+    calc
+      _ = (Fintype.card ((u : Fin q) → ZMod (σ u)) : ℝ) := by
+        exact_mod_cast Fintype.card_congr Multiplicative.toAdd
+      _ = (∏ u, (Fintype.card (ZMod (σ u)) : ℝ)) := by
+        exact_mod_cast (Fintype.card_pi :
+          Fintype.card ((u : Fin q) → ZMod (σ u)) = ∏ u, Fintype.card (ZMod (σ u)))
+      _ = ∏ u, (σ u : ℝ) := by simp [ZMod.card]
+      _ = K := by exact_mod_cast hKprod
+  have hleK : normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative ≤
+      (K : ℝ) :=
+    (opus_p1_normalizedKernelCount_le_card _).trans hcardH.le
+  -- prime factors of K lie in the CRT range
+  have hfactorFacts : ∀ p ∈ K.primeFactors, N + 1 < p ∧ p ≤ D.V N := by
+    intro p hpK
+    have hpr : p.Prime := Nat.prime_of_mem_primeFactors hpK
+    have hpdvdK : p ∣ ∏ u, σ u := by
+      rw [hKprod]
+      exact Nat.dvd_of_mem_primeFactors hpK
+    obtain ⟨u, -, hpu⟩ := (Prime.dvd_finset_prod_iff hpr.prime σ).mp hpdvdK
+    have hple : p ≤ σ u := Nat.le_of_dvd (lt_of_lt_of_le Nat.zero_lt_one (hσpos u)) hpu
+    have hcopW : Nat.Coprime p (primorial (N + 1)) := (hσcop u).coprime_dvd_left hpu
+    have hrough : N + 1 < p := by
+      by_contra hn
+      exact hpr.coprime_iff_not_dvd.mp hcopW (hpr.dvd_primorial_iff.mpr (by omega))
+    exact ⟨hrough, hple.trans (hσle u)⟩
+  have hP : K.primeFactors ⊆ (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime := by
+    intro p hpK
+    obtain ⟨hrough, hpV⟩ := hfactorFacts p hpK
+    simp only [Finset.mem_filter, Finset.mem_Ioc]
+    exact ⟨⟨hrough, by omega⟩, Nat.prime_of_mem_primeFactors hpK⟩
+  obtain ⟨beta, hbetaDef⟩ : ∃ beta : ℕ → ℝ, ∀ p, beta p =
+      if hp : p ∈ (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime then
+        linearFormsLocalBeta tests (fun i => integerCRTResidues (N + 1) (D.V N) (slots i))
+          (⟨p, hp⟩ : CRTPrimeRange (N + 1) (D.V N)) (linearFormsValVector σ p)
+      else 0 := ⟨_, fun _ => rfl⟩
+  have hbetaNonneg : ∀ p ∈ (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime, 0 ≤ beta p := by
+    intro p hp
+    have hpr : p.Prime := (Finset.mem_filter.mp hp).2
+    rw [hbetaDef, dif_pos hp, opus_p1_localBeta_integerCRT]
+    exact add_nonneg (regularPrimeLocalExcess_nonneg _ hpr _)
+      (mul_nonneg (by split_ifs <;> norm_num) (exceptionalPrimeLocalExcess_nonneg _ hpr _))
+  haveI hNZA : ∀ p : primePowerIndex K, NeZero (p.val ^ K.factorization p.val) :=
+    fun p => ⟨pow_ne_zero _ (primePowerIndex_prime p).ne_zero⟩
+  haveI hNZa : ∀ (p : primePowerIndex K) (u : Fin q),
+      NeZero (p.val ^ (σ u).factorization p.val) :=
+    fun p u => ⟨pow_ne_zero _ (primePowerIndex_prime p).ne_zero⟩
+  have hupper : ∀ p : primePowerIndex K,
+      normalizedKernelCount
+        (localDivisibilityGroupHom
+          (fun u => (σ u).factorization p.val)
+          (fun u => ((Nat.factorization_le_iff_dvd (hσne u) hKne).2 (hdiv u)) p.val)
+          (fun u j => (primePowerCRTRingEquiv K hKne (coeff u j)) p)) ≤
+        1 + beta p.val := by
+    intro p
+    have hpr : p.val.Prime := primePowerIndex_prime p
+    obtain ⟨hrough, hpV⟩ := hfactorFacts p.val p.property
+    have hpP : p.val ∈ (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime := hP p.property
+    have hA : 0 < K.factorization p.val :=
+      hpr.factorization_pos_of_dvd hKne (Nat.dvd_of_mem_primeFactors p.property)
+    obtain ⟨c', hrow, hminor, hc'⟩ :=
+      localClearedRows_fromData D N slots p.val (K.factorization p.val) hpr hgood hrough hpV hA
+    have hc'eq : (fun u j => (primePowerCRTRingEquiv K hKne (coeff u j)) p) = c' := by
+      funext u j
+      rw [hc' u j, primePowerCRTRingEquiv_apply, hcoeffApply u j, map_intCast]
+      exact (rationalRow_clearedCoefficient_modulus (fun i => D.rowCoeff N slots u i)
+        (M := p.val ^ K.factorization p.val)
+        (fun i => Nat.Coprime.pow_right _
+          (D.row_denominators_are_units N slots hgood p.val hpr hrough hpV u i)) j).symm
+    rw [hc'eq]
+    have hbetaEq : beta p.val =
+        regularPrimeLocalExcess p.val (fun u => (σ u).factorization p.val) +
+          (if ∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ))
+            then 1 else 0) *
+            exceptionalPrimeLocalExcess p.val (fun u => (σ u).factorization p.val) := by
+      rw [hbetaDef, dif_pos hpP]
+      exact opus_p1_localBeta_integerCRT tests slots ⟨p.val, hpP⟩ _
+    by_cases hbad : ∃ Q ∈ tests, (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ))
+    · rw [hbetaEq, if_pos hbad, one_mul]
+      have hex := localKernel_exceptionalExcess_bound hpr (fun u => (σ u).factorization p.val)
+        (fun u => ((Nat.factorization_le_iff_dvd (hσne u) hKne).2 (hdiv u)) p.val) c' hrow
+      have hregNonneg :=
+        regularPrimeLocalExcess_nonneg p.val hpr (fun u => (σ u).factorization p.val)
+      exact le_trans hex (by linarith)
+    · rw [hbetaEq, if_neg hbad, zero_mul, add_zero]
+      have hregTests : ∀ Q ∈ tests,
+          ¬ ((p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => (slots i : ℤ))) :=
+        fun Q hQ hdvd => hbad ⟨Q, hQ, hdvd⟩
+      exact localKernel_regularExcess_bound hpr hA _ _ c' hrow
+        (fun u v huv => hminor u v huv hregTests)
+  have hprodBound :
+      normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative ≤
+        ∏ p ∈ (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime, (1 + beta p) :=
+    globalKernelPrimeProduct_bound σ hσne hKne hdiv coeff _ hP beta hbetaNonneg
+      (fun p => (local_linear_kernel_count_excess _).1) hupper
+  have hprodEq :
+      (∏ p ∈ (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime, (1 + beta p)) =
+        ∏ p : CRTPrimeRange (N + 1) (D.V N),
+          (1 + linearFormsLocalBeta tests
+            (fun i => integerCRTResidues (N + 1) (D.V N) (slots i)) p
+            (linearFormsValVector σ p.val)) := by
+    rw [← Finset.prod_coe_sort]
+    apply Finset.prod_congr rfl
+    intro p _
+    rw [hbetaDef, dif_pos p.property]
+  refine ⟨(local_linear_kernel_count_excess _).1, ?_⟩
+  have hKreal : (∏ u, (σ u : ℝ)) = (K : ℝ) := by
+    rw [← hKprod, Nat.cast_prod]
+  unfold linearFormsTupleEnvelope
+  rw [hKreal]
+  exact sub_le_sub_right (le_min hleK (hprodBound.trans hprodEq.le)) 1
 
 /-- Part 2. For good slots, the base average of the divisor-weight product differs from one by
 at most `V^q * epsilonBase` plus the capped CRT envelope at the slots' CRT residues. -/
