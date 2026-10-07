@@ -2340,6 +2340,50 @@ theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
 
 end MaskRemovalState
 
+theorem exists_maskShape_step {m q r : ℕ} (Sh : RowShape m q r)
+    (Jstar U : Finset (Fin m)) (hJ : 2 ≤ Jstar.card)
+    (hStar : (Sh.row Sh.star).support = Jstar) :
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r'),
+      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+  rcases exists_mask_substitution_coordinates Jstar U hJ with
+    ⟨u, huJ, huU⟩ | ⟨u, v, huJ, hvJ, huv⟩
+  · have hErasePos : 0 < (Jstar.erase u).card := by
+      rw [Finset.card_erase_of_mem huJ]
+      omega
+    obtain ⟨v, hvErase⟩ := Finset.card_pos.mp hErasePos
+    rcases Finset.mem_erase.mp hvErase with ⟨hvu, hvJ⟩
+    have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
+    have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
+    exact exists_scaleBranch_row_shape Sh Jstar hStar u v huSupp hvSupp hvu
+  · have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
+    have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
+    exact exists_scaleBalanced_row_shape Sh Jstar hStar u v huSupp hvSupp huv
+
+theorem exists_maskShape_after_list {m : ℕ} (Jstar : Finset (Fin m))
+    (hJ : 2 ≤ Jstar.card) (masks : List (Finset (Fin m)))
+    (hMasks : ∀ U ∈ masks, U.Nonempty) :
+    ∃ (q r : ℕ) (Sh : RowShape m q r), q = 2 * masks.length ∧
+      r ≤ maskCount m * 2 ^ masks.length ∧ (Sh.row Sh.star).support = Jstar := by
+  induction masks with
+  | nil =>
+    have hStar := initialMaskShape_star_support Jstar hJ
+    refine ⟨0, maskCount m, initialMaskShape Jstar hJ, ?_, ?_, hStar⟩
+    · simp
+    · simp
+  | cons U rest ih =>
+    have hRest : ∀ V ∈ rest, V.Nonempty := by
+      intro V hV
+      exact hMasks V (List.mem_cons_of_mem U hV)
+    obtain ⟨q, r, Sh, hq, hr, hStar⟩ := ih hRest
+    obtain ⟨r', Sh', hr', hStar'⟩ := exists_maskShape_step Sh Jstar U hJ hStar
+    refine ⟨q + 2, r', Sh', ?_, ?_, hStar'⟩
+    · simp only [List.length_cons]
+      omega
+    · calc
+        r' ≤ 2 * r := hr'
+        _ ≤ 2 * (maskCount m * 2 ^ rest.length) := Nat.mul_le_mul_left 2 hr
+        _ = maskCount m * 2 ^ (rest.length + 1) := by rw [pow_succ]; ring
+
 theorem initialMaskRemovalState_valid {m K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (Jstar : Finset (Fin m))
