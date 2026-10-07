@@ -1323,6 +1323,45 @@ theorem primePoolLaw_tsum_one {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) :
       rw [Finset.sum_div]
     _ = 1 := by rw [hsum]; exact div_self (ne_of_gt hmass)
 
+theorem primeResidueIndicator_sum {Q p : ℕ} (hQ : 0 < Q) :
+    (∑ a : Fin Q, if p % Q = a.val then 1 / (p : ℝ) else 0) = 1 / (p : ℝ) := by
+  classical
+  let a₀ : Fin Q := ⟨p % Q, Nat.mod_lt _ hQ⟩
+  rw [Finset.sum_eq_single a₀]
+  · simp [a₀]
+  · intro a ha hne
+    have hneq : p % Q ≠ a.val := by
+      intro hv
+      apply hne
+      apply Fin.ext
+      simpa [a₀] using hv.symm
+    simp [hneq]
+  · simp
+
+theorem primePoolResidueLaw_sum_one {lo hi Q : ℕ}
+    (hQ : 0 < Q) (hmass : 0 < primePoolMass lo hi) :
+    (∑ a : Fin Q, primePoolResidueLaw lo hi Q a) = 1 := by
+  classical
+  let S : Finset ℕ := (Finset.Ico lo hi).filter Nat.Prime
+  calc
+    (∑ a : Fin Q, primePoolResidueLaw lo hi Q a) =
+      (∑ a : Fin Q, ∑ p ∈ S,
+        if p % Q = a.val then 1 / (p : ℝ) else 0) / primePoolMass lo hi := by
+      unfold primePoolResidueLaw
+      rw [Finset.sum_div]
+    _ = (∑ p ∈ S, ∑ a : Fin Q,
+        if p % Q = a.val then 1 / (p : ℝ) else 0) / primePoolMass lo hi := by
+      rw [Finset.sum_comm]
+    _ = (∑ p ∈ S, 1 / (p : ℝ)) / primePoolMass lo hi := by
+      congr 1
+      apply Finset.sum_congr rfl
+      intro p hp
+      exact primeResidueIndicator_sum hQ
+    _ = 1 := by
+      have hmassEq : (∑ p ∈ S, 1 / (p : ℝ)) = primePoolMass lo hi := by rfl
+      rw [hmassEq]
+      exact div_self (ne_of_gt hmass)
+
 noncomputable def crtResidueProjection {w V Q : ℕ} (a : Fin Q) : FromArithmetic.CRTResidues w V :=
   fun p => ⟨a.val % p.val, Nat.mod_lt _ ((Finset.mem_filter.mp p.property).2.pos)⟩
 
