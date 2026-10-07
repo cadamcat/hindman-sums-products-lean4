@@ -2231,6 +2231,132 @@ theorem RowTemplate.value_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) : T.value p k = (T.valueNat p k : ℚ) := by
   cases h : T.entry k <;> simp [RowTemplate.value, RowTemplate.valueNat, h]
 
+def rowTemplateIntegerCoefficient {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) : ℤ :=
+  (c k / c T.anchor).num * (T.valueNat p k : ℤ)
+
+theorem RowTemplate.mem_support_of_valueNat_ne_zero {m q : ℕ}
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m)
+    (hval : T.valueNat p k ≠ 0) : k ∈ T.support := by
+  cases h : T.entry k with
+  | none => simp [RowTemplate.valueNat, RowTemplate.support, h] at hval
+  | some e => simp [RowTemplate.support, h]
+
+theorem rowTemplateIntegerMinor_factor {m q : ℕ} (c : Fin m → ℚ)
+    (T U : RowTemplate m q) (p : Fin q → ℕ) (r : ℕ) (hr : r.Prime)
+    (hTa : c T.anchor ≠ 0) (hUa : c U.anchor ≠ 0)
+    (hdenT : ∀ i, i ∈ T.support → (c i / c T.anchor).den = 1)
+    (hdenU : ∀ i, i ∈ U.support → (c i / c U.anchor).den = 1)
+    (hunitT : ∀ i, i ∈ T.support →
+      ((c i / c T.anchor).num : ZMod r) ≠ 0)
+    (hunitU : ∀ i, i ∈ U.support →
+      ((c i / c U.anchor).num : ZMod r) ≠ 0)
+    (j k : Fin m) :
+    ∃ F : ℤ,
+      rowTemplateIntegerCoefficient c T p j *
+          rowTemplateIntegerCoefficient c U p k -
+        rowTemplateIntegerCoefficient c T p k *
+          rowTemplateIntegerCoefficient c U p j =
+        F * (((T.valueNat p j * U.valueNat p k : ℕ) : ℤ) -
+          ((T.valueNat p k * U.valueNat p j : ℕ) : ℤ)) ∧
+      (F : ZMod r) ≠ 0 := by
+  let v₁ := T.valueNat p j
+  let v₂ := U.valueNat p k
+  let v₃ := T.valueNat p k
+  let v₄ := U.valueNat p j
+  let n₁ := (c j / c T.anchor).num
+  let n₂ := (c k / c U.anchor).num
+  let n₃ := (c k / c T.anchor).num
+  let n₄ := (c j / c U.anchor).num
+  letI : Fact r.Prime := ⟨hr⟩
+  have hdet :
+      rowTemplateIntegerCoefficient c T p j *
+          rowTemplateIntegerCoefficient c U p k -
+        rowTemplateIntegerCoefficient c T p k *
+          rowTemplateIntegerCoefficient c U p j =
+        n₁ * n₂ * ((v₁ : ℤ) * (v₂ : ℤ)) -
+          n₃ * n₄ * ((v₃ : ℤ) * (v₄ : ℤ)) := by
+    simp [rowTemplateIntegerCoefficient, n₁, n₂, n₃, n₄, v₁, v₂, v₃, v₄]
+    ring
+  have hcast₁ : ((v₁ * v₂ : ℕ) : ℤ) = (v₁ : ℤ) * (v₂ : ℤ) := by
+    norm_cast
+  have hcast₂ : ((v₃ * v₄ : ℕ) : ℤ) = (v₃ : ℤ) * (v₄ : ℤ) := by
+    norm_cast
+  have support_of_ne {V : RowTemplate m q} (i : Fin m)
+      (hval : V.valueNat p i ≠ 0) : i ∈ V.support :=
+    V.mem_support_of_valueNat_ne_zero p i hval
+  by_cases hfirst : v₁ * v₂ ≠ 0
+  · have hv₁ : v₁ ≠ 0 := by
+      intro hz
+      apply hfirst
+      simp [hz]
+    have hv₂ : v₂ ≠ 0 := by
+      intro hz
+      apply hfirst
+      simp [hz]
+    have hjT := support_of_ne (V := T) j hv₁
+    have hkU := support_of_ne (V := U) k hv₂
+    have hFunit : ((n₁ * n₂ : ℤ) : ZMod r) ≠ 0 := by
+      simpa [n₁, n₂] using mul_ne_zero (hunitT j hjT) (hunitU k hkU)
+    by_cases hsecond : v₃ * v₄ ≠ 0
+    · have hv₃ : v₃ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hv₄ : v₄ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hkT := support_of_ne (V := T) k hv₃
+      have hjU := support_of_ne (V := U) j hv₄
+      have hcross := rational_scale_num_cross_eq c T.anchor U.anchor j k hTa hUa
+        (hdenT j hjT) (hdenU k hkU) (hdenT k hkT) (hdenU j hjU)
+      refine ⟨n₁ * n₂, ?_, hFunit⟩
+      rw [hdet, ← hcast₁, ← hcast₂, ← hcross]
+      ring
+    · have hzero₂ : ((v₃ * v₄ : ℕ) : ℤ) = 0 := by
+        have hn : v₃ * v₄ = 0 := by
+          by_contra hne
+          exact hsecond hne
+        exact_mod_cast hn
+      refine ⟨n₁ * n₂, ?_, hFunit⟩
+      rw [hdet, ← hcast₁, ← hcast₂, hzero₂]
+      ring
+  · by_cases hsecond : v₃ * v₄ ≠ 0
+    · have hv₃ : v₃ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hv₄ : v₄ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hkT := support_of_ne (V := T) k hv₃
+      have hjU := support_of_ne (V := U) j hv₄
+      have hFunit : ((n₃ * n₄ : ℤ) : ZMod r) ≠ 0 := by
+        simpa [n₃, n₄] using mul_ne_zero (hunitT k hkT) (hunitU j hjU)
+      have hzero₁ : ((v₁ * v₂ : ℕ) : ℤ) = 0 := by
+        have hn : v₁ * v₂ = 0 := by
+          by_contra hne
+          exact hfirst hne
+        exact_mod_cast hn
+      refine ⟨n₃ * n₄, ?_, hFunit⟩
+      rw [hdet, ← hcast₁, ← hcast₂, hzero₁]
+      ring
+    · have hzero₁ : ((v₁ * v₂ : ℕ) : ℤ) = 0 := by
+        have hn : v₁ * v₂ = 0 := by
+          by_contra hne
+          exact hfirst hne
+        exact_mod_cast hn
+      have hzero₂ : ((v₃ * v₄ : ℕ) : ℤ) = 0 := by
+        have hn : v₃ * v₄ = 0 := by
+          by_contra hne
+          exact hsecond hne
+        exact_mod_cast hn
+      refine ⟨1, ?_, by norm_num⟩
+      rw [hdet, ← hcast₁, ← hcast₂, hzero₁, hzero₂]
+      simp
+
 def rowShapeLinearCoefficientsInt {m q r s : ℕ} (Sh : RowShape m q r)
     (ι : Fin q ↪ Fin s) (c : Fin m → ℚ) :
     ℕ → (Fin s → ℕ) → Fin r → Fin m → ℤ :=
