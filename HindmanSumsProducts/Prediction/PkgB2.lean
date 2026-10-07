@@ -7338,11 +7338,11 @@ private theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
                 independentPrimePoolMass lo hi p *
                   (if Good p then innerMonomial P M p else 0) := hfinitePrime
       _ = _ := by
-            apply Finset.sum_congr rfl
-            intro P hP
-            apply Finset.sum_congr rfl
-            intro M hM
-            rw [← hmonomialPrimeSum P M]
+        apply Finset.sum_congr rfl
+        intro P hP
+        apply Finset.sum_congr rfl
+        intro M hM
+        rw [← hmonomialPrimeSum P M]
   calc
     pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
         Finset.univ N I =
@@ -7381,6 +7381,16 @@ private theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
                   direction N (P ∪ M) := by
                     unfold pkgB2_stateMonomialAverage
                     dsimp [Good, Pgood, lo, hi, innerMonomial, pkgB2_goodPrimeEvent]
+
+private theorem pkgB2_rootOccurrenceSet_nonempty {b : ℕ} (T : Fin b → CubeTemplate) :
+    (pkgB2_rootOccurrenceSet (T := T) Finset.univ).Nonempty := by
+  classical
+  let rootO : pkgB2_Occurrence T Finset.univ := ⟨Sum.inl (), fun _ => 0⟩
+  let o := (pkgB2_occurrenceEnum T Finset.univ).symm rootO
+  refine ⟨o, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
+  simp [pkgB2_rootOccurrenceSet, pkgB2_occurrenceIsNonroot, o, rootO,
+    pkgB2_occurrenceEnum]
+
 
 
 private theorem pkgB2_alternatingPowersetSum_zero {α : Type*} [DecidableEq α]
@@ -7470,6 +7480,151 @@ theorem pkgB2_signedMomentError_bound {α : Type*} [DecidableEq α]
       rw [hcardP, hcardM]
       push_cast
       rw [pow_add]
+
+
+private theorem pkgB2_filterUpperBound_abs_tendsto_zero {f : ℕ → ℝ}
+    (h : FilterUpperBound atTop (fun N => |f N|) 0) : Tendsto f atTop (𝓝 0) := by
+  refine tendsto_order.2 ⟨?_, ?_⟩
+  · intro b hb
+    have hε : 0 < -b / 2 := by linarith
+    filter_upwards [h (-b / 2) hε] with N hN
+    have hAbs := abs_le.mp (by simpa using hN)
+    linarith
+  · intro b hb
+    have hε : 0 < b / 2 := by linarith
+    filter_upwards [h (b / 2) hε] with N hN
+    have hAbs := abs_le.mp (by simpa using hN)
+    linarith
+
+private theorem pkgB2_terminalState_tendsto_zero {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k) (hsl : 0 < sl)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (hNonroot : Nonempty (pkgB2_Nonroot T))
+    (I : ∀ N, ∀ k, DualInput MS B (T k) N) :
+    Tendsto (fun N => pkgB2_stateAverage MS B gap T J0 hgap hT hJ0
+      direction hdir k0 Finset.univ N (I N)) atTop (𝓝 0) := by
+  classical
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
+  let q := Fintype.card (pkgB2_Occurrence T Finset.univ)
+  let C : ℝ := (2 : ℝ) ^ (plus.card + minus.card)
+  have hC : 0 < C := by dsimp [C]; positivity
+  have hdisj : Disjoint plus minus := by
+    rw [Finset.disjoint_left]
+    intro o ho hm
+    exact (Finset.mem_filter.mp hm).2 (Finset.mem_filter.mp ho).2
+  have hminus : minus.Nonempty := by
+    simpa [minus] using pkgB2_rootOccurrenceSet_nonempty T
+  have hclose (U : Finset (Fin q)) (ε : ℝ) (hε : 0 < ε) :
+      ∀ᶠ N : ℕ in atTop,
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+    have hlim := pkgB2_weightedGoodMonomial_tendsto_one MS B gap T J0
+      hgap hT hJ0 hsl direction hdir k0 Finset.univ U
+    have hlimState :
+        Tendsto (fun N => pkgB2_stateMonomialAverage MS B gap T J0 hT
+          Finset.univ direction N U) atTop (𝓝 1) := by
+      have hEq : (fun N =>
+          weightedLinearFormsAverage
+              (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+                direction hdir k0 Finset.univ U) N
+              (fun p => pkgB2_goodPrimeEvent MS gap T hT N p) /
+            weightedLinearFormsEventProbability
+              (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
+                direction hdir k0 Finset.univ U) N
+              (pkgB2_goodPrimeEvent MS gap T hT N)) =ᶠ[atTop]
+          fun N => pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U := by
+        filter_upwards with N
+        exact (pkgB2_stateMonomialAverage_eq_wlf MS B gap T J0 hgap hT hJ0
+          direction hdir k0 Finset.univ U N).symm
+      exact hlim.congr' hEq
+    have hdist : Tendsto
+        (fun N => |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1|)
+        atTop (𝓝 0) := by
+      simpa [Real.norm_eq_abs] using (tendsto_iff_norm_sub_tendsto_zero).1 hlimState
+    filter_upwards [hdist.eventually (Iio_mem_nhds hε)] with N hN
+    exact le_of_lt hN
+  have hcloseForP (ε : ℝ) (hε : 0 < ε)
+      (P : Finset (Fin q)) : ∀ᶠ N : ℕ in atTop,
+        ∀ M ∈ minus.powerset,
+          |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+    have h := (eventually_all_finset minus.powerset).2
+      (fun M hM => hclose (P ∪ M) ε hε)
+    exact h
+  have hclosePairs (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
+      ∀ P ∈ plus.powerset, ∀ M ∈ minus.powerset,
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+    have h := (eventually_all_finset plus.powerset).2
+      (fun P hP => hcloseForP ε hε P)
+    exact h
+  have hbound (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+          Finset.univ N (I N)| ≤ C * ε := by
+    filter_upwards [hclosePairs ε hε] with N hcloseN
+    have hPartition : plus ∪ minus = Finset.univ := by
+      ext o
+      simp only [Finset.mem_union, Finset.mem_univ]
+      constructor
+      · intro h
+        trivial
+      · intro _
+        by_cases hn : pkgB2_occurrenceIsNonroot (T := T) Finset.univ o
+        · exact Or.inl (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+        · exact Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+    have hmain : ∀ U : Finset (Fin q),
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+      intro U
+      let P := U ∩ plus
+      let M := U ∩ minus
+      have hP : P ∈ plus.powerset := Finset.mem_powerset.mpr (by
+        intro o ho
+        exact (Finset.mem_inter.mp ho).2)
+      have hM : M ∈ minus.powerset := Finset.mem_powerset.mpr (by
+        intro o ho
+        exact (Finset.mem_inter.mp ho).2)
+      have hU : U = P ∪ M := by
+        ext o
+        constructor
+        · intro hoU
+          have hsplit : o ∈ plus ∨ o ∈ minus := by
+            have : o ∈ plus ∪ minus := by rw [hPartition]; exact Finset.mem_univ o
+            simpa using this
+          rcases hsplit with hplus | hminus
+          · exact Finset.mem_union.mpr (Or.inl (Finset.mem_inter.mpr ⟨hoU, hplus⟩))
+          · exact Finset.mem_union.mpr (Or.inr (Finset.mem_inter.mpr ⟨hoU, hminus⟩))
+        · intro h
+          rcases Finset.mem_union.mp h with hP | hM
+          · exact (Finset.mem_inter.mp hP).1
+          · exact (Finset.mem_inter.mp hM).1
+      rw [hU]
+      exact hcloseN P hP M hM
+    have hexpand := pkgB2_terminalStateAverage_expansion MS B gap T J0 hgap hT hJ0
+      direction hdir k0 N (I N) hNonroot
+    rw [hexpand]
+    have herr := pkgB2_signedMomentError_bound plus minus 1
+      (pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N)
+      ε (le_of_lt hε) hmain hminus
+    simpa [C, plus, minus] using herr
+  have hupper : FilterUpperBound atTop
+      (fun N => |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0
+        Finset.univ N (I N)|) 0 := by
+    intro ε hε
+    let δ := ε / (2 * C)
+    have hδ : 0 < δ := by dsimp [δ]; positivity
+    filter_upwards [hbound δ hδ] with N hN
+    have hCδ : C * δ ≤ ε := by
+      dsimp [δ]
+      have hC0 : C ≠ 0 := ne_of_gt hC
+      field_simp [hC0]
+      nlinarith
+    have hN' := hN.trans hCδ
+    simpa using hN'
+  exact pkgB2_filterUpperBound_abs_tendsto_zero hupper
+
 
 
 end Prediction
