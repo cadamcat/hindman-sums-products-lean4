@@ -1529,6 +1529,26 @@ private theorem harmonicProductLaw_tsum_eq_one {k : ℕ} (W : ℕ)
     rw [← hprod]
     exact hcop_product t ht
 
+private theorem harmonicProductLaw_nonneg {k : ℕ} (W : ℕ)
+    (X : Fin k → ℕ) (hX : ∀ i, 0 < X i)
+    (hH : ∀ i, 0 < harmonicNormalizer (X i) W) (σ : ℕ) :
+    0 ≤ harmonicProductLaw W X σ := by
+  classical
+  unfold harmonicProductLaw
+  apply tsum_nonneg
+  intro t
+  by_cases hprod : ∏ i, t i = σ
+  · simp only [if_pos hprod, one_mul]
+    apply Finset.prod_nonneg
+    intro i hi
+    unfold harmonicNatLaw
+    split_ifs with h
+    · have htpos : 0 < t i := lt_of_lt_of_le (hX i) h.1
+      have htR : (0 : ℝ) < (t i : ℝ) := by exact_mod_cast htpos
+      positivity [hH i]
+    · simp
+  · simp [hprod]
+
 private theorem harmonicProductLaw_primeValuationMass {k : ℕ} (W p : ℕ)
     (hp : p.Prime) (hpW : p ∣ W) (X : Fin k → ℕ)
     (hX : ∀ i, 0 < X i) (hH : ∀ i, 0 < harmonicNormalizer (X i) W) (a : ℕ) :
@@ -4210,6 +4230,96 @@ private theorem independentPrimeVectorMass_le {q : ℕ} (P : Finset ℕ)
       exact mul_nonneg (hlawNonneg u n) (by split_ifs <;> norm_num))
     (by intro u hu; exact hupper u)
     (by intro u hu; exact hrow u)
+
+private theorem divisorTuplePrimeVectorMass_le {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N W : ℕ) (hW : 0 < W) (hWdef : W = primorial (N + 1))
+    (P : Finset ℕ) (hprime : ∀ p ∈ P, p.Prime)
+    (hcop : ∀ p ∈ P, Nat.Coprime p W)
+    (hXscale : ∀ i : Fin n, 4 * W ≤ S.core.parameters.X N i)
+    (hlog : ∀ i : Fin n, 4 * (W : ℝ) ≤ Real.log (S.core.parameters.X N i : ℝ))
+    (a : ℕ → Fin q → ℕ) :
+    (∑' σ : Fin q → ℕ,
+      (∏ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u)) *
+        (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) ≤
+      ∏ u, (6 : ℝ) ^ b * ∏ p ∈ P,
+        (((a p u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a p u)) := by
+  classical
+  let laws : Fin q → ℕ → ℝ := fun u =>
+    divisorTemplateLaw S.core.parameters N (D.divisor u)
+  let support : Fin q → Finset ℕ := fun u =>
+    harmonicProductSupport W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j))
+  have hlawZero (u : Fin q) (σ : ℕ) (hσ : σ ∉ support u) : laws u σ = 0 := by
+    dsimp [laws, divisorTemplateLaw]
+    rw [← hWdef]
+    exact harmonicProductLaw_zero_of_not_mem_support W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j)) σ
+      (by simpa [support] using hσ)
+  have hXraw (u : Fin q) (j : Fin (D.divisor u).arity) :
+      0 < S.core.parameters.X N ((D.divisor u).cutoff j) :=
+    S.core.parameters.Xpos N ((D.divisor u).cutoff j)
+  have hHraw (u : Fin q) (j : Fin (D.divisor u).arity) :
+      0 < harmonicNormalizer
+        (S.core.parameters.X N ((D.divisor u).cutoff j)) W := by
+    apply harmonicNormalizer_pos_of_cutoff _ W hW
+    exact hXscale ((D.divisor u).cutoff j)
+  have hlawNonneg (u : Fin q) (σ : ℕ) : 0 ≤ laws u σ := by
+    dsimp [laws, divisorTemplateLaw]
+    rw [← hWdef]
+    exact harmonicProductLaw_nonneg W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j))
+      (hXraw u) (hHraw u) σ
+  let upper : Fin q → ℝ := fun u => (6 : ℝ) ^ b *
+    ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a p u))
+  have hupper (u : Fin q) : 0 ≤ upper u := by
+    dsimp [upper]
+    positivity
+  have hrow (u : Fin q) :
+      primeVectorMass P (laws u) (fun p => a p u) ≤ upper u := by
+    let Xraw : Fin (D.divisor u).arity → ℕ := fun j =>
+      S.core.parameters.X N ((D.divisor u).cutoff j)
+    have hlocal := harmonicProductLaw_primeVectorMass_le W P hprime hcop Xraw hW
+      (fun j => hXraw u j)
+      (fun j => hXscale ((D.divisor u).cutoff j))
+      (fun j => hlog ((D.divisor u).cutoff j))
+      (hHraw u) (fun p => a p u)
+    have hprodLower :
+        ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ (D.divisor u).arity /
+          (p : ℝ) ^ (a p u)) ≤
+        ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ b /
+          (p : ℝ) ^ (a p u)) := by
+      apply finset_prod_le_prod_of_nonneg
+      · intro p hp
+        positivity
+      · intro p hp
+        positivity
+      · intro p hp
+        have hB : (1 : ℝ) ≤ ((a p u + 1 : ℕ) : ℝ) := by
+          exact_mod_cast (show 1 ≤ a p u + 1 by omega)
+        have hpow := pow_le_pow_right₀ hB (D.divisor u).arity_le
+        exact div_le_div_of_nonneg_right hpow (by positivity)
+    have h6 : (6 : ℝ) ^ (D.divisor u).arity ≤ (6 : ℝ) ^ b :=
+      pow_le_pow_right₀ (by norm_num) (D.divisor u).arity_le
+    change primeVectorMass P (divisorTemplateLaw S.core.parameters N (D.divisor u))
+      (fun p => a p u) ≤ upper u
+    have hlocal' : primeVectorMass P (divisorTemplateLaw S.core.parameters N (D.divisor u))
+        (fun p => a p u) ≤ (6 : ℝ) ^ (D.divisor u).arity *
+          ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ (D.divisor u).arity /
+            (p : ℝ) ^ (a p u)) := by
+      simpa [primeVectorMass, Xraw, laws, divisorTemplateLaw, ← hWdef] using hlocal
+    dsimp [upper]
+    calc
+      primeVectorMass P (divisorTemplateLaw S.core.parameters N (D.divisor u))
+          (fun p => a p u) ≤ (6 : ℝ) ^ (D.divisor u).arity *
+            ∏ p ∈ P, (((a p u + 1 : ℕ) : ℝ) ^ (D.divisor u).arity /
+              (p : ℝ) ^ (a p u)) := hlocal'
+      _ ≤ (6 : ℝ) ^ b * ∏ p ∈ P,
+            (((a p u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a p u)) := by
+          exact mul_le_mul h6 hprodLower (by positivity) (by positivity)
+  exact independentPrimeVectorMass_le P laws support hlawZero hlawNonneg a upper hupper hrow
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
