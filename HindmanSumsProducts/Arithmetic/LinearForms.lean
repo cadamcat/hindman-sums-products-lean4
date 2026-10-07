@@ -251,6 +251,206 @@ theorem local_linear_kernel_count_excess {G H : Type*} [Group G] [Group H]
 def primeValuationMass (law : TailProductLaw) (p a : ℕ) : ℝ :=
   ∑' σ : ℕ, law σ * if Nat.factorization σ p = a then 1 else 0
 
+private def harmonicNatSupport (X W : ℕ) : Finset ℕ :=
+  (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
+
+private theorem harmonicNatLaw_zero_of_not_mem (X W n : ℕ)
+    (hn : n ∉ harmonicNatSupport X W) : harmonicNatLaw X W n = 0 := by
+  have hnot : ¬ (X ≤ n ∧ n < X ^ 2 ∧ Nat.Coprime n W) := by
+    intro h
+    apply hn
+    exact Finset.mem_filter.mpr ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩
+  simp [harmonicNatLaw, hnot]
+
+private theorem harmonicNatLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
+    (hH : 0 < harmonicNormalizer X W) :
+    ∑' n : ℕ, harmonicNatLaw X W n = 1 := by
+  let S := harmonicNatSupport X W
+  have hzero : ∀ n ∉ S, harmonicNatLaw X W n = 0 := by
+    intro n hn
+    exact harmonicNatLaw_zero_of_not_mem X W n (by simpa [S] using hn)
+  rw [tsum_eq_sum (s := S) hzero]
+  calc
+    (∑ n ∈ S, harmonicNatLaw X W n) =
+        ∑ n ∈ S, (1 / (n : ℝ)) / harmonicNormalizer X W := by
+      apply Finset.sum_congr rfl
+      intro n hn
+      have hnIco : n ∈ Finset.Ico X (X ^ 2) := (Finset.mem_filter.mp hn).1
+      have hnrange : X ≤ n ∧ n < X ^ 2 := Finset.mem_Ico.mp hnIco
+      have hnpos : (0 : ℝ) < (n : ℝ) := by
+        exact_mod_cast lt_of_lt_of_le hX hnrange.1
+      have hnvalid : X ≤ n ∧ n < X ^ 2 ∧ Nat.Coprime n W :=
+        ⟨hnrange.1, hnrange.2, (Finset.mem_filter.mp hn).2⟩
+      have hpoint : harmonicNatLaw X W n =
+          1 / ((n : ℝ) * harmonicNormalizer X W) := by
+        simp [harmonicNatLaw, hnvalid.1, hnvalid.2.1, hnvalid.2.2]
+      rw [hpoint]
+      field_simp [ne_of_gt hnpos, ne_of_gt hH]
+    _ = (∑ n ∈ S, 1 / (n : ℝ)) / harmonicNormalizer X W := by
+      rw [Finset.sum_div]
+    _ = 1 := by
+      rw [show (∑ n ∈ S, 1 / (n : ℝ)) = harmonicNormalizer X W by
+        simp [harmonicNormalizer, S, harmonicNatSupport]]
+      exact div_self (ne_of_gt hH)
+
+private theorem harmonicNatTupleLaw_tsum_eq_one {k : ℕ} (W : ℕ)
+    (X : Fin k → ℕ) (hX : ∀ i, 0 < X i)
+    (hH : ∀ i, 0 < harmonicNormalizer (X i) W) :
+    ∑' t : Fin k → ℕ, ∏ i, harmonicNatLaw (X i) W (t i) = 1 := by
+  let S : Fin k → Finset ℕ := fun i => harmonicNatSupport (X i) W
+  let T : Finset (Fin k → ℕ) := Fintype.piFinset S
+  have hzero (t : Fin k → ℕ) (ht : t ∉ T) :
+      ∏ i, harmonicNatLaw (X i) W (t i) = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hμ : harmonicNatLaw (X i) W (t i) = 0 := by
+      exact harmonicNatLaw_zero_of_not_mem (X i) W (t i) (by simpa [S] using hi)
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hμ
+  rw [tsum_eq_sum (s := T) hzero]
+  have hsum (i : Fin k) :
+      ∑ n ∈ S i, harmonicNatLaw (X i) W n = 1 := by
+    have htotal := harmonicNatLaw_tsum_eq_one (X i) W (hX i) (hH i)
+    rw [tsum_eq_sum (s := S i) (fun n hn =>
+      harmonicNatLaw_zero_of_not_mem (X i) W n hn)] at htotal
+    exact htotal
+  calc
+    (∑ t ∈ T, ∏ i, harmonicNatLaw (X i) W (t i)) =
+        ∏ i, ∑ n ∈ S i, harmonicNatLaw (X i) W n := by
+      simpa [T] using (Finset.prod_univ_sum S
+        (fun i n => harmonicNatLaw (X i) W n)).symm
+    _ = 1 := by simp [hsum]
+
+private theorem harmonicProductLaw_tsum_eq_one {k : ℕ} (W : ℕ)
+    (X : Fin k → ℕ) (hX : ∀ i, 0 < X i)
+    (hH : ∀ i, 0 < harmonicNormalizer (X i) W) :
+    (∑' σ : ℕ, harmonicProductLaw W X σ = 1) ∧
+      (∀ σ, harmonicProductLaw W X σ ≠ 0 → Nat.Coprime σ W) := by
+  let S : Fin k → Finset ℕ := fun i => harmonicNatSupport (X i) W
+  let T : Finset (Fin k → ℕ) := Fintype.piFinset S
+  let weight : (Fin k → ℕ) → ℝ := fun t => ∏ i, harmonicNatLaw (X i) W (t i)
+  let product : (Fin k → ℕ) → ℕ := fun t => ∏ i, t i
+  have hweight_zero (t : Fin k → ℕ) (ht : t ∉ T) : weight t = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hμ : harmonicNatLaw (X i) W (t i) = 0 := by
+      exact harmonicNatLaw_zero_of_not_mem (X i) W (t i) (by simpa [S] using hi)
+    dsimp [weight]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hμ
+  have hterm_zero_out (σ : ℕ) (t : Fin k → ℕ) (ht : t ∉ T) :
+      (if product t = σ then 1 else 0) * weight t = 0 := by
+    simp [hweight_zero t ht]
+  have hLawZero (σ : ℕ) (hσ : σ ∉ T.image product) :
+      harmonicProductLaw W X σ = 0 := by
+    unfold harmonicProductLaw
+    rw [tsum_eq_sum (s := T) (hterm_zero_out σ)]
+    apply Finset.sum_eq_zero
+    intro t ht
+    have hp : product t ≠ σ := by
+      intro heq
+      apply hσ
+      exact Finset.mem_image.mpr ⟨t, ht, heq⟩
+    simp [hp]
+  have hLawEq (σ : ℕ) : harmonicProductLaw W X σ =
+      ∑ t ∈ T, (if product t = σ then 1 else 0) * weight t := by
+    unfold harmonicProductLaw
+    rw [tsum_eq_sum (s := T) (hterm_zero_out σ)]
+  have hcop_product (t : Fin k → ℕ) (ht : t ∈ T) : Nat.Coprime (product t) W := by
+    apply Nat.coprime_fintype_prod_left_iff.mpr
+    intro i
+    have hi : t i ∈ harmonicNatSupport (X i) W := by
+      simpa [S] using (Fintype.mem_piFinset.mp ht i)
+    exact (Finset.mem_filter.mp hi).2
+  have htuple : ∑ t ∈ T, weight t = 1 := by
+    have h := harmonicNatTupleLaw_tsum_eq_one W X hX hH
+    have hzero : ∀ t ∉ T, weight t = 0 := hweight_zero
+    simpa [weight, T] using (tsum_eq_sum (s := T) hzero).symm.trans h
+  constructor
+  · rw [tsum_eq_sum (s := T.image product) hLawZero]
+    calc
+      (∑ σ ∈ T.image product, harmonicProductLaw W X σ) =
+          ∑ σ ∈ T.image product, ∑ t ∈ T,
+            (if product t = σ then 1 else 0) * weight t := by
+              apply Finset.sum_congr rfl
+              intro σ hσ
+              exact hLawEq σ
+      _ = ∑ t ∈ T, weight t := by
+            rw [Finset.sum_comm]
+            apply Finset.sum_congr rfl
+            intro t ht
+            have hin : product t ∈ T.image product :=
+              Finset.mem_image.mpr ⟨t, ht, rfl⟩
+            simp [Finset.sum_ite_eq', hin]
+      _ = 1 := htuple
+  · intro σ hσ
+    have himage : σ ∈ T.image product := by
+      by_contra hnot
+      exact hσ (hLawZero σ hnot)
+    obtain ⟨t, ht, hprod⟩ := Finset.mem_image.mp himage
+    rw [← hprod]
+    exact hcop_product t ht
+
+private theorem harmonicProductLaw_primeValuationMass {k : ℕ} (W p : ℕ)
+    (hp : p.Prime) (hpW : p ∣ W) (X : Fin k → ℕ)
+    (hX : ∀ i, 0 < X i) (hH : ∀ i, 0 < harmonicNormalizer (X i) W) (a : ℕ) :
+    primeValuationMass (harmonicProductLaw W X) p a = if a = 0 then 1 else 0 := by
+  obtain ⟨htotal, hsupport⟩ := harmonicProductLaw_tsum_eq_one W X hX hH
+  by_cases ha : a = 0
+  · subst a
+    have hterm (σ : ℕ) :
+        harmonicProductLaw W X σ *
+            (if Nat.factorization σ p = 0 then 1 else 0) = harmonicProductLaw W X σ := by
+      by_cases hmass : harmonicProductLaw W X σ = 0
+      · simp [hmass]
+      · have hcopW := hsupport σ hmass
+        have hcopP : Nat.Coprime σ p := hcopW.coprime_dvd_right hpW
+        have hnot : ¬ p ∣ σ := by
+          intro hdiv
+          have hgcd : Nat.gcd σ p = 1 := Nat.coprime_iff_gcd_eq_one.mp hcopP
+          have hdvd : p ∣ Nat.gcd σ p := Nat.dvd_gcd hdiv (dvd_rfl)
+          rw [hgcd] at hdvd
+          exact hp.not_dvd_one hdvd
+        rw [Nat.factorization_eq_zero_of_not_dvd hnot]
+        simp
+    unfold primeValuationMass
+    calc
+      (∑' σ : ℕ, harmonicProductLaw W X σ *
+          (if Nat.factorization σ p = 0 then 1 else 0)) =
+        ∑' σ : ℕ, harmonicProductLaw W X σ := tsum_congr hterm
+      _ = 1 := htotal
+  · have hterm (σ : ℕ) :
+        harmonicProductLaw W X σ *
+            (if Nat.factorization σ p = a then 1 else 0) = 0 := by
+      by_cases hmass : harmonicProductLaw W X σ = 0
+      · simp [hmass]
+      · have hcopW := hsupport σ hmass
+        have hcopP : Nat.Coprime σ p := hcopW.coprime_dvd_right hpW
+        have hnot : ¬ p ∣ σ := by
+          intro hdiv
+          have hgcd : Nat.gcd σ p = 1 := Nat.coprime_iff_gcd_eq_one.mp hcopP
+          have hdvd : p ∣ Nat.gcd σ p := Nat.dvd_gcd hdiv (dvd_rfl)
+          rw [hgcd] at hdvd
+          exact hp.not_dvd_one hdvd
+        have hval : Nat.factorization σ p = 0 :=
+          Nat.factorization_eq_zero_of_not_dvd hnot
+        simp [hmass, hval, ha, eq_comm]
+    unfold primeValuationMass
+    have hfun : (fun σ : ℕ => harmonicProductLaw W X σ *
+        (if Nat.factorization σ p = a then 1 else 0)) = fun _ => 0 := by
+      funext σ
+      exact hterm σ
+    rw [hfun]
+    simp [ha]
+
+private theorem harmonicNormalizer_pos_of_cutoff (X W : ℕ) (hW : 0 < W)
+    (hX : 4 * W ≤ X) : 0 < harmonicNormalizer X W := by
+  have h := OAI.RawHarmonicProbability.mass_pos X W hW hX
+  simpa [harmonicNormalizer, OAI.DyadicHarmonicBoundary.mass,
+    Finset.sum_filter, one_div, Nat.coprime_comm] using h
+
 /-- Joint Euler-product domination for the q fresh divisor draws: each row has at most b raw
 factors and contributes valuation mass bounded by a polynomial times p⁻ᵃ; a single global
 constant raised to bq dominates the whole product (§3 lines 581–618). -/
@@ -262,7 +462,40 @@ theorem harmonic_divisor_valuation_domination {n q b : ℕ}
         (divisorTemplateLaw A N (D u)) p (a u)) ≤
       C₀ ^ (b * q) * ∏ u,
         ((a u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a u) := by
-  sorry
+  refine ⟨1, by norm_num, ?_⟩
+  have hXall : ∀ᶠ N in atTop, ∀ i : Fin n,
+      4 * primorial (N + 1) ≤ A.X N i := by
+    simp only [Filter.eventually_all]
+    exact fun i => A.eventual_X i
+  have hpN : ∀ᶠ N in atTop, p ≤ N + 1 := by
+    filter_upwards [Filter.eventually_atTop.2 ⟨p, fun N hN => hN⟩] with N hN
+    exact hN.trans (Nat.le_succ N)
+  filter_upwards [hXall, hpN] with N hNX hNp
+  intro a
+  have hWpos : 0 < primorial (N + 1) := primorial_pos _
+  have hpW : p ∣ primorial (N + 1) := hp.dvd_primorial_iff.mpr hNp
+  have hlocal (u : Fin q) :
+      primeValuationMass (divisorTemplateLaw A N (D u)) p (a u) =
+        if a u = 0 then 1 else 0 := by
+    let Xraw : Fin (D u).arity → ℕ := fun i => A.X N ((D u).cutoff i)
+    have hXraw (i : Fin (D u).arity) : 0 < Xraw i := by
+      exact A.Xpos N ((D u).cutoff i)
+    have hXcut (i : Fin (D u).arity) : 4 * primorial (N + 1) ≤ Xraw i :=
+      hNX ((D u).cutoff i)
+    have hHraw (i : Fin (D u).arity) : 0 < harmonicNormalizer (Xraw i) (primorial (N + 1)) :=
+      harmonicNormalizer_pos_of_cutoff _ _ hWpos (hXcut i)
+    change primeValuationMass (harmonicProductLaw (primorial (N + 1)) Xraw) p (a u) = _
+    exact harmonicProductLaw_primeValuationMass (primorial (N + 1)) p hp hpW
+      Xraw hXraw hHraw (a u)
+  by_cases ha0 : ∀ u, a u = 0
+  · simp_rw [hlocal]
+    simp [ha0]
+  · obtain ⟨u, hu⟩ := not_forall.mp ha0
+    have huval : primeValuationMass (divisorTemplateLaw A N (D u)) p (a u) = 0 := by
+      rw [hlocal u]
+      simp [hu]
+    rw [Finset.prod_eq_zero (Finset.mem_univ u) huval]
+    positivity
 
 /-- The two geometric valuation series from regular and exceptional local tests. -/
 def regularDivisorExcessSeries (p q b : ℕ) : ℝ :=
