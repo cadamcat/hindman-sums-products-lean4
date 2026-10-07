@@ -18,6 +18,11 @@ theorem rationalResidue_eq_num_of_den_one {p : ℕ} (hp : p.Prime) (x : ℚ)
   rw [hx]
   simp only [Nat.cast_one, div_one]
 
+theorem rationalResidue_intCast {p : ℕ} (hp : p.Prime) (z : ℤ) :
+    FromArithmetic.rationalResidue p hp (z : ℚ) = (z : ZMod p) := by
+  have h := rationalResidue_eq_num_of_den_one hp (z : ℚ) (by simp)
+  simpa using h
+
 theorem SuperPolynomialSmall.mul_rpow_tendsto {e V : ℕ → ℝ}
     (hsmall : SuperPolynomialSmall e V) (he : ∀ᶠ N in atTop, 0 ≤ e N)
     (hV : ∀ᶠ N in atTop, 1 ≤ V N) (B : ℝ) :
@@ -2114,6 +2119,52 @@ theorem pool_lower_gt_masterScaleV_eventually {K s : ℕ} {Aset : Finset ℚ}
 def RowTemplate.valueNat {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (k : Fin m) : ℕ := (T.entry k).elim 0 fun e => ∏ i, p i ^ e i
 
+theorem RowTemplate.value_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (k : Fin m) : T.value p k = (T.valueNat p k : ℚ) := by
+  cases h : T.entry k <;> simp [RowTemplate.value, RowTemplate.valueNat, h]
+
+def rowShapeLinearCoefficientsInt {m q r s : ℕ} (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (c : Fin m → ℚ) :
+    ℕ → (Fin s → ℕ) → Fin r → Fin m → ℤ :=
+  fun _ p R k => (c k / c (Sh.row R).anchor).num *
+    ((Sh.row R).valueNat (fun i => p (ι i)) k : ℤ)
+
+theorem rowShapeLinearCoefficients_eq_intCast_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, ∀ p R k,
+      rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N) N p R k =
+        (rowShapeLinearCoefficientsInt Sh ι
+          (chainScale S.core.parameters C a N) N p R k : ℚ) := by
+  filter_upwards [chainScale_ratio_den_one_eventually S C a ha] with N hratio
+  intro p R k
+  let T := Sh.row R
+  let c := chainScale S.core.parameters C a N
+  by_cases hk : k ∈ T.support
+  · have hden : (c k / c T.anchor).den = 1 :=
+      hratio T.support T.support_nonempty k hk
+    have hnum : ((c k / c T.anchor).num : ℚ) = c k / c T.anchor :=
+      (Rat.den_eq_one_iff _).mp hden
+    change (c k / c T.anchor) * T.value (fun i => p (ι i)) k =
+      (((c k / c T.anchor).num *
+        (T.valueNat (fun i => p (ι i)) k : ℤ) : ℤ) : ℚ)
+    calc
+      (c k / c T.anchor) * T.value (fun i => p (ι i)) k =
+          ((c k / c T.anchor).num : ℚ) *
+            (T.valueNat (fun i => p (ι i)) k : ℚ) := by
+              conv_lhs => rw [← hnum, T.value_eq_valueNat]
+      _ = (((c k / c T.anchor).num *
+            (T.valueNat (fun i => p (ι i)) k : ℤ) : ℤ) : ℚ) := by
+              rw [Int.cast_mul, Int.cast_natCast]
+  · have hnone : T.entry k = none := by
+      cases h : T.entry k with
+      | none => rfl
+      | some e => exact (hk (by simp [RowTemplate.support, h])).elim
+    simp [rowShapeLinearCoefficients, rowShapeLinearCoefficientsInt,
+      RowTemplate.value, RowTemplate.valueNat, T, c, hnone]
+
 theorem RowTemplate.valueNat_cast_ne_zero_of_slot_not_dvd {m q : ℕ}
     (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) (r : ℕ)
     (hr : r.Prime) (hk : k ∈ T.support) (hslot : ∀ i, ¬ r ∣ p i) :
@@ -2129,10 +2180,6 @@ theorem RowTemplate.valueNat_cast_ne_zero_of_slot_not_dvd {m q : ℕ}
   apply pow_ne_zero
   intro hz
   exact hslot i ((ZMod.natCast_eq_zero_iff (p i) r).mp hz)
-
-theorem RowTemplate.value_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
-    (p : Fin q → ℕ) (k : Fin m) : T.value p k = (T.valueNat p k : ℚ) := by
-  cases h : T.entry k <;> simp [RowTemplate.value, RowTemplate.valueNat, h]
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
