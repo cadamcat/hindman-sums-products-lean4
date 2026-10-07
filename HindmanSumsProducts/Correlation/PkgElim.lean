@@ -3666,6 +3666,124 @@ theorem pkgElim_occurrenceValue_retained {K m q r s : ℕ} {Aset : Finset ℚ}
   simp only [occurrenceRow]
   ring
 
+def pkgElim_momentGlobalData {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (J0 B N : ℕ) : Prop :=
+  (∃ c : Fin m → ℤ,
+    (∀ d, (c d : ℚ) = chainScale S.core.parameters C a N d) ∧
+    (∀ d, 0 < c d) ∧
+    (∀ u d, u < d → ∃ k : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (k : ℤ) * c d) ∧
+    (∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))) ∧
+  (∀ p, GoodTuple S C.gap N tests dirs.poly p →
+    IntegerDirectionFacts S C a N dirs tests B p) ∧
+  0 < primePoolMass (S.primeStage.pool N C.gap).lower
+    (S.primeStage.pool N C.gap).upper ∧
+  masterScaleV S.core.parameters N C.gap + 1 <
+    (S.primeStage.pool N C.gap).lower ∧
+  1 ≤ S.core.parameters.H N C.gap /
+    (J0 * ((S.primeStage.pool N C.gap).upper +
+      masterScaleV S.core.parameters N C.gap) ^ B)
+
+theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q))
+    (J0 B : ℕ) (hJ0 : 0 < J0)
+    (hfactsEvent : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      IntegerDirectionFacts S C a N dirs tests B p) :
+    ∀ᶠ N in atTop, pkgElim_momentGlobalData S C a Sh dirs tests J0 B N := by
+  classical
+  have hcoeff : ∀ᶠ N in atTop,
+      ∃ c : Fin m → ℤ,
+        (∀ d, (c d : ℚ) = chainScale S.core.parameters C a N d) ∧
+        (∀ d, 0 < c d) ∧
+        (∀ u d, u < d → ∃ k : ℕ,
+          c u = (primorial (N + 1) : ℤ) * (k : ℤ) * c d) ∧
+        (∀ d,
+          ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+            (S.core.parameters.M N : ℤ)) := by
+    filter_upwards [S.core.chain_coefficients,
+      S.gapStage.coefficient_divides_modulus] with N hchain hdiv
+    obtain ⟨c, hc, hpos, hratio⟩ := hchain m C a ha
+    refine ⟨c, ?_, hpos, hratio, ?_⟩
+    · simpa [chainScale] using hc
+    · intro d
+      exact hdiv m C a ha c hc d
+  have hmassRatio : Tendsto
+      (fun N => primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper /
+          (masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
+    simpa [pow_one] using S.primeStage.pool_harmonic_mass_dominates C.gap 1 (by norm_num)
+  have hmassEvent : ∀ᶠ N in atTop,
+      0 < primePoolMass (S.primeStage.pool N C.gap).lower
+        (S.primeStage.pool N C.gap).upper := by
+    filter_upwards [hmassRatio.eventually_ge_atTop (1 : ℝ)] with N hN
+    have hV : 0 < (masterScaleV S.core.parameters N C.gap : ℝ) := by
+      unfold masterScaleV
+      positivity
+    have hmul : (masterScaleV S.core.parameters N C.gap : ℝ) ≤
+        primePoolMass (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper := by
+      simpa using (le_div_iff₀ hV).mp hN
+    have hmass : (0 : ℝ) <
+        primePoolMass (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper := lt_of_lt_of_le hV hmul
+    exact hmass
+  have hlowerRatio : Tendsto
+      (fun N => ((S.primeStage.pool N C.gap).lower : ℝ) /
+        (masterScaleV S.core.parameters N C.gap : ℝ)) atTop atTop := by
+    simpa [pow_one] using S.primeStage.pool_lower_dominates C.gap 1 (by norm_num)
+  have hlowerEvent : ∀ᶠ N in atTop,
+      masterScaleV S.core.parameters N C.gap + 1 <
+        (S.primeStage.pool N C.gap).lower := by
+    filter_upwards [hlowerRatio.eventually_ge_atTop (2 : ℝ)] with N hN
+    have hVnat : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+      unfold masterScaleV
+      omega
+    have hV : 0 < (masterScaleV S.core.parameters N C.gap : ℝ) := by positivity
+    have hmul : 2 * (masterScaleV S.core.parameters N C.gap : ℝ) ≤
+        (S.primeStage.pool N C.gap).lower := (le_div_iff₀ hV).mp hN
+    have hmulNat : 2 * masterScaleV S.core.parameters N C.gap ≤
+        (S.primeStage.pool N C.gap).lower := by exact_mod_cast hmul
+    omega
+  let T : ℕ → ℕ := fun N => (S.primeStage.pool N C.gap).upper +
+    masterScaleV S.core.parameters N C.gap
+  have hT : ∀ N, 1 ≤ T N := by
+    intro N
+    dsimp [T]
+    have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+      unfold masterScaleV
+      omega
+    omega
+  have hDmin := nat_div_lower_from_dominance
+    (Filter.Eventually.of_forall hT)
+    (by simpa [T] using S.gapStage.gap_dominates_pool_and_bound C.gap)
+    J0 B 1 hJ0
+  have hDminEvent : ∀ᶠ N in atTop,
+      1 ≤ S.core.parameters.H N C.gap / (J0 * T N ^ B) := by
+    filter_upwards [hDmin] with N hN
+    have hT2 : 2 ≤ T N := by
+      dsimp [T]
+      have hV : 2 ≤ masterScaleV S.core.parameters N C.gap := by
+        unfold masterScaleV
+        omega
+      omega
+    have hN' : T N ≤ S.core.parameters.H N C.gap / (J0 * T N ^ B) := by
+      simpa [pow_one] using hN
+    exact le_trans (by omega) hN'
+  filter_upwards [hcoeff, hfactsEvent, hmassEvent, hlowerEvent, hDminEvent]
+    with N hcoeffN hfactsN hmassN hlowerN hDminN
+  refine ⟨hcoeffN, hfactsN, hmassN, hlowerN, ?_⟩
+  simpa [T] using hDminN
+
 end AdditiveMoment
 
 end HindmanSumsProducts
