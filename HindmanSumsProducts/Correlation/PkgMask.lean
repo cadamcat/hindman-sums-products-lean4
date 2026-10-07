@@ -1213,6 +1213,97 @@ theorem harmonicNatLaw_tsum_one_of_normalizer_pos (X W : ℕ)
       rw [hsum]
       exact div_self hNorm.ne'
 
+theorem parameterTailProductLaw_eq_finite_sum {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (T : Finset (Fin n)) (σ : ℕ) :
+    FromArithmetic.parameterTailProductLaw A N T σ =
+      ∑ t ∈ Fintype.piFinset
+        (fun j : Fin n => Finset.range ((A.X N j) ^ 2)),
+        (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+          ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by
+  classical
+  let D : Finset (Fin n → ℕ) :=
+    Fintype.piFinset fun j => Finset.range ((A.X N j) ^ 2)
+  have hzero (t : Fin n → ℕ) (ht : t ∉ D) :
+      (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    have hnot : ¬ ∀ j, t j < (A.X N j) ^ 2 := by
+      intro hall
+      apply ht
+      apply Fintype.mem_piFinset.mpr
+      intro j
+      simpa only [Finset.mem_range] using hall j
+    push_neg at hnot
+    obtain ⟨j, hj⟩ := hnot
+    have hmass : harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+      have hlt : ¬ t j < (A.X N j) ^ 2 := by omega
+      simp [harmonicNatLaw, hlt]
+    have hprod : ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 :=
+      Finset.prod_eq_zero (s := Finset.univ)
+        (f := fun j => harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j))
+        (Finset.mem_univ j) hmass
+    simp [hprod]
+  unfold FromArithmetic.parameterTailProductLaw
+  exact tsum_eq_sum (s := D) hzero
+
+theorem harmonicProductLaw_eq_finite_sum {q : ℕ}
+    (W : ℕ) (X : Fin q → ℕ) (σ : ℕ) :
+    harmonicProductLaw W X σ =
+      ∑ t ∈ Fintype.piFinset (fun i : Fin q => Finset.range ((X i) ^ 2)),
+        (if (∏ i, t i) = σ then 1 else 0) *
+          ∏ i, harmonicNatLaw (X i) W (t i) := by
+  classical
+  let D : Finset (Fin q → ℕ) :=
+    Fintype.piFinset fun i => Finset.range ((X i) ^ 2)
+  have hzero (t : Fin q → ℕ) (ht : t ∉ D) :
+      (if (∏ i, t i) = σ then 1 else 0) *
+        ∏ i, harmonicNatLaw (X i) W (t i) = 0 := by
+    have hnot : ¬ ∀ i, t i < (X i) ^ 2 := by
+      intro hall
+      apply ht
+      apply Fintype.mem_piFinset.mpr
+      intro i
+      simpa only [Finset.mem_range] using hall i
+    push_neg at hnot
+    obtain ⟨i, hi⟩ := hnot
+    have hmass : harmonicNatLaw (X i) W (t i) = 0 := by
+      have hlt : ¬ t i < (X i) ^ 2 := by omega
+      simp [harmonicNatLaw, hlt]
+    have hprod : ∏ i, harmonicNatLaw (X i) W (t i) = 0 :=
+      Finset.prod_eq_zero (s := Finset.univ)
+        (f := fun i => harmonicNatLaw (X i) W (t i))
+        (Finset.mem_univ i) hmass
+    simp [hprod]
+  unfold harmonicProductLaw
+  exact tsum_eq_sum (s := D) hzero
+
+def finsetComplement {α : Type*} [Fintype α] [DecidableEq α] (T : Finset α) : Finset α :=
+  Finset.univ.filter fun i => i ∉ T
+
+def piFinsetSplit {n : ℕ} [DecidableEq (Fin n)] (T : Finset (Fin n)) :
+    (Fin n → ℕ) ≃ ((∀ i : T, ℕ) × ∀ i : finsetComplement T, ℕ) := by
+  letI : DecidablePred (fun j : Fin n => j ∈ T) :=
+    fun j => Finset.decidableMem j T
+  refine
+    { toFun := fun f => (fun i => f i.1, fun i => f i.1)
+      invFun := fun z j =>
+        if hj : j ∈ T then z.1 ⟨j, hj⟩
+        else z.2 ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj⟩⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro f
+    funext j
+    by_cases hj : j ∈ T <;> simp [hj]
+  · intro z
+    rcases z with ⟨u, v⟩
+    apply Prod.ext
+    · funext i
+      simp [i.property]
+    · funext i
+      have hi : (i : Fin n) ∉ T := by
+        simpa [finsetComplement] using i.property
+      simp [hi]
+
 theorem harmonicLaw_summable (X W : ℕ) : Summable (harmonicLaw X W) := by
   classical
   let S : Finset ℕ := (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
@@ -2485,6 +2576,95 @@ theorem rowShape_minor_value_ne_zero_of_tests {m q r s : ℕ}
   rw [hminor] at hEval
   exact ⟨j, k, by
     simpa only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, Nat.cast_mul] using hEval⟩
+
+theorem rowShapeLinearCoefficients_pairwise_independent_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s)
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm) :
+    ∀ᶠ N in atTop, ∀ p, (∀ i,
+      (S.primeStage.pool N C.gap).lower ≤ p i ∧
+      p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) →
+      ∀ v (hv : v.Prime), N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+      (∀ Q ∈ Dm, ¬ (v : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ))) →
+      ∀ R I, R ≠ I →
+        ∃ j k,
+          FromArithmetic.rationalResidue v hv
+              (rowShapeLinearCoefficients Sh ι
+                (chainScale S.core.parameters C a N) N p R j) *
+            FromArithmetic.rationalResidue v hv
+              (rowShapeLinearCoefficients Sh ι
+                (chainScale S.core.parameters C a N) N p I k) -
+          FromArithmetic.rationalResidue v hv
+              (rowShapeLinearCoefficients Sh ι
+                (chainScale S.core.parameters C a N) N p R k) *
+            FromArithmetic.rationalResidue v hv
+              (rowShapeLinearCoefficients Sh ι
+                (chainScale S.core.parameters C a N) N p I j) ≠ 0 := by
+  filter_upwards [rowShapeLinearCoefficients_eq_intCast_eventually S C a ha Sh ι,
+      chainScale_pos_eventually S C a ha,
+      chainScale_ratio_den_one_eventually S C a ha,
+      rowShapeScaleNumerator_unit_eventually S C a ha Sh,
+      pool_lower_gt_masterScaleV_eventually S C.gap] with
+    N hcoeff hpos hden hunit hpoolLower
+  intro p hp v hv hNv hvV havoid R I hRI
+  letI : Fact v.Prime := ⟨hv⟩
+  obtain ⟨j, k, hminor⟩ :=
+    rowShape_minor_value_ne_zero_of_tests Sh ι Dm hlisted p v hv havoid R I hRI
+  let T := Sh.row R
+  let U := Sh.row I
+  let p' : Fin q → ℕ := fun i => p (ι i)
+  let c := chainScale S.core.parameters C a N
+  have hTa : c T.anchor ≠ 0 := ne_of_gt (hpos T.anchor)
+  have hUa : c U.anchor ≠ 0 := ne_of_gt (hpos U.anchor)
+  have hdenT : ∀ i, i ∈ T.support → (c i / c T.anchor).den = 1 := by
+    intro i hi
+    exact hden T.support T.support_nonempty i hi
+  have hdenU : ∀ i, i ∈ U.support → (c i / c U.anchor).den = 1 := by
+    intro i hi
+    exact hden U.support U.support_nonempty i hi
+  have hunitT : ∀ i, i ∈ T.support →
+      ((c i / c T.anchor).num : ZMod v) ≠ 0 := by
+    intro i hi
+    exact hunit R i hi v hv hNv
+  have hunitU : ∀ i, i ∈ U.support →
+      ((c i / c U.anchor).num : ZMod v) ≠ 0 := by
+    intro i hi
+    exact hunit I i hi v hv hNv
+  obtain ⟨F, hfactor, hF⟩ := rowTemplateIntegerMinor_factor c T U p' v hv
+    hTa hUa hdenT hdenU hunitT hunitU j k
+  have hminorInt :
+      (((T.valueNat p' j * U.valueNat p' k : ℕ) : ℤ) -
+        ((T.valueNat p' k * U.valueNat p' j : ℕ) : ℤ) : ZMod v) ≠ 0 := by
+    simpa only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, Nat.cast_mul] using hminor
+  have hdetCast :
+      ((rowTemplateIntegerCoefficient c T p' j *
+          rowTemplateIntegerCoefficient c U p' k -
+        rowTemplateIntegerCoefficient c T p' k *
+          rowTemplateIntegerCoefficient c U p' j : ℤ) : ZMod v) ≠ 0 := by
+    have hfactorCast := congrArg (fun z : ℤ => (z : ZMod v)) hfactor
+    have heq :
+        ((rowTemplateIntegerCoefficient c T p' j *
+            rowTemplateIntegerCoefficient c U p' k -
+          rowTemplateIntegerCoefficient c T p' k *
+            rowTemplateIntegerCoefficient c U p' j : ℤ) : ZMod v) =
+          (F : ZMod v) *
+            (((T.valueNat p' j * U.valueNat p' k : ℕ) : ℤ) -
+              ((T.valueNat p' k * U.valueNat p' j : ℕ) : ℤ) : ZMod v) := by
+      simpa only [Int.cast_sub, Int.cast_mul] using hfactorCast
+    rw [heq]
+    exact mul_ne_zero hF hminorInt
+  have hres (L : Fin r) (i : Fin m) :
+      FromArithmetic.rationalResidue v hv
+          (rowShapeLinearCoefficients Sh ι c N p L i) =
+        ((rowTemplateIntegerCoefficient c (Sh.row L) p' i : ℤ) : ZMod v) := by
+    rw [hcoeff p L i]
+    rw [rationalResidue_intCast]
+    rfl
+  refine ⟨j, k, ?_⟩
+  rw [hres R j, hres I k, hres R k, hres I j]
+  simpa only [Int.cast_sub, Int.cast_mul] using hdetCast
 
 theorem rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
     {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
