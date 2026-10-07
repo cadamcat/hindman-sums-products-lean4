@@ -362,7 +362,7 @@ theorem opus_dpo_cs_step (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ}
       |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 E N I| ^ 2 ≤
         opus_dpo_prefactor MS B gap T J0 hT direction E s N *
           pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (insert s E) N I := by
-  sorry
+  exact opus_dpo_cs_step_proof MS B gap T J0 hgap hT hJ0 direction hdir k0 E s hs
 
 /-- Part: the elimination prefactor is eventually nonnegative and bounded (expand `Ω` into
 `ν`-monomials over the copies of row `s` and apply the weighted linear-forms estimate,

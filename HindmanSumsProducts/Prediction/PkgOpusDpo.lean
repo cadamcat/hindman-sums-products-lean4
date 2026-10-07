@@ -3244,6 +3244,2108 @@ theorem opus_dpo_replica_identity_proof {K sl b : ℕ} {As : Finset ℚ}
   intro k _
   rfl
 
+
+/-! ### Cauchy–Schwarz elimination step: helpers copied from lane sol-dpop
+(`PkgDpoS.lean` and the scratch `SolDpopCheck.lean`, snapshot 2026-10-08, prefix renamed) -/
+
+section OpusDpoS
+
+
+theorem opus_dpo_s_direction_integers (d : ℕ) (ω : Finset (Fin d)) (hω : ω.Nonempty) :
+    ∃ a : Fin (d + 1) → ℤ, a 0 ≠ 0 ∧ a 0 + ∑ j ∈ ω, a j.succ = 0 ∧
+      ∀ ω' : Finset (Fin d), ω' ≠ ω → a 0 + ∑ j ∈ ω', a j.succ ≠ 0 := by
+  classical
+  let a : Fin (d + 1) → ℤ := Fin.cases (ω.card : ℤ)
+    (fun j => if j ∈ ω then -1 else 1)
+  refine ⟨a, ?_, ?_, ?_⟩
+  · simp only [a, Fin.cases_zero]
+    exact_mod_cast (Finset.card_pos.mpr hω).ne'
+  · have hωsum : ∑ j ∈ ω, (if j ∈ ω then -1 else 1) =
+        -(ω.card : ℤ) := by
+      calc
+        _ = ∑ _j ∈ ω, (-1 : ℤ) := by
+          apply Finset.sum_congr rfl
+          intro j hj
+          simp [hj]
+        _ = -(ω.card : ℤ) := by simp [Finset.sum_const]
+    simpa [a, Fin.cases_succ, hωsum]
+  · intro ω' hne
+    have hsum : ∑ j ∈ ω', a j.succ =
+        -((ω' ∩ ω).card : ℤ) + ((ω' \ ω).card : ℤ) := by
+      have hdecomp : ω' = ω' ∩ ω ∪ (ω' \ ω) := by
+        ext j
+        simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
+        tauto
+      have hdisj : Disjoint (ω' ∩ ω) (ω' \ ω) := by
+        rw [Finset.disjoint_iff_inter_eq_empty]
+        ext j
+        simp
+      conv_lhs => rw [hdecomp]
+      rw [Finset.sum_union hdisj]
+      simp only [a, Fin.cases_succ]
+      have hleft : ∑ j ∈ ω' ∩ ω, (if j ∈ ω then -1 else 1) =
+          -((ω' ∩ ω).card : ℤ) := by
+        calc
+          _ = ∑ _j ∈ ω' ∩ ω, (-1 : ℤ) := by
+            apply Finset.sum_congr rfl
+            intro j hj
+            simp only [Finset.mem_inter] at hj
+            simp [hj.2]
+          _ = -((ω' ∩ ω).card : ℤ) := by simp [Finset.sum_const]
+      have hright : ∑ j ∈ ω' \ ω, (if j ∈ ω then -1 else 1) =
+          ((ω' \ ω).card : ℤ) := by
+        calc
+          _ = ∑ _j ∈ ω' \ ω, (1 : ℤ) := by
+            apply Finset.sum_congr rfl
+            intro j hj
+            simp only [Finset.mem_sdiff] at hj
+            simp [hj.2]
+          _ = ((ω' \ ω).card : ℤ) := by simp [Finset.sum_const]
+      rw [hleft, hright]
+    have hcard : (ω.card : ℤ) =
+        ((ω \ ω').card : ℤ) + ((ω ∩ ω').card : ℤ) := by
+      exact_mod_cast (Finset.card_sdiff_add_card_inter ω ω').symm
+    have hneZero : ((ω \ ω').card : ℤ) + ((ω' \ ω).card : ℤ) ≠ 0 := by
+      intro hz
+      have hleft : ((ω \ ω').card : ℤ) = 0 := by nlinarith
+      have hright : ((ω' \ ω).card : ℤ) = 0 := by nlinarith
+      have hleftN : (ω \ ω').card = 0 := by exact_mod_cast hleft
+      have hrightN : (ω' \ ω).card = 0 := by exact_mod_cast hright
+      have hωsub : ω ⊆ ω' := Finset.sdiff_eq_empty_iff_subset.mp
+        (Finset.card_eq_zero.mp hleftN)
+      have hω'sub : ω' ⊆ ω := Finset.sdiff_eq_empty_iff_subset.mp
+        (Finset.card_eq_zero.mp hrightN)
+      exact hne (Finset.Subset.antisymm hω'sub hωsub)
+    intro hz
+    have hz' : (ω.card : ℤ) +
+        ∑ j ∈ ω', a j.succ = 0 := by
+      change a 0 + ∑ j ∈ ω', a j.succ = 0
+      exact hz
+    rw [hsum] at hz'
+    rw [Finset.inter_comm ω ω'] at hcard
+    apply hneZero
+    linarith
+
+def opus_dpo_s_blockScale {K : ℕ} (A : Parameters K) (B : Block K) (N : ℕ) : ℕ :=
+  2 + A.M N + ∏ j ∈ B.2.val, (A.X N j) ^ 2
+
+theorem opus_dpo_s_blockScale_le_masterScaleV {K : ℕ} (A : Parameters K) (B : Block K)
+    (l : Fin K) (h : ∀ j ∈ B.2.val, j < l) (N : ℕ) :
+    opus_dpo_s_blockScale A B N ≤ masterScaleV A N l := by
+  unfold opus_dpo_s_blockScale masterScaleV
+  apply Nat.add_le_add_left
+  apply Finset.prod_le_prod_of_subset_of_one_le
+  · intro j hj
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ j, h j hj⟩
+  · intro j _ _
+    exact Nat.one_le_pow _ _ (A.Xpos N j)
+
+def opus_dpo_s_direction (d : ℕ) (ω : Finset (Fin d)) (hω : ω.Nonempty) : Fin (d + 1) → ℤ :=
+  Classical.choose (opus_dpo_s_direction_integers d ω hω)
+
+theorem opus_dpo_s_direction_spec (d : ℕ) (ω : Finset (Fin d)) (hω : ω.Nonempty) :
+    opus_dpo_s_direction d ω hω 0 ≠ 0 ∧
+    opus_dpo_s_direction d ω hω 0 + ∑ j ∈ ω, opus_dpo_s_direction d ω hω j.succ = 0 ∧
+    ∀ ω' : Finset (Fin d), ω' ≠ ω →
+      opus_dpo_s_direction d ω hω 0 + ∑ j ∈ ω', opus_dpo_s_direction d ω hω j.succ ≠ 0 :=
+  Classical.choose_spec (opus_dpo_s_direction_integers d ω hω)
+
+theorem opus_dpo_s_direction_response_zero_iff (d : ℕ) (ω : Finset (Fin d))
+    (hω : ω.Nonempty) (ω' : Finset (Fin d)) :
+    opus_dpo_s_direction d ω hω 0 + ∑ j ∈ ω', opus_dpo_s_direction d ω hω j.succ = 0 ↔ ω' = ω := by
+  constructor
+  · intro hz
+    by_contra hne
+    exact (opus_dpo_s_direction_spec d ω hω).2.2 ω' hne hz
+  · intro h
+    rw [h]
+    exact (opus_dpo_s_direction_spec d ω hω).2.1
+
+theorem opus_dpo_s_scaled_direction_response_ne_zero (d : ℕ) (ω : Finset (Fin d))
+    (hω : ω.Nonempty) (ω' : Finset (Fin d)) (hne : ω' ≠ ω)
+    (M : ℤ) (hM : M ≠ 0) :
+    M * (opus_dpo_s_direction d ω hω 0 + ∑ j ∈ ω', opus_dpo_s_direction d ω hω j.succ) ≠ 0 :=
+  mul_ne_zero hM ((opus_dpo_s_direction_spec d ω hω).2.2 ω' hne)
+
+section Copies
+
+variable {R J C F : Type*} [Field F]
+
+/-- The support predicate is fixed before reducing responses modulo a prime. -/
+abbrev opus_dpo_s_Copy (active : R → J → Prop) (E : Finset J) :=
+  Σ r : R, ({j : J // j ∈ E ∧ active r j} → Fin 2)
+
+def opus_dpo_s_copyCoeff (c : R → C → F) (ρ : R → J → F)
+    (active : R → J → Prop) (E : Finset J)
+    (o : opus_dpo_s_Copy active E) : C ⊕ (J × Fin 2) → F := by
+  classical
+  exact Sum.elim (c o.1) fun js =>
+    if h : js.1 ∈ E ∧ active o.1 js.1 then
+      if o.2 ⟨js.1, h⟩ = js.2 then ρ o.1 js.1 else 0
+    else if js.2 = 0 then ρ o.1 js.1 else 0
+
+theorem opus_dpo_s_copyCoeff_anchor (c : R → C → F) (ρ : R → J → F)
+    (active : R → J → Prop) (E : Finset J)
+    (a : C) (ha : ∀ r, c r a = 1) (o : opus_dpo_s_Copy active E) :
+    opus_dpo_s_copyCoeff c ρ active E o (.inl a) = 1 := ha o.1
+
+/-- Different base rows separate on an old column; different copies separate
+on a branch column. Taking the anchor as the other column gives a minor. -/
+theorem opus_dpo_s_copies_pairwise_minor (c : R → C → F) (ρ : R → J → F)
+    (active : R → J → Prop) (E : Finset J)
+    (a : C) (ha : ∀ r, c r a = 1)
+    (hsep : ∀ r s, r ≠ s → ∃ j, c r j ≠ c s j)
+    (hresp : ∀ r j, active r j → ρ r j ≠ 0)
+    (o v : opus_dpo_s_Copy active E) (hne : o ≠ v) :
+    ∃ j : C ⊕ (J × Fin 2),
+      opus_dpo_s_copyCoeff c ρ active E o (.inl a) * opus_dpo_s_copyCoeff c ρ active E v j ≠
+        opus_dpo_s_copyCoeff c ρ active E o j * opus_dpo_s_copyCoeff c ρ active E v (.inl a) := by
+  classical
+  simp only [opus_dpo_s_copyCoeff_anchor c ρ active E a ha, one_mul, mul_one]
+  by_cases hrs : o.1 = v.1
+  · rcases o with ⟨r, f⟩
+    rcases v with ⟨s, g⟩
+    simp only at hrs
+    subst s
+    have hfg : f ≠ g := by
+      intro h
+      subst g
+      exact hne rfl
+    obtain ⟨j, hj⟩ := Function.ne_iff.mp hfg
+    refine ⟨.inr (j.1, f j), ?_⟩
+    have hgf : g j ≠ f j := Ne.symm hj
+    simpa [opus_dpo_s_copyCoeff, j.2, hgf] using (hresp r j.1 j.2.2).symm
+  · obtain ⟨j, hj⟩ := hsep o.1 v.1 hrs
+    exact ⟨.inl j, hj.symm⟩
+
+end Copies
+
+
+theorem opus_dpo_s_finite_weighted_cauchy {α : Type*} [Fintype α]
+    (μ Ω H₀ H₁ : α → ℝ)
+    (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+    (h₀ : ∀ x, |H₀ x| ≤ Ω x) :
+    |∑ x : α, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+      (∑ x, μ x * Ω x) * ∑ x, μ x * (Ω x * H₁ x ^ 2) := by
+  classical
+  let w : α → ℝ := fun x => μ x * Ω x
+  have hw (x : α) : 0 ≤ w x := mul_nonneg (hμ x) (hΩ x)
+  have hcsWeighted (f : α → ℝ) :
+      |∑ x : α, w x * f x| ^ 2 ≤ (∑ x, w x) * ∑ x, w x * f x ^ 2 := by
+    let u : α → ℝ := fun x => Real.sqrt (w x)
+    let v : α → ℝ := fun x => Real.sqrt (w x) * f x
+    have hsumuv : (∑ x : α, u x * v x) = ∑ x, w x * f x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [u, v]
+      calc
+        Real.sqrt (w x) * (Real.sqrt (w x) * f x) =
+            (Real.sqrt (w x) ^ 2) * f x := by ring
+        _ = w x * f x := by rw [Real.sq_sqrt (hw x)]
+    have hsumu : (∑ x : α, u x ^ 2) = ∑ x, w x := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [u]
+      exact Real.sq_sqrt (hw x)
+    have hsumv : (∑ x : α, v x ^ 2) = ∑ x, w x * f x ^ 2 := by
+      apply Finset.sum_congr rfl
+      intro x hx
+      dsimp [v]
+      rw [mul_pow, Real.sq_sqrt (hw x)]
+    have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α) u v
+    rw [hsumuv, hsumu, hsumv] at hcs
+    simpa only [sq_abs] using hcs
+  have hdom : |∑ x : α, μ x * (H₀ x * H₁ x)| ≤
+      ∑ x : α, w x * |H₁ x| := by
+    calc
+      _ ≤ ∑ x : α, |μ x * (H₀ x * H₁ x)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ x : α, w x * |H₁ x| := by
+        apply Finset.sum_le_sum
+        intro x hx
+        rw [abs_mul, abs_mul, abs_of_nonneg (hμ x)]
+        calc
+          μ x * (|H₀ x| * |H₁ x|) = (μ x * |H₀ x|) * |H₁ x| := by ring
+          _ ≤ (μ x * Ω x) * |H₁ x| :=
+            mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (h₀ x) (hμ x))
+              (abs_nonneg _)
+          _ = w x * |H₁ x| := by rfl
+  have hsumNonneg : 0 ≤ ∑ x : α, w x * |H₁ x| :=
+    Finset.sum_nonneg fun x hx => mul_nonneg (hw x) (abs_nonneg _)
+  have hcs := hcsWeighted (fun x => |H₁ x|)
+  have hcs' : (∑ x : α, w x * |H₁ x|) ^ 2 ≤
+      (∑ x : α, w x) * ∑ x : α, w x * |H₁ x| ^ 2 := by
+    have habs : |(∑ x : α, w x * |H₁ x|)| = ∑ x : α, w x * |H₁ x| :=
+      abs_of_nonneg hsumNonneg
+    rw [habs] at hcs
+    exact hcs
+  calc
+    |∑ x : α, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+        (∑ x : α, w x * |H₁ x|) ^ 2 := by
+          have hleft : 0 ≤ |∑ x : α, μ x * (H₀ x * H₁ x)| := abs_nonneg _
+          nlinarith [hdom, hsumNonneg, hleft]
+    _ ≤ (∑ x : α, w x) * ∑ x : α, w x * |H₁ x| ^ 2 := hcs'
+    _ = (∑ x : α, μ x * Ω x) * ∑ x : α, μ x * (Ω x * H₁ x ^ 2) := by
+      have hsumW : (∑ x : α, w x) = ∑ x, μ x * Ω x := by simp [w]
+      have hsumWH : (∑ x : α, w x * |H₁ x| ^ 2) =
+          ∑ x, μ x * (Ω x * H₁ x ^ 2) := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        simp only [w, sq_abs]
+        ring
+      rw [hsumW, hsumWH]
+
+
+/-- Iterate a finite family of weighted square inequalities without requiring signed states
+at intermediate stages to be nonnegative. -/
+theorem opus_dpo_s_iterate_abs_cauchy {α : Type*} [Fintype α] [DecidableEq α]
+    (F : Finset α → ℝ) (C : ℝ) (hC : 0 < C)
+    (hstep : ∀ E r, r ∉ E → |F E| ^ 2 ≤ C * |F (insert r E)|) :
+    |F ∅| ^ (2 ^ Fintype.card α) ≤
+      C ^ (2 ^ Fintype.card α - 1) * |F Finset.univ| := by
+  simpa only [abs_abs] using c_elim2_iterate_box_cauchy
+    (fun E => |F E|) C hC (fun E _ r _ hr => by simpa using hstep E r hr)
+    (fun E _ => abs_nonneg (F E))
+
+/-- Uniform smallness of the terminal state propagates back through finitely many
+weighted square inequalities with a fixed bound on their prefactors. -/
+theorem opus_dpo_s_uniform_initial_small {α : Type*} [Fintype α] [DecidableEq α]
+    {Input : ℕ → Type*} (F : (N : ℕ) → Input N → Finset α → ℝ)
+    (C : ℝ) (hC : 0 < C)
+    (hstep : ∀ᶠ N in atTop, ∀ I : Input N, ∀ E r, r ∉ E →
+      |F N I E| ^ 2 ≤ C * |F N I (insert r E)|)
+    (hterminal : ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : Input N,
+      |F N I Finset.univ| ≤ ε) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : Input N, |F N I ∅| ≤ ε := by
+  intro ε hε
+  let n := 2 ^ Fintype.card α
+  let A := C ^ (n - 1)
+  have hn : n ≠ 0 := by dsimp [n]; positivity
+  have hA : 0 < A := by dsimp [A]; positivity
+  let δ := ε ^ n / A
+  have hδ : 0 < δ := by dsimp [δ]; positivity
+  filter_upwards [hstep, hterminal δ hδ] with N hN ht I
+  have hp := opus_dpo_s_iterate_abs_cauchy (F N I) C hC (hN I)
+  have hpow : |F N I ∅| ^ n ≤ ε ^ n := by
+    calc
+      _ ≤ A * |F N I Finset.univ| := hp
+      _ ≤ A * δ := mul_le_mul_of_nonneg_left (ht I) (le_of_lt hA)
+      _ = ε ^ n := by dsimp [δ]; field_simp
+  exact (pow_le_pow_iff_left₀ (abs_nonneg _) (le_of_lt hε) hn).mp hpow
+
+/-- The inserted average and original pairing need only be uniformly close; no fixed
+moment prebound is needed after the initial state itself has been shown to be small. -/
+theorem opus_dpo_s_uniform_transfer {Input : ℕ → Type*}
+    (f g : (N : ℕ) → Input N → ℝ)
+    (hf : ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : Input N, |f N I| ≤ ε)
+    (hclose : ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : Input N, |g N I - f N I| ≤ ε) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : Input N, |g N I| ≤ ε := by
+  intro ε hε
+  filter_upwards [hf (ε / 2) (by positivity), hclose (ε / 2) (by positivity)]
+    with N hfN hcN I
+  calc
+    |g N I| = |(g N I - f N I) + f N I| := by congr 1; ring
+    _ ≤ |g N I - f N I| + |f N I| := abs_add_le _ _
+    _ ≤ ε / 2 + ε / 2 := add_le_add (hcN I) (hfN I)
+    _ = ε := by ring
+
+/-- A weighted square step for an arbitrary finite outside law and arbitrary selected
+coordinate laws. Each replica may use a different translation interval. -/
+theorem opus_dpo_s_weighted_coordinate_step {α β : Type*} [Fintype α] [Fintype β]
+    (μ : α → ℝ) (σ : α → β → ℝ) (H₀ Ω : α → ℝ) (H : α → β → ℝ)
+    (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+    (hH₀ : ∀ x, |H₀ x| ≤ Ω x) :
+    |∑ x, μ x * (H₀ x * ∑ z, σ x z * H x z)| ^ 2 ≤
+      (∑ x, μ x * Ω x) *
+        ∑ x, μ x * (Ω x * ∑ z₀, ∑ z₁,
+          σ x z₀ * σ x z₁ * (H x z₀ * H x z₁)) := by
+  have hsq (x : α) : (∑ z, σ x z * H x z) ^ 2 =
+      ∑ z₀, ∑ z₁, σ x z₀ * σ x z₁ * (H x z₀ * H x z₁) := by
+    rw [pow_two, Finset.sum_mul_sum]
+    apply Finset.sum_congr rfl
+    intro z₀ _
+    apply Finset.sum_congr rfl
+    intro z₁ _
+    ring
+  simpa only [hsq] using opus_dpo_s_finite_weighted_cauchy μ Ω H₀
+    (fun x => ∑ z, σ x z * H x z) hμ hΩ hH₀
+
+/-- Restrict the branch bits after adding one direction. -/
+def opus_dpo_s_branchRestrict {R J : Type*} (active : R → J → Prop)
+    (E : Finset J) (r : J) (t : R)
+    (η : {j : J // j ∈ insert r E ∧ active t j} → Fin 2) :
+    {j : J // j ∈ E ∧ active t j} → Fin 2 :=
+  fun j => η ⟨j.1, Finset.mem_insert_of_mem j.2.1, j.2.2⟩
+
+noncomputable def opus_dpo_s_branchExtend {R J : Type*} (active : R → J → Prop)
+    (E : Finset J) (r : J) (t : R)
+    (η : {j : J // j ∈ E ∧ active t j} → Fin 2) (bit : Fin 2) :
+    {j : J // j ∈ insert r E ∧ active t j} → Fin 2 := by
+  classical
+  exact fun j => if h : j.1 = r then bit else
+    η ⟨j.1, (Finset.mem_insert.mp j.2.1).resolve_left h, j.2.2⟩
+
+/-- A responding row acquires exactly one independent bit at a square step. -/
+noncomputable def opus_dpo_s_branchInsertEquiv {R J : Type*}
+    (active : R → J → Prop) (E : Finset J) (r : J) (hr : r ∉ E)
+    (t : R) (hact : active t r) :
+    ({j : J // j ∈ insert r E ∧ active t j} → Fin 2) ≃
+      (({j : J // j ∈ E ∧ active t j} → Fin 2) × Fin 2) where
+  toFun η := (opus_dpo_s_branchRestrict active E r t η,
+    η ⟨r, Finset.mem_insert_self r E, hact⟩)
+  invFun z := opus_dpo_s_branchExtend active E r t z.1 z.2
+  left_inv η := by
+    classical
+    funext j
+    by_cases h : j.1 = r
+    · simp only [opus_dpo_s_branchExtend, dif_pos h]
+      exact congrArg η (Subtype.ext h.symm)
+    · simp [opus_dpo_s_branchExtend, opus_dpo_s_branchRestrict, h]
+  right_inv z := by
+    classical
+    apply Prod.ext
+    · funext j
+      have h : j.1 ≠ r := by intro h; exact hr (h ▸ j.2.1)
+      simp [opus_dpo_s_branchRestrict, opus_dpo_s_branchExtend, h]
+    · simp [opus_dpo_s_branchExtend]
+
+/-- A nonresponding row acquires no bit. In particular, its own direction cannot
+create two identical occurrences in the weighted linear forms system. -/
+noncomputable def opus_dpo_s_branchInsertInactiveEquiv {R J : Type*}
+    (active : R → J → Prop) (E : Finset J) (r : J)
+    (t : R) (hact : ¬active t r) :
+    ({j : J // j ∈ insert r E ∧ active t j} → Fin 2) ≃
+      ({j : J // j ∈ E ∧ active t j} → Fin 2) where
+  toFun := opus_dpo_s_branchRestrict active E r t
+  invFun η j := η ⟨j.1, (Finset.mem_insert.mp j.2.1).resolve_left
+    (fun h => hact (h ▸ j.2.2)), j.2.2⟩
+  left_inv η := by funext j; rfl
+  right_inv η := by funext j; rfl
+
+/-- Product factorization over the exact branch support of a responding row. -/
+theorem opus_dpo_s_branchProduct_insert {R J : Type*} [Fintype J]
+    (active : R → J → Prop) (E : Finset J) (r : J) (hr : r ∉ E)
+    (t : R) (hact : active t r)
+    (f : ({j : J // j ∈ insert r E ∧ active t j} → Fin 2) → ℝ) :
+    ∏ η, f η = ∏ η, (f (opus_dpo_s_branchExtend active E r t η 0) *
+      f (opus_dpo_s_branchExtend active E r t η 1)) := by
+  classical
+  let e := opus_dpo_s_branchInsertEquiv active E r hr t hact
+  calc
+    _ = ∏ z : (({j : J // j ∈ E ∧ active t j} → Fin 2) × Fin 2),
+        f (e.symm z) := by
+      exact Fintype.prod_equiv e _ _ (fun _ => by simp)
+    _ = _ := by
+      rw [Fintype.prod_prod_type]
+      apply Finset.prod_congr rfl
+      intro η _
+      rw [Fin.prod_univ_two]
+      rfl
+
+/-- Resolve an existing private helper by its original name. This emits its constant;
+the generated proof is checked by the kernel like any other use of a theorem. -/
+syntax (name := opus_dpo_s_privateTerm) "opus_dpo_s_private% " ident : term
+
+@[term_elab opus_dpo_s_privateTerm]
+def opus_dpo_s_elabPrivate : Lean.Elab.Term.TermElab := fun stx expectedType => do
+  let requested := stx[1].getId
+  let env ← Lean.getEnv
+  let found := env.constants.toList.find? fun entry =>
+    Lean.privateToUserName? entry.1 == some requested
+  match found with
+  | none => Lean.throwError "Private helper {requested} is unavailable"
+  | some entry => Lean.Elab.Term.elabTerm (Lean.mkIdent entry.1) expectedType
+theorem opus_dpo_s_intervalError_superPolynomial {q : ℕ}
+    (V L : ℕ → ℕ) (hVtendsto : Tendsto (fun N => (V N : ℝ)) atTop atTop)
+    (hVone : ∀ N, 1 ≤ V N)
+    (hFloor : ∀ m : ℕ, ∀ᶠ N : ℕ in atTop, V N ^ m ≤ max 1 (L N)) :
+    SuperPolynomialSmall
+      (fun N => 2 * ((V N) ^ q : ℝ) / (max 1 (L N) : ℝ))
+      (fun N => (V N : ℝ)) := by
+  intro C hC
+  let S : ℕ → ℝ := fun N => (V N : ℝ)
+  let Aexp : ℝ := (q : ℝ) + C
+  let m : ℕ := Nat.ceil (Aexp + 1)
+  have hApos : 0 < Aexp := by dsimp [Aexp]; positivity
+  have hm : Aexp + 1 ≤ (m : ℝ) := by
+    dsimp [m]
+    exact Nat.le_ceil (Aexp + 1)
+  have hS : Tendsto S atTop atTop := hVtendsto
+  have hSpos (N : ℕ) : 0 < S N := by
+    change (0 : ℝ) < (V N : ℝ)
+    exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one (hVone N))
+  have hSone (N : ℕ) : 1 ≤ S N := by
+    change (1 : ℝ) ≤ (V N : ℝ)
+    exact_mod_cast hVone N
+  have hFloorLower : ∀ᶠ N : ℕ in atTop,
+      S N ^ (m : ℝ) ≤ (max 1 (L N) : ℝ) := by
+    filter_upwards [hFloor m] with N hN
+    have hcast : ((V N) ^ m : ℝ) = S N ^ (m : ℝ) := by
+      dsimp [S]
+      exact (Real.rpow_natCast (V N : ℝ) m).symm
+    rw [← hcast]
+    exact_mod_cast hN
+  have hProduct (N : ℕ) :
+      ((V N : ℝ) ^ q) * (V N : ℝ) ^ C ≤ S N ^ Aexp := by
+    calc
+      _ = S N ^ (q : ℝ) * S N ^ C := by
+        simp [S, Real.rpow_natCast]
+      _ = S N ^ ((q : ℝ) + C) := (Real.rpow_add (hSpos N) _ _).symm
+      _ ≤ S N ^ Aexp := by
+        change S N ^ ((q : ℝ) + C) ≤ S N ^ ((q : ℝ) + C)
+        exact le_rfl
+  have hSmallBound : ∀ᶠ N : ℕ in atTop,
+      (2 * ((V N) ^ q : ℝ) / (max 1 (L N) : ℝ)) * (V N : ℝ) ^ C ≤ 2 / S N := by
+    filter_upwards [hFloorLower] with N hfloor
+    have hDenPos : 0 < (max 1 (L N) : ℝ) := by
+      exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left 1 (L N)))
+    have hratio : S N ^ Aexp / (max 1 (L N) : ℝ) ≤ 1 / S N := by
+      apply (div_le_div_iff₀ hDenPos (hSpos N)).2
+      calc
+        S N ^ Aexp * S N = S N ^ (Aexp + 1) := by
+          calc
+            _ = S N ^ Aexp * S N ^ (1 : ℝ) := by simp
+            _ = _ := (Real.rpow_add (hSpos N) Aexp 1).symm
+        _ ≤ S N ^ (m : ℝ) :=
+          Real.rpow_le_rpow_of_exponent_le (hSone N) hm
+        _ ≤ (max 1 (L N) : ℝ) := hfloor
+        _ = 1 * (max 1 (L N) : ℝ) := by ring
+    calc
+      _ = 2 * ((((V N : ℝ) ^ q) * (V N : ℝ) ^ C) /
+          (max 1 (L N) : ℝ)) := by ring
+      _ ≤ 2 * (S N ^ Aexp / (max 1 (L N) : ℝ)) := by
+        apply mul_le_mul_of_nonneg_left _ (by norm_num)
+        exact div_le_div_of_nonneg_right (hProduct N) (by positivity)
+      _ ≤ 2 / S N := by
+        have hmul := mul_le_mul_of_nonneg_left hratio (by norm_num : (0 : ℝ) ≤ 2)
+        simpa [div_eq_mul_inv, mul_assoc] using hmul
+  have hInv : Tendsto (fun N : ℕ => (S N)⁻¹) atTop (𝓝 0) :=
+    tendsto_inv_atTop_zero.comp hS
+  have hTop : Tendsto (fun N : ℕ => 2 / S N) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using tendsto_const_nhds.mul hInv
+  have hnonneg (N : ℕ) :
+      0 ≤ (2 * ((V N) ^ q : ℝ) / (max 1 (L N) : ℝ)) * (V N : ℝ) ^ C := by
+    positivity
+  exact squeeze_zero' (Eventually.of_forall hnonneg) hSmallBound hTop
+
+noncomputable def opus_dpo_s_copyCoeffInt {R J C : Type*}
+    (c : R → C → ℤ) (ρ : R → J → ℤ)
+    (active : R → J → Prop) (E : Finset J)
+    (o : opus_dpo_s_Copy active E) : C ⊕ (J × Fin 2) → ℤ := by
+  classical
+  exact Sum.elim (c o.1) fun js =>
+    if h : js.1 ∈ E ∧ active o.1 js.1 then
+      if o.2 ⟨js.1, h⟩ = js.2 then ρ o.1 js.1 else 0
+    else if js.2 = 0 then ρ o.1 js.1 else 0
+
+/-- The two columns for a direction contribute exactly its selected endpoint. -/
+theorem opus_dpo_s_copyEvaluation {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ)
+    (active : R → J → Prop) (E : Finset J)
+    (o : opus_dpo_s_Copy active E) (x : C ⊕ (J × Fin 2) → ℤ) :
+    (∑ a, opus_dpo_s_copyCoeffInt c ρ active E o a * x a) =
+      (∑ a : C, c o.1 a * x (.inl a)) +
+        ∑ j : J, ρ o.1 j * x (.inr (j,
+          if h : j ∈ E ∧ active o.1 j then o.2 ⟨j, h⟩ else 0)) := by
+  classical
+  rw [Fintype.sum_sum_type]
+  congr 1
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro j _
+  rw [Fin.sum_univ_two]
+  by_cases h : j ∈ E ∧ active o.1 j
+  · by_cases hb : o.2 ⟨j, h⟩ = 0
+    · simp [opus_dpo_s_copyCoeffInt, h, hb]
+    · have hb' : o.2 ⟨j, h⟩ = 1 := by
+        have hv := (o.2 ⟨j, h⟩).isLt
+        apply Fin.ext
+        have h0 : (o.2 ⟨j, h⟩).val ≠ 0 := by
+          intro hzero
+          exact hb (Fin.ext hzero)
+        change (o.2 ⟨j, h⟩).val = 1
+        omega
+      simp [opus_dpo_s_copyCoeffInt, h, hb', hb]
+  · simp [opus_dpo_s_copyCoeffInt, h]
+
+/-- The square-root insertion scale has a uniformly controlled relative size. -/
+theorem opus_dpo_s_sqrt_ratio_le (F : ℕ) :
+    (Nat.sqrt F : ℝ) / (max 1 F : ℝ) ≤ 1 / (max 1 (Nat.sqrt F) : ℝ) := by
+  by_cases h : Nat.sqrt F = 0
+  · simp [h]
+  have hA : 0 < Nat.sqrt F := Nat.pos_of_ne_zero h
+  have hmax : max 1 (Nat.sqrt F) = Nat.sqrt F :=
+    max_eq_right (Nat.one_le_iff_ne_zero.mpr h)
+  have hmaxReal : max (1 : ℝ) (Nat.sqrt F : ℝ) = (Nat.sqrt F : ℝ) :=
+    max_eq_right (by exact_mod_cast Nat.one_le_iff_ne_zero.mpr h)
+  rw [hmaxReal]
+  have hsq : (Nat.sqrt F : ℝ) ^ 2 ≤ (max 1 F : ℝ) := by
+    exact_mod_cast (Nat.sqrt_le' F).trans (Nat.le_max_right 1 F)
+  have hFpos : (0 : ℝ) < max (1 : ℝ) (F : ℝ) := by positivity
+  have hApos : (0 : ℝ) < (Nat.sqrt F : ℝ) := by exact_mod_cast hA
+  apply (div_le_div_iff₀ hFpos hApos).2
+  nlinarith
+
+/-- The interval insertion error decays faster than every fixed power of the block scale. -/
+theorem opus_dpo_s_sqrt_ratio_superPolynomial
+    (V F : ℕ → ℕ) (hVtendsto : Tendsto (fun N => (V N : ℝ)) atTop atTop)
+    (hVone : ∀ N, 1 ≤ V N)
+    (hFloor : ∀ m : ℕ, ∀ᶠ N : ℕ in atTop, V N ^ m ≤ max 1 (Nat.sqrt (F N))) :
+    SuperPolynomialSmall
+      (fun N => 2 * (Nat.sqrt (F N) : ℝ) / (max 1 (F N) : ℝ))
+      (fun N => (V N : ℝ)) := by
+  have hsmall := opus_dpo_s_intervalError_superPolynomial (q := 0) V
+    (fun N => Nat.sqrt (F N)) hVtendsto hVone hFloor
+  intro C hC
+  have hbound (N : ℕ) :
+      (2 * (Nat.sqrt (F N) : ℝ) / (max 1 (F N) : ℝ)) * (V N : ℝ) ^ C ≤
+        (2 * ((V N) ^ 0 : ℝ) / (max 1 (Nat.sqrt (F N)) : ℝ)) * (V N : ℝ) ^ C := by
+    have hratio := mul_le_mul_of_nonneg_left (opus_dpo_s_sqrt_ratio_le (F N))
+      (by norm_num : (0 : ℝ) ≤ 2)
+    apply mul_le_mul_of_nonneg_right _ (Real.rpow_nonneg (Nat.cast_nonneg _) _)
+    simpa only [pow_zero, mul_one, one_mul, div_eq_mul_inv, mul_assoc] using hratio
+  exact squeeze_zero' (Eventually.of_forall (fun N => by positivity))
+    (Eventually.of_forall hbound) (hsmall C hC)
+/-- The newly duplicated branch is the old form evaluated at its chosen endpoint. -/
+theorem opus_dpo_s_copyEvaluation_insert {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ)
+    (active : R → J → Prop) (E : Finset J) (r : J) (hr : r ∉ E)
+    (t : R) (hact : active t r)
+    (η : {j : J // j ∈ E ∧ active t j} → Fin 2) (bit : Fin 2)
+    (x : C ⊕ (J × Fin 2) → ℤ) :
+    (∑ a, opus_dpo_s_copyCoeffInt c ρ active (insert r E)
+      ⟨t, opus_dpo_s_branchExtend active E r t η bit⟩ a * x a) =
+    ∑ a, opus_dpo_s_copyCoeffInt c ρ active E ⟨t, η⟩ a *
+      (Function.update x (.inr (r, 0)) (x (.inr (r, bit)))) a := by
+  classical
+  rw [opus_dpo_s_copyEvaluation, opus_dpo_s_copyEvaluation]
+  apply congrArg₂ (fun a b : ℤ => a + b)
+  · apply Finset.sum_congr rfl
+    intro a _
+    simp
+  · apply Finset.sum_congr rfl
+    intro j _
+    by_cases hj : j = r
+    · subst j
+      simp [hr, hact, opus_dpo_s_branchExtend]
+    · have hne (s : Fin 2) : (Sum.inr (j, s) : C ⊕ (J × Fin 2)) ≠ .inr (r, 0) := by
+        intro he
+        exact hj (congrArg Prod.fst (Sum.inr.inj he))
+      rw [Function.update_of_ne (hne _)]
+      have hmem : j ∈ insert r E ↔ j ∈ E := by simp [hj]
+      by_cases he : j ∈ E ∧ active t j
+      · have he' : j ∈ insert r E ∧ active t j := ⟨Finset.mem_insert_of_mem he.1, he.2⟩
+        simp [he, he', opus_dpo_s_branchExtend, hj]
+      · have he' : ¬(j ∈ insert r E ∧ active t j) := by simpa only [hmem] using he
+        simp [he, he', hj]
+
+/-- Adding a nonresponding direction preserves the corresponding row exactly. -/
+theorem opus_dpo_s_copyEvaluation_insert_inactive {R J C : Type*}
+    [Fintype J] [Fintype C] (c : R → C → ℤ) (ρ : R → J → ℤ)
+    (active : R → J → Prop) (E : Finset J) (r : J)
+    (t : R) (hact : ¬active t r) (hρ : ρ t r = 0)
+    (η : {j : J // j ∈ E ∧ active t j} → Fin 2)
+    (x : C ⊕ (J × Fin 2) → ℤ) :
+    (∑ a, opus_dpo_s_copyCoeffInt c ρ active (insert r E)
+      ⟨t, (opus_dpo_s_branchInsertInactiveEquiv active E r t hact).symm η⟩ a * x a) =
+    ∑ a, opus_dpo_s_copyCoeffInt c ρ active E ⟨t, η⟩ a * x a := by
+  classical
+  rw [opus_dpo_s_copyEvaluation, opus_dpo_s_copyEvaluation]
+  congr 1
+  apply Finset.sum_congr rfl
+  intro j _
+  by_cases hj : j = r
+  · subst j
+    simp [hρ]
+  · have hmem : j ∈ insert r E ↔ j ∈ E := by simp [hj]
+    by_cases he : j ∈ E ∧ active t j
+    · have he' : j ∈ insert r E ∧ active t j := ⟨Finset.mem_insert_of_mem he.1, he.2⟩
+      simp [he, he', opus_dpo_s_branchInsertInactiveEquiv]
+    · have he' : ¬(j ∈ insert r E ∧ active t j) := by simpa only [hmem] using he
+      simp [he, he', hj]
+/-- Arbitrary input sequences suffice to establish a uniform bound: choose a violating
+input at every index where one exists. -/
+theorem opus_dpo_s_uniform_small_of_all_sequences {Input : ℕ → Type*}
+    [∀ N, Nonempty (Input N)] (f : (N : ℕ) → Input N → ℝ)
+    (h : ∀ I : (N : ℕ) → Input N, Tendsto (fun N => f N (I N)) atTop (𝓝 0)) :
+    ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : Input N, |f N I| ≤ ε := by
+  classical
+  intro ε hε
+  let I : (N : ℕ) → Input N := fun N =>
+    if hN : ∃ x : Input N, ε < |f N x| then Classical.choose hN
+    else Classical.choice (inferInstance : Nonempty (Input N))
+  have hlim : Tendsto (fun N => |f N (I N)|) atTop (𝓝 0) := by
+    simpa using (h I).abs
+  have hevent := hlim.eventually (Iio_mem_nhds hε)
+  filter_upwards [hevent] with N hN x
+  by_contra hx
+  have hex : ∃ x : Input N, ε < |f N x| := ⟨x, lt_of_not_ge hx⟩
+  have hchoose : ε < |f N (I N)| := by
+    dsimp [I]
+    rw [dif_pos hex]
+    exact Classical.choose_spec hex
+  exact (not_lt_of_ge (le_of_lt hchoose)) hN
+noncomputable def opus_dpo_s_rowProduct {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (t : R) (f : ℤ → ℝ) (x : C ⊕ (J × Fin 2) → ℤ) : ℝ :=
+  ∏ η : {j : J // j ∈ E ∧ active t j} → Fin 2,
+    f (∑ a, opus_dpo_s_copyCoeffInt c ρ active E ⟨t, η⟩ a * x a)
+
+/-- Every responding row contributes its two endpoint products at a square step. -/
+theorem opus_dpo_s_rowProduct_insert {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ)
+    (active : R → J → Prop) (E : Finset J) (r : J) (hr : r ∉ E)
+    (t : R) (hact : active t r) (f : ℤ → ℝ)
+    (x : C ⊕ (J × Fin 2) → ℤ) :
+    opus_dpo_s_rowProduct c ρ active (insert r E) t f x =
+      opus_dpo_s_rowProduct c ρ active E t f x *
+        opus_dpo_s_rowProduct c ρ active E t f
+          (Function.update x (.inr (r, 0)) (x (.inr (r, 1)))) := by
+  classical
+  unfold opus_dpo_s_rowProduct
+  rw [opus_dpo_s_branchProduct_insert active E r hr t hact]
+  simp_rw [opus_dpo_s_copyEvaluation_insert c ρ active E r hr t hact]
+  simp only [Function.update_eq_self]
+  exact Finset.prod_mul_distrib
+
+/-- The row removed at a square step retains a single product of weight factors. -/
+theorem opus_dpo_s_rowProduct_insert_inactive {R J C : Type*}
+    [Fintype J] [Fintype C] (c : R → C → ℤ) (ρ : R → J → ℤ)
+    (active : R → J → Prop) (E : Finset J) (r : J)
+    (t : R) (hact : ¬active t r) (hρ : ρ t r = 0) (f : ℤ → ℝ)
+    (x : C ⊕ (J × Fin 2) → ℤ) :
+    opus_dpo_s_rowProduct c ρ active (insert r E) t f x =
+      opus_dpo_s_rowProduct c ρ active E t f x := by
+  classical
+  unfold opus_dpo_s_rowProduct
+  let e := opus_dpo_s_branchInsertInactiveEquiv active E r t hact
+  calc
+    _ = ∏ η : {j : J // j ∈ E ∧ active t j} → Fin 2,
+        f (∑ a, opus_dpo_s_copyCoeffInt c ρ active (insert r E)
+          ⟨t, e.symm η⟩ a * x a) :=
+      Fintype.prod_equiv e _ _ (fun _ => by simp)
+    _ = _ := by
+      apply Finset.prod_congr rfl
+      intro η _
+      rw [opus_dpo_s_copyEvaluation_insert_inactive c ρ active E r t hact hρ η x]
+
+/-- Factor the next occurrence state into the selected row's weight and the two products
+of complementary rows, evaluated at the two newly independent endpoints. -/
+theorem opus_dpo_s_occurrenceProduct_insert {R J C : Type*}
+    [Fintype R] [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (selected : J → R)
+    (E : Finset J) (r : J) (hr : r ∉ E)
+    (hρ : ρ (selected r) r = 0)
+    (f : Finset J → R → ℤ → ℝ)
+    (hstable : ∀ t, t ≠ selected r → f (insert r E) t = f E t)
+    (x : C ⊕ (J × Fin 2) → ℤ) :
+    (∏ t : R, opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j)
+      (insert r E) t (f (insert r E) t) x) =
+      opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j) E
+        (selected r) (f (insert r E) (selected r)) x *
+      (∏ t ∈ Finset.univ.erase (selected r),
+        opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j) E t (f E t) x) *
+      (∏ t ∈ Finset.univ.erase (selected r),
+        opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j) E t (f E t)
+          (Function.update x (.inr (r, 0)) (x (.inr (r, 1))))) := by
+  classical
+  rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ (selected r))]
+  rw [opus_dpo_s_rowProduct_insert_inactive c ρ (fun t j => t ≠ selected j)
+    E r (selected r) (by simp) hρ]
+  have hrest :
+      (∏ t ∈ Finset.univ.erase (selected r),
+        opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j) (insert r E) t
+          (f (insert r E) t) x) =
+      (∏ t ∈ Finset.univ.erase (selected r),
+        opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j) E t (f E t) x) *
+      (∏ t ∈ Finset.univ.erase (selected r),
+        opus_dpo_s_rowProduct c ρ (fun t j => t ≠ selected j) E t (f E t)
+          (Function.update x (.inr (r, 0)) (x (.inr (r, 1))))) := by
+    rw [← Finset.prod_mul_distrib]
+    apply Finset.prod_congr rfl
+    intro t ht
+    have hne := (Finset.mem_erase.mp ht).1
+    rw [hstable t hne]
+    exact opus_dpo_s_rowProduct_insert c ρ (fun t j => t ≠ selected j) E r hr t hne _ x
+  rw [hrest]
+  ring
+/-- The square of a finite-support expectation is its independent two-copy expectation. -/
+theorem opus_dpo_s_tsum_square {β : Type*} (σ H : β → ℝ) (S : Finset β)
+    (hzero : ∀ z, z ∉ S → σ z = 0) :
+    (∑' z, σ z * H z) ^ 2 =
+      ∑' z₀, ∑' z₁, σ z₀ * σ z₁ * (H z₀ * H z₁) := by
+  classical
+  have havg : (∑' z, σ z * H z) = ∑ z ∈ S, σ z * H z :=
+    tsum_eq_sum (fun z hz => by simp [hzero z hz])
+  have houter : (∑' z₀, ∑' z₁, σ z₀ * σ z₁ * (H z₀ * H z₁)) =
+      ∑ z₀ ∈ S, ∑ z₁ ∈ S, σ z₀ * σ z₁ * (H z₀ * H z₁) := by
+    rw [tsum_eq_sum (s := S) (fun z hz => by simp [hzero z hz])]
+    apply Finset.sum_congr rfl
+    intro z _
+    exact tsum_eq_sum (fun z' hz' => by simp [hzero z' hz'])
+  rw [havg, houter, pow_two, Finset.sum_mul_sum]
+  apply Finset.sum_congr rfl
+  intro z₀ _
+  apply Finset.sum_congr rfl
+  intro z₁ _
+  ring
+
+/-- Weighted Cauchy–Schwarz for an arbitrary finitely supported outside law. -/
+theorem opus_dpo_s_finiteSupport_weighted_cauchy {α : Type*}
+    (μ Ω H₀ H₁ : α → ℝ) (S : Finset α)
+    (hzero : ∀ x, x ∉ S → μ x = 0)
+    (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+    (h₀ : ∀ x, |H₀ x| ≤ Ω x) :
+    |∑' x, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+      (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2) := by
+  classical
+  have hcs := opus_dpo_s_finite_weighted_cauchy
+    (fun x : {x : α // x ∈ S} => μ x.1)
+    (fun x => Ω x.1) (fun x => H₀ x.1) (fun x => H₁ x.1)
+    (fun x => hμ x.1) (fun x => hΩ x.1) (fun x => h₀ x.1)
+  have hcurrent : (∑' x, μ x * (H₀ x * H₁ x)) =
+      ∑ x : {x : α // x ∈ S}, μ x.1 * (H₀ x.1 * H₁ x.1) := by
+    rw [tsum_eq_sum (s := S) (fun x hx => by simp [hzero x hx])]
+    rw [← Finset.sum_attach]
+    simp
+  have hweight : (∑' x, μ x * Ω x) =
+      ∑ x : {x : α // x ∈ S}, μ x.1 * Ω x.1 := by
+    rw [tsum_eq_sum (s := S) (fun x hx => by simp [hzero x hx])]
+    rw [← Finset.sum_attach]
+    simp
+  have hnext : (∑' x, μ x * (Ω x * H₁ x ^ 2)) =
+      ∑ x : {x : α // x ∈ S}, μ x.1 * (Ω x.1 * H₁ x.1 ^ 2) := by
+    rw [tsum_eq_sum (s := S) (fun x hx => by simp [hzero x hx])]
+    rw [← Finset.sum_attach]
+    simp
+  rw [hcurrent, hweight, hnext]
+  exact hcs
+
+/-- A selected coordinate can be duplicated with its own finite-support law, independently
+of the outside variables and of the laws assigned to other directions. -/
+theorem opus_dpo_s_finiteSupport_coordinate_step {α β : Type*}
+    (μ : α → ℝ) (σ : α → β → ℝ) (H₀ Ω : α → ℝ) (H : α → β → ℝ)
+    (S : Finset α) (Selected : α → Finset β)
+    (hzero : ∀ x, x ∉ S → μ x = 0)
+    (hσzero : ∀ x z, z ∉ Selected x → σ x z = 0)
+    (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+    (h₀ : ∀ x, |H₀ x| ≤ Ω x) :
+    |∑' x, μ x * (H₀ x * ∑' z, σ x z * H x z)| ^ 2 ≤
+      (∑' x, μ x * Ω x) *
+        ∑' x, μ x * (Ω x * ∑' z₀, ∑' z₁,
+          σ x z₀ * σ x z₁ * (H x z₀ * H x z₁)) := by
+  have hcs := opus_dpo_s_finiteSupport_weighted_cauchy μ Ω H₀
+    (fun x => ∑' z, σ x z * H x z) S hzero hμ hΩ h₀
+  simpa only [opus_dpo_s_tsum_square (σ := σ _) (H := H _) (Selected _) (hσzero _)] using hcs
+abbrev opus_dpo_s_PiExcept {α : Type*} [Fintype α] (a : α) :=
+  {i : α // i ∈ (Finset.univ : Finset α).erase a}
+
+noncomputable def opus_dpo_s_piSplitAt {α : Type*} [Fintype α]
+    (a : α) : (α → ℤ) ≃ ((opus_dpo_s_PiExcept a → ℤ) × ℤ) where
+  toFun x := (fun i => x i.1, x a)
+  invFun z i := if h : i = a then z.2 else
+    z.1 ⟨i, Finset.mem_erase.mpr ⟨h, Finset.mem_univ i⟩⟩
+  left_inv := by
+    intro x
+    funext i
+    by_cases h : i = a <;> simp [h]
+  right_inv := by
+    intro z
+    apply Prod.ext
+    · funext i
+      have hne : i.1 ≠ a := (Finset.mem_erase.mp i.2).1
+      simp [hne]
+    · simp
+
+/-- Isolate one coordinate of a finite-support independent product law. -/
+theorem opus_dpo_s_productLaw_tsum_splitAt {α : Type*} [Fintype α]
+    (a : α) (law : α → ℤ → ℝ) (win : α → Finset ℤ)
+    (hzero : ∀ i z, z ∉ win i → law i z = 0) (F : (α → ℤ) → ℝ) :
+    (∑' x : α → ℤ, (∏ i, law i (x i)) * F x) =
+      ∑' xr : opus_dpo_s_PiExcept a → ℤ,
+        (∏ i : opus_dpo_s_PiExcept a, law i.1 (xr i)) *
+          ∑' z : ℤ, law a z * F ((opus_dpo_s_piSplitAt a).symm (xr, z)) := by
+  classical
+  let e := opus_dpo_s_piSplitAt a
+  let full (x : α → ℤ) : ℝ := (∏ i, law i (x i)) * F x
+  let rest (xr : opus_dpo_s_PiExcept a → ℤ) : ℝ :=
+    ∏ i : opus_dpo_s_PiExcept a, law i.1 (xr i)
+  have hprod (x : α → ℤ) : (∏ i, law i (x i)) = rest (e x).1 * law a (e x).2 := by
+    change (∏ i, law i (x i)) = rest (fun i => x i.1) * law a (x a)
+    rw [← Finset.prod_erase_mul _ _ (Finset.mem_univ a)]
+    congr 1
+    exact Finset.prod_subtype ((Finset.univ : Finset α).erase a)
+      (by intro i; rfl) (fun i => law i (x i))
+  have hfullzero (x : α → ℤ) (hx : x ∉ Fintype.piFinset win) : full x = 0 := by
+    have hnot : ¬∀ i, x i ∈ win i := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hw : (∏ j, law j (x j)) = 0 :=
+      Finset.prod_eq_zero (Finset.mem_univ i) (hzero i (x i) hi)
+    simp [full, hw]
+  have hs : Summable full := summable_of_ne_finset_zero hfullzero
+  have hs' : Summable (fun z : (opus_dpo_s_PiExcept a → ℤ) × ℤ => full (e.symm z)) :=
+    hs.comp_injective e.symm.injective
+  calc
+    _ = ∑' z : (opus_dpo_s_PiExcept a → ℤ) × ℤ, full (e.symm z) :=
+      (e.symm.tsum_eq full).symm
+    _ = ∑' xr : opus_dpo_s_PiExcept a → ℤ, ∑' z : ℤ, full (e.symm (xr, z)) := hs'.tsum_prod
+    _ = _ := by
+      apply tsum_congr
+      intro xr
+      rw [← tsum_mul_left]
+      apply tsum_congr
+      intro z
+      dsimp [full]
+      rw [hprod]
+      simp only [e.apply_symm_apply, mul_assoc]
+      rfl
+abbrev opus_dpo_s_PiExceptPair {α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀) :=
+  opus_dpo_s_PiExcept (⟨a₁, Finset.mem_erase.mpr ⟨hne, Finset.mem_univ a₁⟩⟩ : opus_dpo_s_PiExcept a₀)
+
+noncomputable def opus_dpo_s_pairInsert {α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀)
+    (xr : opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) (z₀ z₁ : ℤ) : α → ℤ :=
+  (opus_dpo_s_piSplitAt a₀).symm
+    ((opus_dpo_s_piSplitAt
+      (⟨a₁, Finset.mem_erase.mpr ⟨hne, Finset.mem_univ a₁⟩⟩ : opus_dpo_s_PiExcept a₀)).symm
+        (xr, z₁), z₀)
+
+/-- Isolate two independent coordinates without assuming equal laws at the other coordinates. -/
+theorem opus_dpo_s_productLaw_tsum_splitPair {α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀) (law : α → ℤ → ℝ) (win : α → Finset ℤ)
+    (hzero : ∀ i z, z ∉ win i → law i z = 0) (F : (α → ℤ) → ℝ) :
+    (∑' x : α → ℤ, (∏ i, law i (x i)) * F x) =
+      ∑' xr : opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ,
+        (∏ i : opus_dpo_s_PiExceptPair a₀ a₁ hne, law i.1.1 (xr i)) *
+          ∑' z₁ : ℤ, law a₁ z₁ *
+            ∑' z₀ : ℤ, law a₀ z₀ * F (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) := by
+  classical
+  rw [opus_dpo_s_productLaw_tsum_splitAt a₀ law win hzero F]
+  let a₁' : opus_dpo_s_PiExcept a₀ :=
+    ⟨a₁, Finset.mem_erase.mpr ⟨hne, Finset.mem_univ a₁⟩⟩
+  exact opus_dpo_s_productLaw_tsum_splitAt a₁'
+    (fun i z => law i.1 z) (fun i => win i.1)
+    (fun i z hz => hzero i.1 z hz)
+    (fun xr => ∑' z : ℤ, law a₀ z * F ((opus_dpo_s_piSplitAt a₀).symm (xr, z)))
+/-- Integrating an unused endpoint, a weight, and an independently duplicated factor. -/
+theorem opus_dpo_s_pair_integrals {β : Type*} (σ H : β → ℝ)
+    (hnorm : ∑' z, σ z = 1) (a Ω : ℝ) :
+    (∑' z₁, σ z₁ * ∑' z₀, σ z₀ * (a * H z₀)) = a * ∑' z, σ z * H z ∧
+    (∑' z₁, σ z₁ * ∑' z₀, σ z₀ * Ω) = Ω ∧
+    (∑' z₁, σ z₁ * ∑' z₀, σ z₀ * (Ω * H z₀ * H z₁)) =
+      Ω * (∑' z, σ z * H z) ^ 2 := by
+  have hlinear (c : ℝ) : (∑' z, σ z * (c * H z)) = c * ∑' z, σ z * H z := by
+    calc
+      _ = ∑' z, c * (σ z * H z) := by apply tsum_congr; intro z; ring
+      _ = _ := tsum_mul_left
+  have hconst (c : ℝ) : (∑' z, σ z * c) = c := by rw [tsum_mul_right, hnorm, one_mul]
+  refine ⟨?_, ?_, ?_⟩
+  · simp_rw [hlinear a]
+    exact hconst _
+  · simp_rw [hconst Ω]
+  · have hinner (z₁ : β) : (∑' z₀, σ z₀ * (Ω * H z₀ * H z₁)) =
+        (Ω * H z₁) * ∑' z, σ z * H z := by
+      calc
+        _ = ∑' z₀, σ z₀ * ((Ω * H z₁) * H z₀) := by apply tsum_congr; intro z₀; ring
+        _ = _ := hlinear _
+    simp_rw [hinner]
+    calc
+      _ = ∑' z₁, σ z₁ * ((Ω * ∑' z, σ z * H z) * H z₁) := by
+        apply tsum_congr; intro z₁; ring
+      _ = _ := by rw [hlinear]; ring
+
+/-- Integrate the three pointwise factors used in one weighted square step. -/
+theorem opus_dpo_s_productLaw_pair_integrals {α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀) (law : α → ℤ → ℝ) (win : α → Finset ℤ)
+    (hzero : ∀ i z, z ∉ win i → law i z = 0)
+    (hequal : law a₁ = law a₀) (hnorm : ∑' z, law a₀ z = 1)
+    (H₀ Ω : (opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) → ℝ)
+    (H : (opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) → ℤ → ℝ)
+    (Current Weight Next : (α → ℤ) → ℝ)
+    (hcurrent : ∀ xr z₀ z₁, Current (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) = H₀ xr * H xr z₀)
+    (hweight : ∀ xr z₀ z₁, Weight (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) = Ω xr)
+    (hnext : ∀ xr z₀ z₁, Next (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) = Ω xr * H xr z₀ * H xr z₁) :
+    (∑' x, (∏ i, law i (x i)) * Current x) =
+      (∑' xr, (∏ i : opus_dpo_s_PiExceptPair a₀ a₁ hne, law i.1.1 (xr i)) *
+        (H₀ xr * ∑' z, law a₀ z * H xr z)) ∧
+    (∑' x, (∏ i, law i (x i)) * Weight x) =
+      (∑' xr, (∏ i : opus_dpo_s_PiExceptPair a₀ a₁ hne, law i.1.1 (xr i)) * Ω xr) ∧
+    (∑' x, (∏ i, law i (x i)) * Next x) =
+      (∑' xr, (∏ i : opus_dpo_s_PiExceptPair a₀ a₁ hne, law i.1.1 (xr i)) *
+        (Ω xr * (∑' z, law a₀ z * H xr z) ^ 2)) := by
+  refine ⟨?_, ?_, ?_⟩
+  · rw [opus_dpo_s_productLaw_tsum_splitPair a₀ a₁ hne law win hzero Current]
+    apply tsum_congr
+    intro xr
+    congr 1
+    simp_rw [hcurrent, hequal]
+    exact (opus_dpo_s_pair_integrals (law a₀) (H xr) hnorm (H₀ xr) (Ω xr)).1
+  · rw [opus_dpo_s_productLaw_tsum_splitPair a₀ a₁ hne law win hzero Weight]
+    apply tsum_congr
+    intro xr
+    congr 1
+    simp_rw [hweight, hequal]
+    exact (opus_dpo_s_pair_integrals (law a₀) (H xr) hnorm (H₀ xr) (Ω xr)).2.1
+  · rw [opus_dpo_s_productLaw_tsum_splitPair a₀ a₁ hne law win hzero Next]
+    apply tsum_congr
+    intro xr
+    congr 1
+    simp_rw [hnext, hequal]
+    exact (opus_dpo_s_pair_integrals (law a₀) (H xr) hnorm (H₀ xr) (Ω xr)).2.2
+/-- A finite prime-support law together with coordinate-dependent finite supports has finite
+joint support, even though both ambient spaces can be infinite. -/
+theorem opus_dpo_s_jointProduct_finiteSupport {P α : Type*} [Fintype α]
+    (pmass : P → ℝ) (law : P → α → ℤ → ℝ) (primeSupport : Finset P)
+    (win : P → α → Finset ℤ)
+    (hpzero : ∀ p, p ∉ primeSupport → pmass p = 0)
+    (hzero : ∀ p i z, z ∉ win p i → law p i z = 0) :
+    ∃ S : Finset (P × (α → ℤ)), ∀ v, v ∉ S →
+      pmass v.1 * (∏ i, law v.1 i (v.2 i)) = 0 := by
+  classical
+  let S : Finset (P × (α → ℤ)) := primeSupport.biUnion fun p =>
+    ({p} : Finset P).product (Fintype.piFinset (win p))
+  refine ⟨S, ?_⟩
+  intro v hv
+  by_cases hp : v.1 ∈ primeSupport
+  · have hx : v.2 ∉ Fintype.piFinset (win v.1) := by
+      intro hx
+      apply hv
+      apply Finset.mem_biUnion.mpr
+      exact ⟨v.1, hp, Finset.mem_product.mpr ⟨Finset.mem_singleton_self _, hx⟩⟩
+    have hn : ¬∀ i, v.2 i ∈ win v.1 i := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hn
+    have hw : (∏ j, law v.1 j (v.2 j)) = 0 :=
+      Finset.prod_eq_zero (Finset.mem_univ i) (hzero v.1 i (v.2 i) hi)
+    rw [hw, mul_zero]
+  · rw [hpzero v.1 hp, zero_mul]
+
+/-- Fubini over an explicitly finite joint support. -/
+theorem opus_dpo_s_jointProduct_tsum {P α : Type*} [Fintype α]
+    (pmass : P → ℝ) (law : P → α → ℤ → ℝ) (primeSupport : Finset P)
+    (win : P → α → Finset ℤ)
+    (hpzero : ∀ p, p ∉ primeSupport → pmass p = 0)
+    (hzero : ∀ p i z, z ∉ win p i → law p i z = 0)
+    (F : P → (α → ℤ) → ℝ) :
+    (∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * F p x) =
+      ∑' v : P × (α → ℤ),
+        (pmass v.1 * ∏ i, law v.1 i (v.2 i)) * F v.1 v.2 := by
+  obtain ⟨S, hS⟩ := opus_dpo_s_jointProduct_finiteSupport pmass law primeSupport win hpzero hzero
+  have hs : Summable (fun v : P × (α → ℤ) =>
+      (pmass v.1 * ∏ i, law v.1 i (v.2 i)) * F v.1 v.2) :=
+    summable_of_ne_finset_zero (s := S) (fun v hv => by rw [hS v hv, zero_mul])
+  rw [hs.tsum_prod]
+  apply tsum_congr
+  intro p
+  rw [← tsum_mul_left]
+  apply tsum_congr
+  intro x
+  ring
+/-- One weighted Cauchy–Schwarz step under independent prime and coordinate laws, with
+finite supports and arbitrary laws on the unselected coordinates. -/
+theorem opus_dpo_s_jointCoordinate_cauchy {P α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀)
+    (pmass : P → ℝ) (law : P → α → ℤ → ℝ)
+    (primeSupport : Finset P) (win : P → α → Finset ℤ)
+    (hpzero : ∀ p, p ∉ primeSupport → pmass p = 0)
+    (hzero : ∀ p i z, z ∉ win p i → law p i z = 0)
+    (hpnonneg : ∀ p, 0 ≤ pmass p) (hnonneg : ∀ p i z, 0 ≤ law p i z)
+    (hequal : ∀ p, law p a₁ = law p a₀) (hnorm : ∀ p, ∑' z, law p a₀ z = 1)
+    (H₀ Ω : P → (opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) → ℝ)
+    (H : P → (opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) → ℤ → ℝ)
+    (hΩ : ∀ p xr, 0 ≤ Ω p xr) (h₀ : ∀ p xr, |H₀ p xr| ≤ Ω p xr)
+    (Current Weight Next : P → (α → ℤ) → ℝ)
+    (hcurrent : ∀ p xr z₀ z₁,
+      Current p (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) = H₀ p xr * H p xr z₀)
+    (hweight : ∀ p xr z₀ z₁,
+      Weight p (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) = Ω p xr)
+    (hnext : ∀ p xr z₀ z₁,
+      Next p (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) = Ω p xr * H p xr z₀ * H p xr z₁) :
+    |∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * Current p x| ^ 2 ≤
+      (∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * Weight p x) *
+      (∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * Next p x) := by
+  classical
+  let Rest := opus_dpo_s_PiExceptPair a₀ a₁ hne
+  let reducedLaw : P → Rest → ℤ → ℝ := fun p i z => law p i.1.1 z
+  let reducedWin : P → Rest → Finset ℤ := fun p i => win p i.1.1
+  have hreducedzero : ∀ p i z, z ∉ reducedWin p i → reducedLaw p i z = 0 :=
+    fun p i z hz => hzero p i.1.1 z hz
+  let μ : P × (Rest → ℤ) → ℝ := fun v => pmass v.1 * ∏ i, reducedLaw v.1 i (v.2 i)
+  let avgH : P → (Rest → ℤ) → ℝ := fun p xr => ∑' z, law p a₀ z * H p xr z
+  obtain ⟨S, hS⟩ := opus_dpo_s_jointProduct_finiteSupport
+    pmass reducedLaw primeSupport reducedWin hpzero hreducedzero
+  have hμ : ∀ v, 0 ≤ μ v := by
+    intro v
+    exact mul_nonneg (hpnonneg v.1) (Finset.prod_nonneg (fun i _ => hnonneg v.1 i.1.1 (v.2 i)))
+  have hthree (p : P) := opus_dpo_s_productLaw_pair_integrals a₀ a₁ hne
+    (law p) (win p) (hzero p) (hequal p) (hnorm p)
+    (H₀ p) (Ω p) (H p) (Current p) (Weight p) (Next p)
+    (hcurrent p) (hweight p) (hnext p)
+  have hcurrentAvg :
+      (∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * Current p x) =
+        ∑' v : P × (Rest → ℤ), μ v * (H₀ v.1 v.2 * avgH v.1 v.2) := by
+    calc
+      _ = ∑' p, pmass p * ∑' xr, (∏ i, reducedLaw p i (xr i)) * (H₀ p xr * avgH p xr) := by
+        apply tsum_congr; intro p; rw [(hthree p).1]
+      _ = _ := opus_dpo_s_jointProduct_tsum pmass reducedLaw primeSupport reducedWin hpzero hreducedzero _
+  have hweightAvg :
+      (∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * Weight p x) =
+        ∑' v : P × (Rest → ℤ), μ v * Ω v.1 v.2 := by
+    calc
+      _ = ∑' p, pmass p * ∑' xr, (∏ i, reducedLaw p i (xr i)) * Ω p xr := by
+        apply tsum_congr; intro p; rw [(hthree p).2.1]
+      _ = _ := opus_dpo_s_jointProduct_tsum pmass reducedLaw primeSupport reducedWin hpzero hreducedzero _
+  have hnextAvg :
+      (∑' p, pmass p * ∑' x, (∏ i, law p i (x i)) * Next p x) =
+        ∑' v : P × (Rest → ℤ), μ v * (Ω v.1 v.2 * avgH v.1 v.2 ^ 2) := by
+    calc
+      _ = ∑' p, pmass p * ∑' xr, (∏ i, reducedLaw p i (xr i)) * (Ω p xr * avgH p xr ^ 2) := by
+        apply tsum_congr; intro p; rw [(hthree p).2.2]
+      _ = _ := opus_dpo_s_jointProduct_tsum pmass reducedLaw primeSupport reducedWin hpzero hreducedzero _
+  rw [hcurrentAvg, hweightAvg, hnextAvg]
+  exact opus_dpo_s_finiteSupport_weighted_cauchy μ
+    (fun v => Ω v.1 v.2) (fun v => H₀ v.1 v.2) (fun v => avgH v.1 v.2)
+    S hS hμ (fun v => hΩ v.1 v.2) (fun v => h₀ v.1 v.2)
+/-- A zero response makes a row independent of either endpoint of that direction. -/
+theorem opus_dpo_s_copyEvaluation_update_zero {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (o : opus_dpo_s_Copy active E) (r : J) (hρ : ρ o.1 r = 0)
+    (x : C ⊕ (J × Fin 2) → ℤ) (side : Fin 2) (z : ℤ) :
+    (∑ a, opus_dpo_s_copyCoeffInt c ρ active E o a *
+      Function.update x (.inr (r, side)) z a) =
+      ∑ a, opus_dpo_s_copyCoeffInt c ρ active E o a * x a := by
+  classical
+  rw [opus_dpo_s_copyEvaluation, opus_dpo_s_copyEvaluation]
+  apply congrArg₂ (fun a b : ℤ => a + b)
+  · apply Finset.sum_congr rfl; intro a _; simp
+  · apply Finset.sum_congr rfl
+    intro j _
+    by_cases hj : j = r
+    · subst j; simp [hρ]
+    · have hne (s : Fin 2) : (Sum.inr (j, s) : C ⊕ (J × Fin 2)) ≠ .inr (r, side) := by
+        intro h; exact hj (congrArg Prod.fst (Sum.inr.inj h))
+      rw [Function.update_of_ne (hne _)]
+
+/-- An unduplicated direction uses only side zero in every occurrence. -/
+theorem opus_dpo_s_copyEvaluation_update_unused {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (o : opus_dpo_s_Copy active E) (r : J) (hr : r ∉ E)
+    (x : C ⊕ (J × Fin 2) → ℤ) (z : ℤ) :
+    (∑ a, opus_dpo_s_copyCoeffInt c ρ active E o a *
+      Function.update x (.inr (r, 1)) z a) =
+      ∑ a, opus_dpo_s_copyCoeffInt c ρ active E o a * x a := by
+  classical
+  rw [opus_dpo_s_copyEvaluation, opus_dpo_s_copyEvaluation]
+  apply congrArg₂ (fun a b : ℤ => a + b)
+  · apply Finset.sum_congr rfl; intro a _; simp
+  · apply Finset.sum_congr rfl
+    intro j _
+    by_cases hj : j = r
+    · subst j; simp [hr]
+    · have hne (s : Fin 2) : (Sum.inr (j, s) : C ⊕ (J × Fin 2)) ≠ .inr (r, 1) := by
+        intro h; exact hj (congrArg Prod.fst (Sum.inr.inj h))
+      rw [Function.update_of_ne (hne _)]
+
+@[simp] theorem opus_dpo_s_pairInsert_zero {α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀)
+    (xr : opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁ a₀ = z₀ := by
+  simp [opus_dpo_s_pairInsert, opus_dpo_s_piSplitAt]
+
+@[simp] theorem opus_dpo_s_pairInsert_one {α : Type*} [Fintype α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀)
+    (xr : opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁ a₁ = z₁ := by
+  simp [opus_dpo_s_pairInsert, opus_dpo_s_piSplitAt, hne]
+
+@[simp] theorem opus_dpo_s_pairInsert_update_zero {α : Type*} [Fintype α] [DecidableEq α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀)
+    (xr : opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) (z₀ z₁ t : ℤ) :
+    Function.update (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) a₀ t =
+      opus_dpo_s_pairInsert a₀ a₁ hne xr t z₁ := by
+  classical
+  funext i
+  by_cases h : i = a₀ <;> simp [opus_dpo_s_pairInsert, opus_dpo_s_piSplitAt, h]
+
+@[simp] theorem opus_dpo_s_pairInsert_update_one {α : Type*} [Fintype α] [DecidableEq α]
+    (a₀ a₁ : α) (hne : a₁ ≠ a₀)
+    (xr : opus_dpo_s_PiExceptPair a₀ a₁ hne → ℤ) (z₀ z₁ t : ℤ) :
+    Function.update (opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ z₁) a₁ t =
+      opus_dpo_s_pairInsert a₀ a₁ hne xr z₀ t := by
+  classical
+  funext i
+  by_cases h₀ : i = a₀
+  · subst i; simp [Function.update_of_ne hne.symm]
+  · by_cases h₁ : i = a₁
+    · subst i; simp
+    · simp [opus_dpo_s_pairInsert, opus_dpo_s_piSplitAt, h₀, h₁, Subtype.ext_iff]
+/-- Harmonic translation errors decay superpolynomially when the logarithmic cutoff
+separates every fixed power of a scale dominating the displacement and block scale. -/
+theorem opus_dpo_s_harmonicTranslation_superPolynomial
+    (X W H V S : ℕ → ℕ) (q : ℕ)
+    (hX : ∀ N, 1 ≤ X N) (hS : ∀ N, 1 ≤ S N)
+    (hStendsto : Tendsto (fun N => (S N : ℝ)) atTop atTop)
+    (hWle : ∀ᶠ N in atTop, W N ≤ S N)
+    (hVle : ∀ᶠ N in atTop, V N ≤ S N)
+    (hHle : ∀ᶠ N in atTop, H N ≤ S N ^ q)
+    (hlog : OAI.MicrocellScale.Dominates (fun N => Real.log (X N : ℝ))
+      (fun N => (S N : ℝ))) :
+    SuperPolynomialSmall (fun N => harmonicTranslationUniformError (X N) (W N) (H N))
+      (fun N => (V N : ℝ)) := by
+  intro C hC
+  let m : ℕ := Nat.ceil ((q : ℝ) + C + 1)
+  have hm : (q : ℝ) + C + 1 ≤ (m : ℝ) := Nat.le_ceil _
+  have hmpos : (0 : ℝ) < (m : ℝ) := by linarith
+  have hSpos (N : ℕ) : (0 : ℝ) < (S N : ℝ) := by exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one (hS N))
+  have hSone (N : ℕ) : (1 : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hS N
+  have hlargeLog : ∀ᶠ N in atTop, 2 * (S N : ℝ) ≤ Real.log (X N : ℝ) := by
+    filter_upwards [(hlog 1 (by norm_num)).eventually_ge_atTop 2] with N hN
+    have hN' : (2 : ℝ) ≤ Real.log (X N : ℝ) / (S N : ℝ) := by simpa using hN
+    exact (le_div_iff₀ (hSpos N)).mp hN'
+  have hpowerLog : ∀ᶠ N in atTop, (S N : ℝ) ^ (m : ℝ) ≤ Real.log (X N : ℝ) := by
+    filter_upwards [(hlog m hmpos).eventually_ge_atTop 1] with N hN
+    simpa using (le_div_iff₀ (Real.rpow_pos_of_pos (hSpos N) _)).mp hN
+  have hbound : ∀ᶠ N in atTop,
+      harmonicTranslationUniformError (X N) (W N) (H N) * (V N : ℝ) ^ C ≤
+        4 / (S N : ℝ) := by
+    filter_upwards [hWle, hVle, hHle, hlargeLog, hpowerLog]
+      with N hW hV hH hlogLarge hlogPower
+    let L := Real.log (X N : ℝ)
+    let D := (X N : ℝ) * (L - (W N : ℝ) / (X N : ℝ))
+    have hXone : (1 : ℝ) ≤ (X N : ℝ) := by exact_mod_cast hX N
+    have hXpos : (0 : ℝ) < (X N : ℝ) := by positivity
+    have hWreal : (W N : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hW
+    have hVreal : (V N : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hV
+    have hHreal : (H N : ℝ) ≤ (S N : ℝ) ^ q := by exact_mod_cast hH
+    have hLpos : 0 < L := by dsimp [L]; nlinarith [hSpos N]
+    have hFrac : (W N : ℝ) / (X N : ℝ) ≤ (S N : ℝ) := by
+      apply (div_le_iff₀ hXpos).mpr
+      exact hWreal.trans (by nlinarith [hSpos N])
+    have hDen : L / 2 ≤ L - (W N : ℝ) / (X N : ℝ) := by dsimp [L] at *; linarith
+    have hD : L ≤ 2 * D := by
+      dsimp [D]
+      have hhalfpos : 0 ≤ L / 2 := by positivity
+      have hmul := mul_le_mul hXone hDen hhalfpos (by positivity : (0 : ℝ) ≤ X N)
+      nlinarith
+    have hDpos : 0 < D := by linarith
+    have herror : harmonicTranslationUniformError (X N) (W N) (H N) ≤ 4 * (H N : ℝ) / L := by
+      calc
+        _ ≤ 2 * (H N : ℝ) / D := min_le_right _ _
+        _ ≤ _ := by
+          apply (div_le_div_iff₀ hDpos hLpos).mpr
+          nlinarith [Nat.cast_nonneg (α := ℝ) (H N)]
+    have hpowV : (V N : ℝ) ^ C ≤ (S N : ℝ) ^ C :=
+      Real.rpow_le_rpow (Nat.cast_nonneg _) hVreal hC.le
+    have hpower : (H N : ℝ) * (V N : ℝ) ^ C * (S N : ℝ) ≤ L := by
+      calc
+        _ ≤ (S N : ℝ) ^ q * (S N : ℝ) ^ C * (S N : ℝ) := by
+          exact mul_le_mul_of_nonneg_right
+            (mul_le_mul hHreal hpowV (Real.rpow_nonneg (Nat.cast_nonneg _) _) (by positivity))
+            (Nat.cast_nonneg _)
+        _ = (S N : ℝ) ^ ((q : ℝ) + C + 1) := by
+          calc
+            _ = (S N : ℝ) ^ ((q : ℝ) + C) * (S N : ℝ) := by
+              rw [← Real.rpow_natCast, ← Real.rpow_add (hSpos N)]
+            _ = (S N : ℝ) ^ ((q : ℝ) + C) * (S N : ℝ) ^ (1 : ℝ) := by rw [Real.rpow_one]
+            _ = _ := (Real.rpow_add (hSpos N) _ _).symm
+        _ ≤ (S N : ℝ) ^ (m : ℝ) := Real.rpow_le_rpow_of_exponent_le (hSone N) hm
+        _ ≤ L := hlogPower
+    calc
+      _ ≤ (4 * (H N : ℝ) / L) * (V N : ℝ) ^ C :=
+        mul_le_mul_of_nonneg_right herror (Real.rpow_nonneg (Nat.cast_nonneg _) _)
+      _ = 4 * ((H N : ℝ) * (V N : ℝ) ^ C) / L := by ring
+      _ ≤ 4 / (S N : ℝ) := by
+        apply (div_le_div_iff₀ hLpos (hSpos N)).mpr
+        nlinarith
+  have hupper : Tendsto (fun N => 4 / (S N : ℝ)) atTop (𝓝 0) := by
+    simpa [div_eq_mul_inv] using (tendsto_inv_atTop_zero.comp hStendsto).const_mul 4
+  have hnonneg : ∀ᶠ N in atTop,
+      0 ≤ harmonicTranslationUniformError (X N) (W N) (H N) * (V N : ℝ) ^ C := by
+    filter_upwards [hWle, hlargeLog] with N hW hlogLarge
+    have hXone : (1 : ℝ) ≤ (X N : ℝ) := by exact_mod_cast hX N
+    have hWreal : (W N : ℝ) ≤ (S N : ℝ) := by exact_mod_cast hW
+    have hFrac : (W N : ℝ) / (X N : ℝ) ≤ (S N : ℝ) := by
+      apply (div_le_iff₀ (by positivity : (0 : ℝ) < X N)).mpr
+      exact hWreal.trans (by nlinarith [hSpos N])
+    unfold harmonicTranslationUniformError
+    apply mul_nonneg
+    · apply le_min (by norm_num)
+      apply div_nonneg (by positivity)
+      apply mul_nonneg (by positivity)
+      nlinarith [hSpos N]
+    · exact Real.rpow_nonneg (Nat.cast_nonneg _) _
+  exact squeeze_zero' hnonneg hbound hupper
+theorem opus_dpo_s_rowProduct_update_zero {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (t : R) (r : J) (hρ : ρ t r = 0) (f : ℤ → ℝ)
+    (x : C ⊕ (J × Fin 2) → ℤ) (side : Fin 2) (z : ℤ) :
+    opus_dpo_s_rowProduct c ρ active E t f (Function.update x (.inr (r, side)) z) =
+      opus_dpo_s_rowProduct c ρ active E t f x := by
+  classical
+  unfold opus_dpo_s_rowProduct
+  apply Finset.prod_congr rfl
+  intro η _
+  rw [opus_dpo_s_copyEvaluation_update_zero c ρ active E ⟨t, η⟩ r hρ]
+
+theorem opus_dpo_s_rowProduct_update_unused {R J C : Type*} [Fintype J] [Fintype C]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (t : R) (r : J) (hr : r ∉ E) (f : ℤ → ℝ)
+    (x : C ⊕ (J × Fin 2) → ℤ) (z : ℤ) :
+    opus_dpo_s_rowProduct c ρ active E t f (Function.update x (.inr (r, 1)) z) =
+      opus_dpo_s_rowProduct c ρ active E t f x := by
+  classical
+  unfold opus_dpo_s_rowProduct
+  apply Finset.prod_congr rfl
+  intro η _
+  rw [opus_dpo_s_copyEvaluation_update_unused c ρ active E ⟨t, η⟩ r hr]
+theorem opus_dpo_s_roughPart_le_natAbs {w : ℕ} {a : ℤ} (ha : a ≠ 0) :
+    roughPart w a ≤ a.natAbs := by
+  classical
+  let n := a.natAbs
+  let R := (Finset.range (n + 1)).filter fun p : ℕ => p.Prime ∧ w < p
+  let S := (Finset.range (n + 1)).filter Nat.Prime
+  let g : ℕ → ℕ := fun p => p ^ n.factorization p
+  have hn : n ≠ 0 := by
+    dsimp [n]
+    exact Int.natAbs_ne_zero.mpr ha
+  have hRsub : R ⊆ S := by
+    intro p hp
+    rcases Finset.mem_filter.mp hp with ⟨hpRange, hpcond⟩
+    exact Finset.mem_filter.mpr ⟨hpRange, hpcond.1⟩
+  have hRfilterEq :
+      (∏ p ∈ R, g p) =
+        ∏ p ∈ R.filter (fun p => p ∈ n.factorization.support), g p := by
+    symm
+    apply Finset.prod_subset (Finset.filter_subset _ _)
+    intro p hp hnot
+    have hps : p ∉ n.factorization.support := by
+      intro hmem
+      exact hnot (Finset.mem_filter.mpr ⟨hp, hmem⟩)
+    have he : n.factorization p = 0 := Finsupp.notMem_support_iff.mp hps
+    simp [g, he]
+  have hsub : R.filter (fun p => p ∈ n.factorization.support) ⊆ S :=
+    (Finset.filter_subset _ _).trans hRsub
+  have hRle :
+      (∏ p ∈ R.filter (fun p => p ∈ n.factorization.support), g p) ≤
+        ∏ p ∈ S, g p :=
+    Finset.prod_le_prod_of_subset_of_one_le hsub fun p hp _ => by
+      have hpPrime := (Finset.mem_filter.mp hp).2
+      have hpOne : 1 ≤ p := le_trans (by norm_num) hpPrime.two_le
+      exact one_le_pow₀ hpOne
+  have hfull : ∏ p ∈ S, g p = n := by
+    have hnat := Nat.prod_pow_prime_padicValNat n hn (n + 1) (by omega)
+    have heq :
+        (∏ p ∈ S, g p) =
+          ∏ p ∈ Finset.range (n + 1) with p.Prime, p ^ padicValNat p n := by
+      apply Finset.prod_congr rfl
+      intro p hp
+      rcases Finset.mem_filter.mp hp with ⟨hpRange, hpPrime⟩
+      change p ^ n.factorization p = p ^ padicValNat p n
+      rw [Nat.factorization_def n hpPrime]
+    rw [heq]
+    exact hnat
+  calc
+    roughPart w a = ∏ p ∈ R, g p := by rfl
+    _ = ∏ p ∈ R.filter (fun p => p ∈ n.factorization.support), g p := hRfilterEq
+    _ ≤ ∏ p ∈ S, g p := hRle
+    _ = n := hfull
+    _ = a.natAbs := rfl
+
+
+theorem opus_dpo_s_renameEval {q m : ℕ} (ι : Fin q ↪ Fin m)
+    (P : IntegerPolynomial q) (p : Fin m → ℕ) :
+    evalIntegerPolynomial (MvPolynomial.rename ι P) (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial P (fun j => (p (ι j) : ℤ)) := by
+  unfold evalIntegerPolynomial
+  rw [MvPolynomial.eval_rename]
+  rfl
+
+
+/-- On a supported master tuple, an allowed type's modulus is bounded by the gap length.
+This avoids a separate polynomial coefficient envelope when controlling root translations. -/
+theorem opus_dpo_s_templateModulus_le_gap {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (T : CubeTemplate) (hT : Allowed Dm T) (l : Fin K) (N : ℕ)
+    (p : Fin sl → ℕ)
+    (hp : ∀ j, (MS.primeStage.pool N l).lower ≤ p j ∧
+      p j < (MS.primeStage.pool N l).upper ∧ (p j).Prime)
+    (hgood : T.Good (corrScales MS) l N (fun j => p ((Classical.choose hT) j))) :
+    T.modulus (corrScales MS) N (fun j => p ((Classical.choose hT) j)) ≤
+      MS.core.parameters.H N l := by
+  classical
+  let ι := Classical.choose hT
+  let value := evalIntegerPolynomial T.D (fun j => (p (ι j) : ℤ))
+  have hvalue : value ≠ 0 := hgood.2.2.1 T.D T.D_mem
+  have hlisted : MvPolynomial.rename ι T.D ∈ Dm :=
+    Classical.choose_spec hT T.D T.D_mem
+  have hnonzero : evalIntegerPolynomial (MvPolynomial.rename ι T.D)
+      (fun j => (p j : ℤ)) ≠ 0 := by
+    rw [opus_dpo_s_renameEval]
+    exact hvalue
+  have hdvd := MS.gapStage.polynomial_values_divide_gap N l p
+    (MvPolynomial.rename ι T.D) hlisted hp hnonzero
+  have hle := Nat.le_of_dvd (MS.core.parameters.Hpos N l) hdvd
+  rw [opus_dpo_s_renameEval] at hle
+  change MS.core.parameters.M N * roughPart (N + 1) value ≤ MS.core.parameters.H N l
+  exact (Nat.mul_le_mul_left _ (opus_dpo_s_roughPart_le_natAbs hvalue)).trans hle
+/-- A row with zero own response ignores both endpoints of its selected direction. -/
+theorem opus_dpo_s_rowProduct_pair_zero {R J C : Type*} [Fintype J] [Fintype C]
+    [coordFT : Fintype (C ⊕ (J × Fin 2))]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (t : R) (r : J) (hρ : ρ t r = 0) (f : ℤ → ℝ)
+    (hne : (Sum.inr (r, (1 : Fin 2)) : C ⊕ (J × Fin 2)) ≠ .inr (r, 0))
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : C ⊕ (J × Fin 2))
+      (.inr (r, 1)) hne → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_rowProduct c ρ active E t f
+      (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr z₀ z₁) =
+    opus_dpo_s_rowProduct c ρ active E t f
+      (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr 0 0) := by
+  classical
+  have h₀ := opus_dpo_s_rowProduct_update_zero c ρ active E t r hρ f
+    (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr 0 z₁) 0 z₀
+  rw [opus_dpo_s_pairInsert_update_zero] at h₀
+  have h₁ := opus_dpo_s_rowProduct_update_zero c ρ active E t r hρ f
+    (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr 0 0) 1 z₁
+  rw [opus_dpo_s_pairInsert_update_one] at h₁
+  exact h₀.trans h₁
+
+/-- Every old row ignores the second endpoint of an unduplicated direction. -/
+theorem opus_dpo_s_rowProduct_pair_unused {R J C : Type*} [Fintype J] [Fintype C]
+    [coordFT : Fintype (C ⊕ (J × Fin 2))]
+    (c : R → C → ℤ) (ρ : R → J → ℤ) (active : R → J → Prop)
+    (E : Finset J) (t : R) (r : J) (hr : r ∉ E) (f : ℤ → ℝ)
+    (hne : (Sum.inr (r, (1 : Fin 2)) : C ⊕ (J × Fin 2)) ≠ .inr (r, 0))
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : C ⊕ (J × Fin 2))
+      (.inr (r, 1)) hne → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_rowProduct c ρ active E t f
+      (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr z₀ z₁) =
+    opus_dpo_s_rowProduct c ρ active E t f
+      (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr z₀ 0) := by
+  classical
+  have h := opus_dpo_s_rowProduct_update_unused c ρ active E t r hr f
+    (opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) hne xr z₀ 0) z₁
+  rw [opus_dpo_s_pairInsert_update_one] at h
+  exact h
+/-- Selecting the occurrences of one row is exactly the product over that row's branch bits. -/
+theorem opus_dpo_s_sigmaFiber_product {R : Type*} {β : R → Type*}
+    [Fintype R] [∀ t, Fintype (β t)] [wholeFT : Fintype (Sigma β)]
+    (t : R) (f : Sigma β → ℝ) :
+    (∏ o ∈ (Finset.univ : Finset (Sigma β)).filter (fun o => o.1 = t), f o) =
+      ∏ η : β t, f ⟨t, η⟩ := by
+  classical
+  rw [Finset.prod_filter]
+  have huniv : (Finset.univ : Finset (Sigma β)) =
+      (Finset.univ : Finset R).sigma (fun s => (Finset.univ : Finset (β s))) := by
+    ext o
+    simp
+  rw [huniv, Finset.prod_sigma]
+  rw [Fintype.prod_eq_single t (fun s hs => Finset.prod_eq_one (fun η _ => if_neg hs))]
+  exact Finset.prod_congr rfl (fun η _ => if_pos rfl)
+
+
+end OpusDpoS
+
+section OpusDpoSCheck
+
+local instance (priority := 100000) opus_dpo_s_check_nonrootDecEq {b : ℕ}
+    (T : Fin b → CubeTemplate) : DecidableEq (pkgB2_Nonroot T) := Classical.decEq _
+local instance (priority := 100000) opus_dpo_s_check_rowDecEq {b : ℕ}
+    (T : Fin b → CubeTemplate) : DecidableEq (pkgB2_BaseRow T) := Classical.decEq _
+local instance (priority := 100000) opus_dpo_s_check_oldCoordDecEq {b : ℕ}
+    (T : Fin b → CubeTemplate) : DecidableEq (pkgB2_OldCoord T) := Classical.decEq _
+variable {K sl b : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+
+theorem opus_dpo_s_check_rowValue
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (u : Fin (Fintype.card (pkgB2_Occurrence T E))) (x : pkgB2_Coord T → ℤ) :
+    pkgB2_stateRowValue MS T hT J0 gap direction E N p u
+      (fun j => x (pkgB2_coordEnum T j)) =
+      ∑ a : pkgB2_Coord T,
+        pkgB2_occurrenceCoefficientInt T
+          (fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k))
+          direction E (pkgB2_occurrenceEnum T E u) a * x a := by
+  classical
+  unfold pkgB2_stateRowValue
+  rw [(opus_dpo_s_private% HindmanSumsProducts.Prediction.pkgB2_linearRowValue_eq_castInt)
+    MS T hT J0 gap direction E N p u (fun j => x (pkgB2_coordEnum T j))]
+  simp only [Rat.num_intCast]
+  exact Fintype.sum_equiv (pkgB2_coordEnum T) _ _ (fun _ => rfl)
+
+noncomputable def opus_dpo_s_check_rowFunction
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (E : Finset (pkgB2_Nonroot T)) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (t : pkgB2_BaseRow T) (y : ℤ) : ℝ :=
+  match t with
+  | .inl _ => nu MS.core.parameters N B y - 1
+  | .inr r => if r ∈ E then 1 + nu MS.core.parameters N B y
+    else (I r.1).g r.2.1 (pkgB2_repPrimeProject hT p r.1) y
+
+theorem opus_dpo_s_check_integrand
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (x : pkgB2_Coord T → ℤ) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p
+      (fun j => x (pkgB2_coordEnum T j)) =
+      (if E = ∅ then ∏ k, (I k).e (pkgB2_repPrimeProject hT p k) else 1) *
+      ∏ t : pkgB2_BaseRow T,
+        opus_dpo_s_rowProduct
+          (pkgB2_oldCoefficient T (fun k => ((T k).modulus (corrScales MS) N
+            (pkgB2_repPrimeProject hT p k) : ℤ)))
+          (fun t r => pkgB2_response T (fun k => ((T k).modulus (corrScales MS) N
+            (pkgB2_repPrimeProject hT p k) : ℤ)) r
+              (pkgB2_directionLift (T r.1).d (direction r)) t)
+          (pkgB2_activeRow T) E t (opus_dpo_s_check_rowFunction MS B T hT E N I p t) x := by
+  classical
+  unfold pkgB2_stateIntegrand
+  apply congrArg₂ (fun a b : ℝ => a * b)
+  · by_cases h : E = ∅ <;> simp [h]
+  · have hfactor (u : Fin (Fintype.card (pkgB2_Occurrence T E))) :
+        pkgB2_stateFactor MS B gap T hT J0 direction E N I p
+          (fun j => x (pkgB2_coordEnum T j)) u =
+        opus_dpo_s_check_rowFunction MS B T hT E N I p (pkgB2_occurrenceEnum T E u).1
+          (∑ a : pkgB2_Coord T,
+            pkgB2_occurrenceCoefficientInt T
+              (fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k))
+              direction E (pkgB2_occurrenceEnum T E u) a * x a) := by
+      unfold pkgB2_stateFactor
+      rw [opus_dpo_s_check_rowValue]
+      cases ht : (pkgB2_occurrenceEnum T E u).1 with
+      | inl a => simp [opus_dpo_s_check_rowFunction, ht]
+      | inr r =>
+          by_cases hr : r ∈ E <;> simp [opus_dpo_s_check_rowFunction, ht, hr]
+    let f : pkgB2_Occurrence T E → ℝ := fun o =>
+      opus_dpo_s_check_rowFunction MS B T hT E N I p o.1
+        (∑ a : pkgB2_Coord T,
+          pkgB2_occurrenceCoefficientInt T
+            (fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k))
+            direction E o a * x a)
+    have heq : (∏ u, f (pkgB2_occurrenceEnum T E u)) = ∏ o, f o :=
+      Fintype.prod_equiv (pkgB2_occurrenceEnum T E) _ _ (fun _ => rfl)
+    calc
+      _ = ∏ u, f (pkgB2_occurrenceEnum T E u) := by
+        apply Finset.prod_congr rfl
+        intro u _
+        exact hfactor u
+      _ = ∏ o, f o := heq
+      _ = ∏ t : pkgB2_BaseRow T,
+          ∏ η : {j : pkgB2_Nonroot T // j ∈ E ∧ pkgB2_activeRow T t j} → Fin 2,
+            f ⟨t, η⟩ := by
+        have huniv : (Finset.univ : Finset (pkgB2_Occurrence T E)) =
+            (Finset.univ : Finset (pkgB2_BaseRow T)).sigma (fun t =>
+              (Finset.univ : Finset ({j : pkgB2_Nonroot T // j ∈ E ∧ pkgB2_activeRow T t j} → Fin 2))) := by
+          ext o
+          simp
+        rw [huniv, Finset.prod_sigma]
+      _ = _ := by
+        apply Finset.prod_congr rfl
+        intro t _
+        unfold opus_dpo_s_rowProduct
+        apply Finset.prod_congr (by ext; simp)
+        intro η _
+        dsimp [f]
+        congr 1
+        apply Finset.sum_congr (by ext; simp)
+        intro a _
+        rfl
+
+theorem opus_dpo_s_check_stateAverage
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (hreg : ∀ p, pkgB2_goodPrimeEvent MS gap T hT N p →
+      pkgB2_baseRegular MS B T J0 gap hT N p) :
+    pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 E N I =
+      ∑' p : Fin (b * sl) → ℕ,
+        ((independentPrimePoolProbability
+          (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+          (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+          (pkgB2_goodPrimeEvent MS gap T hT N))⁻¹ *
+        independentPrimePoolMass
+          (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+          (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p *
+        (if pkgB2_goodPrimeEvent MS gap T hT N p then 1 else 0)) *
+        ∑' x : pkgB2_Coord T → ℤ,
+          (∏ c, pkgB2_baseCoordinateLaw MS B T J0 gap hT N p c (x c)) *
+            pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p
+              (fun j => x (pkgB2_coordEnum T j)) := by
+  classical
+  unfold pkgB2_stateAverage
+  simp only [pkgB2_weightedLinearFormsData]
+  rw [← tsum_mul_left]
+  apply tsum_congr
+  intro p
+  by_cases hp : pkgB2_goodPrimeEvent MS gap T hT N p
+  · simp only [hp, if_pos, mul_one]
+    rw [← mul_assoc]
+    congr 1
+    have hregp := hreg p hp
+    simp only [pkgB2_baseMass, hregp, dite_true]
+    let e : (pkgB2_Coord T → ℤ) ≃
+        (Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :=
+      Equiv.arrowCongr (pkgB2_coordEnum T).symm (Equiv.refl ℤ)
+    calc
+      _ = ∑' x : pkgB2_Coord T → ℤ,
+          (∏ j, pkgB2_baseCoordinateLaw MS B T J0 gap hT N p (pkgB2_coordEnum T j)
+            (x (pkgB2_coordEnum T j))) *
+            pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p
+              (fun j => x (pkgB2_coordEnum T j)) :=
+        (e.tsum_eq _).symm
+      _ = _ := by
+        apply tsum_congr
+        intro x
+        congr 1
+        exact Fintype.prod_equiv (pkgB2_coordEnum T) _ _ (fun _ => rfl)
+  · simp [hp]
+
+noncomputable def opus_dpo_s_check_c
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (N : ℕ) (p : Fin (b * sl) → ℕ) :
+    pkgB2_BaseRow T → pkgB2_OldCoord T → ℤ :=
+  pkgB2_oldCoefficient T (fun k => ((T k).modulus (corrScales MS) N
+    (pkgB2_repPrimeProject hT p k) : ℤ))
+
+noncomputable def opus_dpo_s_check_rho
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (N : ℕ) (p : Fin (b * sl) → ℕ) : pkgB2_BaseRow T → pkgB2_Nonroot T → ℤ :=
+  fun t r => pkgB2_response T (fun k => ((T k).modulus (corrScales MS) N
+    (pkgB2_repPrimeProject hT p k) : ℤ)) r
+      (pkgB2_directionLift (T r.1).d (direction r)) t
+
+noncomputable def opus_dpo_s_check_rowProduct
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (t : pkgB2_BaseRow T) (x : pkgB2_Coord T → ℤ) : ℝ :=
+  opus_dpo_s_rowProduct (opus_dpo_s_check_c MS T hT N p)
+    (opus_dpo_s_check_rho MS T hT direction N p) (pkgB2_activeRow T) E t
+    (opus_dpo_s_check_rowFunction MS B T hT E N I p t) x
+
+theorem opus_dpo_s_check_rho_self
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (r : pkgB2_Nonroot T) : opus_dpo_s_check_rho MS T hT direction N p (.inr r) r = 0 := by
+  apply pkgB2_response_self
+  simpa only [pkgB2_directionLift_zero, pkgB2_directionLift_sum] using (hdir r).2.1
+
+theorem opus_dpo_s_check_integrand_insert
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (hr : r ∉ E)
+    (N : ℕ) (p : Fin (b * sl) → ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (x : pkgB2_Coord T → ℤ) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction (insert r E) N I p
+      (fun j => x (pkgB2_coordEnum T j)) =
+      opus_dpo_s_rowProduct (opus_dpo_s_check_c MS T hT N p)
+        (opus_dpo_s_check_rho MS T hT direction N p) (pkgB2_activeRow T) E (.inr r)
+        (fun y => 1 + nu MS.core.parameters N B y) x *
+      (∏ t ∈ Finset.univ.erase (Sum.inr r),
+        opus_dpo_s_check_rowProduct MS B T hT direction E N I p t x) *
+      (∏ t ∈ Finset.univ.erase (Sum.inr r),
+        opus_dpo_s_check_rowProduct MS B T hT direction E N I p t
+          (Function.update x (.inr (r, 0)) (x (.inr (r, 1))))) := by
+  classical
+  rw [opus_dpo_s_check_integrand]
+  have hE : insert r E ≠ ∅ := Finset.insert_ne_empty r E
+  simp only [hE, if_false, one_mul]
+  have hstable : ∀ t : pkgB2_BaseRow T, t ≠ .inr r →
+      opus_dpo_s_check_rowFunction MS B T hT (insert r E) N I p t =
+        opus_dpo_s_check_rowFunction MS B T hT E N I p t := by
+    intro t ht
+    funext y
+    cases t with
+    | inl u => rfl
+    | inr s =>
+        have hs : s ≠ r := by intro h; exact ht (congrArg Sum.inr h)
+        simp [opus_dpo_s_check_rowFunction, hs]
+  have hstep := opus_dpo_s_occurrenceProduct_insert
+    (opus_dpo_s_check_c MS T hT N p) (opus_dpo_s_check_rho MS T hT direction N p)
+    Sum.inr E r hr (opus_dpo_s_check_rho_self MS T hT direction hdir N p r)
+    (fun E t => opus_dpo_s_check_rowFunction MS B T hT E N I p t) hstable x
+  have hown : opus_dpo_s_check_rowFunction MS B T hT (insert r E) N I p (.inr r) =
+      (fun y => 1 + nu MS.core.parameters N B y) := by
+    funext y
+    simp [opus_dpo_s_check_rowFunction]
+  rw [hown] at hstep
+  dsimp only [opus_dpo_s_check_rowProduct, opus_dpo_s_check_c, opus_dpo_s_check_rho,
+    pkgB2_activeRow] at hstep ⊢
+  exact hstep
+theorem opus_dpo_s_check_selected_bound
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (hr : r ∉ E)
+    (N : ℕ) (p : Fin (b * sl) → ℕ) (I : ∀ k, DualInput MS B (T k) N)
+    (x : pkgB2_Coord T → ℤ) :
+    |(if E = ∅ then ∏ k, (I k).e (pkgB2_repPrimeProject hT p k) else 1) *
+      opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r) x| ≤
+      opus_dpo_s_rowProduct (opus_dpo_s_check_c MS T hT N p)
+        (opus_dpo_s_check_rho MS T hT direction N p) (pkgB2_activeRow T) E (.inr r)
+        (fun y => 1 + nu MS.core.parameters N B y) x := by
+  classical
+  have he : |(if E = ∅ then ∏ k, (I k).e (pkgB2_repPrimeProject hT p k) else 1)| ≤ 1 := by
+    split_ifs
+    · simpa using c_elim2_abs_prod_le_of_nonneg Finset.univ
+        (fun k => (I k).e (pkgB2_repPrimeProject hT p k)) (fun _ => 1)
+        (fun _ _ => by norm_num) (fun k _ => (I k).e_bound _)
+    · norm_num
+  have hrow : |opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r) x| ≤
+      opus_dpo_s_rowProduct (opus_dpo_s_check_c MS T hT N p)
+        (opus_dpo_s_check_rho MS T hT direction N p) (pkgB2_activeRow T) E (.inr r)
+        (fun y => 1 + nu MS.core.parameters N B y) x := by
+    unfold opus_dpo_s_check_rowProduct opus_dpo_s_rowProduct
+    simp only [opus_dpo_s_check_rowFunction, hr, if_false]
+    apply c_elim2_abs_prod_le_of_nonneg Finset.univ
+    · intro η _
+      exact (abs_nonneg _).trans ((I r.1).g_bound r.2.1 (pkgB2_repPrimeProject hT p r.1) _)
+    · intro η _
+      exact (I r.1).g_bound r.2.1 (pkgB2_repPrimeProject hT p r.1) _
+  rw [abs_mul]
+  calc
+    _ ≤ 1 * |opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r) x| :=
+      mul_le_mul_of_nonneg_right he (abs_nonneg _)
+    _ ≤ _ := by simpa using hrow
+theorem opus_dpo_s_check_sideNe (T : Fin b → CubeTemplate) (r : pkgB2_Nonroot T) :
+    (Sum.inr (r, (1 : Fin 2)) : pkgB2_Coord T) ≠ .inr (r, 0) := by
+  intro h
+  have h' := congrArg (fun z => z.2.val) (Sum.inr.inj h)
+  norm_num at h'
+
+noncomputable def opus_dpo_s_check_frame (T : Fin b → CubeTemplate) (r : pkgB2_Nonroot T)
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : pkgB2_Coord T) (.inr (r, 1))
+      (opus_dpo_s_check_sideNe T r) → ℤ) (z₀ z₁ : ℤ) : pkgB2_Coord T → ℤ :=
+  opus_dpo_s_pairInsert (.inr (r, 0)) (.inr (r, 1)) (opus_dpo_s_check_sideNe T r) xr z₀ z₁
+
+noncomputable def opus_dpo_s_check_weight
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (N : ℕ)
+    (p : Fin (b * sl) → ℕ) (x : pkgB2_Coord T → ℤ) : ℝ :=
+  opus_dpo_s_rowProduct (opus_dpo_s_check_c MS T hT N p)
+    (opus_dpo_s_check_rho MS T hT direction N p) (pkgB2_activeRow T) E (.inr r)
+    (fun y => 1 + nu MS.core.parameters N B y) x
+
+noncomputable def opus_dpo_s_check_other
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (x : pkgB2_Coord T → ℤ) : ℝ :=
+  ∏ t ∈ Finset.univ.erase (Sum.inr r),
+    opus_dpo_s_check_rowProduct MS B T hT direction E N I p t x
+
+theorem opus_dpo_s_check_weight_frame
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (E : Finset (pkgB2_Nonroot T))
+    (r : pkgB2_Nonroot T) (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : pkgB2_Coord T) (.inr (r, 1))
+      (opus_dpo_s_check_sideNe T r) → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_check_weight MS B T hT direction E r N p (opus_dpo_s_check_frame T r xr z₀ z₁) =
+      opus_dpo_s_check_weight MS B T hT direction E r N p (opus_dpo_s_check_frame T r xr 0 0) :=
+  opus_dpo_s_rowProduct_pair_zero (coordFT := pkgB2_coordFintype T)
+    (opus_dpo_s_check_c MS T hT N p) (opus_dpo_s_check_rho MS T hT direction N p)
+    (pkgB2_activeRow T) E (.inr r) r (opus_dpo_s_check_rho_self MS T hT direction hdir N p r)
+    (fun y => 1 + nu MS.core.parameters N B y) (opus_dpo_s_check_sideNe T r) xr z₀ z₁
+
+theorem opus_dpo_s_check_row_frame
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (E : Finset (pkgB2_Nonroot T))
+    (r : pkgB2_Nonroot T) (N : ℕ) (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : pkgB2_Coord T) (.inr (r, 1))
+      (opus_dpo_s_check_sideNe T r) → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r) (opus_dpo_s_check_frame T r xr z₀ z₁) =
+      opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r) (opus_dpo_s_check_frame T r xr 0 0) :=
+  opus_dpo_s_rowProduct_pair_zero (coordFT := pkgB2_coordFintype T)
+    (opus_dpo_s_check_c MS T hT N p) (opus_dpo_s_check_rho MS T hT direction N p)
+    (pkgB2_activeRow T) E (.inr r) r (opus_dpo_s_check_rho_self MS T hT direction hdir N p r)
+    (opus_dpo_s_check_rowFunction MS B T hT E N I p (.inr r)) (opus_dpo_s_check_sideNe T r) xr z₀ z₁
+
+theorem opus_dpo_s_check_other_frame
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (hr : r ∉ E)
+    (N : ℕ) (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : pkgB2_Coord T) (.inr (r, 1))
+      (opus_dpo_s_check_sideNe T r) → ℤ) (z₀ z₁ : ℤ) :
+    opus_dpo_s_check_other MS B T hT direction E r N I p (opus_dpo_s_check_frame T r xr z₀ z₁) =
+      opus_dpo_s_check_other MS B T hT direction E r N I p (opus_dpo_s_check_frame T r xr z₀ 0) := by
+  classical
+  apply Finset.prod_congr rfl
+  intro t _
+  exact opus_dpo_s_rowProduct_pair_unused (coordFT := pkgB2_coordFintype T)
+    (opus_dpo_s_check_c MS T hT N p) (opus_dpo_s_check_rho MS T hT direction N p)
+    (pkgB2_activeRow T) E t r hr (opus_dpo_s_check_rowFunction MS B T hT E N I p t)
+    (opus_dpo_s_check_sideNe T r) xr z₀ z₁
+
+theorem opus_dpo_s_check_current_point
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (E : Finset (pkgB2_Nonroot T))
+    (r : pkgB2_Nonroot T) (hr : r ∉ E) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : pkgB2_Coord T) (.inr (r, 1))
+      (opus_dpo_s_check_sideNe T r) → ℤ) (z₀ z₁ : ℤ) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p
+      (fun j => opus_dpo_s_check_frame T r xr z₀ z₁ (pkgB2_coordEnum T j)) =
+      ((if E = ∅ then ∏ k, (I k).e (pkgB2_repPrimeProject hT p k) else 1) *
+        opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r)
+          (opus_dpo_s_check_frame T r xr 0 0)) *
+      opus_dpo_s_check_other MS B T hT direction E r N I p (opus_dpo_s_check_frame T r xr z₀ 0) := by
+  classical
+  rw [opus_dpo_s_check_integrand]
+  change _ * (∏ t, opus_dpo_s_check_rowProduct MS B T hT direction E N I p t
+    (opus_dpo_s_check_frame T r xr z₀ z₁)) = _
+  rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ (Sum.inr r))]
+  change _ * (_ * opus_dpo_s_check_other MS B T hT direction E r N I p
+    (opus_dpo_s_check_frame T r xr z₀ z₁)) = _
+  rw [opus_dpo_s_check_row_frame MS B T hT direction hdir,
+    opus_dpo_s_check_other_frame MS B T hT direction E r hr]
+  ring
+
+theorem opus_dpo_s_check_next_point
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (E : Finset (pkgB2_Nonroot T))
+    (r : pkgB2_Nonroot T) (hr : r ∉ E) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (xr : opus_dpo_s_PiExceptPair (Sum.inr (r, 0) : pkgB2_Coord T) (.inr (r, 1))
+      (opus_dpo_s_check_sideNe T r) → ℤ) (z₀ z₁ : ℤ) :
+    pkgB2_stateIntegrand MS B gap T hT J0 direction (insert r E) N I p
+      (fun j => opus_dpo_s_check_frame T r xr z₀ z₁ (pkgB2_coordEnum T j)) =
+      opus_dpo_s_check_weight MS B T hT direction E r N p (opus_dpo_s_check_frame T r xr 0 0) *
+      opus_dpo_s_check_other MS B T hT direction E r N I p (opus_dpo_s_check_frame T r xr z₀ 0) *
+      opus_dpo_s_check_other MS B T hT direction E r N I p (opus_dpo_s_check_frame T r xr z₁ 0) := by
+  classical
+  rw [opus_dpo_s_check_integrand_insert MS B T hT J0 gap direction hdir E r hr]
+  change opus_dpo_s_check_weight MS B T hT direction E r N p (opus_dpo_s_check_frame T r xr z₀ z₁) *
+    opus_dpo_s_check_other MS B T hT direction E r N I p (opus_dpo_s_check_frame T r xr z₀ z₁) *
+    opus_dpo_s_check_other MS B T hT direction E r N I p
+      (Function.update (opus_dpo_s_check_frame T r xr z₀ z₁) (.inr (r, 0))
+        (opus_dpo_s_check_frame T r xr z₀ z₁ (.inr (r, 1)))) = _
+  rw [opus_dpo_s_check_weight_frame MS B T hT direction hdir,
+    opus_dpo_s_check_other_frame MS B T hT direction E r hr]
+  simp only [opus_dpo_s_check_frame, opus_dpo_s_pairInsert_one, opus_dpo_s_pairInsert_update_zero]
+  exact congrArg (fun z => _ * _ * z)
+    (opus_dpo_s_check_other_frame MS B T hT direction E r hr N I p xr z₁ z₁)
+noncomputable def opus_dpo_s_check_probability
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (N : ℕ) : ℝ :=
+  independentPrimePoolProbability
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+    (pkgB2_goodPrimeEvent MS gap T hT N)
+
+noncomputable def opus_dpo_s_check_primeMass
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (N : ℕ) (p : Fin (b * sl) → ℕ) : ℝ :=
+  (opus_dpo_s_check_probability MS gap T hT N)⁻¹ *
+    independentPrimePoolMass
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+      (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p *
+    (if pkgB2_goodPrimeEvent MS gap T hT N p then 1 else 0)
+
+noncomputable def opus_dpo_s_check_primeSupport
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K) (N : ℕ) :
+    Finset (Fin (b * sl) → ℕ) :=
+  Fintype.piFinset (fun i => Finset.Ico
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).lower
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+
+theorem opus_dpo_s_check_primeMass_zero
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (N : ℕ) (p : Fin (b * sl) → ℕ)
+    (hp : p ∉ opus_dpo_s_check_primeSupport MS gap N) :
+    opus_dpo_s_check_primeMass MS gap T hT N p = 0 := by
+  have hraw := (opus_dpo_s_private% HindmanSumsProducts.Prediction.pkgB2_independentPrimePoolMass_zero_of_not_mem)
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+    (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p hp
+  simp [opus_dpo_s_check_primeMass, hraw]
+
+theorem opus_dpo_s_check_primeMass_nonneg
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (N : ℕ) (p : Fin (b * sl) → ℕ) :
+    0 ≤ opus_dpo_s_check_primeMass MS gap T hT N p := by
+  classical
+  have hpool (lo hi n : ℕ) : 0 ≤ primePoolLaw lo hi n := by
+    unfold primePoolLaw
+    split_ifs
+    · apply div_nonneg (by positivity)
+      unfold primePoolMass
+      exact Finset.sum_nonneg (fun _ _ => by positivity)
+    · positivity
+  have hraw (p : Fin (b * sl) → ℕ) :
+      0 ≤ independentPrimePoolMass
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p :=
+    Finset.prod_nonneg (fun _ _ => hpool _ _ _)
+  have hprob : 0 ≤ opus_dpo_s_check_probability MS gap T hT N := by
+    unfold opus_dpo_s_check_probability independentPrimePoolProbability
+    apply tsum_nonneg
+    intro p
+    exact mul_nonneg (hraw p) (by split_ifs <;> norm_num)
+  exact mul_nonneg (mul_nonneg (inv_nonneg.mpr hprob) (hraw p))
+    (by split_ifs <;> norm_num)
+
+noncomputable def opus_dpo_s_check_prefactor
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ) (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (N : ℕ) : ℝ :=
+  ∑' p : Fin (b * sl) → ℕ, opus_dpo_s_check_primeMass MS gap T hT N p *
+    ∑' x : pkgB2_Coord T → ℤ,
+      (∏ c, pkgB2_baseCoordinateLaw MS B T J0 gap hT N p c (x c)) *
+        opus_dpo_s_check_weight MS B T hT direction E r N p x
+
+theorem opus_dpo_s_check_state_step
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (hr : r ∉ E) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N)
+    (hreg : ∀ p, pkgB2_goodPrimeEvent MS gap T hT N p → pkgB2_baseRegular MS B T J0 gap hT N p)
+    (hA : 0 < pkgB2_translationLength MS T J0 gap r.1 N) :
+    |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 E N I| ^ 2 ≤
+      opus_dpo_s_check_prefactor MS B gap T J0 hT direction E r N *
+        pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (insert r E) N I := by
+  classical
+  let α := pkgB2_Coord T
+  let a₀ : α := .inr (r, 0)
+  let a₁ : α := .inr (r, 1)
+  let hne : a₁ ≠ a₀ := opus_dpo_s_check_sideNe T r
+  let frame := opus_dpo_s_pairInsert a₀ a₁ hne
+  let μ := opus_dpo_s_check_primeMass MS gap T hT N
+  let law := pkgB2_baseCoordinateLaw MS B T J0 gap hT N
+  let Current (p : Fin (b * sl) → ℕ) (x : α → ℤ) :=
+    pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p (fun j => x (pkgB2_coordEnum T j))
+  let Weight := opus_dpo_s_check_weight MS B T hT direction E r N
+  let Next (p : Fin (b * sl) → ℕ) (x : α → ℤ) :=
+    pkgB2_stateIntegrand MS B gap T hT J0 direction (insert r E) N I p
+      (fun j => x (pkgB2_coordEnum T j))
+  let H₀ (p : Fin (b * sl) → ℕ) xr :=
+    (if E = ∅ then ∏ k, (I k).e (pkgB2_repPrimeProject hT p k) else 1) *
+      opus_dpo_s_check_rowProduct MS B T hT direction E N I p (.inr r) (frame xr 0 0)
+  let Ω (p : Fin (b * sl) → ℕ) xr := Weight p (frame xr 0 0)
+  let H (p : Fin (b * sl) → ℕ) xr z :=
+    opus_dpo_s_check_other MS B T hT direction E r N I p (frame xr z 0)
+  have h₀ : ∀ p xr, |H₀ p xr| ≤ Ω p xr := by
+    intro p xr
+    exact opus_dpo_s_check_selected_bound MS B T hT direction E r hr N p I (frame xr 0 0)
+  have hΩ : ∀ p xr, 0 ≤ Ω p xr := fun p xr => (abs_nonneg _).trans (h₀ p xr)
+  have hnorm : ∀ p, ∑' z, law p a₀ z = 1 := by
+    intro p
+    simpa [law, a₀, pkgB2_baseCoordinateLaw] using uniformIntegerIntervalLaw_tsum_one hA
+  have hcs := opus_dpo_s_jointCoordinate_cauchy a₀ a₁ hne μ law
+    (opus_dpo_s_check_primeSupport MS gap N) (fun p _ => pkgB2_baseWindow MS B T J0 gap hT N p)
+    (opus_dpo_s_check_primeMass_zero MS gap T hT N)
+    (fun p c z hz => pkgB2_baseCoordinateLaw_zero_outside MS B T J0 gap hT N p c z hz)
+    (opus_dpo_s_check_primeMass_nonneg MS gap T hT N)
+    (fun p c z => pkgB2_baseCoordinateLaw_nonneg MS B T J0 gap hT N p c z)
+    (fun _ => rfl) hnorm H₀ Ω H hΩ h₀ Current Weight Next
+    (fun p xr z₀ z₁ => opus_dpo_s_check_current_point MS B T hT J0 gap direction hdir E r hr N I p xr z₀ z₁)
+    (fun p xr z₀ z₁ => opus_dpo_s_check_weight_frame MS B T hT direction hdir E r N p xr z₀ z₁)
+    (fun p xr z₀ z₁ => opus_dpo_s_check_next_point MS B T hT J0 gap direction hdir E r hr N I p xr z₀ z₁)
+  rw [opus_dpo_s_check_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 E N I hreg,
+    opus_dpo_s_check_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (insert r E) N I hreg]
+  exact hcs
+theorem opus_dpo_s_check_rowProduct_enum
+    (MS : MasterScales K As sl Dm) (T : Fin b → CubeTemplate)
+    (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (t : pkgB2_BaseRow T) (f : ℤ → ℝ)
+    (N : ℕ) (p : Fin (b * sl) → ℕ) (x : pkgB2_Coord T → ℤ) :
+    opus_dpo_s_rowProduct (opus_dpo_s_check_c MS T hT N p)
+      (opus_dpo_s_check_rho MS T hT direction N p) (pkgB2_activeRow T) E t f x =
+      ∏ u ∈ (Finset.univ : Finset (Fin (Fintype.card (pkgB2_Occurrence T E)))).filter
+        (fun u => (pkgB2_occurrenceEnum T E u).1 = t),
+        f (pkgB2_stateRowValue MS T hT J0 gap direction E N p u
+          (fun j => x (pkgB2_coordEnum T j))) := by
+  classical
+  let g : pkgB2_Occurrence T E → ℝ := fun o =>
+    f (∑ a : pkgB2_Coord T,
+      pkgB2_occurrenceCoefficientInt T
+        (fun k => (T k).modulus (corrScales MS) N (pkgB2_repPrimeProject hT p k))
+        direction E o a * x a)
+  have henum :
+      (∏ u, if (pkgB2_occurrenceEnum T E u).1 = t then g (pkgB2_occurrenceEnum T E u) else 1) =
+      ∏ o : pkgB2_Occurrence T E, if o.1 = t then g o else 1 :=
+    Fintype.prod_equiv (pkgB2_occurrenceEnum T E) _ _ (fun _ => rfl)
+  have hfiber := opus_dpo_s_sigmaFiber_product (wholeFT := pkgB2_occurrenceFintype T E) t g
+  rw [Finset.prod_filter] at hfiber
+  symm
+  rw [Finset.prod_filter]
+  have hfirst :
+      (∏ u : Fin (Fintype.card (pkgB2_Occurrence T E)),
+        if (pkgB2_occurrenceEnum T E u).1 = t then
+          f (pkgB2_stateRowValue MS T hT J0 gap direction E N p u
+            (fun j => x (pkgB2_coordEnum T j))) else 1) =
+      ∏ u, if (pkgB2_occurrenceEnum T E u).1 = t then g (pkgB2_occurrenceEnum T E u) else 1 := by
+    apply Finset.prod_congr rfl
+    intro u _
+    rw [opus_dpo_s_check_rowValue]
+  rw [hfirst, henum, hfiber]
+  unfold opus_dpo_s_rowProduct
+  apply Finset.prod_congr (by ext; simp)
+  intro η _
+  dsimp [g]
+  congr 1
+  apply Finset.sum_congr (by ext; simp)
+  intro a _
+  rfl
+
+noncomputable def opus_dpo_s_check_selectedOccurrences (T : Fin b → CubeTemplate)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) :
+    Finset (Fin (Fintype.card (pkgB2_Occurrence T E))) :=
+  Finset.univ.filter (fun u => (pkgB2_occurrenceEnum T E u).1 = Sum.inr r)
+
+theorem opus_dpo_s_check_weight_expansion
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ) (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (r : pkgB2_Nonroot T) (N : ℕ)
+    (p : Fin (b * sl) → ℕ) (x : pkgB2_Coord T → ℤ) :
+    opus_dpo_s_check_weight MS B T hT direction E r N p x =
+      ∑ U ∈ (opus_dpo_s_check_selectedOccurrences T E r).powerset,
+        ∏ u ∈ U, nu MS.core.parameters N B
+          (pkgB2_stateRowValue MS T hT J0 gap direction E N p u
+            (fun j => x (pkgB2_coordEnum T j))) := by
+  unfold opus_dpo_s_check_weight
+  rw [opus_dpo_s_check_rowProduct_enum MS T hT J0 gap direction E (.inr r)]
+  simpa only [Finset.prod_empty, mul_one, Finset.powerset_empty, Finset.sum_singleton,
+    Finset.card_empty, Nat.sub_zero, pow_zero, one_mul, Finset.union_empty,
+    opus_dpo_s_check_selectedOccurrences] using
+      pkgB2_signedProductExpansion
+        (opus_dpo_s_check_selectedOccurrences T E r) ∅ (by simp)
+        (fun u => nu MS.core.parameters N B
+          (pkgB2_stateRowValue MS T hT J0 gap direction E N p u
+            (fun j => x (pkgB2_coordEnum T j))))
+
+
+end OpusDpoSCheck
+
+
+/-! ### Cauchy–Schwarz elimination step: the part lemma -/
+
+/-- `opus_dpo_average` in structured coordinates, when every good tuple is regular. -/
+theorem opus_dpo_average_eq_coord {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ) (hT : ∀ k, Allowed Dm (T k)) (N : ℕ)
+    (F : (Fin (b * sl) → ℕ) → (Fin (Fintype.card (pkgB2_Coord T)) → ℤ) → ℝ)
+    (hreg : ∀ p, pkgB2_goodPrimeEvent MS gap T hT N p →
+      pkgB2_baseRegular MS B T J0 gap hT N p) :
+    opus_dpo_average MS B gap T J0 hT N F =
+      ∑' p : Fin (b * sl) → ℕ, opus_dpo_s_check_primeMass MS gap T hT N p *
+        ∑' x : pkgB2_Coord T → ℤ,
+          (∏ c, pkgB2_baseCoordinateLaw MS B T J0 gap hT N p c (x c)) *
+            F p (fun j => x (pkgB2_coordEnum T j)) := by
+  classical
+  unfold opus_dpo_average
+  rw [← tsum_mul_left]
+  apply tsum_congr
+  intro p
+  unfold opus_dpo_s_check_primeMass opus_dpo_s_check_probability
+  by_cases hp : pkgB2_goodPrimeEvent MS gap T hT N p
+  · simp only [hp, if_true, mul_one]
+    rw [← mul_assoc]
+    congr 1
+    simp only [pkgB2_baseMass, hreg p hp, dite_true]
+    let e : (pkgB2_Coord T → ℤ) ≃ (Fin (Fintype.card (pkgB2_Coord T)) → ℤ) :=
+      Equiv.arrowCongr (pkgB2_coordEnum T).symm (Equiv.refl ℤ)
+    calc
+      _ = ∑' x : pkgB2_Coord T → ℤ,
+          (∏ j, pkgB2_baseCoordinateLaw MS B T J0 gap hT N p (pkgB2_coordEnum T j)
+            (x (pkgB2_coordEnum T j))) * F p (fun j => x (pkgB2_coordEnum T j)) :=
+        (e.tsum_eq _).symm
+      _ = _ := by
+        apply tsum_congr
+        intro x
+        congr 1
+        exact Fintype.prod_equiv (pkgB2_coordEnum T) _ _ (fun _ => rfl)
+  · simp [hp]
+
+theorem opus_dpo_prefactor_eq_check {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ) (hT : ∀ k, Allowed Dm (T k))
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ)
+    (E : Finset (pkgB2_Nonroot T)) (s : pkgB2_Nonroot T) (N : ℕ)
+    (hreg : ∀ p, pkgB2_goodPrimeEvent MS gap T hT N p →
+      pkgB2_baseRegular MS B T J0 gap hT N p) :
+    opus_dpo_prefactor MS B gap T J0 hT direction E s N =
+      opus_dpo_s_check_prefactor MS B gap T J0 hT direction E s N := by
+  classical
+  unfold opus_dpo_prefactor opus_dpo_s_check_prefactor
+  rw [opus_dpo_average_eq_coord MS B gap T J0 hT N _ hreg]
+  apply tsum_congr
+  intro p
+  congr 1
+  apply tsum_congr
+  intro x
+  congr 1
+  unfold opus_dpo_s_check_weight
+  rw [opus_dpo_s_check_rowProduct_enum MS T hT J0 gap direction E (.inr s)]
+  refine Finset.prod_congr ?_ fun _ _ => rfl
+  ext u
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+
+/-- Proof of the part `opus_dpo_cs_step`. -/
+theorem opus_dpo_cs_step_proof {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K)
+    (gap : Fin b → Fin K) (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k)) (hJ0 : ∀ k, 0 < J0 k)
+    (direction : ∀ s : pkgB2_Nonroot T, Fin ((T s.1).d + 1) → ℤ)
+    (hdir : pkgB2_directionSpec T direction) (k0 : Fin b)
+    (E : Finset (pkgB2_Nonroot T)) (s : pkgB2_Nonroot T) (hs : s ∉ E) :
+    ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
+      |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 E N I| ^ 2 ≤
+        opus_dpo_prefactor MS B gap T J0 hT direction E s N *
+          pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 (insert s E) N I := by
+  have hAev : ∀ᶠ N : ℕ in atTop, 0 < pkgB2_translationLength MS T J0 gap s.1 N := by
+    filter_upwards [pkgB2_translationLength_ge_blockScale_pow MS B T J0 gap hgap hJ0 s.1 1]
+      with N hN
+    have hV : 1 ≤ pkgB2_blockScale MS.core.parameters B N := by
+      dsimp [pkgB2_blockScale]
+      omega
+    rw [pow_one] at hN
+    exact lt_of_lt_of_le (by omega) hN
+  filter_upwards [opus_dpo_regular_eventually MS B gap T J0 hgap hT hJ0, hAev]
+    with N hreg hA I
+  rw [opus_dpo_prefactor_eq_check MS B gap T J0 hT direction E s N hreg]
+  convert opus_dpo_s_check_state_step MS B gap T J0 hgap hT hJ0 direction hdir k0 E s hs N I
+    hreg hA
+
 end
 
 end Prediction
