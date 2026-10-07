@@ -3650,6 +3650,7 @@ theorem Emu_weighted_holder {ι : Type*} (I : Finset ι) (hI : I.Nonempty)
       intro i hi
       rw [hright i]
 
+-- Adapted from OpenAI openai/math (Apache-2.0), OAI/Probability/InvariantIsing/Arrays/PerturbationFeatures.lean.
 theorem abs_prod_sub_prod_le {ι : Type*} [DecidableEq ι]
     (s : Finset ι) (f g : ι → ℝ) :
     |(∏ i ∈ s, f i) - ∏ i ∈ s, g i| ≤
@@ -3727,6 +3728,8 @@ theorem abs_prod_sub_prod_le {ι : Type*} [DecidableEq ι]
       _ = ∑ i ∈ insert a s, |f i - g i| *
             ∏ j ∈ insert a s, (if j = i then (1 : ℝ) else M j) := by
               simpa [M] using hsum.symm
+
+-- End of code adapted from OpenAI
 
 theorem prod_ite_singleton {ι : Type*} [DecidableEq ι] (s : Finset ι)
     (i : ι) (hi : i ∈ s) (a : ℝ) :
