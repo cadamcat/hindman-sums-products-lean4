@@ -5133,6 +5133,117 @@ theorem pkgElim_weightedDivisorProduct_eq_occurrenceWeights
         (by intro o; simp)).symm
     _ = ∏ o ∈ F, g o := by simp [Finset.prod_filter]
 
+theorem pkgElim_weightedLinearFormsInner_eq_expanded
+    {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (J0 B : ℕ) (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
+    (F : Finset (Occurrence Sh)) (N : ℕ) (p' : Fin s → ℕ)
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly (fun i => p' (ι i))) :
+    (∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N (fun i => p' (ι i)) eX x *
+        ∏ u : Fin h,
+          nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N
+            (pkgElim_momentDivisorTemplate C Sh eO F u))
+            (FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX)
+              N p' u x).num) =
+      ∑' x : Fin d → ℤ,
+        coordinateProductLaw S C Sh dirs J0 N (fun i => p' (ι i)) eX x *
+          ∏ o ∈ F,
+            atQ (chainWeight S.core.parameters C N
+              (Sh.row (occurrenceRow Sh o)).anchor)
+              (occurrenceValue S C a Sh dirs N (fun i => p' (ι i)) o
+                (fun v => x (eX v))) := by
+  apply tsum_congr
+  intro x
+  congr 1
+  exact pkgElim_weightedDivisorProduct_eq_occurrenceWeights S ι C a Sh dirs
+    tests J0 B eO eX F N p' x hGlobal hGood
+
+
+theorem pkgElim_weightedMomentAverage_eq_probability_mul
+    {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (hlisted : TestsListed Dm ι tests) (J0 : ℕ) (hJ0 : 0 < J0) (B : ℕ)
+    (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
+    (F : Finset (Occurrence Sh))
+    (hGlobalEvent : ∀ᶠ N in atTop,
+      pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (N : ℕ) (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGpos : 0 < gapSlotProbability S C.gap N
+      (GoodTuple S C.gap N tests dirs.poly)) :
+    FromArithmetic.weightedLinearFormsAverage
+      (pkgElim_weightedMomentData S ι C a Sh dirs tests hlisted J0 hJ0 B eO eX F hGlobalEvent)
+      N (fun p' => (pkgElim_weightedMomentData S ι C a Sh dirs tests hlisted J0 hJ0 B eO eX F hGlobalEvent).goodDomain N p') =
+    gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly) *
+      pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N := by
+  classical
+  let D := pkgElim_weightedMomentData S ι C a Sh dirs tests hlisted J0 hJ0 B eO eX F hGlobalEvent
+  let good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
+  let Hloc : (Fin q → ℕ) → ℝ := fun p =>
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x *
+        ∏ o ∈ F,
+          atQ (chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor)
+            (occurrenceValue S C a Sh dirs N p o (fun v => x (eX v)))
+  have hinner (p' : Fin s → ℕ) (hp : good (fun i => p' (ι i))) :
+      (∑' x : Fin d → ℤ,
+        D.baseMass N p' x *
+          ∏ u : Fin h,
+            nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (D.divisor u))
+              (FromArithmetic.linearRowValue D.rowCoeff N p' u x).num) =
+        Hloc (fun i => p' (ι i)) := by
+    change (∑' x : Fin d → ℤ,
+        coordinateProductLaw S C Sh dirs J0 N (fun i => p' (ι i)) eX x *
+          ∏ u : Fin h,
+            nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N
+              (pkgElim_momentDivisorTemplate C Sh eO F u))
+              (FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX)
+                N p' u x).num) = _
+    exact pkgElim_weightedLinearFormsInner_eq_expanded S ι C a Sh dirs tests J0 B
+      eO eX F N p' hGlobal hp
+  have houter :
+      FromArithmetic.weightedLinearFormsAverage D N (fun p' => D.goodDomain N p') =
+        ∑' p' : Fin s → ℕ,
+          independentPrimePoolMass (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+            (fun _ => (S.primeStage.pool N C.gap).upper) p' *
+            (if good (fun i => p' (ι i)) then Hloc (fun i => p' (ι i)) else 0) := by
+    unfold FromArithmetic.weightedLinearFormsAverage
+    apply tsum_congr
+    intro p'
+    by_cases hp : good (fun i => p' (ι i))
+    · have hdom : D.goodDomain N p' := by
+        change pkgElim_momentGlobalData S C a Sh dirs tests J0 B N ∧ good (fun i => p' (ι i))
+        exact ⟨hGlobal, hp⟩
+      rw [if_pos hdom, if_pos hp]
+      rw [hinner p' hp]
+      simp [D, pkgElim_weightedMomentData]
+    · have hdom : ¬ D.goodDomain N p' := by
+        intro hd
+        exact hp hd.2
+      simp [hdom, hp]
+  have hCylinder := pkgElim_independentPrimePoolAverage_cylinder ι
+    (S.primeStage.pool N C.gap).lower (S.primeStage.pool N C.gap).upper
+    hGlobal.2.2.1 (fun p => if good p then Hloc p else 0)
+  have hWLF :
+      FromArithmetic.weightedLinearFormsAverage D N (fun p' => D.goodDomain N p') =
+        gapSlotAverage S C.gap N (fun p => if good p then Hloc p else 0) := by
+    rw [houter]
+    simpa [gapSlotAverage, gapSlotMass] using hCylinder
+  calc
+    _ = gapSlotAverage S C.gap N (fun p => if good p then Hloc p else 0) := hWLF
+    _ = gapSlotProbability S C.gap N good *
+        pkgElim_expandedAuxiliaryMoment S ι C a Sh dirs tests J0 eX F N := by
+      unfold pkgElim_expandedAuxiliaryMoment goodSlotAverage
+      have hGne : gapSlotProbability S C.gap N good ≠ 0 := ne_of_gt hGpos
+      field_simp [hGne]
+      unfold gapSlotAverage
+      ring
+
 
 end AdditiveMoment
 
