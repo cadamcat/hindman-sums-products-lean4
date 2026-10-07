@@ -4170,14 +4170,14 @@ noncomputable def pkgMask_coordinateJoin {m : ℕ} (u : Fin m) (y : ℤ)
   (pkgMask_coordinateSplit u).symm (y, w)
 
 noncomputable def pkgMask_pivotRestMass {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m)
     (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) : ℝ :=
   ∏ i : finsetComplement ({u} : Finset (Fin m)),
     harmonicLaw (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1)) (w i)
 
 theorem pkgMask_pivotRestMass_zero_of_not_mem {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m)
     (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
     (hw : w ∉ Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
@@ -4210,7 +4210,7 @@ theorem pkgMask_coordinateJoin_other {m : ℕ} (u : Fin m) (y : ℤ)
   exact congrFun (congrArg Prod.snd h) i
 
 theorem pkgMask_pivotMass_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m) (z : Fin m → ℤ) :
     pivotMass S.core.parameters C N z =
       harmonicLaw (S.core.parameters.X N (C.block u).1) (primorial (N + 1)) (z u) *
@@ -4350,7 +4350,7 @@ theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
     _ = 1 := hfinite
 
 theorem pkgMask_pivotTsum_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m) (F : (Fin m → ℤ) → ℝ) :
     ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z * F z =
       ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
@@ -4496,7 +4496,7 @@ theorem pkgMask_pivotTsum_coordinate_split {K s m : ℕ} {Aset : Finset ℚ}
     _ = _ := hRight.symm
 
 theorem pkgMask_pivotRestMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m) :
     ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
       pkgMask_pivotRestMass S C N u w = 1 := by
@@ -4517,7 +4517,7 @@ theorem pkgMask_pivotRestMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
     _ = 1 := pivotMass_tsum_one S C N
 
 theorem pkgMask_gapRestMass_tsum_one {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m)
     (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
       (S.primeStage.pool N C.gap).upper) :
@@ -4613,7 +4613,7 @@ theorem pkgMask_weightedError_tsum_le {α : Type*} [Countable α]
     _ = ε := by rw [hμsum.tsum_mul_right ε, hμtotal]; ring
 
 theorem pkgMask_gapRestMass_summable {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m) :
     Summable (fun x : (Fin q → ℕ) ×
       (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) =>
@@ -4639,7 +4639,7 @@ theorem pkgMask_gapRestMass_summable {K s m q : ℕ} {Aset : Finset ℚ}
     simp
 
 theorem pkgMask_gapRestAverage_error_le {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (u : Fin m)
     (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
       (S.primeStage.pool N C.gap).upper)
@@ -7382,7 +7382,7 @@ theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgMask_stateCorrelation_joint {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) :
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) :
     st.correlation S C a N =
       ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
         gapPivotMass S C N x.1 x.2 *
@@ -7451,7 +7451,7 @@ theorem pkgMask_stateCorrelation_joint {m q r K s : ℕ} {Aset : Finset ℚ}
 
 theorem pkgMask_stateCorrelation_coordinate_split {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (u : Fin m) :
     st.correlation S C a N =
       ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
@@ -7480,7 +7480,7 @@ theorem pkgMask_stateCorrelation_coordinate_split {m q r K s : ℕ} {Aset : Fins
 
 theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
     (hvalid : st.Valid S C a N Jstar gstar)
     (p : Fin q → ℕ) (z : Fin m → ℤ) :
@@ -7488,7 +7488,7 @@ theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
       ∏ R, atQ (st.rowFunction R p)
         (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
           fun k => (z k : ℚ))| ≤
-      (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
   rcases hvalid with ⟨_, hmask, hrows, _⟩
   have hmaskProd :
       |∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)| ≤ 1 := by
@@ -7510,13 +7510,13 @@ theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
         |∏ R, atQ (st.rowFunction R p)
           (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
             fun k => (z k : ℚ))| ≤
-        1 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+        1 * (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
           exact mul_le_mul hmaskProd hrowProd (abs_nonneg _) (by norm_num)
     _ = _ := by norm_num
 
 theorem pkgMask_stateCoordinateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
     (hvalid : st.Valid S C a N Jstar gstar) (u : Fin m)
     (p : Fin q → ℕ) (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
@@ -7526,7 +7526,7 @@ theorem pkgMask_stateCoordinateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset
         ∏ R, atQ (st.rowFunction R p)
           (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
             fun k => (pkgMask_coordinateJoin u y w k : ℚ))| ≤
-      (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) :=
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) :=
   pkgMask_stateIntegrand_abs_le st S C a N Jstar gstar hvalid p
     (pkgMask_coordinateJoin u y w)
 
@@ -7534,7 +7534,7 @@ end MaskRemovalState
 
 noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
     (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
     (Sh' : RowShape m (q + 2) r')
     (e : RowBranchIndex (fun i =>
@@ -7557,7 +7557,7 @@ noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
 
 theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
     (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
     (hvalid : st.Valid S C a N Jstar gstar)
@@ -7571,7 +7571,7 @@ theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
     (hstarIndex : Sh'.star = e ⟨(st.shape.star, 0), Or.inl rfl⟩)
     (hstarNot : ¬ ((st.shape.row st.shape.star).scaleBranchP u).Parallel
       ((st.shape.row st.shape.star).scaleBranchQ u))
-    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+    (hpoolLower : FromArithmetic.masterScaleV S.core.parameters N C.gap <
       (S.primeStage.pool N C.gap).lower) :
     (outsideBranchMaskRemovalState S C N st U u Sh' e).Valid
       S C a N Jstar gstar := by
@@ -7657,9 +7657,9 @@ theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
         exact ⟨hlo, hhi, hpj⟩
       have hp0 : (p' 0).Prime := (hslot 0).2.2
       have hp1 : (p' 1).Prime := (hslot 1).2.2
-      have hV0 : masterScaleV S.core.parameters N C.gap < p' 0 :=
+      have hV0 : FromArithmetic.masterScaleV S.core.parameters N C.gap < p' 0 :=
         lt_of_lt_of_le hpoolLower (hslot 0).1
-      have hV1 : masterScaleV S.core.parameters N C.gap < p' 1 :=
+      have hV1 : FromArithmetic.masterScaleV S.core.parameters N C.gap < p' 1 :=
         lt_of_lt_of_le hpoolLower (hslot 1).1
       have hpall : ∀ j, p' j ≠ 0 := fun j =>
         Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
@@ -7697,7 +7697,7 @@ theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
 
 noncomputable def pkgMask_balancedBranchMaskRemovalState {K s m q r r' : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
     (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u v : Fin m)
     (huv : u ≠ v) (Sh' : RowShape m (q + 2) r')
     (e : RowBranchIndex (fun i =>
@@ -7723,7 +7723,7 @@ noncomputable def pkgMask_balancedBranchMaskRemovalState {K s m q r r' : ℕ}
 
 theorem pkgMask_balancedBranchMaskRemovalState_valid {K s m q r r' : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u v : Fin m)
     (huv : u ≠ v) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
     (hvalid : st.Valid S C a N Jstar gstar)
@@ -7737,7 +7737,7 @@ theorem pkgMask_balancedBranchMaskRemovalState_valid {K s m q r r' : ℕ}
     (hstarIndex : Sh'.star = e ⟨(st.shape.star, 0), Or.inl rfl⟩)
     (hstarNot : ¬ ((st.shape.row st.shape.star).scaleBalancedP u v).Parallel
       ((st.shape.row st.shape.star).scaleBalancedQ u v))
-    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+    (hpoolLower : FromArithmetic.masterScaleV S.core.parameters N C.gap <
       (S.primeStage.pool N C.gap).lower) :
     (pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).Valid
       S C a N Jstar gstar := by
@@ -7827,9 +7827,9 @@ theorem pkgMask_balancedBranchMaskRemovalState_valid {K s m q r r' : ℕ}
         exact ⟨hlo, hhi, hpj⟩
       have hp0 : (p' 0).Prime := (hslot 0).2.2
       have hp1 : (p' 1).Prime := (hslot 1).2.2
-      have hV0 : masterScaleV S.core.parameters N C.gap < p' 0 :=
+      have hV0 : FromArithmetic.masterScaleV S.core.parameters N C.gap < p' 0 :=
         lt_of_lt_of_le hpoolLower (hslot 0).1
-      have hV1 : masterScaleV S.core.parameters N C.gap < p' 1 :=
+      have hV1 : FromArithmetic.masterScaleV S.core.parameters N C.gap < p' 1 :=
         lt_of_lt_of_le hpoolLower (hslot 1).1
       have hpall : ∀ j, p' j ≠ 0 := fun j =>
         Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
