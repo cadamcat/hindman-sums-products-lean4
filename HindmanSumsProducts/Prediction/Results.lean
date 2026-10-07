@@ -6,6 +6,7 @@ import HindmanSumsProducts.Prediction.PkgD
 import HindmanSumsProducts.Prediction.PkgB2
 import HindmanSumsProducts.Prediction.PkgOpusDpo
 import HindmanSumsProducts.Prediction.PkgDFlat
+import HindmanSumsProducts.Prediction.PkgDPre
 
 /-!
 # Dual-test pseudorandomness, bounded dense models, nilsequence testing (§5.1–§5.2)
@@ -375,7 +376,27 @@ theorem opus_dpo_prefactor_bound (MS : MasterScales K As sl Dm) (B : Block K) {b
     ∃ C : ℝ, ∀ᶠ N in atTop,
       0 ≤ opus_dpo_prefactor MS B gap T J0 hT direction E s N ∧
         opus_dpo_prefactor MS B gap T J0 hT direction E s N ≤ C := by
-  sorry
+  classical
+  let L : ℝ := (2 : ℝ) ^ (Finset.univ.filter
+    (fun o : Fin (Fintype.card (pkgB2_Occurrence T E)) =>
+      (pkgB2_occurrenceEnum T E o).1 = Sum.inr s)).card
+  have hlim := l_dpre_prefactor_tendsto MS B gap T J0 hgap hT hJ0
+    direction hdir k0 E s
+  have hclose : ∀ᶠ N : ℕ in atTop,
+      dist (opus_dpo_prefactor MS B gap T J0 hT direction E s N) L < 1 := by
+    have h := hlim.eventually
+      (Metric.ball_mem_nhds L (show (0 : ℝ) < 1 by norm_num))
+    filter_upwards [h] with N hN
+    simpa only [Metric.mem_ball] using hN
+  refine ⟨L + 1, ?_⟩
+  filter_upwards [hclose] with N hN
+  refine ⟨l_dpre_prefactor_nonneg MS B gap T J0 hT direction E s N, ?_⟩
+  have habs :
+      |opus_dpo_prefactor MS B gap T J0 hT direction E s N - L| < 1 := by
+    simpa [Real.dist_eq] using hN
+  have := abs_lt.mp habs
+  dsimp [L]
+  linarith
 
 /-- Part: the terminal state, with every direction eliminated, is `o(1)` uniformly over the
 inputs (05:159–163; `pkgB2_terminalState_tendsto_zero` for input sequences, here uniform and
