@@ -828,8 +828,13 @@ theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar : Finset (Fin m)) (hStarSupport : (Sh.row Sh.star).support = Jstar)
     (u v : Fin m) (hu : u ∈ (Sh.row Sh.star).support)
     (hv : v ∈ (Sh.row Sh.star).support) (hvu : v ≠ u) :
-    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r'),
-      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r')
+      (e : RowBranchIndex (fun i =>
+        ((Sh.row i).scaleBranchP u).Parallel ((Sh.row i).scaleBranchQ u)) ≃ Fin r'),
+      (∀ x, Sh'.row (e x) = RowBranchTemplate Sh
+        (fun i => (Sh.row i).scaleBranchP u)
+        (fun i => (Sh.row i).scaleBranchQ u) x.val.1 x.val.2) ∧
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
   let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchP u
   let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchQ u
   let I : Fin r → Prop := fun i => (L i).Parallel (R i)
@@ -870,14 +875,21 @@ theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       _ = Jstar := hStarSupport
   obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
     exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
-  exact ⟨r', Sh', hr', hstar'⟩
+  refine ⟨r', Sh', ?_, ?_, hr', hstar'⟩
+  · simpa [I, L, R] using e
+  · simpa [I, L, R, RowBranchTemplate] using hrow
 
 theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar : Finset (Fin m)) (hStarSupport : (Sh.row Sh.star).support = Jstar)
     (u v : Fin m) (hu : u ∈ (Sh.row Sh.star).support)
     (hv : v ∈ (Sh.row Sh.star).support) (huv : u ≠ v) :
-    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r'),
-      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r')
+      (e : RowBranchIndex (fun i =>
+        ((Sh.row i).scaleBalancedP u v).Parallel ((Sh.row i).scaleBalancedQ u v)) ≃ Fin r'),
+      (∀ x, Sh'.row (e x) = RowBranchTemplate Sh
+        (fun i => (Sh.row i).scaleBalancedP u v)
+        (fun i => (Sh.row i).scaleBalancedQ u v) x.val.1 x.val.2) ∧
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
   let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedP u v
   let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedQ u v
   let I : Fin r → Prop := fun i => (L i).Parallel (R i)
@@ -923,7 +935,9 @@ theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       _ = Jstar := hStarSupport
   obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
     exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
-  exact ⟨r', Sh', hr', hstar'⟩
+  refine ⟨r', Sh', ?_, ?_, hr', hstar'⟩
+  · simpa [I, L, R] using e
+  · simpa [I, L, R, RowBranchTemplate] using hrow
 
 theorem card_nonempty_mask_subsets (m : ℕ) :
     Fintype.card {U : Finset (Fin m) // U.Nonempty} = maskCount m := by
@@ -6100,10 +6114,14 @@ theorem exists_maskShape_step {m q r : ℕ} (Sh : RowShape m q r)
     rcases Finset.mem_erase.mp hvErase with ⟨hvu, hvJ⟩
     have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
     have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
-    exact exists_scaleBranch_row_shape Sh Jstar hStar u v huSupp hvSupp hvu
+    obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+      exists_scaleBranch_row_shape Sh Jstar hStar u v huSupp hvSupp hvu
+    exact ⟨r', Sh', hr', hstar'⟩
   · have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
     have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
-    exact exists_scaleBalanced_row_shape Sh Jstar hStar u v huSupp hvSupp huv
+    obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+      exists_scaleBalanced_row_shape Sh Jstar hStar u v huSupp hvSupp huv
+    exact ⟨r', Sh', hr', hstar'⟩
 
 theorem exists_maskShape_after_list {m : ℕ} (Jstar : Finset (Fin m))
     (hJ : 2 ≤ Jstar.card) (masks : List (Finset (Fin m)))
