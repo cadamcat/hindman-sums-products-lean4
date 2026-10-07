@@ -1717,6 +1717,40 @@ theorem masterCRTModulus_coprime_iff_projection {w e V : ℕ}
     (natCoprime_masterCRTModulus_factorization (w := w) (e := e) (V := V)
       (x := a.val))
 
+theorem masterCRTModulus_coprime_iff_finCRTEquiv {w e V : ℕ} (he : 0 < e)
+    (a : Fin (FromArithmetic.masterCRTModulus w e V)) :
+    Nat.Coprime a.val (FromArithmetic.masterCRTModulus w e V) ↔
+      Nat.Coprime (masterCRTModulus_finCRTEquiv he a).1.val (primorial w ^ e) ∧
+        ∀ p : FromArithmetic.CRTPrimeRange w V,
+          Nat.Coprime ((masterCRTModulus_finCRTEquiv he a).2 p).val p.val := by
+  rw [masterCRTModulus_coprime_iff_projection (w := w) (e := e) (V := V) a]
+  have hbase :
+      (masterCRTModulus_finCRTEquiv he a).1.val = a.val % (primorial w ^ e) := by
+    change (masterCRTModulus_optionPiFinEquiv he a none).val = _
+    exact masterCRTModulus_optionPiFinEquiv_none he a
+  have hprime (p : FromArithmetic.CRTPrimeRange w V) :
+      (masterCRTModulus_finCRTEquiv he a).2 p =
+        crtResidueProjection (w := w) (V := V)
+          (Q := FromArithmetic.masterCRTModulus w e V) a p := by
+    change masterCRTModulus_optionPiFinEquiv he a (some p) = _
+    exact masterCRTModulus_optionPiFinEquiv_some he a p
+  constructor
+  · rintro ⟨hbase', hprime'⟩
+    refine ⟨?_, ?_⟩
+    · rw [hbase]
+      exact (ZMod.coprime_mod_iff_coprime a.val (primorial w ^ e)).mpr hbase'
+    · intro p
+      rw [hprime p]
+      exact hprime' p
+  · rintro ⟨hbase', hprime'⟩
+    refine ⟨?_, ?_⟩
+    · have hc : Nat.Coprime (a.val % (primorial w ^ e)) (primorial w ^ e) := by
+        simpa [hbase] using hbase'
+      exact (ZMod.coprime_mod_iff_coprime a.val (primorial w ^ e)).mp hc
+    · intro p
+      rw [← hprime p]
+      exact hprime' p
+
 noncomputable def unitsEquivIsUnitSubtype {M : Type*} [Monoid M] :
     Mˣ ≃ {x : M // IsUnit x} where
   toFun u := ⟨u, u.isUnit⟩
@@ -1738,6 +1772,25 @@ theorem sum_isUnit_eq_card_units {M : Type*} [Monoid M] [Fintype M]
     _ = _ := by
       exact_mod_cast (Fintype.card_congr
         (unitsEquivIsUnitSubtype (M := M)).symm)
+
+theorem sum_coprime_fin_eq_totient {n : ℕ} (hn : 0 < n) :
+    (∑ a : Fin n, if Nat.Coprime a.val n then (1 : ℝ) else 0) =
+      (Nat.totient n : ℝ) := by
+  classical
+  letI : NeZero n := ⟨Nat.ne_of_gt hn⟩
+  letI : Finite (ZMod n)ˣ :=
+    Finite.of_injective (fun u : (ZMod n)ˣ => (u : ZMod n)) Units.val_injective
+  letI : Fintype (ZMod n)ˣ := Fintype.ofFinite (ZMod n)ˣ
+  calc
+    _ = ∑ z : ZMod n, if IsUnit z then (1 : ℝ) else 0 := by
+      apply Fintype.sum_equiv (ZMod.finEquiv n).toEquiv
+      intro a
+      change (if Nat.Coprime a.val n then (1 : ℝ) else 0) =
+        if IsUnit ((ZMod.finEquiv n) a) then 1 else 0
+      rw [zmod_finEquiv_apply a]
+      simp [ZMod.isUnit_iff_coprime]
+    _ = (Fintype.card (ZMod n)ˣ : ℝ) := sum_isUnit_eq_card_units
+    _ = _ := by rw [ZMod.card_units_eq_totient n]
 
 theorem masterCRTModulus_totient {w e V : ℕ} (he : 0 < e) :
     Nat.totient (FromArithmetic.masterCRTModulus w e V) =
