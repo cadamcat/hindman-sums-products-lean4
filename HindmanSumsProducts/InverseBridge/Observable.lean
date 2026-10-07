@@ -105,6 +105,48 @@ noncomputable def realTranslationCoordinate {L : Type*} [LieRing L] [LieAlgebra 
     (ℝ ⊗[ℚ] Lin F) →ₗ[ℝ] ℝ :=
   (TensorProduct.AlgebraTensorModule.rid ℚ ℝ ℝ).toLinearMap.comp (rLinReal F)
 
+private noncomputable def realProjl {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) :
+    (ℝ ⊗[ℚ] Lin F) →ₗ[ℝ] (ℝ ⊗[ℚ] Poly F) :=
+  (LieAlgebra.SemiDirectSum.projl (shiftAction F)).baseChange ℝ
+
+/-- Every realified linearized coordinate is the sum of its polynomial
+component and its real translation coordinate. -/
+private theorem realInl_realProjl_add_smul {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) (x : ℝ ⊗[ℚ] Lin F) :
+    realInl F (realProjl F x) + realTranslationCoordinate F x • realDhat F = x := by
+  induction x using TensorProduct.inductionOn with
+  | tmul a z =>
+      have hcoord : realTranslationCoordinate F (a ⊗ₜ[ℚ] z) =
+          z.right • a := by
+        simp [realTranslationCoordinate, rLinReal, rLin,
+          TensorProduct.AlgebraTensorModule.rid_tmul]
+      have htrans : (z.right • a) • realDhat F =
+          a ⊗ₜ[ℚ] LieAlgebra.SemiDirectSum.inr (shiftAction F) z.right := by
+        calc
+          _ = (z.right • a) ⊗ₜ[ℚ] Dhat F := by
+                rw [realDhat, TensorProduct.smul_tmul']
+                simp
+          _ = a ⊗ₜ[ℚ] (z.right • Dhat F) := by
+                rw [TensorProduct.smul_tmul]
+          _ = _ := by simp [Dhat]
+      have hz : z = LieAlgebra.SemiDirectSum.inl (shiftAction F) z.left +
+          LieAlgebra.SemiDirectSum.inr (shiftAction F) z.right := by
+        apply (LieAlgebra.SemiDirectSum.toProdl (shiftAction F)).injective
+        simp [LieAlgebra.SemiDirectSum.toProdl, LieAlgebra.SemiDirectSum.toProd]
+      rw [hcoord]
+      simp only [realProjl, realInl, LinearMap.baseChange_tmul]
+      rw [htrans, hz, TensorProduct.tmul_add]
+      simp [LieAlgebra.SemiDirectSum.projl_inl_apply,
+        LieAlgebra.SemiDirectSum.projl_inr_apply]
+  | add x y hx hy =>
+      rw [(realProjl F).map_add, (realInl F).map_add,
+        (realTranslationCoordinate F).map_add, add_smul]
+      calc
+        _ = (realInl F (realProjl F x) + realTranslationCoordinate F x • realDhat F) +
+            (realInl F (realProjl F y) + realTranslationCoordinate F y • realDhat F) := by abel
+        _ = x + y := by rw [hx, hy]
+
 /-- Remove the translation coordinate by an integer evaluation shift, then
 evaluate the polynomial component in the original quotient. -/
 noncomputable def linearizedObservablePoint {L : Type*} [LieRing L] [LieAlgebra ℚ L]
