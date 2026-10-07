@@ -174,6 +174,57 @@ noncomputable def c_elim2_shiftStateAverage {α : Type*} [Fintype α]
   classical
   exact c_elim2_uniformFintypeAverage F
 
+def c_elim2_pivotSupport {K m : ℕ} (A : OAI.SourceAdmissible.Parameters K)
+    (C : MasterChain K m) (N : ℕ) : Finset (Fin m → ℤ) :=
+  Fintype.piFinset fun k : Fin m =>
+    Finset.Icc 0 ((A.X N (C.block k).1 ^ 2 : ℕ) : ℤ)
+
+theorem c_elim2_pivotMass_zero_of_not_mem_support {K m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters K) (C : MasterChain K m)
+    (N : ℕ) (z : Fin m → ℤ) (hz : z ∉ c_elim2_pivotSupport A C N) :
+    pivotMass A C N z = 0 := by
+  classical
+  have hnotall : ¬ ∀ k : Fin m,
+      z k ∈ Finset.Icc 0 ((A.X N (C.block k).1 ^ 2 : ℕ) : ℤ) := by
+    intro hall
+    apply hz
+    simpa [c_elim2_pivotSupport] using hall
+  obtain ⟨k, hk⟩ := not_forall.mp hnotall
+  unfold pivotMass
+  apply Finset.prod_eq_zero (Finset.mem_univ k)
+  unfold harmonicLaw
+  split_ifs with h
+  · apply False.elim
+    apply hk
+    apply Finset.mem_Icc.mpr
+    constructor
+    · exact h.1
+    · have hEq : ((z k).toNat : ℤ) = z k := Int.toNat_of_nonneg h.1
+      rw [← hEq]
+      exact_mod_cast (Nat.le_of_lt h.2.2.1)
+  · rfl
+
+def c_elim2_independentPrimeSupport {q : ℕ} (lo hi : Fin q → ℕ) :
+    Finset (Fin q → ℕ) :=
+  Fintype.piFinset fun i : Fin q => Finset.Ico (lo i) (hi i)
+
+theorem c_elim2_independentPrimePoolMass_zero_of_not_mem_support {q : ℕ}
+    (lo hi : Fin q → ℕ) (p : Fin q → ℕ)
+    (hp : p ∉ c_elim2_independentPrimeSupport lo hi) :
+    independentPrimePoolMass lo hi p = 0 := by
+  classical
+  have hnotall : ¬ ∀ i : Fin q, p i ∈ Finset.Ico (lo i) (hi i) := by
+    intro hall
+    apply hp
+    simpa [c_elim2_independentPrimeSupport] using hall
+  obtain ⟨i, hi⟩ := not_forall.mp hnotall
+  unfold independentPrimePoolMass
+  apply Finset.prod_eq_zero (Finset.mem_univ i)
+  unfold primePoolLaw
+  split_ifs with h
+  · exact False.elim (hi (Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩))
+  · rfl
+
 noncomputable def c_elim2_shiftCoord_insert_equiv {α : Type u} [DecidableEq α]
     (E : Finset α) (R : α) (hR : R ∉ E) :
     c_elim2_ShiftCoord (insert R E) ≃ c_elim2_ShiftCoord E ⊕ PUnit.{u + 1} := by
