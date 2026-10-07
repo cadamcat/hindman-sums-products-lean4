@@ -1,5 +1,6 @@
 import HindmanSumsProducts.Arithmetic.Outside
 import HindmanSumsProducts.Arithmetic.Sampling
+import HindmanSumsProducts.Arithmetic.MasterScales.PadicNullity
 
 open scoped BigOperators Topology
 open Filter
@@ -771,7 +772,63 @@ theorem p_adic_polynomial_unit_zero_set {m : ℕ} (p : ℕ) (hp : p.Prime)
         (fun x => ((p ^ e : ℕ) : ℤ) ∣
           evalIntegerPolynomial Q (fun i => ((x i).val : ℤ))))
       atTop (𝓝 0) := by
-  sorry
+  classical
+  letI : Fact p.Prime := ⟨hp⟩
+  let C : ℝ := (p : ℝ) / ((p - 1 : ℕ) : ℝ)
+  have hp2 : 2 ≤ p := hp.two_le
+  have hCpos : 0 < C := by
+    dsimp [C]
+    exact div_pos (by exact_mod_cast hp.pos) (by exact_mod_cast (Nat.sub_pos_of_lt hp.one_lt))
+  have hsmall : Tendsto
+      (fun e => (masterPadicProductMeasure p m).real
+        (masterPadicDivisibilitySet p e Q)) atTop (𝓝 0) :=
+    masterPadicDivisibilitySet_real_tendsto_zero p Q hQ
+  have hscaled : Tendsto
+      (fun e => C ^ m * (masterPadicProductMeasure p m).real
+        (masterPadicDivisibilitySet p e Q)) atTop (𝓝 0) := by
+    simpa [mul_comm] using hsmall.const_mul (C ^ m)
+  have hbound : ∀ᶠ e : ℕ in atTop,
+      uniformUnitTupleProbability (p ^ e) m
+        (fun x => ((p ^ e : ℕ) : ℤ) ∣
+          evalIntegerPolynomial Q (fun i => ((x i).val : ℤ))) ≤
+        C ^ m * (masterPadicProductMeasure p m).real
+          (masterPadicDivisibilitySet p e Q) := by
+    filter_upwards [eventually_atTop.2 ⟨1, fun e he => he⟩] with e he
+    have htot : Nat.totient (p ^ e) = p ^ (e - 1) * (p - 1) :=
+      Nat.totient_prime_pow hp (Nat.pos_of_ne_zero (by omega))
+    have hexp : p ^ e = p ^ (e - 1) * p := by
+      calc
+        p ^ e = p ^ ((e - 1) + 1) := by congr 1; omega
+        _ = p ^ (e - 1) * p := by rw [pow_succ]
+    have hpcast : (p : ℝ) ≠ 0 := by exact_mod_cast hp.ne_zero
+    have hpminus : ((p - 1 : ℕ) : ℝ) ≠ 0 := by
+      exact_mod_cast (Nat.ne_of_gt (Nat.sub_pos_of_lt hp.one_lt))
+    have hratio : ((p ^ e : ℕ) : ℝ) / (Nat.totient (p ^ e) : ℝ) = C := by
+      dsimp [C]
+      rw [htot, hexp]
+      push_cast
+      field_simp [hpcast, hpminus]
+      <;> ring
+    have hratioPow : ((p ^ e : ℕ) : ℝ) ^ m /
+        (Nat.totient (p ^ e) : ℝ) ^ m = C ^ m := by
+      rw [← div_pow, hratio]
+    have hprob := masterUniformUnitProbability_le p e m Q
+    change uniformUnitTupleProbability (p ^ e) m
+      (fun x => ((p ^ e : ℕ) : ℤ) ∣
+        evalIntegerPolynomial Q (fun i => ((x i).val : ℤ))) ≤ _ at hprob
+    rw [hratioPow] at hprob
+    exact hprob
+  have hnonneg (e : ℕ) : 0 ≤ uniformUnitTupleProbability (p ^ e) m
+      (fun x => ((p ^ e : ℕ) : ℤ) ∣
+        evalIntegerPolynomial Q (fun i => ((x i).val : ℤ))) := by
+    unfold uniformUnitTupleProbability
+    apply Finset.sum_nonneg
+    intro x hx
+    apply mul_nonneg
+    · unfold uniformUnitTupleMass
+      split_ifs <;> positivity
+    · split_ifs <;> norm_num
+  exact squeeze_zero' (Eventually.of_forall hnonneg) hbound hscaled
 
 /-- Finite union bound choosing one common exponent for all prescribed small-prime tests
 (§3 lines 276–280). The polynomials must be nonzero (§3 line 200); for `D={0}` the event
