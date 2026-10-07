@@ -718,6 +718,49 @@ end ObservableDescent
 def LipOne (Y : Type*) [MetricSpace Y] :=
   {H : Y → ℝ // (∀ y, |H y| ≤ 1) ∧ LipschitzWith 1 H}
 
+/-- The concrete interpolation descends to the linearized quotient for any
+integral lattice satisfying the a5 coordinate and evaluation conditions. -/
+private noncomputable def linearizedObservableDescent {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s) (B : ℕ)
+    (GammaHat : Subgroup (weightFiltration D.filtration hs).Group)
+    (hcoord : ∀ γ ∈ GammaHat,
+      ∃ z : ℤ, rLin D.filtration γ.coord = (B * z : ℚ))
+    (hshift : ∀ z : ℤ,
+      (⟨(B * z : ℚ) • Dhat D.filtration⟩ :
+        (weightFiltration D.filtration hs).Group) ∈ GammaHat)
+    (hEval : ∀ (g : (weightFiltration D.filtration hs).Group), g ∈ GammaHat →
+      rLin D.filtration g.coord = 0 → ∀ n : ℤ,
+        (⟨evLin D.filtration n g.coord⟩ : D.filtration.Group) ∈ D.lattice) :
+    ObservableDescent
+      (weightFiltration D.filtration hs).realification.Group
+      (GammaHat.map (NilpotentLieBCHGroup.realificationHom
+        (hnil := (weightFiltration D.filtration hs).lowerCentralSeries_eq_bot))) D.Space := by
+  let ΓR := GammaHat.map (NilpotentLieBCHGroup.realificationHom
+    (hnil := (weightFiltration D.filtration hs).lowerCentralSeries_eq_bot))
+  apply ObservableDescent.ofLift ΓR (linearizedObservableLift D hs)
+  · intro H g γ hγ
+    exact linearizedObservableLift_invariant D hs B GammaHat hcoord hshift hEval H g hγ
+  · intro c H g
+    simpa [linearizedObservableLift] using
+      (liftObs_scale (fun X => realTranslationCoordinate D.filtration X.coord)
+        (fun X n => linearizedObservablePoint D hs n X) H c g)
+  · intro H hH g
+    simpa [linearizedObservableLift] using
+      (liftObs_abs_le_one (fun X => realTranslationCoordinate D.filtration X.coord)
+        (fun X n => linearizedObservablePoint D hs n X) H hH g)
+
+set_option maxHeartbeats 10000000 in
+private theorem linearizedObservableLift_range {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    (H : D.Space → ℝ) (hH : ∀ y, H y ∈ Set.Icc (0 : ℝ) 1)
+    (X : (weightFiltration D.filtration hs).realification.Group) :
+    linearizedObservableLift D hs H X ∈ Set.Icc (0 : ℝ) 1 := by
+  simpa only [linearizedObservableLift] using
+    (liftObs_mem_Icc (fun X => realTranslationCoordinate D.filtration X.coord)
+      (fun X n => linearizedObservablePoint D hs n X) H hH X)
+
 /-- The compactness/equicontinuity construction equips the quotient with a
 compatible metric for which every descended Lipschitz observable has a uniform
 Lipschitz constant.  This is IB.a10. -/
