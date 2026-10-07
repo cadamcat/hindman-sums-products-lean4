@@ -2048,7 +2048,7 @@ theorem chainScale_ratio_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
     exact Rat.den_natCast _
 
 theorem chainScale_num_coprime_of_prime_gt_eventually {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
     ∀ᶠ N in atTop, ∀ d r, r.Prime → N + 1 < r →
       Nat.Coprime (chainScale S.core.parameters C a N d).num.natAbs r := by
@@ -2088,7 +2088,7 @@ theorem chainScale_num_coprime_of_prime_gt_eventually {K s m : ℕ} {Aset : Fins
   simpa [hnum] using hcoprime
 
 theorem chainScale_pos_eventually {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
     ∀ᶠ N in atTop, ∀ d, 0 < chainScale S.core.parameters C a N d := by
   filter_upwards [S.core.chain_coefficients] with N hcoeff
@@ -2100,7 +2100,7 @@ theorem chainScale_pos_eventually {K s m : ℕ} {Aset : Finset ℚ}
   exact_mod_cast hcPos d
 
 theorem chainScale_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
     ∀ᶠ N in atTop, ∀ d, (chainScale S.core.parameters C a N d).den = 1 := by
   filter_upwards [S.core.chain_coefficients] with N hcoeff
@@ -2112,7 +2112,7 @@ theorem chainScale_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
   exact Rat.den_intCast _
 
 theorem chainScale_ratio_num_coprime_eventually {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
     ∀ᶠ N in atTop, ∀ (J : Finset (Fin m)) (hJ : J.Nonempty) k, k ∈ J → ∀ r, r.Prime →
       N + 1 < r →
@@ -2196,7 +2196,7 @@ theorem intCast_ne_zero_of_natAbs_coprime {r : ℕ} (hr : r.Prime) (z : ℤ)
 
 theorem rowShapeScaleNumerator_unit_eventually {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r) :
     ∀ᶠ N in atTop, ∀ R k, k ∈ (Sh.row R).support → ∀ v, v.Prime →
       N + 1 < v →
@@ -2208,19 +2208,19 @@ theorem rowShapeScaleNumerator_unit_eventually {K s m q r : ℕ}
   exact hunit (Sh.row R).support (Sh.row R).support_nonempty k hk v hv hNv
 
 theorem pool_lower_gt_masterScaleV_eventually {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
-    ∀ᶠ N in atTop, masterScaleV S.core.parameters N l <
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
+    ∀ᶠ N in atTop, FromArithmetic.masterScaleV S.core.parameters N l <
       (S.primeStage.pool N l).lower := by
   have hdom := S.primeStage.pool_lower_dominates l 1 (by norm_num)
   have hlarge : ∀ᶠ N in atTop,
-      1 < (S.primeStage.pool N l).lower / (masterScaleV S.core.parameters N l : ℝ) := by
+      1 < (S.primeStage.pool N l).lower / (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
     simpa [Real.rpow_one] using hdom.eventually_gt_atTop 1
   filter_upwards [hlarge] with N hN
-  have hV : 0 < (masterScaleV S.core.parameters N l : ℝ) := by
-    unfold masterScaleV
+  have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+    unfold FromArithmetic.masterScaleV
     positivity
   have hlt' := (lt_div_iff₀ hV).mp hN
-  have hlt : (masterScaleV S.core.parameters N l : ℝ) <
+  have hlt : (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) <
       ((S.primeStage.pool N l).lower : ℝ) := by simpa using hlt'
   exact_mod_cast hlt
 
@@ -2365,7 +2365,7 @@ def rowShapeLinearCoefficientsInt {m q r s : ℕ} (Sh : RowShape m q r)
 
 theorem rowShapeLinearCoefficients_eq_intCast_eventually {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
     (ι : Fin q ↪ Fin s) :
     ∀ᶠ N in atTop, ∀ p R k,
@@ -2488,11 +2488,11 @@ theorem rowShape_minor_value_ne_zero_of_tests {m q r s : ℕ}
 
 theorem rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
     {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
     (ι : Fin q ↪ Fin s) :
     ∀ᶠ N in atTop, ∀ p R v (hv : v.Prime),
-      N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+      N + 1 < v → v ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap →
       (∀ i, (S.primeStage.pool N C.gap).lower ≤ p i ∧
         p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) →
       FromArithmetic.rationalResidue v hv
@@ -2507,7 +2507,7 @@ theorem rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
     have hpi := hp (ι i)
     have heq : v = p (ι i) :=
       (Nat.prime_dvd_prime_iff_eq hv hpi.2.2).mp hdiv
-    have hlarge : masterScaleV S.core.parameters N C.gap < p (ι i) :=
+    have hlarge : FromArithmetic.masterScaleV S.core.parameters N C.gap < p (ι i) :=
       lt_of_lt_of_le hpoolLower hpi.1
     omega
   have hratio : (chainScale S.core.parameters C a N T.anchor) /
@@ -2575,7 +2575,7 @@ theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
 
 theorem rowShapeLinearCoefficients_den_one_eventually {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
     (ι : Fin q ↪ Fin s) :
     ∀ᶠ N in atTop, ∀ p R k,
