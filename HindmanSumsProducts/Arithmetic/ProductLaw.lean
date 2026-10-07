@@ -41,6 +41,240 @@ def weightedPivotTupleMass {n r : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (B : Fin r → OAI.SourceBlocks.Block n)
     (z : Fin r → ℤ) : ℝ := ∏ d, weightedPivotMass A N (B d) (z d)
 
+private abbrev blockCoordinateUnion {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n) : Finset (Fin n) :=
+  Finset.biUnion (Finset.univ : Finset (Fin r)) (fun d => (B d).set)
+
+private abbrev blockCoordinateType {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n) :=
+  Σ d : Fin r, {j : Fin n // j ∈ (B d).set}
+
+private abbrev outsideBlockCoordinateType {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n) :=
+  {j : Fin n // j ∉ blockCoordinateUnion B}
+
+private def blockCoordinateLabel {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n) (j : Fin n)
+    (hj : j ∈ blockCoordinateUnion B) : Fin r :=
+  Classical.choose (show ∃ d : Fin r, j ∈ (B d).set by
+    simpa [blockCoordinateUnion] using hj)
+
+private lemma blockCoordinateLabel_mem {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n) (j : Fin n)
+    (hj : j ∈ blockCoordinateUnion B) :
+    j ∈ (B (blockCoordinateLabel B j hj)).set :=
+  Classical.choose_spec (show ∃ d : Fin r, j ∈ (B d).set by
+    simpa [blockCoordinateUnion] using hj)
+
+private def blockCoordinateEquiv {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set) :
+    Fin n ≃ blockCoordinateType B ⊕ outsideBlockCoordinateType B where
+  toFun j := by
+    by_cases hj : j ∈ blockCoordinateUnion B
+    · exact Sum.inl ⟨blockCoordinateLabel B j hj, ⟨j, blockCoordinateLabel_mem B j hj⟩⟩
+    · exact Sum.inr ⟨j, hj⟩
+  invFun q :=
+    match q with
+    | Sum.inl x => x.2.1
+    | Sum.inr x => x.1
+  left_inv j := by
+    by_cases hj : j ∈ blockCoordinateUnion B
+    · simp [hj]
+    · simp [hj]
+  right_inv q := by
+    cases q with
+    | inr x => simp [x.2]
+    | inl x =>
+        rcases x with ⟨d, j, hj⟩
+        have hmem : j ∈ blockCoordinateUnion B := by
+          change j ∈ (Finset.univ : Finset (Fin r)).biUnion (fun d => (B d).set)
+          exact Finset.mem_biUnion.mpr ⟨d, Finset.mem_univ d, hj⟩
+        have hchoose : blockCoordinateLabel B j hmem = d := by
+          by_contra hne
+          have hother : j ∈ (B (blockCoordinateLabel B j hmem)).set :=
+            blockCoordinateLabel_mem B j hmem
+          have hdis := hdisj d (blockCoordinateLabel B j hmem) (Ne.symm hne)
+          exact (Finset.disjoint_left.mp hdis) hj hother
+        change (if h : j ∈ blockCoordinateUnion B then
+          (Sum.inl (⟨blockCoordinateLabel B j h,
+            ⟨j, blockCoordinateLabel_mem B j h⟩⟩ : blockCoordinateType B))
+          else (Sum.inr (⟨j, h⟩ : outsideBlockCoordinateType B))) =
+            (Sum.inl (⟨d, ⟨j, hj⟩⟩ : blockCoordinateType B))
+        rw [dif_pos hmem]
+        have hpair :
+            (⟨blockCoordinateLabel B j hmem, ⟨j, blockCoordinateLabel_mem B j hmem⟩⟩ :
+              blockCoordinateType B) = ⟨d, ⟨j, hj⟩⟩ := by
+          cases hchoose
+          rfl
+        exact congrArg Sum.inl hpair
+
+private def blockAssignmentEquiv {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set) :
+    (Fin n → ℕ) ≃ ((blockCoordinateType B → ℕ) ×
+      (outsideBlockCoordinateType B → ℕ)) := by
+  let e := blockCoordinateEquiv B hdisj
+  let e₁ : (Fin n → ℕ) ≃ ((blockCoordinateType B ⊕ outsideBlockCoordinateType B) → ℕ) := {
+    toFun := fun t q => t (e.symm q)
+    invFun := fun t j => t (e j)
+    left_inv := by intro t; funext j; simp
+    right_inv := by intro t; funext q; simp
+  }
+  let e₂ : ((blockCoordinateType B ⊕ outsideBlockCoordinateType B) → ℕ) ≃
+      ((blockCoordinateType B → ℕ) × (outsideBlockCoordinateType B → ℕ)) := {
+    toFun := fun t => (fun j => t (Sum.inl j), fun j => t (Sum.inr j))
+    invFun := fun p q => match q with
+      | Sum.inl j => p.1 j
+      | Sum.inr j => p.2 j
+    left_inv := by intro t; funext q; cases q <;> rfl
+    right_inv := by intro p; apply Prod.ext <;> funext j <;> rfl
+  }
+  exact e₁.trans e₂
+
+private lemma blockAssignmentEquiv_apply_block {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (t : Fin n → ℕ) (d : Fin r) (j : {j : Fin n // j ∈ (B d).set}) :
+    (blockAssignmentEquiv B hdisj t).1 ⟨d, j⟩ = t j.val := by
+  simp [blockAssignmentEquiv, blockCoordinateEquiv]
+
+private lemma blockAssignmentEquiv_apply_outside {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (t : Fin n → ℕ) (j : outsideBlockCoordinateType B) :
+    (blockAssignmentEquiv B hdisj t).2 j = t j.val := by
+  simp [blockAssignmentEquiv, blockCoordinateEquiv]
+
+private lemma blockAssignmentEquiv_symm_apply {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (p : (blockCoordinateType B → ℕ) × (outsideBlockCoordinateType B → ℕ))
+    (j : Fin n) :
+    (blockAssignmentEquiv B hdisj).symm p j =
+      match blockCoordinateEquiv B hdisj j with
+      | Sum.inl c => p.1 c
+      | Sum.inr o => p.2 o := by
+  rfl
+
+private lemma blockCoordinateEquiv_of_mem {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (d : Fin r) (j : Fin n) (hj : j ∈ (B d).set) :
+    blockCoordinateEquiv B hdisj j = Sum.inl ⟨d, ⟨j, hj⟩⟩ := by
+  have hmem : j ∈ blockCoordinateUnion B := by
+    change j ∈ (Finset.univ : Finset (Fin r)).biUnion (fun d => (B d).set)
+    exact Finset.mem_biUnion.mpr ⟨d, Finset.mem_univ d, hj⟩
+  have hchoose : blockCoordinateLabel B j hmem = d := by
+    by_contra hne
+    have hother : j ∈ (B (blockCoordinateLabel B j hmem)).set :=
+      blockCoordinateLabel_mem B j hmem
+    have hdis := hdisj d (blockCoordinateLabel B j hmem) (Ne.symm hne)
+    exact (Finset.disjoint_left.mp hdis) hj hother
+  change (if h : j ∈ blockCoordinateUnion B then
+      (Sum.inl (⟨blockCoordinateLabel B j h,
+        ⟨j, blockCoordinateLabel_mem B j h⟩⟩ : blockCoordinateType B))
+      else (Sum.inr (⟨j, h⟩ : outsideBlockCoordinateType B))) =
+        (Sum.inl (⟨d, ⟨j, hj⟩⟩ : blockCoordinateType B))
+  rw [dif_pos hmem]
+  have hblock :
+      (⟨blockCoordinateLabel B j hmem, ⟨j, blockCoordinateLabel_mem B j hmem⟩⟩ :
+        blockCoordinateType B) = ⟨d, ⟨j, hj⟩⟩ := by
+    cases hchoose
+    rfl
+  exact congrArg Sum.inl hblock
+
+private lemma blockCoordinateEquiv_of_not_mem {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (j : outsideBlockCoordinateType B) :
+    blockCoordinateEquiv B hdisj j.val = Sum.inr j := by
+  have hnot : ¬ ∃ d : Fin r, j.val ∈ (B d).set := by
+    intro h
+    apply j.property
+    change j.val ∈ (Finset.univ : Finset (Fin r)).biUnion (fun d => (B d).set)
+    exact Finset.mem_biUnion.mpr ⟨h.choose, Finset.mem_univ _, h.choose_spec⟩
+  unfold blockCoordinateEquiv
+  simp [blockCoordinateUnion, hnot]
+
+private lemma blockAssignmentEquiv_symm_apply_block {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (p : (blockCoordinateType B → ℕ) × (outsideBlockCoordinateType B → ℕ))
+    (d : Fin r) (j : {j : Fin n // j ∈ (B d).set}) :
+    (blockAssignmentEquiv B hdisj).symm p j.val = p.1 ⟨d, j⟩ := by
+  rw [blockAssignmentEquiv_symm_apply, blockCoordinateEquiv_of_mem B hdisj d j.val j.property]
+
+private lemma blockAssignmentEquiv_symm_apply_outside {n r : ℕ}
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (p : (blockCoordinateType B → ℕ) × (outsideBlockCoordinateType B → ℕ))
+    (j : outsideBlockCoordinateType B) :
+    (blockAssignmentEquiv B hdisj).symm p j.val = p.2 j := by
+  rw [blockAssignmentEquiv_symm_apply,
+    blockCoordinateEquiv_of_not_mem B hdisj j]
+
+private def localBlockMass {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
+    (N : ℕ) (B : OAI.SourceBlocks.Block n) (z : ℤ) : ℝ :=
+  if 0 ≤ z then
+    ∑ t ∈ Fintype.piFinset (fun j : {j : Fin n // j ∈ B.set} =>
+        OAI.RawHarmonicProbability.units (A.X N j.val) (primorial (N + 1))),
+      if (∏ j : {j : Fin n // j ∈ B.set}, t j) = z.toNat then
+        ∏ j : {j : Fin n // j ∈ B.set},
+          harmonicNatLaw (A.X N j.val) (primorial (N + 1)) (t j) else 0
+  else 0
+
+private lemma blockAssignmentEquiv_mem_iff {n r : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (t : Fin n → ℕ) :
+    t ∈ OAI.ProductExposureLaw.outsideDomain (A.X N) (primorial (N + 1)) ↔
+      (blockAssignmentEquiv B hdisj t).1 ∈ Fintype.piFinset
+          (fun c : blockCoordinateType B =>
+            OAI.RawHarmonicProbability.units (A.X N c.2.1) (primorial (N + 1))) ∧
+      (blockAssignmentEquiv B hdisj t).2 ∈ Fintype.piFinset
+          (fun c : outsideBlockCoordinateType B =>
+            OAI.RawHarmonicProbability.units (A.X N c.1) (primorial (N + 1))) := by
+  classical
+  let e := blockAssignmentEquiv B hdisj
+  constructor
+  · intro ht
+    have ht' := Fintype.mem_piFinset.mp (by simpa [OAI.ProductExposureLaw.outsideDomain] using ht)
+    constructor
+    · apply Fintype.mem_piFinset.mpr
+      intro c
+      rcases c with ⟨d, j⟩
+      rw [blockAssignmentEquiv_apply_block]
+      exact ht' j.val
+    · apply Fintype.mem_piFinset.mpr
+      intro c
+      rcases c with ⟨j, hj⟩
+      rw [blockAssignmentEquiv_apply_outside]
+      exact ht' j
+  · rintro ⟨hg, ho⟩
+    have hg' := Fintype.mem_piFinset.mp hg
+    have ho' := Fintype.mem_piFinset.mp ho
+    apply Fintype.mem_piFinset.mpr
+    intro j
+    have hdecomp : t = e.symm (e t) := (e.left_inv t).symm
+    rw [hdecomp, blockAssignmentEquiv_symm_apply]
+    cases hcoord : blockCoordinateEquiv B hdisj j with
+    | inl c =>
+        have hval : j = c.2.1 := by
+          calc
+            j = (blockCoordinateEquiv B hdisj).symm
+                (blockCoordinateEquiv B hdisj j) := (blockCoordinateEquiv B hdisj).left_inv j |>.symm
+            _ = c.2.1 := by rw [hcoord]; rfl
+        simpa [hval] using hg' c
+    | inr c =>
+        have hval : j = c.val := by
+          calc
+            j = (blockCoordinateEquiv B hdisj).symm
+                (blockCoordinateEquiv B hdisj j) := (blockCoordinateEquiv B hdisj).left_inv j |>.symm
+            _ = c.val := by rw [hcoord]; rfl
+        simpa [hval] using ho' c
+
 private lemma harmonicNatLaw_eq_singleton_mass (X W : ℕ) (hW : 0 < W)
     (hX : 4 * W ≤ X) (m : ℕ) :
     harmonicNatLaw X W m =
@@ -68,6 +302,27 @@ private lemma harmonicNatLaw_eq_singleton_mass (X W : ℕ) (hW : 0 < W)
       have hmIco' := Finset.mem_Ico.mp hmIco
       exact h ⟨hmIco'.1, hmIco'.2, hcop.symm⟩
     simp [h, hmUnit]
+
+private lemma harmonicNatLaw_sum_units_joint (X W : ℕ) (hW : 0 < W)
+    (hX : 4 * W ≤ X) :
+    ∑ m ∈ OAI.RawHarmonicProbability.units X W, harmonicNatLaw X W m = 1 := by
+  classical
+  let μ : Measure ℕ := OAI.RawHarmonicProbability.law X W hW hX
+  have hmass : μ.real (OAI.RawHarmonicProbability.units X W : Set ℕ) = 1 := by
+    have hEq : μ.real (OAI.RawHarmonicProbability.units X W : Set ℕ) = μ.real Set.univ := by
+      apply measureReal_congr
+      filter_upwards [OAI.ProductExposureLabels.law_ae_units X W hW hX] with m hm
+      simp [hm]
+    rw [hEq]
+    simp [μ]
+  calc
+    _ = ∑ m ∈ OAI.RawHarmonicProbability.units X W, μ.real {m} := by
+      apply Finset.sum_congr rfl
+      intro m hm
+      exact harmonicNatLaw_eq_singleton_mass X W hW hX m
+    _ = μ.real (OAI.RawHarmonicProbability.units X W : Set ℕ) := by
+      rw [sum_measureReal_singleton]
+    _ = 1 := hmass
 
 private lemma measureReal_eq_finset_sum_of_ae_mem {β : Type*} [MeasurableSpace β]
     [MeasurableSingletonClass β] (μ : Measure β) [IsFiniteMeasure μ]
@@ -129,6 +384,310 @@ private lemma parameterBlockProductMass_finset {n : ℕ}
     simp_rw [parameter_law_singleton]
     rfl
   · simp [hz]
+
+private lemma parameterJointBlockProductMass_finset {n r : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j) (z : Fin r → ℤ) :
+    parameterJointBlockProductMass A N B hX z =
+      ∑ t ∈ OAI.ProductExposureLaw.outsideDomain (A.X N) (primorial (N + 1)),
+        if ∀ d, 0 ≤ z d ∧ (∏ j ∈ (B d).set, t j) = (z d).toNat then
+          ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) else 0 := by
+  classical
+  unfold parameterJointBlockProductMass
+  rw [measureReal_eq_finset_sum_of_ae_mem
+    (A.law N hX)
+    (OAI.ProductExposureLaw.outsideDomain (A.X N) (primorial (N + 1)))
+    (OAI.ProductExposureLaw.outside_ae_domain (A.X N) (primorial (N + 1))
+      (primorial_pos _) hX)
+    {t | ∀ d, 0 ≤ z d ∧ (∏ j ∈ (B d).set, t j) = (z d).toNat}]
+  simp_rw [parameter_law_singleton]
+  rfl
+
+set_option maxHeartbeats 1000000 in
+private lemma parameterJointBlockProductMass_eq_localBlockMass_product {n r : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : Fin r → OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (B i).set (B j).set)
+    (z : Fin r → ℤ) :
+    parameterJointBlockProductMass A N B hX z =
+      ∏ d, localBlockMass A N (B d) (z d) := by
+  classical
+  by_cases hz : ∀ d, 0 ≤ z d
+  · rw [parameterJointBlockProductMass_finset]
+    let U : Fin n → Finset ℕ := fun j =>
+      OAI.RawHarmonicProbability.units (A.X N j) (primorial (N + 1))
+    let D : Finset (Fin n → ℕ) := Fintype.piFinset U
+    let G : Finset (blockCoordinateType B → ℕ) :=
+      Fintype.piFinset (fun c : blockCoordinateType B => U c.2.1)
+    let O : Finset (outsideBlockCoordinateType B → ℕ) :=
+      Fintype.piFinset (fun c : outsideBlockCoordinateType B => U c.1)
+    let e := blockAssignmentEquiv B hdisj
+    let term (d : Fin r) (g : {j : Fin n // j ∈ (B d).set} → ℕ) : ℝ :=
+      if (∏ j, g j) = (z d).toNat then
+        ∏ j, harmonicNatLaw (A.X N j.val) (primorial (N + 1)) (g j) else 0
+    let full (t : Fin n → ℕ) : ℝ :=
+      if ∀ d, (∏ j ∈ (B d).set, t j) = (z d).toNat then
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) else 0
+    have hmem := blockAssignmentEquiv_mem_iff A N B hdisj
+    have hsumReindex (f : (Fin n → ℕ) → ℝ) :
+        (∑ t ∈ D, f t) =
+          ∑ g ∈ G, ∑ o ∈ O, f (e.symm (g, o)) := by
+      calc
+        _ = ∑ p ∈ G.product O, f (e.symm (p.1, p.2)) := by
+          refine Finset.sum_bij (fun t _ => e t) ?_ ?_ ?_ ?_
+          · intro t ht
+            have ht' : t ∈ OAI.ProductExposureLaw.outsideDomain
+                (A.X N) (primorial (N + 1)) := by
+              simpa [D, OAI.ProductExposureLaw.outsideDomain] using ht
+            rcases (hmem t).mp ht' with ⟨hg, ho⟩
+            have hfirst : (e t).1 ∈ G := by
+              change ((blockAssignmentEquiv B hdisj) t).1 ∈ G
+              simpa [G, U] using hg
+            have hsecond : (e t).2 ∈ O := by
+              change ((blockAssignmentEquiv B hdisj) t).2 ∈ O
+              simpa [O, U] using ho
+            exact Finset.mem_product.mpr ⟨hfirst, hsecond⟩
+          · intro t ht t' ht' heq
+            exact e.injective heq
+          · intro p hp
+            rcases Finset.mem_product.mp hp with ⟨hg, ho⟩
+            refine ⟨e.symm (p.1, p.2), ?_, ?_⟩
+            · apply (hmem _).mpr
+              have hfirst : ((blockAssignmentEquiv B hdisj) (e.symm (p.1, p.2))).1 ∈ G := by
+                change (e (e.symm (p.1, p.2))).1 ∈ G
+                rw [e.apply_symm_apply]
+                exact hg
+              have hsecond : ((blockAssignmentEquiv B hdisj) (e.symm (p.1, p.2))).2 ∈ O := by
+                change (e (e.symm (p.1, p.2))).2 ∈ O
+                rw [e.apply_symm_apply]
+                exact ho
+              have hpi : ((blockAssignmentEquiv B hdisj) (e.symm (p.1, p.2))).1 ∈
+                  Fintype.piFinset (fun c : blockCoordinateType B => U c.2.1) ∧
+                ((blockAssignmentEquiv B hdisj) (e.symm (p.1, p.2))).2 ∈
+                  Fintype.piFinset (fun c : outsideBlockCoordinateType B => U c.1) := by
+                simpa [G, O, U] using And.intro hfirst hsecond
+              exact hpi
+            · exact e.apply_symm_apply (p.1, p.2)
+          · intro t ht
+            exact congrArg f (e.left_inv t).symm
+        _ = _ := by
+          change (∑ p ∈ G ×ˢ O, f (e.symm (p.1, p.2))) = _
+          exact Finset.sum_product G O (fun p => f (e.symm (p.1, p.2)))
+    let w (j : Fin n) (a : ℕ) : ℝ :=
+      harmonicNatLaw (A.X N j) (primorial (N + 1)) a
+    have hweight (g : blockCoordinateType B → ℕ)
+        (o : outsideBlockCoordinateType B → ℕ) :
+        (∏ j : Fin n, w j (e.symm (g, o) j)) =
+          (∏ d, ∏ j : {j : Fin n // j ∈ (B d).set},
+              w j.val (g ⟨d, j⟩)) *
+            ∏ j : outsideBlockCoordinateType B, w j.val (o j) := by
+      let eCoord := blockCoordinateEquiv B hdisj
+      let f : (blockCoordinateType B ⊕ outsideBlockCoordinateType B) → ℝ := fun c =>
+        w (eCoord.symm c) (e.symm (g, o) (eCoord.symm c))
+      calc
+        _ = ∏ j : Fin n, f (eCoord j) := by simp [f]
+        _ = ∏ c : blockCoordinateType B ⊕ outsideBlockCoordinateType B, f c :=
+          eCoord.prod_comp f
+        _ = _ := by
+          rw [Fintype.prod_sum_type, Fintype.prod_sigma]
+          dsimp [f]
+          congr 1
+          · apply Finset.prod_congr rfl
+            intro d hd
+            apply Finset.prod_congr rfl
+            intro j hj
+            change w j.val (e.symm (g, o) j.val) = w j.val (g ⟨d, j⟩)
+            rw [blockAssignmentEquiv_symm_apply_block B hdisj (g, o) d j]
+          · apply Finset.prod_congr rfl
+            intro j hj
+            change w j.val (e.symm (g, o) j.val) = w j.val (o j)
+            rw [blockAssignmentEquiv_symm_apply_outside B hdisj (g, o) j]
+    have hblockProd (g : blockCoordinateType B → ℕ)
+        (o : outsideBlockCoordinateType B → ℕ) (d : Fin r) :
+        (∏ j ∈ (B d).set, e.symm (g, o) j) =
+          ∏ j : {j : Fin n // j ∈ (B d).set}, g ⟨d, j⟩ := by
+      rw [← Finset.prod_coe_sort]
+      apply Finset.prod_congr rfl
+      intro j hj
+      have he := blockCoordinateEquiv_of_mem B hdisj d j.val j.property
+      change (blockAssignmentEquiv B hdisj).symm (g, o) j.val = g ⟨d, j⟩
+      rw [blockAssignmentEquiv_symm_apply_block B hdisj (g, o) d j]
+    have hrest :
+        (∑ o ∈ O, ∏ j : outsideBlockCoordinateType B,
+            w j.val (o j)) = 1 := by
+      rw [show (∑ o ∈ O, ∏ j : outsideBlockCoordinateType B, w j.val (o j)) =
+          ∑ o ∈ Fintype.piFinset (fun j : outsideBlockCoordinateType B => U j.1),
+            ∏ j : outsideBlockCoordinateType B, w j.val (o j) by rfl]
+      rw [← Finset.prod_univ_sum]
+      have hcoord (j : outsideBlockCoordinateType B) :
+          ∑ a ∈ U j.1, w j.1 a = 1 := by
+        exact harmonicNatLaw_sum_units_joint (A.X N j.1) (primorial (N + 1))
+          (primorial_pos _) (hX j.1)
+      simp_rw [hcoord]
+      simp
+    let V : (d : Fin r) → Finset ({j : Fin n // j ∈ (B d).set} → ℕ) := fun d =>
+      Fintype.piFinset (fun j : {j : Fin n // j ∈ (B d).set} => U j.val)
+    let GGroups : Finset ((d : Fin r) → {j : Fin n // j ∈ (B d).set} → ℕ) :=
+      Fintype.piFinset V
+    let curry : (blockCoordinateType B → ℕ) ≃
+        ((d : Fin r) → {j : Fin n // j ∈ (B d).set} → ℕ) :=
+      Equiv.piCurry (fun d (j : {j : Fin n // j ∈ (B d).set}) => ℕ)
+    have hgroupMem (g : blockCoordinateType B → ℕ) :
+        g ∈ G ↔ curry g ∈ GGroups := by
+      constructor
+      · intro hg
+        apply Fintype.mem_piFinset.mpr
+        intro d
+        apply Fintype.mem_piFinset.mpr
+        intro j
+        have hg' := Fintype.mem_piFinset.mp hg
+        change g ⟨d, j⟩ ∈ U j.val
+        exact hg' ⟨d, j⟩
+      · intro hg
+        apply Fintype.mem_piFinset.mpr
+        intro c
+        have hg' := Fintype.mem_piFinset.mp hg
+        have h := Fintype.mem_piFinset.mp (hg' c.1) c.2
+        change g ⟨c.1, c.2⟩ ∈ U c.2.1
+        exact h
+    let eGroup : {g : blockCoordinateType B → ℕ // g ∈ G} ≃
+        {g : (d : Fin r) → {j : Fin n // j ∈ (B d).set} → ℕ // g ∈ GGroups} := {
+      toFun := fun g => ⟨curry g.1, (hgroupMem g.1).mp g.2⟩
+      invFun := fun g => ⟨curry.symm g.1, (hgroupMem (curry.symm g.1)).mpr (by
+        simpa using g.2)⟩
+      left_inv := by intro g; apply Subtype.ext; exact curry.left_inv g.1
+      right_inv := by intro g; apply Subtype.ext; exact curry.right_inv g.1
+    }
+    have hgroupFactor :
+        (∑ g ∈ G, ∏ d, term d (fun j => g ⟨d, j⟩)) =
+          ∏ d, ∑ a ∈ V d, term d a := by
+      calc
+        _ = ∑ g : {g : blockCoordinateType B → ℕ // g ∈ G},
+              ∏ d, term d (fun j => g.1 ⟨d, j⟩) := (Finset.sum_coe_sort G _).symm
+        _ = ∑ g : {g : (d : Fin r) → {j : Fin n // j ∈ (B d).set} → ℕ //
+              g ∈ GGroups}, ∏ d, term d (g.1 d) := by
+                apply Fintype.sum_equiv eGroup
+                intro g
+                rfl
+        _ = ∑ g ∈ GGroups, ∏ d, term d (g d) := by
+              exact Finset.sum_coe_sort GGroups (fun g => ∏ d, term d (g d))
+        _ = ∏ d, ∑ a ∈ V d, term d a := by
+              dsimp [GGroups]
+              exact (Finset.prod_univ_sum V term).symm
+    have hfull (g : blockCoordinateType B → ℕ)
+        (o : outsideBlockCoordinateType B → ℕ) :
+        full (e.symm (g, o)) =
+          (∏ d, term d (fun j => g ⟨d, j⟩)) *
+            ∏ j : outsideBlockCoordinateType B, w j.val (o j) := by
+      by_cases hall : ∀ d, (∏ j : {j : Fin n // j ∈ (B d).set}, g ⟨d, j⟩) =
+          (z d).toNat
+      · have hOrig : ∀ d, (∏ j ∈ (B d).set, e.symm (g, o) j) = (z d).toNat := by
+          intro d
+          rw [hblockProd g o d]
+          exact hall d
+        have htermProd :
+            (∏ d, term d (fun j => g ⟨d, j⟩)) =
+              ∏ d, ∏ j : {j : Fin n // j ∈ (B d).set},
+                w j.val (g ⟨d, j⟩) := by
+          apply Finset.prod_congr rfl
+          intro d hd
+          unfold term
+          rw [if_pos (hall d)]
+        calc
+          _ = ∏ j, w j (e.symm (g, o) j) := by simp [full, hOrig, w]
+          _ = (∏ d, ∏ j : {j : Fin n // j ∈ (B d).set},
+                w j.val (g ⟨d, j⟩)) *
+              ∏ j : outsideBlockCoordinateType B, w j.val (o j) := hweight g o
+          _ = _ := by rw [← htermProd]
+      · have ⟨d, hd⟩ := not_forall.mp hall
+        have htermzero : term d (fun j => g ⟨d, j⟩) = 0 := by
+          unfold term
+          rw [if_neg hd]
+        have hprodzero : ∏ d, term d (fun j => g ⟨d, j⟩) = 0 :=
+          Finset.prod_eq_zero (Finset.mem_univ d) htermzero
+        have hnotOrig :
+            ¬ ∀ d, (∏ j ∈ (B d).set, e.symm (g, o) j) = (z d).toNat := by
+          intro hOrigAll
+          apply hall
+          intro d
+          have hh := hOrigAll d
+          rw [hblockProd g o d] at hh
+          exact hh
+        calc
+          _ = 0 := by simp [full, hnotOrig]
+          _ = (∏ d, term d (fun j => g ⟨d, j⟩)) *
+              ∏ j : outsideBlockCoordinateType B, w j.val (o j) := by
+                rw [hprodzero]
+                simp
+    calc
+      _ = ∑ t ∈ D, full t := by
+        apply Finset.sum_congr rfl
+        intro t ht
+        simp [full, hz]
+      _ = ∑ g ∈ G, ∑ o ∈ O, full (e.symm (g, o)) := hsumReindex full
+      _ = 1 * ∑ g ∈ G, ∏ d, term d (fun j => g ⟨d, j⟩) := by
+            calc
+              _ = ∑ g ∈ G,
+                    (∏ d, term d (fun j => g ⟨d, j⟩)) *
+                      (∑ o ∈ O, ∏ j : outsideBlockCoordinateType B,
+                        w j.val (o j)) := by
+                      apply Finset.sum_congr rfl
+                      intro g hg
+                      rw [Finset.mul_sum]
+                      apply Finset.sum_congr rfl
+                      intro o ho
+                      exact hfull g o
+              _ = _ := by rw [hrest]; simp
+      _ = ∏ d, localBlockMass A N (B d) (z d) := by
+            rw [hgroupFactor]
+            simp only [one_mul]
+            apply Finset.prod_congr rfl
+            intro d hd
+            simp [term, localBlockMass, V, U, hz]
+  · have hbad : ∃ d, ¬ 0 ≤ z d := by simpa only [not_forall] using hz
+    rcases hbad with ⟨d, hd⟩
+    rw [parameterJointBlockProductMass_finset]
+    have hnot (t : Fin n → ℕ) :
+        ¬(∀ d, 0 ≤ z d ∧ (∏ j ∈ (B d).set, t j) = (z d).toNat) := by
+      intro hall
+      exact hd (hall d).1
+    have hlhs :
+        (∑ t ∈ OAI.ProductExposureLaw.outsideDomain (A.X N) (primorial (N + 1)),
+          if ∀ d, 0 ≤ z d ∧ (∏ j ∈ (B d).set, t j) = (z d).toNat then
+            ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) else 0) = 0 := by
+      apply Finset.sum_eq_zero
+      intro t ht
+      simp [hnot t]
+    have hrhs : ∏ d, localBlockMass A N (B d) (z d) = 0 := by
+      apply Finset.prod_eq_zero (Finset.mem_univ d)
+      simp [localBlockMass, hd]
+    rw [hlhs, hrhs]
+
+private lemma localBlockMass_eq_parameterBlockProductMass {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (B : OAI.SourceBlocks.Block n)
+    (hX : ∀ j, 4 * primorial (N + 1) ≤ A.X N j) (z : ℤ) :
+    localBlockMass A N B z = parameterBlockProductMass A N B hX z := by
+  classical
+  let B1 : Fin 1 → OAI.SourceBlocks.Block n := fun _ => B
+  let z1 : Fin 1 → ℤ := fun _ => z
+  have hdisj1 : ∀ i j, i ≠ j → Disjoint (B1 i).set (B1 j).set := by
+    intro i j hij
+    have hEq : i = j := Subsingleton.elim _ _
+    exact (hij hEq).elim
+  have hfactor := parameterJointBlockProductMass_eq_localBlockMass_product
+    A N B1 hX hdisj1 z1
+  have hmassEq : parameterJointBlockProductMass A N B1 hX z1 =
+      parameterBlockProductMass A N B hX z := by
+    unfold parameterJointBlockProductMass parameterBlockProductMass
+    by_cases hz : 0 ≤ z <;> simp [B1, z1, hz]
+  calc
+    localBlockMass A N B z =
+        ∏ d : Fin 1, localBlockMass A N (B1 d) (z1 d) := by simp [B1, z1]
+    _ = parameterJointBlockProductMass A N B1 hX z1 := hfactor.symm
+    _ = parameterBlockProductMass A N B hX z := hmassEq
 
 private lemma parameterTailProductLaw_finset {n : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
