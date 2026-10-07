@@ -4249,6 +4249,125 @@ private theorem momentCRTErrorBound_superPolynomial {K sl : ℕ} {As : Finset �
       (Real.rpow_nonneg (by positivity) C)
   exact squeeze_zero' (Eventually.of_forall hnonneg) hupper hsmall
 
+private theorem momentBaseEpsilonBase_nonneg {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 b N : ℕ) :
+    0 ≤ momentBaseEpsilonBase MS B l T J0 b N := by
+  have hXpos : 0 < (MS.core.parameters.X N B.1 : ℝ) := by
+    exact_mod_cast MS.core.parameters.Xpos N B.1
+  have hlog := momentPivotLogDen_ge_half MS B N
+  have hden : 0 < (MS.core.parameters.X N B.1 : ℝ) *
+      (Real.log (MS.core.parameters.X N B.1 : ℝ) -
+        (primorial (N + 1) : ℝ) / MS.core.parameters.X N B.1) :=
+    mul_pos hXpos (by linarith)
+  have hpivot : 0 ≤ harmonicResidueError
+      (MS.core.parameters.X N B.1) (primorial (N + 1))
+      ((masterScaleV MS.core.parameters N l) ^ Fintype.card (MomentRowIndex b T.d)) := by
+    unfold harmonicResidueError
+    exact div_nonneg (by positivity) hden.le
+  unfold momentBaseEpsilonBase
+  apply mul_nonneg (by positivity)
+  apply add_nonneg hpivot
+  positivity
+
+private noncomputable def momentWeightedLinearFormsData {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (hgap : ValidGap B l)
+    (T : CubeTemplate) (hT : Allowed Dm T) (J0 : ℕ) (hJ0 : 0 < J0)
+    (b : ℕ) (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d))) := Finset.univ) :
+    WeightedLinearFormsData (q := Fintype.card (MomentRowIndex b T.d))
+      (d := Fintype.card (MomentBaseIndex b T.d)) (b := K) MS := by
+  classical
+  refine
+    { gap := fun _ => l
+      rowCoeff := fun N p u j =>
+        momentRowCoeff MS b T l N (momentPrimeDiagonal hT p) u j
+      divisor := momentDivisorFamily B active
+      V := fun N => masterScaleV MS.core.parameters N l
+      epsilonBase := fun N => momentBaseEpsilonBase MS B l T J0 b N
+      epsilonCRT := momentCRTErrorBound MS l
+      baseMass := fun N p x =>
+        momentBaseMass MS B l T J0 N b (momentPrimeDiagonal hT p) x
+      goodDomain := fun N p =>
+        (∀ k : Fin b, T.Good (corrScales MS) l N
+          (fun j => p (momentMasterEmbedding hT j))) ∧
+        momentBaseRegular MS B l T J0 N b (momentPrimeDiagonal hT p)
+      epsilonBase_nonnegative := ?_
+      V_lower := ?_
+      V_tendsto := momentMasterScaleV_tendsto MS.core.parameters l
+      slot_gap_bound := ?_
+      base_nonnegative := ?_
+      base_normalized := ?_
+      divisor_positive := ?_
+      divisor_bounded := ?_
+      base_residue_uniform := ?_
+      row_integer_on_support := ?_
+      row_denominators_are_units := ?_
+      row_primitive := ?_
+      pairwise_row_tests := ?_
+      crt_error_bound := ?_
+      epsilonBase_superpolynomial :=
+        momentBaseEpsilonBase_superPolynomial MS B l hgap T J0 b hJ0
+      epsilonCRT_superpolynomial := momentCRTErrorBound_superPolynomial MS l }
+  · intro N
+    exact momentBaseEpsilonBase_nonneg MS B l T J0 b N
+  · intro N
+    dsimp [masterScaleV]
+    omega
+  · intro N i
+    rfl
+  · intro N p x
+    exact momentBaseMass_nonneg MS B l T J0 N b (momentPrimeDiagonal hT p) x
+  · intro N p
+    exact momentBaseMass_tsum_eq_one MS B l T J0 N b (momentPrimeDiagonal hT p)
+  · intro N u σ hσ
+    exact (momentDivisorFamily_support_specs MS B l hgap.1 active u N σ hσ).1
+  · intro N u σ hσ
+    exact (momentDivisorFamily_support_specs MS B l hgap.1 active u N σ hσ).2
+  · intro N p σ hdom hσ hσpos
+    rcases hdom with ⟨hgood, hreg⟩
+    have hgoodReplica : ∀ k : Fin b,
+        T.Good (corrScales MS) l N
+          (fun j => (momentPrimeDiagonal hT p)
+            ((momentPrimeEnum b T.q).symm (k, j))) := by
+      intro k
+      simpa only [momentPrimeDiagonal_apply] using hgood k
+    exact momentBaseResidue_uniform_bound MS B l hgap T J0 b N hJ0
+      (momentPrimeDiagonal hT p) hreg hgoodReplica active σ hσ
+  · intro N p x hdom hmass u
+    exact momentLinearRowValue_den_eq_one MS b T l N
+      (momentPrimeDiagonal hT p) u x
+  · intro N p hdom r hr hrN hrV u j
+    have hden := momentRowCoeff_den_eq_one MS b T l N
+      (momentPrimeDiagonal hT p) u j
+    rw [hden]
+    exact Nat.coprime_one_left r
+  · intro N p hdom r hr hrN hrV u
+    letI : Fact r.Prime := ⟨hr⟩
+    let root := (momentBaseEnum b T.d).symm (.inl ())
+    refine ⟨root, ?_⟩
+    rw [momentRowCoeff_root_residue MS b T l N
+      (momentPrimeDiagonal hT p) u r hr]
+    exact one_ne_zero
+  · intro N p hdom r hr hrN hrV hno u v huv
+    exact momentRows_pairwise_independent_master MS b T l N hT p r hr hrN hno u v huv
+  · intro N
+    let lo : Fin sl → ℕ := fun _ => (MS.primeStage.pool N l).lower
+    let hi : Fin sl → ℕ := fun _ => (MS.primeStage.pool N l).upper
+    let V := masterScaleV MS.core.parameters N l
+    let δ := momentCRTSlotResidueError MS l N
+    have hδ : 0 ≤ δ := by
+      dsimp [δ, momentCRTSlotResidueError, finiteL1]
+      positivity
+    have hslot (i : Fin sl) :
+        finiteL1 (momentPrimePoolCRTActualLaw (N + 1) V (lo i) (hi i))
+          (momentCRTUniformLaw (w := N + 1) (V := V)) ≤ δ := by
+      exact momentPrimePoolCRTActualLaw_l1_le
+        (w := N + 1) (e := MS.primeStage.e0 N) (V := V)
+        (lo := lo i) (hi := hi i)
+    have hbound := momentPrimeTupleCRT_l1_le lo hi δ hδ hslot
+    simpa [lo, hi, V, δ, momentCRTErrorBound, momentCRTSlotResidueError] using hbound
+
 end Prediction
 
 end HindmanSumsProducts
