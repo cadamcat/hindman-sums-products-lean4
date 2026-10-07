@@ -1464,18 +1464,172 @@ theorem crtPrimeProduct_pairwise_coprime {w V : ℕ} :
   apply hpq
   exact Subtype.ext hval
 
-noncomputable def masterCRTModulus_ringEquiv {w e V : ℕ} (he : 0 < e) :
-    ZMod (FromArithmetic.masterCRTModulus w e V) ≃+*
-      ZMod (primorial w ^ e) ×
-        (∀ p : FromArithmetic.CRTPrimeRange w V, ZMod p.val) := by
+def masterCRTOptionFactor {w e V : ℕ}
+    (i : Option (FromArithmetic.CRTPrimeRange w V)) : ℕ :=
+  match i with
+  | none => primorial w ^ e
+  | some p => p.val
+
+theorem masterCRTOptionFactor_pairwise {w e V : ℕ} (he : 0 < e) :
+    Pairwise (Function.onFun Nat.Coprime (masterCRTOptionFactor (w := w) (e := e) (V := V))) := by
+  intro i j hij
+  cases i with
+  | none =>
+    cases j with
+    | none => exact (hij rfl).elim
+    | some p =>
+      have hcop : Nat.Coprime (primorial w ^ e) p.val := by
+        have h := (Nat.coprime_prod_right_iff.mp
+          (primorialPow_coprime_crtPrimeProduct he)) p (Finset.mem_univ p)
+        exact h
+      simpa [Function.onFun, masterCRTOptionFactor] using hcop
+  | some p =>
+    cases j with
+    | none =>
+      have hcop : Nat.Coprime (primorial w ^ e) p.val := by
+        have h := (Nat.coprime_prod_right_iff.mp
+          (primorialPow_coprime_crtPrimeProduct he)) p (Finset.mem_univ p)
+        exact h
+      simpa [Function.onFun, masterCRTOptionFactor] using hcop.symm
+    | some q =>
+      have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+      have hq : q.val.Prime := (Finset.mem_filter.mp q.property).2
+      have hpq : p.val ≠ q.val := by
+        intro hv
+        apply hij
+        exact congrArg some (Subtype.ext hv)
+      simpa [Function.onFun, masterCRTOptionFactor] using
+        (Nat.coprime_primes hp hq).2 hpq
+
+theorem masterCRTModulus_eq_optionFactorProduct {w e V : ℕ} :
+    FromArithmetic.masterCRTModulus w e V =
+      ∏ i : Option (FromArithmetic.CRTPrimeRange w V),
+        masterCRTOptionFactor (w := w) (e := e) (V := V) i := by
   classical
-  let P := ∏ p : FromArithmetic.CRTPrimeRange w V, p.val
-  have hmod : FromArithmetic.masterCRTModulus w e V = primorial w ^ e * P := by
-    simpa [P] using masterCRTModulus_eq_base_mul_crtPrimeProduct (w := w) (e := e) (V := V)
-  exact (ZMod.ringEquivCongr hmod).trans <|
-    (ZMod.chineseRemainder (primorialPow_coprime_crtPrimeProduct he)).trans <|
-      RingEquiv.prodCongr (RingEquiv.refl _) (ZMod.prodEquivPi (fun p :
-        FromArithmetic.CRTPrimeRange w V => p.val) crtPrimeProduct_pairwise_coprime)
+  let F := masterCRTOptionFactor (w := w) (e := e) (V := V)
+  have hoption : (∏ i : Option (FromArithmetic.CRTPrimeRange w V), F i) =
+      F none * ∏ p : FromArithmetic.CRTPrimeRange w V, F (some p) := by
+    have hU : (Finset.univ : Finset (Option (FromArithmetic.CRTPrimeRange w V))) =
+        Finset.insertNone (Finset.univ : Finset (FromArithmetic.CRTPrimeRange w V)) := by
+      ext i
+      cases i <;> simp [Finset.insertNone]
+    rw [hU, Finset.prod_insertNone]
+  have hmod : FromArithmetic.masterCRTModulus w e V =
+      ∏ i : Option (FromArithmetic.CRTPrimeRange w V), F i := by
+    calc
+      _ = (primorial w ^ e) *
+          (∏ p : FromArithmetic.CRTPrimeRange w V, p.val) :=
+        masterCRTModulus_eq_base_mul_crtPrimeProduct
+      _ = F none * ∏ p : FromArithmetic.CRTPrimeRange w V, F (some p) := by
+        simp [F, masterCRTOptionFactor]
+      _ = _ := hoption.symm
+  exact hmod
+
+noncomputable def masterCRTModulus_optionPiRingEquiv {w e V : ℕ} (he : 0 < e) :
+    ZMod (FromArithmetic.masterCRTModulus w e V) ≃+*
+      (∀ i : Option (FromArithmetic.CRTPrimeRange w V),
+        ZMod (masterCRTOptionFactor (w := w) (e := e) (V := V) i)) := by
+  let F := masterCRTOptionFactor (w := w) (e := e) (V := V)
+  exact (ZMod.ringEquivCongr masterCRTModulus_eq_optionFactorProduct).trans
+    (ZMod.prodEquivPi F (masterCRTOptionFactor_pairwise he))
+
+theorem masterCRTModulus_pos {w e V : ℕ} :
+    0 < FromArithmetic.masterCRTModulus w e V := by
+  rw [masterCRTModulus_eq_base_mul_crtPrimeProduct]
+  apply Nat.mul_pos
+  · exact pow_pos (primorial_pos w) e
+  · apply Finset.prod_pos
+    intro p hp
+    exact (Finset.mem_filter.mp p.property).2.pos
+
+theorem zmod_finEquiv_apply {n : ℕ} [NeZero n] (a : Fin n) :
+    (ZMod.finEquiv n) a = (a.val : ZMod n) := by
+  cases n with
+  | zero => exact (NeZero.ne 0 rfl).elim
+  | succ k =>
+    have hk : 0 < k + 1 := by omega
+    change a = (⟨a.val % (k + 1), Nat.mod_lt _ hk⟩ : Fin (k + 1))
+    apply Fin.ext
+    exact (Nat.mod_eq_of_lt a.isLt).symm
+
+noncomputable def crtOptionZModFinEquiv {w e V : ℕ}
+    (i : Option (FromArithmetic.CRTPrimeRange w V)) :
+    ZMod (masterCRTOptionFactor (w := w) (e := e) (V := V) i) ≃
+      Fin (masterCRTOptionFactor (w := w) (e := e) (V := V) i) := by
+  have hpos : 0 < masterCRTOptionFactor (w := w) (e := e) (V := V) i := by
+    cases i with
+    | none => exact pow_pos (primorial_pos w) e
+    | some p => exact ((Finset.mem_filter.mp p.property).2).pos
+  letI : NeZero (masterCRTOptionFactor (w := w) (e := e) (V := V) i) :=
+    ⟨Nat.ne_of_gt hpos⟩
+  exact (ZMod.finEquiv (masterCRTOptionFactor (w := w) (e := e) (V := V) i)).symm.toEquiv
+
+noncomputable def masterCRTModulus_optionPiFinEquiv {w e V : ℕ} (he : 0 < e) :
+    Fin (FromArithmetic.masterCRTModulus w e V) ≃
+      (∀ i : Option (FromArithmetic.CRTPrimeRange w V),
+        Fin (masterCRTOptionFactor (w := w) (e := e) (V := V) i)) := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  have hQ : 0 < Q := by dsimp [Q]; exact masterCRTModulus_pos
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  exact (ZMod.finEquiv Q).toEquiv.trans <|
+    (masterCRTModulus_optionPiRingEquiv he).toEquiv.trans <|
+      Equiv.piCongrRight fun i => crtOptionZModFinEquiv i
+
+theorem masterCRTModulus_optionPiFinEquiv_some {w e V : ℕ} (he : 0 < e)
+    (a : Fin (FromArithmetic.masterCRTModulus w e V))
+    (p : FromArithmetic.CRTPrimeRange w V) :
+    masterCRTModulus_optionPiFinEquiv he a (some p) =
+      crtResidueProjection (w := w) (V := V)
+        (Q := FromArithmetic.masterCRTModulus w e V) a p := by
+  classical
+  let Q := FromArithmetic.masterCRTModulus w e V
+  have hQ : 0 < Q := by dsimp [Q]; exact masterCRTModulus_pos
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  have hcoord :
+      (masterCRTModulus_optionPiRingEquiv he ((ZMod.finEquiv Q) a)) (some p) =
+        (a.val : ZMod p.val) := by
+    unfold masterCRTModulus_optionPiRingEquiv
+    rw [RingEquiv.trans_apply]
+    rw [ZMod.prodEquivPi_apply]
+    rw [zmod_finEquiv_apply a]
+    rw [map_natCast]
+    have hdiv : p.val ∣
+        ∏ i : Option (FromArithmetic.CRTPrimeRange w V),
+          masterCRTOptionFactor (w := w) (e := e) (V := V) i :=
+      Finset.dvd_prod_of_mem _ (Finset.mem_univ (some p))
+    change (ZMod.cast (a.val : ZMod
+      (∏ i : Option (FromArithmetic.CRTPrimeRange w V),
+        masterCRTOptionFactor (w := w) (e := e) (V := V) i)) : ZMod p.val) =
+      (a.val : ZMod p.val)
+    exact ZMod.cast_natCast hdiv a.val
+  apply Fin.ext
+  change ((crtOptionZModFinEquiv (some p)
+    ((masterCRTModulus_optionPiRingEquiv he) ((ZMod.finEquiv Q) a) (some p))).val) =
+      a.val % p.val
+  rw [hcoord]
+  have hp : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  have hpos : 0 < p.val := hp.pos
+  letI : NeZero p.val := ⟨Nat.ne_of_gt hpos⟩
+  have hfin : crtOptionZModFinEquiv (some p) (a.val : ZMod p.val) =
+      (⟨a.val % p.val, by
+        simpa [masterCRTOptionFactor] using Nat.mod_lt a.val hpos⟩ :
+          Fin (masterCRTOptionFactor (w := w) (e := e) (V := V) (some p))) := by
+    change (ZMod.finEquiv p.val).symm.toEquiv (a.val : ZMod p.val) = _
+    have hcast : (ZMod.finEquiv p.val)
+        (⟨a.val % p.val, Nat.mod_lt _ hpos⟩ : Fin p.val) =
+        (a.val : ZMod p.val) := by
+      rw [zmod_finEquiv_apply ⟨a.val % p.val, Nat.mod_lt _ hpos⟩]
+      apply ZMod.val_injective p.val
+      simp [ZMod.val_natCast, Nat.mod_mod]
+    have hval : ((ZMod.finEquiv p.val).symm.toEquiv (a.val : ZMod p.val)).val =
+        a.val % p.val := by
+      have h := congrArg (fun z : ZMod p.val =>
+        ((ZMod.finEquiv p.val).symm.toEquiv z).val) hcast
+      simpa using h.symm
+    apply Fin.ext
+    simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using hval
+  simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using congrArg Fin.val hfin
 
 theorem primeTupleCRTLaw_eq_prod_marginals {m w V : ℕ}
     (lo hi : Fin m → ℕ) (r : Fin m → FromArithmetic.CRTResidues w V) :
