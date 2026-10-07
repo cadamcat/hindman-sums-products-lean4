@@ -3975,10 +3975,54 @@ noncomputable def maskRowDivisorTemplate {K m q r : ℕ}
 noncomputable def maskEmptyDivisorTemplate {K : ℕ} : DivisorTemplate K K :=
   divisorTemplateOfFinset (∅ : Finset (Fin K)) (by simp)
 
+theorem independentPrimePoolSupport_mem_iff {q : ℕ} (lo hi : Fin q → ℕ)
+    (p : Fin q → ℕ) :
+    p ∈ independentPrimePoolSupport lo hi ↔
+      ∀ i, p i ∈ primePoolSupport (lo i) (hi i) := by
+  unfold independentPrimePoolSupport
+  exact Fintype.mem_piFinset
+
+def MaskRowAnchorReady {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (N : ℕ) : Prop :=
+  ∀ p, p ∈ independentPrimePoolSupport
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) →
+    ∀ v (hv : v.Prime), N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+    ∀ R, FromArithmetic.rationalResidue v hv
+      (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+        N p R (Sh.row R).anchor) ≠ 0
+
+def MaskRowPairwiseReady {K s m q r : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (N : ℕ) : Prop :=
+  ∀ p, p ∈ independentPrimePoolSupport
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) →
+    ∀ v (hv : v.Prime), N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+    (∀ Q ∈ Dm, ¬ ((v : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
+    ∀ R I, R ≠ I →
+      ∃ j k,
+        FromArithmetic.rationalResidue v hv
+            (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p R j) *
+          FromArithmetic.rationalResidue v hv
+            (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p I k) ≠
+        FromArithmetic.rationalResidue v hv
+            (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p R k) *
+          FromArithmetic.rationalResidue v hv
+          (rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N)
+              N p I j)
+
 def MaskRowDataGoodDomain {K s m q r : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
-    (ι : Fin q ↪ Fin s) (N : ℕ) (p : Fin s → ℕ) : Prop :=
+    (ι : Fin q ↪ Fin s)
+    (N : ℕ) (p : Fin s → ℕ) : Prop :=
   (∀ i : Fin m, Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
       (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) ∧
   (∀ (R : Fin r) (p' : Fin s → ℕ) (x : Fin m → ℤ),
@@ -3986,6 +4030,7 @@ def MaskRowDataGoodDomain {K s m q r : ℕ} {Aset : Finset ℚ}
       (fun j => p' (ι j)) (fun j => (x j : ℚ))).den = 1) ∧
   (∀ (R : Fin r) (j : Fin m), (rowShapeLinearCoefficients Sh ι
       (chainScale S.core.parameters C a N) N p R j).den = 1) ∧
+  MaskRowAnchorReady S C a Sh ι N ∧ MaskRowPairwiseReady S C a Sh ι N ∧
   p ∈ independentPrimePoolSupport
     (fun _ : Fin s => (S.primeStage.pool N C.gap).lower)
     (fun _ : Fin s => (S.primeStage.pool N C.gap).upper) ∧
