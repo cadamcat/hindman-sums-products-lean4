@@ -3181,4 +3181,92 @@ theorem target_cube_product_abs_le_targetBound
   exact Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _)
     (fun ω _ => hfactor ω)
 
+namespace AdditiveMoment
+
+abbrev RetainedIndex {m q r : ℕ} (Sh : RowShape m q r) :=
+  Σ I : NonTarget Sh, ({R : NonTarget Sh // R ≠ I} → Fin 2)
+
+abbrev Occurrence {m q r : ℕ} (Sh : RowShape m q r) :=
+  (NonTarget Sh → Fin 2) ⊕ (Fin 2 × RetainedIndex Sh)
+
+abbrev Coordinate {m q r : ℕ} (Sh : RowShape m q r) :=
+  Fin m ⊕ ((NonTarget Sh × Fin 2) ⊕ Fin 2)
+
+noncomputable def activeOccurrences {m q r : ℕ} (Sh : RowShape m q r) (k : ℕ) :
+    Finset (Occurrence Sh) := by
+  classical
+  exact Finset.univ.filter fun o => match o with
+    | .inl _ => True
+    | .inr jI => jI.1.val < k
+
+def occurrenceRow {m q r : ℕ} (Sh : RowShape m q r) (o : Occurrence Sh) : Fin r :=
+  match o with
+  | .inl _ => Sh.star
+  | .inr jI => jI.2.1.1
+
+noncomputable def occurrenceCoeff {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (N : ℕ) (p : Fin q → ℕ) (o : Occurrence Sh) (v : Coordinate Sh) : ℚ :=
+  let c := chainScale S.core.parameters C a N
+  let Mp := directionModulus S N dirs.poly p
+  let I := occurrenceRow Sh o
+  match v with
+  | .inl k => rowTemplateCoefficient c (Sh.row I) p k
+  | .inr (.inl (R, e)) =>
+    match o with
+    | .inl ω => if e = ω R then (Mp : ℚ) else 0
+    | .inr jI =>
+      if h : R ≠ jI.2.1 then
+        if e = jI.2.2 ⟨R, h⟩ then
+          rowForm c (Sh.row I) p (dirs.translation c Mp p R.1)
+        else 0
+      else 0
+  | .inr (.inr j) =>
+    match o with
+    | .inl _ => 0
+    | .inr jI => if j = jI.1 then
+        rowForm c (Sh.row I) p (dirs.rootTranslation c (S.core.parameters.M N) p)
+      else 0
+
+noncomputable def occurrenceValue {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (N : ℕ)
+    (p : Fin q → ℕ) (o : Occurrence Sh) (x : Coordinate Sh → ℤ) : ℚ :=
+  ∑ v, occurrenceCoeff S C a Sh dirs N p o v * (x v : ℚ)
+
+noncomputable def coordinateLaw {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ) : ℝ :=
+  match v with
+  | .inl k => harmonicLaw
+      (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) z
+  | .inr (.inl _) => FromArithmetic.uniformIntegerIntervalLaw 0
+      (max 1 (shiftLength S C.gap J0 N dirs.poly p)) z
+  | .inr (.inr _) => FromArithmetic.uniformIntegerIntervalLaw 0
+      (S.core.parameters.H N C.gap) z
+
+noncomputable def coordinateProductLaw {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) : ℝ :=
+  ∏ v : Coordinate Sh, coordinateLaw S C Sh dirs J0 N p v (x (eX v))
+
+noncomputable def occurrenceDivisorTemplate {K m q r : ℕ}
+    (C : MasterChain K m) (Sh : RowShape m q r) (o : Occurrence Sh) :
+    DivisorTemplate K K :=
+  tailDivisorTemplate ((C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val)
+
+def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
+  arity := 0
+  arity_le := Nat.zero_le K
+  cutoff := Fin.elim0
+
+end AdditiveMoment
+
 end HindmanSumsProducts
