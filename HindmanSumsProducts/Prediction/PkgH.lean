@@ -195,6 +195,15 @@ theorem rationalModelValue_eq_atQ {n r s : ℕ}
       exact ⟨q.num, (Rat.den_eq_one_iff q).mp hd⟩
     simp [rationalModelValue, atQ, hq, hden]
 
+/-- Extension by zero preserves the unit interval bound on an integer family. -/
+theorem atQ_mem_Icc_of_mem (f : ℤ → ℝ) (q : ℚ)
+    (hf : ∀ y, f y ∈ Set.Icc (0 : ℝ) 1) : atQ f q ∈ Set.Icc (0 : ℝ) 1 := by
+  classical
+  unfold atQ
+  split_ifs with hq
+  · exact hf q.num
+  · norm_num
+
 /-- The raw harmonic weights are nonnegative, including when the interval is empty. -/
 theorem pkgH_harmonicNatLaw_nonneg (X W n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
   have hnorm : 0 ≤ harmonicNormalizer X W := by
@@ -1586,13 +1595,14 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.parameters_allRawCutoffs_eventually_eq
 #print axioms HindmanSumsProducts.Prediction.dominates_of_eventually_le_denominator
 #print axioms HindmanSumsProducts.Prediction.rationalModelValue_eq_atQ
+#print axioms HindmanSumsProducts.Prediction.atQ_mem_Icc_of_mem
 #print axioms HindmanSumsProducts.Prediction.parameterJointBlockProductMass_support_finite
 #print axioms HindmanSumsProducts.Prediction.weightedPivotTupleMass_support_finite
 #print axioms HindmanSumsProducts.Prediction.abs_tsum_mul_sub_le_tsum_abs_diff
-#print axioms HindmanSumsProducts.Prediction.harmonicNatLaw_nonneg
-#print axioms HindmanSumsProducts.Prediction.parameterTailProductLaw_nonneg
+#print axioms HindmanSumsProducts.Prediction.pkgH_harmonicNatLaw_nonneg
+#print axioms HindmanSumsProducts.Prediction.pkgH_parameterTailProductLaw_nonneg
 #print axioms HindmanSumsProducts.Prediction.nuB_nonneg_of_nonneg
-#print axioms HindmanSumsProducts.Prediction.nu_nonneg
+#print axioms HindmanSumsProducts.Prediction.pkgH_nu_nonneg
 #print axioms HindmanSumsProducts.Prediction.filterUpperBound_abs_tendsto_zero
 #print axioms HindmanSumsProducts.Prediction.harmonicLaw_support_finite
 #print axioms HindmanSumsProducts.Prediction.pivotMass_support_finite
@@ -1602,6 +1612,9 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.maskedCorrelation_replace_factor
 #print axioms HindmanSumsProducts.Prediction.filterUpperBound_rpow
 #print axioms HindmanSumsProducts.Prediction.chainCount_telescope_helper
+#print axioms HindmanSumsProducts.Prediction.corrConst
+#print axioms HindmanSumsProducts.Prediction.subgroup_inverse
+#print axioms HindmanSumsProducts.cor_product_law
 #print axioms HindmanSumsProducts.Prediction.sum_fin_telescope
 #print axioms HindmanSumsProducts.Prediction.fromArithmetic_parameterTailProductLaw_eq
 #print axioms HindmanSumsProducts.Prediction.fromArithmetic_parameterTailProductLaw_fun_eq
