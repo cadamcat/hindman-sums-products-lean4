@@ -5,6 +5,7 @@ import HindmanSumsProducts.Prediction.PkgC
 import HindmanSumsProducts.Prediction.PkgD
 import HindmanSumsProducts.Prediction.PkgB2
 import HindmanSumsProducts.Prediction.PkgOpusDpo
+import HindmanSumsProducts.Prediction.PkgDFlat
 
 /-!
 # Dual-test pseudorandomness, bounded dense models, nilsequence testing (§5.1–§5.2)
@@ -274,7 +275,49 @@ theorem opus_dpo_flat_case (MS : MasterScales K As sl Dm) (B : Block K) {b : ℕ
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
       |Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
         ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y)| ≤ ε := by
-  sorry
+  intro ε hε
+  have hroot := opus_dpo_root_mean MS B ε hε
+  filter_upwards [hroot] with N hroot
+  intro I
+  let c : ℝ := ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) 0
+  have hfactor (k : Fin b) :
+      |dualTest MS B (T k) (gap k) (J0 k) N (I k) 0| ≤ 1 :=
+    l_dflat_dualTest_abs_le_one MS B (T k) (gap k) (J0 k) N (I k) (hflat k) 0
+  have hc : |c| ≤ 1 := by
+    dsimp [c]
+    rw [Finset.abs_prod]
+    apply Finset.prod_le_one₀
+    · intro k hk
+      exact abs_nonneg _
+    · intro k hk
+      exact hfactor k
+  have hproduct (y : ℤ) :
+      (∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y) = c := by
+    dsimp [c]
+    apply Finset.prod_congr rfl
+    intro k hk
+    rw [l_dflat_dualTest_eq_goodSlotAverage MS B (T k) (gap k) (J0 k) N (I k)
+      (hflat k) y]
+    rw [l_dflat_dualTest_eq_goodSlotAverage MS B (T k) (gap k) (J0 k) N (I k)
+      (hflat k) 0]
+  have hfun :
+      (fun y : ℤ => (nu MS.core.parameters N B y - 1) *
+        ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y) =
+      (fun y => c * (nu MS.core.parameters N B y - 1)) := by
+    funext y
+    rw [hproduct y]
+    ring
+  calc
+    |Emu MS.core.parameters N B.1 (fun y => (nu MS.core.parameters N B y - 1) *
+        ∏ k, dualTest MS B (T k) (gap k) (J0 k) N (I k) y)| =
+      |c * Emu MS.core.parameters N B.1 (fun y => nu MS.core.parameters N B y - 1)| := by
+        rw [hfun, Emu_mul_left]
+    _ = |c| * |Emu MS.core.parameters N B.1
+        (fun y => nu MS.core.parameters N B y - 1)| := abs_mul _ _
+    _ ≤ 1 * |Emu MS.core.parameters N B.1
+        (fun y => nu MS.core.parameters N B y - 1)| :=
+          mul_le_mul_of_nonneg_right hc (abs_nonneg _)
+    _ ≤ ε := by simpa using hroot
 
 /-- Part: replica expansion (05:87–90).  Eventually, for all inputs, the original pairing equals
 the untranslated replica average: independent primes for each test in disjoint master-slot
