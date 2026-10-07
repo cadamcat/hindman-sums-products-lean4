@@ -595,5 +595,181 @@ theorem opus_corr_boxOut_abs_le (A Wt : ∀ I : ι, ({R // R ≠ I} → ℕ) →
 
 end BoxPhi
 
+
+/-! ## The elimination step under the elimination average -/
+
+section ElimStep
+
+variable {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+/-- Two integrands with the same shift averages have the same elimination average. -/
+theorem opus_corr_elimAvg_congr (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (F G : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ)
+    (h : ∀ p z, shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p) (F p z) =
+      shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p) (G p z)) :
+    eliminationAverage S C N dirs tests J0 F = eliminationAverage S C N dirs tests J0 G := by
+  unfold eliminationAverage goodSlotAverage
+  congr 1
+  apply tsum_congr
+  intro p
+  congr 1
+  split_ifs
+  · congr 1
+    apply tsum_congr
+    intro z
+    congr 1
+    exact h p _
+  · rfl
+
+/-- The box integrand family of one elimination, as a function of `(p,z,u)`. -/
+def opus_corr_elimPhi {ι : Type*} [Fintype ι] [DecidableEq ι] {α β : Type*}
+    (T : α → β → (ι → ℕ) → ℝ) (A Wt : α → β → ∀ I : ι, ({R // R ≠ I} → ℕ) → ℝ)
+    (E : Finset ι) (x : α × β × (ι → Fin 2 → ℕ)) : ℝ :=
+  opus_corr_boxPhi (T x.1 x.2.1) (A x.1 x.2.1) (Wt x.1 x.2.1) E x.2.2
+
+/-- One weighted Cauchy–Schwarz step (equation `eq:additive-weighted-cs`):
+`|E Φ_E|² ≤ (E Ω_R)·E Φ_{E∪{R}}` for `R ∉ E`. -/
+theorem opus_corr_elim_step (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (T : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → ℕ) → ℝ)
+    (A Wt : (Fin q → ℕ) → (Fin m → ℚ) → ∀ I : NonTarget Sh, ({R // R ≠ I} → ℕ) → ℝ)
+    (hA : ∀ p z I y, |A p z I y| ≤ Wt p z I y) (hW : ∀ p z I y, 0 ≤ Wt p z I y)
+    (E : Finset (NonTarget Sh)) (R : NonTarget Sh) (hR : R ∉ E) :
+    |sol_var_eliminationLinear S C N dirs tests J0 (opus_corr_elimPhi T A Wt E)| ^ 2 ≤
+      sol_var_eliminationLinear S C N dirs tests J0
+          (fun x => opus_corr_boxOmega (Wt x.1 x.2.1) E R x.2.2) *
+        sol_var_eliminationLinear S C N dirs tests J0
+          (opus_corr_elimPhi T A Wt (insert R E)) := by
+  classical
+  set Elin := sol_var_eliminationLinear S C N dirs tests J0
+  have hpos : ∀ f, (∀ x, 0 ≤ f x) → 0 ≤ Elin f :=
+    fun f hf => sol_var_eliminationLinear_nonneg S C N dirs tests J0 f hf
+  let L : (Fin q → ℕ) → ℕ := fun p => shiftLength S C.gap J0 N dirs.poly p
+  let Hout : (Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun x =>
+    opus_corr_boxOut (A x.1 x.2.1) E R x.2.2
+  let Ω : (Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun x =>
+    opus_corr_boxOmega (Wt x.1 x.2.1) E R x.2.2
+  let Hin : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun p z u =>
+    opus_corr_boxIn (T p z) (A p z) (Wt p z) E R u
+  let Abar : (Fin q → ℕ) × (Fin m → ℚ) × (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun x =>
+    ((L x.1 : ℝ))⁻¹ * ∑ t ∈ Finset.range (L x.1), Hin x.1 x.2.1 (opus_corr_setc x.2.2 R 0 t)
+  have h1 : Elin (opus_corr_elimPhi T A Wt E) = Elin (fun x => Hout x * Abar x) := by
+    change eliminationAverage S C N dirs tests J0 (fun p z u =>
+        opus_corr_elimPhi T A Wt E (p, z, u)) =
+      eliminationAverage S C N dirs tests J0 (fun p z u => Hout (p, z, u) * Abar (p, z, u))
+    apply opus_corr_elimAvg_congr
+    intro p z
+    have hsplit : (fun u => opus_corr_elimPhi T A Wt E (p, z, u)) =
+        (fun u => opus_corr_boxOut (A p z) E R u * Hin p z u) := by
+      funext u
+      exact opus_corr_boxPhi_split (T p z) (A p z) (Wt p z) E R hR u
+    rw [hsplit]
+    exact opus_corr_shiftAverage_avg_coord (L p) R _ (Hin p z)
+      (fun u t => opus_corr_boxOut_setc (A p z) E R u 0 t)
+  have h3 : Elin (fun x => Ω x * Abar x ^ 2) = Elin (opus_corr_elimPhi T A Wt (insert R E)) := by
+    change eliminationAverage S C N dirs tests J0 (fun p z u => Ω (p, z, u) * Abar (p, z, u) ^ 2) =
+      eliminationAverage S C N dirs tests J0 (fun p z u =>
+        opus_corr_elimPhi T A Wt (insert R E) (p, z, u))
+    apply opus_corr_elimAvg_congr
+    intro p z
+    have hins : (fun u => opus_corr_elimPhi T A Wt (insert R E) (p, z, u)) =
+        (fun u => opus_corr_boxOmega (Wt p z) E R u * Hin p z u *
+          Hin p z (opus_corr_setc u R 0 (u R 1))) := by
+      funext u
+      exact opus_corr_boxPhi_insert (T p z) (A p z) (Wt p z) E R hR u
+    rw [hins]
+    exact (opus_corr_shiftAverage_square_coord (L p) R _ (Hin p z)
+      (fun u t => opus_corr_boxOmega_setc (Wt p z) E R u 0 t)
+      (fun u t => opus_corr_boxOmega_setc (Wt p z) E R u 1 t)
+      (fun u t => opus_corr_boxIn_setc_one (T p z) (A p z) (Wt p z) E R hR u t)).symm
+  have hΩ : ∀ x, 0 ≤ Ω x := fun x =>
+    Finset.prod_nonneg (fun η _ => hW _ _ _ _)
+  have hG : ∀ x, |Hout x| ≤ Ω x := fun x =>
+    opus_corr_boxOut_abs_le (A x.1 x.2.1) (Wt x.1 x.2.1) E R hR (hA x.1 x.2.1 R) x.2.2
+  rw [h1, ← h3]
+  exact sol_var_weighted_cauchy Elin hpos Ω Hout Abar hΩ hG
+
+/-- `E Φ_E ≥ 0` once a direction has been eliminated. -/
+theorem opus_corr_elim_nonneg (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (T : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → ℕ) → ℝ)
+    (A Wt : (Fin q → ℕ) → (Fin m → ℚ) → ∀ I : NonTarget Sh, ({R // R ≠ I} → ℕ) → ℝ)
+    (hW : ∀ p z I y, 0 ≤ Wt p z I y)
+    (E : Finset (NonTarget Sh)) (hE : E.Nonempty) :
+    0 ≤ sol_var_eliminationLinear S C N dirs tests J0 (opus_corr_elimPhi T A Wt E) := by
+  classical
+  obtain ⟨R, hRE⟩ := hE
+  have hR : R ∉ E.erase R := Finset.notMem_erase R E
+  have hEq : E = insert R (E.erase R) := (Finset.insert_erase hRE).symm
+  rw [hEq]
+  let L : (Fin q → ℕ) → ℕ := fun p => shiftLength S C.gap J0 N dirs.poly p
+  let Hin : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun p z u =>
+    opus_corr_boxIn (T p z) (A p z) (Wt p z) (E.erase R) R u
+  have heq : sol_var_eliminationLinear S C N dirs tests J0
+      (opus_corr_elimPhi T A Wt (insert R (E.erase R))) =
+      sol_var_eliminationLinear S C N dirs tests J0 (fun x =>
+        opus_corr_boxOmega (Wt x.1 x.2.1) (E.erase R) R x.2.2 *
+          (((L x.1 : ℝ))⁻¹ * ∑ t ∈ Finset.range (L x.1),
+            Hin x.1 x.2.1 (opus_corr_setc x.2.2 R 0 t)) ^ 2) := by
+    change eliminationAverage S C N dirs tests J0 (fun p z u =>
+        opus_corr_elimPhi T A Wt (insert R (E.erase R)) (p, z, u)) =
+      eliminationAverage S C N dirs tests J0 (fun p z u =>
+        opus_corr_boxOmega (Wt p z) (E.erase R) R u *
+          (((L p : ℝ))⁻¹ * ∑ t ∈ Finset.range (L p), Hin p z (opus_corr_setc u R 0 t)) ^ 2)
+    apply opus_corr_elimAvg_congr
+    intro p z
+    have hins : (fun u => opus_corr_elimPhi T A Wt (insert R (E.erase R)) (p, z, u)) =
+        (fun u => opus_corr_boxOmega (Wt p z) (E.erase R) R u * Hin p z u *
+          Hin p z (opus_corr_setc u R 0 (u R 1))) := by
+      funext u
+      exact opus_corr_boxPhi_insert (T p z) (A p z) (Wt p z) (E.erase R) R hR u
+    rw [hins]
+    exact opus_corr_shiftAverage_square_coord (L p) R _ (Hin p z)
+      (fun u t => opus_corr_boxOmega_setc (Wt p z) (E.erase R) R u 0 t)
+      (fun u t => opus_corr_boxOmega_setc (Wt p z) (E.erase R) R u 1 t)
+      (fun u t => opus_corr_boxIn_setc_one (T p z) (A p z) (Wt p z) (E.erase R) R hR u t)
+  rw [heq]
+  apply sol_var_eliminationLinear_nonneg
+  intro x
+  exact mul_nonneg (Finset.prod_nonneg (fun η _ => hW _ _ _ _)) (sq_nonneg _)
+
+/-- The `d` weighted Cauchy–Schwarz steps: `|E Φ_∅|^{2^d} ≤ C^{2^d-1}|E Φ_univ|` when every
+prefactor `E Ω_R` is at most `C`. -/
+theorem opus_corr_elim_iterate (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (T : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → ℕ) → ℝ)
+    (A Wt : (Fin q → ℕ) → (Fin m → ℚ) → ∀ I : NonTarget Sh, ({R // R ≠ I} → ℕ) → ℝ)
+    (hA : ∀ p z I y, |A p z I y| ≤ Wt p z I y) (hW : ∀ p z I y, 0 ≤ Wt p z I y)
+    (Ccs : ℝ) (hCcs : 0 < Ccs)
+    (hpre : ∀ (E : Finset (NonTarget Sh)) (R : NonTarget Sh), R ∉ E →
+      sol_var_eliminationLinear S C N dirs tests J0
+        (fun x => opus_corr_boxOmega (Wt x.1 x.2.1) E R x.2.2) ≤ Ccs) :
+    |sol_var_eliminationLinear S C N dirs tests J0 (opus_corr_elimPhi T A Wt ∅)| ^
+        (2 ^ Fintype.card (NonTarget Sh)) ≤
+      Ccs ^ (2 ^ Fintype.card (NonTarget Sh) - 1) *
+        |sol_var_eliminationLinear S C N dirs tests J0 (opus_corr_elimPhi T A Wt Finset.univ)| := by
+  classical
+  apply c_elim2_iterate_box_cauchy
+    (fun E => sol_var_eliminationLinear S C N dirs tests J0 (opus_corr_elimPhi T A Wt E))
+    Ccs hCcs
+  · intro E _ R _ hR
+    have hstep := opus_corr_elim_step S C N dirs tests J0 T A Wt hA hW E R hR
+    have hnext := opus_corr_elim_nonneg S C N dirs tests J0 T A Wt hW (insert R E)
+      ⟨R, Finset.mem_insert_self R E⟩
+    calc
+      _ ≤ _ := hstep
+      _ ≤ Ccs * sol_var_eliminationLinear S C N dirs tests J0
+            (opus_corr_elimPhi T A Wt (insert R E)) :=
+        mul_le_mul_of_nonneg_right (hpre E R hR) hnext
+  · intro E hE
+    exact opus_corr_elim_nonneg S C N dirs tests J0 T A Wt hW E hE
+
+end ElimStep
+
 end
 end HindmanSumsProducts
