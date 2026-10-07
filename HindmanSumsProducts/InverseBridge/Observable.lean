@@ -55,10 +55,71 @@ theorem bump_integer_support_finite (r : ℝ) :
   have hlt : m < Int.floor r + 2 := by exact_mod_cast hhiR
   exact Set.mem_Icc.mpr ⟨hlo, le_of_lt hlt⟩
 
+theorem bump_integer_support_subsingleton (r : ℝ) :
+    {m : ℤ | bump (r - m) ≠ 0}.Subsingleton := by
+  intro m hm n hn
+  by_contra hmn
+  have hm' : |r - (m : ℝ)| < 1 / 3 := (bump_ne_zero_iff _).mp hm
+  have hn' : |r - (n : ℝ)| < 1 / 3 := (bump_ne_zero_iff _).mp hn
+  have hsepInt : 1 ≤ |m - n| := Int.one_le_abs (sub_ne_zero.mpr hmn)
+  have hsep : (1 : ℝ) ≤ |(m : ℝ) - (n : ℝ)| := by exact_mod_cast hsepInt
+  have htriangle : |(m : ℝ) - (n : ℝ)| ≤ |r - (m : ℝ)| + |r - (n : ℝ)| := by
+    calc
+      |(m : ℝ) - (n : ℝ)| = |(r - (n : ℝ)) - (r - (m : ℝ))| := by congr 1 <;> ring
+      _ ≤ |r - (n : ℝ)| + |r - (m : ℝ)| := abs_sub _ _
+      _ = |r - (m : ℝ)| + |r - (n : ℝ)| := by ring
+  linarith
+
 /-- Interpolate a function on a quotient along the integer translation coordinate. -/
 noncomputable def liftObs {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
     (H : Y → ℝ) (x : X) : ℝ :=
   ∑ᶠ m : ℤ, bump (r x - m) * H (point x m)
+
+/-- The `finsum` defining the interpolation is an ordinary finite sum at each point. -/
+theorem liftObs_finite_sum {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
+    (H : Y → ℝ) (x : X) :
+    liftObs r point H x =
+      ∑ m ∈ (bump_integer_support_finite (r x)).toFinset,
+        bump (r x - m) * H (point x m) := by
+  let f : ℤ → ℝ := fun m => bump (r x - m) * H (point x m)
+  have hfin : {m : ℤ | bump (r x - m) ≠ 0}.Finite := bump_integer_support_finite (r x)
+  have hsub : Function.support f ⊆ hfin.toFinset := by
+    intro m hm
+    have hterm : f m ≠ 0 := hm
+    have hbump : bump (r x - m) ≠ 0 := by
+      by_contra hb
+      exact hterm (by simp [f, hb])
+    exact hfin.mem_toFinset.mpr hbump
+  rw [liftObs, finsum_eq_sum_of_support_subset f hsub]
+
+/-- Bounded observables remain bounded under the triangular interpolation. -/
+theorem liftObs_abs_le_one {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
+    (H : Y → ℝ) (hH : ∀ y, |H y| ≤ 1) (x : X) :
+    |liftObs r point H x| ≤ 1 := by
+  rw [liftObs_finite_sum]
+  have hfinite := bump_integer_support_finite (r x)
+  have hcard : (hfinite.toFinset).card ≤ 1 := by
+    apply Finset.card_le_one.mpr
+    intro m hm n hn
+    exact bump_integer_support_subsingleton (r x)
+      (hfinite.mem_toFinset.mp hm) (hfinite.mem_toFinset.mp hn)
+  have hterm (m : ℤ) :
+      |bump (r x - m) * H (point x m)| ≤ 1 := by
+    rw [abs_mul, abs_of_nonneg (bump_nonneg _)]
+    calc
+      bump (r x - m) * |H (point x m)| ≤ bump (r x - m) * 1 :=
+        mul_le_mul_of_nonneg_left (hH _) (bump_nonneg _)
+      _ ≤ 1 := by simpa using bump_le_one (r x - m)
+  by_cases hEmpty : hfinite.toFinset = ∅
+  · simp [hEmpty]
+  · have hnonempty : (hfinite.toFinset).Nonempty :=
+      Finset.nonempty_iff_ne_empty.mpr hEmpty
+    have hcardOne : (hfinite.toFinset).card = 1 := by
+      have hpos := Finset.card_pos.mpr hnonempty
+      omega
+    obtain ⟨m, hm⟩ := Finset.card_eq_one.mp hcardOne
+    rw [hm]
+    simpa using hterm m
 
 /-- At an integral translation coordinate only the matching translate contributes. -/
 theorem liftObs_at_integer {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
