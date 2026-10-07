@@ -7250,6 +7250,35 @@ theorem pkgMask_stateCorrelation_joint {m q r K s : ℕ} {Aset : Finset ℚ}
       exact tsum_eq_sum (s := D) hDzero
     _ = _ := by rfl
 
+theorem pkgMask_stateCorrelation_coordinate_split {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (u : Fin m) :
+    st.correlation S C a N =
+      ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
+        ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+          (∏ i : finsetComplement ({u} : Finset (Fin m)),
+            harmonicLaw (S.core.parameters.X N (C.block i.1).1)
+              (primorial (N + 1)) (w i)) *
+            ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+              (primorial (N + 1)) y *
+              ((∏ V ∈ st.masks,
+                  st.maskFunction V p
+                    (∏ k ∈ V, (pkgMask_coordinateJoin u y w) k)) *
+                ∏ R, atQ (st.rowFunction R p)
+                  (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+                    fun k => (pkgMask_coordinateJoin u y w k : ℚ))) := by
+  classical
+  unfold MaskRemovalState.correlation gapSlotAverage
+  apply tsum_congr
+  intro p
+  congr 1
+  exact pkgMask_pivotTsum_coordinate_split S C N u (fun z =>
+    (∏ V ∈ st.masks, st.maskFunction V p (∏ k ∈ V, z k)) *
+      ∏ R, atQ (st.rowFunction R p)
+        (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+          fun k => (z k : ℚ)))
+
 theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -7285,6 +7314,22 @@ theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
         1 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
           exact mul_le_mul hmaskProd hrowProd (abs_nonneg _) (by norm_num)
     _ = _ := by norm_num
+
+theorem pkgMask_stateCoordinateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar) (u : Fin m)
+    (p : Fin q → ℕ) (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)
+    (y : ℤ) :
+    |(∏ V ∈ st.masks,
+          st.maskFunction V p (∏ k ∈ V, (pkgMask_coordinateJoin u y w) k)) *
+        ∏ R, atQ (st.rowFunction R p)
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+            fun k => (pkgMask_coordinateJoin u y w k : ℚ))| ≤
+      (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) :=
+  pkgMask_stateIntegrand_abs_le st S C a N Jstar gstar hvalid p
+    (pkgMask_coordinateJoin u y w)
 
 end MaskRemovalState
 
