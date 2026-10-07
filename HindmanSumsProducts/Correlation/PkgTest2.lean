@@ -222,6 +222,33 @@ theorem c_test2_dominates_of_power_bound {f S T : ℕ → ℝ}
     exact mul_le_mul_of_nonneg_left hp' (hF n)
   exact Filter.tendsto_atTop_mono' atTop hle hDom'
 
+theorem c_test2_natSamplerTargetBound {x c e : ℕ} (hx : 4 ≤ x) (hc : c + 2 ≤ x) :
+    2 + 2 * x + x ^ e + c * x ^ (e + 3) ≤ x ^ (e + 4) := by
+  have hx2 : 2 ≤ x := by omega
+  have hxpos : 0 < x := by omega
+  have hx2sq : 4 ≤ x ^ 2 := by
+    calc
+      4 = 2 * 2 := by norm_num
+      _ ≤ x * x := Nat.mul_le_mul hx2 hx2
+      _ = x ^ 2 := by simp [pow_two]
+  have hx3 : 4 * x ≤ x ^ 3 := by
+    calc
+      4 * x ≤ x ^ 2 * x := Nat.mul_le_mul_right x hx2sq
+      _ = x ^ 3 := by simp [pow_succ, pow_two, Nat.mul_assoc, Nat.mul_comm]
+  have h3e : x ^ 3 ≤ x ^ (e + 3) :=
+    Nat.pow_le_pow_right hxpos (by omega)
+  have he : x ^ e ≤ x ^ (e + 3) :=
+    Nat.pow_le_pow_right hxpos (by omega)
+  have hsmall : 2 + 2 * x ≤ x ^ (e + 3) := by
+    have hlin : 2 + 2 * x ≤ 4 * x := by omega
+    exact hlin.trans (hx3.trans h3e)
+  have htwo : 2 + 2 * x + x ^ e ≤ 2 * x ^ (e + 3) := by omega
+  calc
+    2 + 2 * x + x ^ e + c * x ^ (e + 3) ≤
+        (c + 2) * x ^ (e + 3) := by nlinarith [htwo]
+    _ ≤ x * x ^ (e + 3) := Nat.mul_le_mul_right _ hc
+    _ = x ^ (e + 4) := by rw [pow_succ]; ring
+
 def c_test2_rowExponent {m q : ℕ} (T : RowTemplate m q) : ℕ :=
   ∑ k : Fin m, ∑ i : Fin q, (T.entry k).elim 0 fun e => e i
 
@@ -627,6 +654,307 @@ theorem c_test2_chainWeight_nonneg {n m : ℕ}
       (c_test2_parameterTailProductLaw_nonneg A N (C.block d).2.val σ)
       (Nat.cast_nonneg σ)
   · simp [hdiv]
+
+private theorem c_test2_harmonicNatLaw_support_upper (X W n : ℕ)
+    (h : harmonicNatLaw X W n ≠ 0) : n < X ^ 2 := by
+  by_contra hlt
+  have hnot : ¬ (X ≤ n ∧ n < X ^ 2 ∧ Nat.Coprime n W) := by
+    intro hcond
+    exact hlt hcond.2.1
+  exact h (by simp [harmonicNatLaw, hnot])
+
+theorem c_test2_parameterTailProductLaw_support_le {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) :
+    σ ≤ ∏ j ∈ T, (A.X N j) ^ 2 := by
+  classical
+  by_contra hnot
+  have hlarge : (∏ j ∈ T, (A.X N j) ^ 2) < σ := Nat.lt_of_not_ge hnot
+  have hterm (t : Fin n → ℕ) :
+      (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    by_cases hprod : (∏ j ∈ T, t j) = σ
+    · by_cases hall : ∀ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) ≠ 0
+      · have hbound : (∏ j ∈ T, t j) ≤ ∏ j ∈ T, (A.X N j) ^ 2 := by
+          apply Finset.prod_le_prod
+          intro j hj
+          exact Nat.le_of_lt (c_test2_harmonicNatLaw_support_upper _ _ _ (hall j))
+        have hsigma : σ ≤ ∏ j ∈ T, (A.X N j) ^ 2 := by rw [← hprod]; exact hbound
+        exact False.elim (not_le_of_gt hlarge hsigma)
+      · push_neg at hall
+        obtain ⟨j, hj⟩ := hall
+        have hprodZero :
+            (∏ k : Fin n, harmonicNatLaw (A.X N k) (primorial (N + 1)) (t k)) = 0 := by
+          exact Finset.prod_eq_zero (s := Finset.univ)
+            (f := fun k => harmonicNatLaw (A.X N k) (primorial (N + 1)) (t k))
+            (Finset.mem_univ j) hj
+        simp [hprod, hprodZero]
+    · simp [hprod]
+  apply hσ
+  unfold FromArithmetic.parameterTailProductLaw
+  simp_rw [hterm]
+  simp
+
+theorem c_test2_chainTail_support_le_masterScaleV {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (C : MasterChain n m)
+    (d : Fin m) (σ : ℕ)
+    (hσ : FromArithmetic.parameterTailProductLaw A N (C.block d).2.val σ ≠ 0) :
+    σ ≤ FromArithmetic.masterScaleV A N C.gap := by
+  let T := (C.block d).2.val
+  let E := Finset.univ.filter (fun j : Fin n => j < C.gap)
+  have hsubset : T ⊆ E := by
+    intro j hj
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ j, C.tails_before_gap d j hj⟩
+  have hprod_le :
+      (∏ j ∈ T, (A.X N j) ^ 2) ≤ ∏ j ∈ E, (A.X N j) ^ 2 := by
+    apply Finset.prod_le_prod_of_subset_of_one_le hsubset
+    intro j hj hjnot
+    exact Nat.one_le_pow 2 (A.X N j) (A.Xpos N j)
+  have hmaster :
+      (∏ j ∈ E, (A.X N j) ^ 2) ≤ FromArithmetic.masterScaleV A N C.gap := by
+    dsimp [FromArithmetic.masterScaleV, E]
+    omega
+  exact (c_test2_parameterTailProductLaw_support_le A N T σ hσ).trans
+    (hprod_le.trans hmaster)
+
+theorem c_test2_harmonicNormalizer_pos_of_cutoff (X W : ℕ) (hW : 0 < W)
+    (hX : 4 * W ≤ X) : 0 < harmonicNormalizer X W := by
+  classical
+  have hXge4 : 4 ≤ X := by omega
+  let n₀ : ℕ := (X / W + 1) * W + 1
+  have hdiv : X / W * W + X % W = X := Nat.div_add_mod' X W
+  have hmod : X % W < W := Nat.mod_lt X hW
+  have hn₀eq : n₀ = X / W * W + W + 1 := by simp [n₀, Nat.add_mul]
+  have hn₀lo : X < n₀ := by rw [hn₀eq]; omega
+  have hquot : X / W * W ≤ X := Nat.div_mul_le_self X W
+  have hn₀upper : n₀ ≤ 2 * X + 1 := by rw [hn₀eq]; omega
+  have hXsqr : 2 * X + 1 < X ^ 2 := by
+    have hXr : (3 : ℝ) ≤ (X : ℝ) := by exact_mod_cast (by omega : 3 ≤ X)
+    have hmul : 0 ≤ (X : ℝ) * ((X : ℝ) - 3) :=
+      mul_nonneg (by positivity) (by linarith)
+    have h : (2 : ℝ) * X + 1 < (X : ℝ) ^ 2 := by nlinarith [hmul]
+    exact_mod_cast h
+  have hn₀hi : n₀ < X ^ 2 := lt_of_le_of_lt hn₀upper hXsqr
+  have hn₀cop : Nat.Coprime n₀ W := by
+    have h : Nat.Coprime (W * (X / W + 1) + 1) W :=
+      (Nat.coprime_mul_left_add_left 1 W (X / W + 1)).2 (by simp)
+    simpa [n₀, Nat.mul_comm] using h
+  let S : Finset ℕ := (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
+  have hn₀mem : n₀ ∈ S := by
+    simp only [S, Finset.mem_filter, Finset.mem_Ico]
+    exact ⟨⟨hn₀lo.le, hn₀hi⟩, hn₀cop⟩
+  have hn₀pos : 0 < n₀ := by omega
+  have hn₀R : (0 : ℝ) < (n₀ : ℝ) := by exact_mod_cast hn₀pos
+  have hterm : (0 : ℝ) < 1 / (n₀ : ℝ) := one_div_pos.mpr hn₀R
+  unfold harmonicNormalizer
+  have hsum := Finset.single_le_sum (s := S) (f := fun n : ℕ => 1 / (n : ℝ))
+    (fun n _ => one_div_nonneg.mpr (Nat.cast_nonneg n)) hn₀mem
+  simpa [S] using lt_of_lt_of_le hterm hsum
+
+theorem c_test2_harmonicNatLaw_tsum_one_of_normalizer_pos (X W : ℕ)
+    (hX : 0 < X) (hNorm : 0 < harmonicNormalizer X W) :
+    ∑' n : ℕ, harmonicNatLaw X W n = 1 := by
+  classical
+  let S : Finset ℕ := (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
+  have hzero (n : ℕ) (hn : n ∉ S) : harmonicNatLaw X W n = 0 := by
+    by_contra hne
+    have hcond : X ≤ n ∧ n < X ^ 2 ∧ Nat.Coprime n W := by
+      by_contra hnot
+      have : harmonicNatLaw X W n = 0 := by simp [harmonicNatLaw, hnot]
+      exact hne this
+    apply hn
+    exact Finset.mem_filter.mpr
+      ⟨Finset.mem_Ico.mpr ⟨hcond.1, hcond.2.1⟩, hcond.2.2⟩
+  have hterm (n : ℕ) (hn : n ∈ S) :
+      harmonicNatLaw X W n = (1 / (n : ℝ)) / harmonicNormalizer X W := by
+    rcases Finset.mem_filter.mp hn with ⟨hnIco, hcop⟩
+    rcases Finset.mem_Ico.mp hnIco with ⟨hXn, hnX2⟩
+    have hnpos : 0 < n := lt_of_lt_of_le hX hXn
+    have hnum : (n : ℝ) ≠ 0 := (Nat.cast_pos.mpr hnpos).ne'
+    unfold harmonicNatLaw
+    rw [if_pos ⟨hXn, hnX2, hcop⟩]
+    field_simp
+  calc
+    (∑' n : ℕ, harmonicNatLaw X W n) = ∑ n ∈ S, harmonicNatLaw X W n :=
+      tsum_eq_sum (s := S) hzero
+    _ = ∑ n ∈ S, (1 / (n : ℝ)) / harmonicNormalizer X W := by
+      apply Finset.sum_congr rfl
+      intro n hn
+      exact hterm n hn
+    _ = (∑ n ∈ S, 1 / (n : ℝ)) / harmonicNormalizer X W := by
+      rw [Finset.sum_div]
+    _ = 1 := by
+      have hsum : (∑ n ∈ S, 1 / (n : ℝ)) = harmonicNormalizer X W := by
+        rfl
+      rw [hsum]
+      exact div_self hNorm.ne'
+
+theorem c_test2_parameterTailProductLaw_summable {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n)) :
+    Summable (FromArithmetic.parameterTailProductLaw A N T) := by
+  classical
+  let Q := ∏ j ∈ T, (A.X N j) ^ 2
+  apply summable_of_ne_finset_zero (s := Finset.range (Q + 1))
+  intro σ hσ
+  have hQlt : Q < σ := by
+    have hnot : ¬ σ < Q + 1 := by simpa only [Finset.mem_range, not_lt] using hσ
+    omega
+  by_contra hne
+  have hbound := c_test2_parameterTailProductLaw_support_le A N T σ hne
+  exact (not_le_of_gt (show Q < σ by simpa [Q] using hQlt)) hbound
+
+theorem c_test2_parameterTailProductLaw_tsum_one {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (T : Finset (Fin n))
+    (hX : ∀ j, 0 < A.X N j)
+    (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1))) :
+    ∑' σ : ℕ, FromArithmetic.parameterTailProductLaw A N T σ = 1 := by
+  classical
+  let D : Finset (Fin n → ℕ) :=
+    Fintype.piFinset fun j => Finset.range ((A.X N j) ^ 2)
+  let Q := ∏ j ∈ T, (A.X N j) ^ 2
+  have hrawZero (t : Fin n → ℕ) (ht : t ∉ D) :
+      ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    have hnot : ¬ ∀ j, t j < (A.X N j) ^ 2 := by
+      intro hall
+      apply ht
+      apply Fintype.mem_piFinset.mpr
+      intro j
+      simpa only [Finset.mem_range] using hall j
+    push_neg at hnot
+    obtain ⟨j, hj⟩ := hnot
+    have hzero : harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+      have hlt : ¬ t j < (A.X N j) ^ 2 := by omega
+      simp [harmonicNatLaw, hlt]
+    exact Finset.prod_eq_zero (s := Finset.univ)
+      (f := fun j => harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j))
+      (Finset.mem_univ j) hzero
+  have hrawSum :
+      (∑ t ∈ D, ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) = 1 := by
+    calc
+      (∑ t ∈ D, ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j)) =
+          ∏ j, ∑ x ∈ Finset.range ((A.X N j) ^ 2),
+            harmonicNatLaw (A.X N j) (primorial (N + 1)) x := by
+        symm
+        exact Finset.prod_univ_sum
+          (t := fun j => Finset.range ((A.X N j) ^ 2))
+          (f := fun j x => harmonicNatLaw (A.X N j) (primorial (N + 1)) x)
+      _ = ∏ j, 1 := by
+        apply Finset.prod_congr rfl
+        intro j hj
+        have hnorm := c_test2_harmonicNatLaw_tsum_one_of_normalizer_pos
+          (A.X N j) (primorial (N + 1)) (hX j) (hNorm j)
+        have hzero (x : ℕ) (hx : x ∉ Finset.range ((A.X N j) ^ 2)) :
+            harmonicNatLaw (A.X N j) (primorial (N + 1)) x = 0 := by
+          have hxlo : (A.X N j) ^ 2 ≤ x := by
+            simpa only [Finset.mem_range, not_lt] using hx
+          simp [harmonicNatLaw, hxlo]
+        calc
+          (∑ x ∈ Finset.range ((A.X N j) ^ 2),
+              harmonicNatLaw (A.X N j) (primorial (N + 1)) x) =
+              ∑' x : ℕ, harmonicNatLaw (A.X N j) (primorial (N + 1)) x :=
+            (tsum_eq_sum (s := Finset.range ((A.X N j) ^ 2)) hzero).symm
+          _ = 1 := hnorm
+      _ = 1 := by simp
+  have htailZero (σ : ℕ) (hσ : σ ∉ Finset.range (Q + 1)) :
+      FromArithmetic.parameterTailProductLaw A N T σ = 0 := by
+    have hQlt : Q < σ := by
+      have hnot : ¬ σ < Q + 1 := by simpa only [Finset.mem_range, not_lt] using hσ
+      omega
+    by_contra hne
+    have hbound := c_test2_parameterTailProductLaw_support_le A N T σ hne
+    exact (not_le_of_gt hQlt) (by simpa [Q] using hbound)
+  have hinner (σ : ℕ) : FromArithmetic.parameterTailProductLaw A N T σ =
+      ∑ t ∈ D,
+        (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+          ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by
+    unfold FromArithmetic.parameterTailProductLaw
+    apply tsum_eq_sum (s := D)
+    intro t ht
+    simp [hrawZero t ht]
+  calc
+    (∑' σ : ℕ, FromArithmetic.parameterTailProductLaw A N T σ) =
+        ∑ σ ∈ Finset.range (Q + 1), FromArithmetic.parameterTailProductLaw A N T σ :=
+      tsum_eq_sum (s := Finset.range (Q + 1)) htailZero
+    _ = ∑ σ ∈ Finset.range (Q + 1), ∑ t ∈ D,
+          (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+            ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by
+      apply Finset.sum_congr rfl
+      intro σ hσ
+      exact hinner σ
+    _ = ∑ t ∈ D, ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by
+      rw [Finset.sum_comm]
+      apply Finset.sum_congr rfl
+      intro t ht
+      have hmem : (∏ j ∈ T, t j) ∈ Finset.range (Q + 1) := by
+        have hle : (∏ j ∈ T, t j) ≤ Q := by
+          apply Finset.prod_le_prod
+          intro j hj
+          have hjt : t j < (A.X N j) ^ 2 := by
+            have := Fintype.mem_piFinset.mp ht j
+            simpa only [Finset.mem_range] using this
+          exact Nat.le_of_lt hjt
+        simp [Finset.mem_range, hle]
+      simp [Finset.sum_ite_eq', hmem]
+    _ = 1 := hrawSum
+
+theorem c_test2_nuB_le_of_probability_support (tailLaw : TailProductLaw)
+    (hNonneg : ∀ σ, 0 ≤ tailLaw σ) (hSummable : Summable tailLaw)
+    (hMass : ∑' σ, tailLaw σ = 1) (V : ℕ)
+    (hSupport : ∀ σ, tailLaw σ ≠ 0 → σ ≤ V) (y : ℤ) :
+    nuB tailLaw y ≤ (V : ℝ) := by
+  let term : ℕ → ℝ := fun σ => tailLaw σ * (σ : ℝ) * if (σ : ℤ) ∣ y then 1 else 0
+  have hterm_nonneg (σ : ℕ) : 0 ≤ term σ := by
+    dsimp [term]
+    by_cases hdiv : (σ : ℤ) ∣ y
+    · simp [hdiv]
+      exact mul_nonneg (hNonneg σ) (by positivity)
+    · simp [hdiv]
+  have hterm_le (σ : ℕ) : term σ ≤ tailLaw σ * (V : ℝ) := by
+    dsimp [term]
+    by_cases hzero : tailLaw σ = 0
+    · simp [hzero]
+    · have hσ := hSupport σ hzero
+      have hσR : (σ : ℝ) ≤ (V : ℝ) := by exact_mod_cast hσ
+      by_cases hdiv : (σ : ℤ) ∣ y
+      · simp [hdiv]
+        exact mul_le_mul_of_nonneg_left hσR (hNonneg σ)
+      · simp [hdiv]
+        exact mul_nonneg (hNonneg σ) (by positivity)
+  have hdom : Summable fun σ => tailLaw σ * (V : ℝ) := hSummable.mul_right _
+  have hterm_summable : Summable term := by
+    apply hdom.of_norm_bounded
+    intro σ
+    rw [Real.norm_eq_abs, abs_of_nonneg (hterm_nonneg σ)]
+    exact hterm_le σ
+  calc
+    nuB tailLaw y = ∑' σ, term σ := by simp [nuB, term]
+    _ ≤ ∑' σ, tailLaw σ * (V : ℝ) :=
+      hterm_summable.tsum_le_tsum (fun σ => hterm_le σ) hdom
+    _ = (∑' σ, tailLaw σ) * (V : ℝ) := hSummable.tsum_mul_right _
+    _ = (V : ℝ) := by rw [hMass]; ring
+
+theorem c_test2_chainWeight_le_masterScaleV {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (y : ℤ) :
+    chainWeight S.core.parameters C N d y ≤
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
+  let A := S.core.parameters
+  let T := (C.block d).2.val
+  have hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1)) := by
+    intro j
+    exact c_test2_harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N j)
+  change nuB (FromArithmetic.parameterTailProductLaw A N T) y ≤
+    (FromArithmetic.masterScaleV A N C.gap : ℝ)
+  apply c_test2_nuB_le_of_probability_support
+    (tailLaw := FromArithmetic.parameterTailProductLaw A N T)
+    (V := FromArithmetic.masterScaleV A N C.gap)
+  · intro σ
+    exact c_test2_parameterTailProductLaw_nonneg A N T σ
+  · exact c_test2_parameterTailProductLaw_summable A N T
+  · exact c_test2_parameterTailProductLaw_tsum_one A N T (fun j => A.Xpos N j) hNorm
+  · intro σ hσ
+    exact c_test2_chainTail_support_le_masterScaleV A N C d σ hσ
 
 structure CTest2RowCompletion {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar : Finset (Fin m)) (hJcard : 2 ≤ Jstar.card)
