@@ -137,6 +137,10 @@ theorem shiftAction_apply (F : NilpotentLieFiltration L s) (a : Line) (Q : Poly 
   rw [hD_apply, polyDeriv, Lie.Derivation.ofDerivation_apply]
   exact (directionalDerivative_unit a Q.val).symm
 
+private theorem shiftAction_one_eq_hD (F : NilpotentLieFiltration L s) :
+    shiftAction F 1 = hD F := by
+  simpa [shiftAction] using (Classical.choose_spec (exists_shiftAction F) 1)
+
 /-- The Lie algebra obtained by adjoining the translation direction. -/
 abbrev Lin (F : NilpotentLieFiltration L s) := Poly F ⋊⁅shiftAction F⁆ Line
 
@@ -979,6 +983,16 @@ noncomputable def realInl (F : NilpotentLieFiltration L s) :
     (ℝ ⊗[ℚ] Poly F) →ₗ[ℝ] (ℝ ⊗[ℚ] Lin F) :=
   (LieAlgebra.SemiDirectSum.inl (shiftAction F)).toLinearMap.baseChange ℝ
 
+noncomputable def realDhat (F : NilpotentLieFiltration L s) : ℝ ⊗[ℚ] Lin F :=
+  (1 : ℝ) ⊗ₜ[ℚ] Dhat F
+
+noncomputable def realShiftAction (F : NilpotentLieFiltration L s) :
+    (ℝ ⊗[ℚ] Poly F) →ₗ[ℝ] (ℝ ⊗[ℚ] Poly F) :=
+  (shiftAction F 1).baseChange ℝ
+
+noncomputable def realifyLin (F : NilpotentLieFiltration L s) :
+    Lin F →ₗ[ℚ] (ℝ ⊗[ℚ] Lin F) := TensorProduct.mk ℚ ℝ (Lin F) 1
+
 private noncomputable def adaptedMonomialLift (F : NilpotentLieFiltration L s)
     (α : Unit →₀ ℕ) :
     F.layerIdeal (Finsupp.weight (fun _ : Unit => 1) α) →ₗ[ℚ] Poly F where
@@ -1069,6 +1083,50 @@ private theorem realAdaptedPolynomialMap_eval_tmul (F : NilpotentLieFiltration L
         (a ⊗ₜ[ℚ] (q : VectorPolynomial Unit ℚ L))) = _
   exact VectorPolynomial.eval_realificationLieEquiv_tmul a
     (q : VectorPolynomial Unit ℚ L) x
+
+private theorem realAdaptedPolynomialMap_realShiftAction
+    (F : NilpotentLieFiltration L s) (Y : ℝ ⊗[ℚ] Poly F) :
+    F.realAdaptedPolynomialMap (fun _ : Unit => 1) (realShiftAction F Y) =
+      polyDeriv (F.realAdaptedPolynomialMap (fun _ : Unit => 1) Y) := by
+  classical
+  apply VectorPolynomial.coefficients.injective
+  ext α
+  induction Y using TensorProduct.inductionOn with
+  | tmul a Q =>
+      let j := α ()
+      have hα : α = Finsupp.single () j := by
+        ext u
+        simp [j]
+      rw [hα]
+      calc
+        VectorPolynomial.coefficients
+            (F.realAdaptedPolynomialMap (fun _ : Unit => 1)
+              (realShiftAction F (a ⊗ₜ[ℚ] Q))) (Finsupp.single () j) =
+            a ⊗ₜ[ℚ] VectorPolynomial.coefficients
+              (shiftAction F 1 Q : VectorPolynomial Unit ℚ L) (Finsupp.single () j) := by
+                rw [realShiftAction, LinearMap.baseChange_tmul,
+                  F.realAdaptedPolynomialMap_coefficient_tmul]
+                rfl
+        _ = a ⊗ₜ[ℚ] VectorPolynomial.coefficients
+              (polyDeriv Q : VectorPolynomial Unit ℚ L) (Finsupp.single () j) := by
+                rw [shiftAction_one_eq_hD, hD_apply]
+        _ = a ⊗ₜ[ℚ]
+              (((j + 1 : ℚ) • VectorPolynomial.coefficients Q
+                (Finsupp.single () (j + 1)))) := by
+                rw [polyDeriv_coefficients]
+        _ = (j + 1 : ℚ) • (a ⊗ₜ[ℚ] VectorPolynomial.coefficients Q
+              (Finsupp.single () (j + 1))) := by
+                rw [TensorProduct.tmul_smul]
+        _ = (j + 1 : ℚ) • VectorPolynomial.coefficients
+              (F.realAdaptedPolynomialMap (fun _ : Unit => 1) (a ⊗ₜ[ℚ] Q))
+                (Finsupp.single () (j + 1)) := by
+                rw [F.realAdaptedPolynomialMap_coefficient_tmul]
+        _ = VectorPolynomial.coefficients
+              (polyDeriv (F.realAdaptedPolynomialMap (fun _ : Unit => 1)
+                (a ⊗ₜ[ℚ] Q))) (Finsupp.single () j) := by
+                rw [polyDeriv_coefficients]
+  | add Y Z hY hZ =>
+      simp [hY, hZ]
 
 /-- The realified semidirect inclusion lands in the kernel of the translation coordinate. -/
 theorem rLinReal_realInl_apply (F : NilpotentLieFiltration L s)
@@ -1287,6 +1345,42 @@ private theorem bracket_Dhat_inl {L : Type*} [LieRing L] [LieAlgebra ℚ L]
   simp [Dhat, LieAlgebra.SemiDirectSum.inr_eq_mk,
     LieAlgebra.SemiDirectSum.inl_eq_mk, LieAlgebra.SemiDirectSum.lie_eq_mk]
 
+/-- Powers of the adjoint action of the translation direction are derivative iterates. -/
+theorem adDhat_power {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s)
+    (c : ℚ) (j : ℕ) (Q : Poly F) :
+    ((LieAlgebra.ad ℚ (Lin F) (c • Dhat F)) ^ j)
+        (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q) =
+      c ^ j • LieAlgebra.SemiDirectSum.inl (shiftAction F)
+        ((shiftAction F 1)^[j] Q) := by
+  let ι : Poly F →ₗ⁅ℚ⁆ Lin F := LieAlgebra.SemiDirectSum.inl (shiftAction F)
+  let d : Poly F →ₗ[ℚ] Poly F := shiftAction F 1
+  let adc : Module.End ℚ (Lin F) := LieAlgebra.ad ℚ (Lin F) (c • Dhat F)
+  have hbracket (R : Poly F) : adc (ι R) = ι (c • d R) := by
+    change ⁅c • Dhat F, ι R⁆ = ι (c • d R)
+    rw [smul_lie, bracket_Dhat_inl]
+    simp [ι, d]
+  have hpow (j : ℕ) : (adc ^ j) (ι Q) = c ^ j • ι (d^[j] (Q)) := by
+    induction j with
+    | zero => simp [adc, ι]
+    | succ j ih =>
+      conv_lhs => rw [pow_succ']
+      simp only [Module.End.mul_apply]
+      change ⁅c • Dhat F, (adc ^ j) (ι Q)⁆ = c ^ (j + 1) • ι (d^[j + 1] (Q))
+      calc
+        ⁅c • Dhat F, (adc ^ j) (ι Q)⁆ = adc (c ^ j • ι (d^[j] (Q))) := by
+          change adc ((adc ^ j) (ι Q)) = adc (c ^ j • ι (d^[j] (Q)))
+          rw [ih]
+        _ = c ^ j • adc (ι (d^[j] (Q))) := map_smul adc _ _
+        _ = c ^ j • ι (c • d (d^[j] (Q))) := by rw [hbracket]
+        _ = c ^ j • (c • ι (d (d^[j] (Q)))) := by rw [map_smul]
+        _ = (c ^ j * c) • ι (d (d^[j] (Q))) := by rw [smul_smul]
+        _ = c ^ (j + 1) • ι (d (d^[j] (Q))) := by
+          exact congrArg (fun r : ℚ => r • ι (d (d^[j] (Q)))) (pow_succ c j).symm
+        _ = c ^ (j + 1) • ι (d^[j + 1] (Q)) := by rw [Function.iterate_succ_apply']
+  change (adc ^ j) (ι Q) = c ^ j • ι (d^[j] (Q))
+  exact hpow j
+
 theorem evLin_conjugation_shift {L : Type*} [LieRing L] [LieAlgebra ℚ L]
     {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (hs : 0 < s)
     (c : ℚ) (m : ℤ) (Q : Poly F) :
@@ -1395,15 +1489,6 @@ theorem evLin_adjoint_sum {L : Type*} [LieRing L] [LieAlgebra ℚ L]
     ((weightFiltration F hs).lowerCentralSeries_eq_bot)] at h
   exact h
 
-noncomputable def realDhat {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
-    (F : OAI.Erdos3.NilpotentLieFiltration L s) : ℝ ⊗[ℚ] Lin F :=
-  (1 : ℝ) ⊗ₜ[ℚ] Dhat F
-
-noncomputable def realShiftAction {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
-    (F : OAI.Erdos3.NilpotentLieFiltration L s) :
-    (ℝ ⊗[ℚ] Poly F) →ₗ[ℝ] (ℝ ⊗[ℚ] Poly F) :=
-  (shiftAction F 1).baseChange ℝ
-
 private theorem realDhat_bracket_realInl {L : Type*} [LieRing L] [LieAlgebra ℚ L]
     {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (c : ℚ)
     (Y : ℝ ⊗[ℚ] Poly F) :
@@ -1421,5 +1506,262 @@ private theorem realDhat_bracket_realInl {L : Type*} [LieRing L] [LieAlgebra ℚ
   | add Y Z hY hZ =>
       rw [map_add, map_add, LieRing.lie_add, hY, hZ]
       simp [realInl, realShiftAction]
+
+private theorem realAdPower_realInl {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (c : ℚ)
+    (j : ℕ) (Y : ℝ ⊗[ℚ] Poly F) :
+    ((LieAlgebra.ad ℚ (ℝ ⊗[ℚ] Lin F)
+        ((c : ℝ) • realDhat F)) ^ j) (realInl F Y) =
+      (c : ℝ) ^ j • realInl F ((realShiftAction F)^[j] (Y)) := by
+  let a := (c : ℝ) • realDhat F
+  let adc : Module.End ℚ (ℝ ⊗[ℚ] Lin F) :=
+    LieAlgebra.ad ℚ (ℝ ⊗[ℚ] Lin F) a
+  induction j with
+  | zero => simp [adc, realInl]
+  | succ j ih =>
+      conv_lhs => rw [pow_succ']
+      simp only [Module.End.mul_apply]
+      change ⁅a, (adc ^ j) (realInl F Y)⁆ =
+        (c : ℝ) ^ (j + 1) • realInl F ((realShiftAction F)^[j + 1] (Y))
+      calc
+        ⁅a, (adc ^ j) (realInl F Y)⁆ =
+            ⁅a, (c : ℝ) ^ j • realInl F ((realShiftAction F)^[j] (Y))⁆ := by rw [ih]
+        _ = (c : ℝ) ^ j • ⁅a, realInl F ((realShiftAction F)^[j] (Y))⁆ := by
+          exact LieAlgebra.lie_smul (R := ℝ) ((c : ℝ) ^ j) a
+            (realInl F ((realShiftAction F)^[j] (Y)))
+        _ = (c : ℝ) ^ j •
+              realInl F ((c : ℝ) • realShiftAction F ((realShiftAction F)^[j] (Y))) := by
+                rw [realDhat_bracket_realInl]
+        _ = (c : ℝ) ^ j • ((c : ℝ) •
+              realInl F (realShiftAction F ((realShiftAction F)^[j] (Y)))) := by rw [map_smul]
+        _ = ((c : ℝ) ^ j * (c : ℝ)) •
+              realInl F (realShiftAction F ((realShiftAction F)^[j] (Y))) := by rw [smul_smul]
+        _ = (c : ℝ) ^ (j + 1) •
+              realInl F (realShiftAction F ((realShiftAction F)^[j] (Y))) := by
+                exact congrArg (fun r : ℝ => r •
+                  realInl F (realShiftAction F ((realShiftAction F)^[j] (Y))))
+                  (pow_succ (c : ℝ) j).symm
+        _ = (c : ℝ) ^ (j + 1) • realInl F ((realShiftAction F)^[j + 1] (Y)) := by
+              rw [Function.iterate_succ_apply']
+
+private theorem realAdPower_realification {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (c : ℚ)
+    (j : ℕ) (a : ℝ) (Q : Poly F) :
+    ((LieAlgebra.ad ℚ (ℝ ⊗[ℚ] Lin F)
+        ((c : ℝ) • realDhat F)) ^ j) (realInl F (a ⊗ₜ[ℚ] Q)) =
+      a • realifyLin F
+        (((LieAlgebra.ad ℚ (Lin F) (c • Dhat F)) ^ j)
+          (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q)) := by
+  let aReal := (c : ℝ) • realDhat F
+  let adReal : Module.End ℚ (ℝ ⊗[ℚ] Lin F) := LieAlgebra.ad ℚ (ℝ ⊗[ℚ] Lin F) aReal
+  let adRat : Module.End ℚ (Lin F) := LieAlgebra.ad ℚ (Lin F) (c • Dhat F)
+  have hA : aReal = realifyLin F (c • Dhat F) := by
+    dsimp [aReal]
+    rw [realDhat, realifyLin]
+    calc
+      (c : ℝ) • ((1 : ℝ) ⊗ₜ[ℚ] Dhat F) =
+          ((c : ℝ) • (1 : ℝ)) ⊗ₜ[ℚ] Dhat F := by rw [TensorProduct.smul_tmul']
+      _ = ((c : ℚ) • (1 : ℝ)) ⊗ₜ[ℚ] Dhat F := by congr 1
+      _ = (1 : ℝ) ⊗ₜ[ℚ] ((c : ℚ) • Dhat F) := by rw [TensorProduct.smul_tmul]
+  have hbracket (x : Lin F) : adReal (realifyLin F x) = realifyLin F (adRat x) := by
+    change ⁅aReal, realifyLin F x⁆ = realifyLin F ⁅c • Dhat F, x⁆
+    rw [hA]
+    simp [adReal, adRat, realifyLin, LieAlgebra.ExtendScalars.bracket_tmul]
+  have hlinear (x : Lin F) : adReal (a • realifyLin F x) =
+      a • realifyLin F (adRat x) := by
+    change ⁅aReal, a • realifyLin F x⁆ = a • realifyLin F (⁅c • Dhat F, x⁆)
+    rw [LieAlgebra.lie_smul (R := ℝ) a aReal (realifyLin F x)]
+    change a • adReal (realifyLin F x) = a • realifyLin F (adRat x)
+    rw [hbracket]
+  have hInl : realInl F (a ⊗ₜ[ℚ] Q) =
+      a • realifyLin F (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q) := by
+    simp [realInl, realifyLin, TensorProduct.smul_tmul']
+  have hpow (j : ℕ) : (adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q)) =
+      a • realifyLin F ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q)) := by
+    induction j with
+    | zero => simp [adReal, adRat, hInl]
+    | succ j ih =>
+      conv_lhs => rw [pow_succ']
+      simp only [Module.End.mul_apply]
+      change adReal ((adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q))) =
+        a • realifyLin F ((adRat ^ (j + 1)) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))
+      calc
+        adReal ((adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q))) =
+            adReal (a • realifyLin F ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              rw [ih]
+        _ = a • realifyLin F
+              (adRat ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              rw [hlinear]
+        _ = a • realifyLin F
+              ((adRat ^ (j + 1)) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q)) := by
+              rw [pow_succ', Module.End.mul_apply]
+  change (adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q)) =
+    a • realifyLin F ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))
+  exact hpow j
+
+private theorem evLinReal_adjoint_sum {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (hs : 0 < s)
+    (c : ℚ) (m : ℤ)
+    (Y : ℝ ⊗[ℚ] Poly F) :
+    evLinReal F m (∑ j ∈ Finset.range (2 * s + 1),
+      ((j.factorial : ℚ)⁻¹) •
+        ((LieAlgebra.ad ℚ (ℝ ⊗[ℚ] Lin F)
+          ((c : ℝ) • realDhat F)) ^ j) (realInl F Y)) =
+      VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+        (∑ j ∈ Finset.range (2 * s + 1),
+          ((c ^ j / (j.factorial : ℚ)) •
+            polyDeriv^[j] (F.realAdaptedPolynomialMap (fun _ : Unit => 1) Y))) := by
+  let adReal : Module.End ℚ (ℝ ⊗[ℚ] Lin F) :=
+    LieAlgebra.ad ℚ (ℝ ⊗[ℚ] Lin F) ((c : ℝ) • realDhat F)
+  let adRat : Module.End ℚ (Lin F) := LieAlgebra.ad ℚ (Lin F) (c • Dhat F)
+  have hEvalTmul (a : ℝ) (x : Lin F) :
+      evLinReal F m (a • realifyLin F x) = a ⊗ₜ[ℚ] evLin F m x := by
+    simp [realifyLin, evLinReal, LinearMap.baseChange_tmul, TensorProduct.smul_tmul']
+  have hterm (a : ℝ) (Q : Poly F) (j : ℕ) :
+      evLinReal F m (((j.factorial : ℚ)⁻¹) •
+        ((adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q)))) =
+      a ⊗ₜ[ℚ] (((j.factorial : ℚ)⁻¹) •
+        evLin F m ((adRat ^ j)
+          (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+    calc
+      _ = ((j.factorial : ℚ)⁻¹) •
+          evLinReal F m ((adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q))) := by
+            exact (evLinReal F m).map_smul _ _
+      _ = ((j.factorial : ℚ)⁻¹) •
+          evLinReal F m (a • realifyLin F
+            ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              rw [realAdPower_realification]
+      _ = ((j.factorial : ℚ)⁻¹) •
+          (a ⊗ₜ[ℚ] evLin F m
+            ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              rw [hEvalTmul]
+      _ = a ⊗ₜ[ℚ] (((j.factorial : ℚ)⁻¹) •
+          evLin F m ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              exact (TensorProduct.tmul_smul (R := ℚ) ((j.factorial : ℚ)⁻¹)
+                a (evLin F m ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q)))).symm
+  have hsumPure (a : ℝ) (Q : Poly F) :
+      evLinReal F m (∑ j ∈ Finset.range (2 * s + 1),
+        ((j.factorial : ℚ)⁻¹) • ((adReal ^ j) (realInl F (a ⊗ₜ[ℚ] Q)))) =
+      a ⊗ₜ[ℚ] VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c)
+        (Q : VectorPolynomial Unit ℚ L) := by
+    calc
+      _ = ∑ j ∈ Finset.range (2 * s + 1),
+          a ⊗ₜ[ℚ] (((j.factorial : ℚ)⁻¹) •
+            evLin F m ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              rw [map_sum]
+              apply Finset.sum_congr rfl
+              intro j hj
+              exact hterm a Q j
+      _ = a ⊗ₜ[ℚ] (∑ j ∈ Finset.range (2 * s + 1),
+            ((j.factorial : ℚ)⁻¹) •
+              evLin F m ((adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q))) := by
+              rw [TensorProduct.tmul_sum]
+      _ = a ⊗ₜ[ℚ] evLin F m
+            (∑ j ∈ Finset.range (2 * s + 1), ((j.factorial : ℚ)⁻¹) •
+              (adRat ^ j) (LieAlgebra.SemiDirectSum.inl (shiftAction F) Q)) := by
+              congr 1
+              rw [map_sum]
+              apply Finset.sum_congr rfl
+              intro j hj
+              exact ((evLin F m).map_smul _ _).symm
+      _ = a ⊗ₜ[ℚ] VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c)
+            (Q : VectorPolynomial Unit ℚ L) := by
+              congr 1
+              exact evLin_adjoint_sum F hs c m Q
+  have hsum (Y : ℝ ⊗[ℚ] Poly F) :
+      evLinReal F m (∑ j ∈ Finset.range (2 * s + 1),
+        ((j.factorial : ℚ)⁻¹) • ((adReal ^ j) (realInl F Y))) =
+      VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+        (∑ j ∈ Finset.range (2 * s + 1),
+          ((c ^ j / (j.factorial : ℚ)) •
+            polyDeriv^[j] (F.realAdaptedPolynomialMap (fun _ : Unit => 1) Y))) := by
+    have hiter (j : ℕ) (P Q : VectorPolynomial Unit ℚ (ℝ ⊗[ℚ] L)) :
+        polyDeriv^[j] (P + Q) = polyDeriv^[j] P + polyDeriv^[j] Q := by
+      induction j with
+      | zero => rfl
+      | succ j ih =>
+          calc
+            polyDeriv^[j + 1] (P + Q) =
+                polyDeriv (polyDeriv^[j] (P + Q)) := by
+                  rw [Function.iterate_succ_apply']
+            _ = polyDeriv (polyDeriv^[j] P + polyDeriv^[j] Q) := by rw [ih]
+            _ = polyDeriv (polyDeriv^[j] P) + polyDeriv (polyDeriv^[j] Q) :=
+                  polyDeriv.map_add _ _
+            _ = polyDeriv^[j + 1] P + polyDeriv^[j + 1] Q := by
+                  rw [← Function.iterate_succ_apply' polyDeriv j P,
+                    ← Function.iterate_succ_apply' polyDeriv j Q]
+    have hLeftAdd (X Z : ℝ ⊗[ℚ] Poly F) :
+        evLinReal F m (∑ j ∈ Finset.range (2 * s + 1),
+          ((j.factorial : ℚ)⁻¹) • ((adReal ^ j) (realInl F (X + Z)))) =
+        evLinReal F m (∑ j ∈ Finset.range (2 * s + 1),
+          ((j.factorial : ℚ)⁻¹) • ((adReal ^ j) (realInl F X))) +
+        evLinReal F m (∑ j ∈ Finset.range (2 * s + 1),
+          ((j.factorial : ℚ)⁻¹) • ((adReal ^ j) (realInl F Z))) := by
+      simp only [map_sum, map_smul, map_add, smul_add, Finset.sum_add_distrib]
+    have hRightAdd (X Z : ℝ ⊗[ℚ] Poly F) :
+        VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+          (∑ j ∈ Finset.range (2 * s + 1),
+            ((c ^ j / (j.factorial : ℚ)) •
+              polyDeriv^[j] (F.realAdaptedPolynomialMap (fun _ : Unit => 1) (X + Z)))) =
+        VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+          (∑ j ∈ Finset.range (2 * s + 1),
+            ((c ^ j / (j.factorial : ℚ)) •
+              polyDeriv^[j] (F.realAdaptedPolynomialMap (fun _ : Unit => 1) X))) +
+        VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+          (∑ j ∈ Finset.range (2 * s + 1),
+            ((c ^ j / (j.factorial : ℚ)) •
+              polyDeriv^[j] (F.realAdaptedPolynomialMap (fun _ : Unit => 1) Z))) := by
+      rw [map_add]
+      simp_rw [hiter, smul_add]
+      rw [Finset.sum_add_distrib]
+      exact (VectorPolynomial.eval (fun _ : Unit => (m : ℚ))).map_add _ _
+    induction Y using TensorProduct.inductionOn with
+    | tmul a Q =>
+        calc
+          _ = a ⊗ₜ[ℚ] VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c)
+                (Q : VectorPolynomial Unit ℚ L) := hsumPure a Q
+          _ = VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c)
+                (F.realAdaptedPolynomialMap (fun _ : Unit => 1) (a ⊗ₜ[ℚ] Q)) := by
+                rw [realAdaptedPolynomialMap_eval_tmul]
+          _ = VectorPolynomial.eval (fun _ : Unit => (m : ℚ))
+                (∑ j ∈ Finset.range (2 * s + 1),
+                  ((c ^ j / (j.factorial : ℚ)) •
+                    polyDeriv^[j] (F.realAdaptedPolynomialMap (fun _ : Unit => 1)
+                      (a ⊗ₜ[ℚ] Q)))) := by
+                rw [polynomial_translation_taylor]
+                · rw [VectorPolynomial.eval_translate]
+                · intro j hj
+                  have hAdapt := F.realAdaptedPolynomialMap_adapted (fun _ : Unit => 1)
+                    (a ⊗ₜ[ℚ] Q)
+                  exact F.realification.adapted_degreeLE (fun _ : Unit => 1) hAdapt
+                    (Finsupp.single () j)
+                    (by simpa [Finsupp.weight_single] using (show s < j by omega))
+    | add Y Z hY hZ =>
+        calc
+          _ = _ := hLeftAdd Y Z
+          _ = _ := by rw [hY, hZ]
+          _ = _ := (hRightAdd Y Z).symm
+  exact hsum Y
+
+private theorem evLinReal_conjugation_shift {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : OAI.Erdos3.NilpotentLieFiltration L s) (hs : 0 < s)
+    (c : ℚ) (m : ℤ) (Y : ℝ ⊗[ℚ] Poly F) :
+    evLinReal F m (lieBCH (2 * s)
+      (lieBCH (2 * s) ((c : ℝ) • realDhat F) (realInl F Y))
+      (-((c : ℝ) • realDhat F))) =
+      VectorPolynomial.eval (fun _ : Unit => (m : ℚ) + c)
+        (F.realAdaptedPolynomialMap (fun _ : Unit => 1) Y) := by
+  rw [AssemblyAdjoint.lieBCH_conj_eq_exp_ad_aux
+    (realification_lowerCentralSeries_eq_bot (weightFiltration F hs).lowerCentralSeries_eq_bot)]
+  rw [evLinReal_adjoint_sum F hs c m Y]
+  have hAdapt := F.realAdaptedPolynomialMap_adapted (fun _ : Unit => 1) Y
+  have hTaylor := polynomial_translation_taylor (2 * s)
+    (F.realAdaptedPolynomialMap (fun _ : Unit => 1) Y)
+    (by
+      intro j hj
+      exact F.realification.adapted_degreeLE (fun _ : Unit => 1) hAdapt
+        (Finsupp.single () j)
+        (by simpa [Finsupp.weight_single] using (show s < j by omega))) c
+  rw [hTaylor, VectorPolynomial.eval_translate]
 
 end HindmanSumsProducts.InverseBridge
