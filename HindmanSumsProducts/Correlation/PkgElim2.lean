@@ -3174,6 +3174,57 @@ theorem c_elim2_fintype_outer_average_abs_le
         _ = (∑ p, ∑ u, wP p * wU u) * δ := by rw [Finset.sum_mul]
         _ = δ := by rw [hweights]; ring
 
+theorem c_elim2_sigma_outer_average_abs_le
+    {P Z : Type*} [Fintype P] [Fintype Z]
+    (U : P → Type*) [∀ p, Fintype (U p)]
+    (wP : P → ℝ) (wZ : Z → ℝ) (wU : ∀ p, U p → ℝ)
+    (F : ∀ p, Z → U p → ℝ) (δ : ℝ)
+    (hPnonneg : ∀ p, 0 ≤ wP p) (hPsum : ∑ p, wP p = 1)
+    (hUnonneg : ∀ p u, 0 ≤ wU p u) (hUsum : ∀ p, ∑ u, wU p u = 1)
+    (hinner : ∀ p u, |∑ z, wZ z * F p z u| ≤ δ) :
+    |∑ p, ∑ z, ∑ u, wP p * wZ z * wU p u * F p z u| ≤ δ := by
+  classical
+  let PState := Σ p, U p
+  let wState : PState → ℝ := fun x => wP x.1 * wU x.1 x.2
+  let FState : PState → Z → Unit → ℝ := fun x z _ => F x.1 z x.2
+  have hStateNonneg : ∀ x, 0 ≤ wState x := by
+    intro x
+    exact mul_nonneg (hPnonneg x.1) (hUnonneg x.1 x.2)
+  have hStateSum : ∑ x : PState, wState x = 1 := by
+    unfold wState PState
+    rw [Fintype.sum_sigma]
+    calc
+      _ = ∑ p, wP p * ∑ u, wU p u := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        rw [Finset.mul_sum]
+      _ = 1 := by simp [hPsum, hUsum]
+  have hUnitNonneg : ∀ u : Unit, 0 ≤ (1 : ℝ) := by intro _; norm_num
+  have hUnitSum : (∑ _u : Unit, (1 : ℝ)) = 1 := by simp
+  have hbound := c_elim2_fintype_outer_average_abs_le wState wZ
+    (fun _ : Unit => 1) FState δ hStateNonneg hStateSum hUnitNonneg hUnitSum
+    (by intro x _; exact hinner x.1 x.2)
+  have hsum :
+      (∑ p, ∑ z, ∑ u, wP p * wZ z * wU p u * F p z u) =
+        ∑ x : PState, ∑ z, ∑ u : Unit,
+          wState x * wZ z * (1 : ℝ) * FState x z u := by
+    calc
+      _ = ∑ p, ∑ u, ∑ z, wP p * wZ z * wU p u * F p z u := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        exact Finset.sum_comm
+      _ = _ := by
+        simp only [PState, Fintype.sum_sigma, wState, FState, Fintype.sum_unique]
+        apply Finset.sum_congr rfl
+        intro p hp
+        apply Finset.sum_congr rfl
+        intro u hu
+        apply Finset.sum_congr rfl
+        intro z hz
+        ring
+  rw [hsum]
+  exact hbound
+
 theorem c_elim2_arithmeticL1_product_le_sum
     {ι : Type*} [Fintype ι] [DecidableEq ι]
     (μ ν : ι → ℤ → ℝ) (S : Finset ℤ)
