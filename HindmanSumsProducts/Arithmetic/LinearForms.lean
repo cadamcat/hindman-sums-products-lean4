@@ -6962,6 +6962,123 @@ private theorem linearForms_jointLocalBeta_moment {n q d b m : ℕ}
       congr 1
       exact hsubProd (fun p => C₁ / (p : ℝ) ^ 2)
 
+set_option maxHeartbeats 2000000 in
+private theorem uniformPrimeTupleCRTLaw_product {m w V : ℕ}
+    (g : ∀ p : CRTPrimeRange w V, (Fin m → Fin p.val) → ℝ) :
+    (∑ r : Fin m → CRTResidues w V,
+      uniformPrimeTupleCRTLaw w V r *
+        ∏ p : CRTPrimeRange w V, g p (fun i => r i p)) =
+      ∏ p : CRTPrimeRange w V,
+        ∑ x : Fin m → Fin p.val, uniformUnitTupleMass p.val m x * g p x := by
+  classical
+  let α : CRTPrimeRange w V → Type := fun p => Fin m → Fin p.val
+  let μ : ∀ p, α p → ℝ := fun p => uniformUnitTupleMass p.val m
+  let swap := crtSlotPrimeSwapEquiv (m := m) (w := w) (V := V)
+  calc
+    _ = ∑ s : ∀ p : CRTPrimeRange w V, α p,
+        (∏ p, μ p (s p)) * ∏ p, g p (s p) := by
+          apply Fintype.sum_equiv swap
+          intro r
+          rw [uniformPrimeTupleCRTLaw_factor (fun p i => r i p)]
+          rfl
+    _ = ∑ s : ∀ p : CRTPrimeRange w V, α p,
+        ∏ p, (μ p (s p) * g p (s p)) := by
+          apply Finset.sum_congr rfl
+          intro s hs
+          rw [← Finset.prod_mul_distrib]
+    _ = ∏ p : CRTPrimeRange w V,
+        ∑ x : α p, μ p x * g p x := by
+          let s : ∀ p : CRTPrimeRange w V, Finset (α p) := fun _ => Finset.univ
+          simpa [s] using (Finset.prod_univ_sum s
+            (fun p x => μ p x * g p x)).symm
+
+private def linearFormsLocalBeta {q m w V : ℕ}
+    (tests : Finset (IntegerPolynomial m))
+    (r : Fin m → CRTResidues w V) (p : CRTPrimeRange w V)
+    (a : Fin q → ℕ) : ℝ :=
+  regularPrimeLocalExcess p.val a +
+    (if ∃ Q ∈ tests,
+      (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => ((r i p).val : ℤ)) then 1 else 0) *
+      exceptionalPrimeLocalExcess p.val a
+
+private theorem uniformCRT_localBeta_average {q m w V : ℕ}
+    (tests : Finset (IntegerPolynomial m))
+    (htests : ∀ Q ∈ tests, Q ≠ 0)
+    (B : ℕ) (hB : 0 < B)
+    (hsize : ∀ Q ∈ tests,
+      integerPolynomialContent Q < B ∧ Q.totalDegree ≤ B)
+    (p : CRTPrimeRange w V) (a : Fin q → ℕ) :
+    (∑ r : Fin m → CRTResidues w V,
+      uniformPrimeTupleCRTLaw w V r * linearFormsLocalBeta tests r p a) ≤
+      regularPrimeLocalExcess p.val a +
+        (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / p.val) *
+          exceptionalPrimeLocalExcess p.val a := by
+  classical
+  have htotal : (∑ r : Fin m → CRTResidues w V,
+      uniformPrimeTupleCRTLaw w V r) = 1 := by
+    have hprod := uniformPrimeTupleCRTLaw_product (m := m) (w := w) (V := V)
+      (fun _ _ => (1 : ℝ))
+    calc
+      _ = ∏ p : CRTPrimeRange w V,
+          ∑ x : Fin m → Fin p.val, uniformUnitTupleMass p.val m x := by
+            simpa using hprod
+      _ = 1 := by
+        apply Finset.prod_eq_one
+        intro p hp
+        exact uniformUnitTupleMass_total p.val m
+          (Nat.Prime.pos ((Finset.mem_filter.mp p.property).2))
+  have hbad := uniformCRTTestBad_probability_bound tests htests B hB hsize p
+  have hreg : 0 ≤ regularPrimeLocalExcess p.val a :=
+    regularPrimeLocalExcess_nonneg p.val
+      ((Finset.mem_filter.mp p.property).2) a
+  have hex : 0 ≤ exceptionalPrimeLocalExcess p.val a :=
+    exceptionalPrimeLocalExcess_nonneg p.val
+      ((Finset.mem_filter.mp p.property).2) a
+  let bad : (Fin m → CRTResidues w V) → Prop := fun r =>
+    ∃ Q ∈ tests,
+      (p.val : ℤ) ∣ evalIntegerPolynomial Q (fun i => ((r i p).val : ℤ))
+  have hdecomp :
+      (∑ r : Fin m → CRTResidues w V,
+        uniformPrimeTupleCRTLaw w V r * linearFormsLocalBeta tests r p a) =
+        regularPrimeLocalExcess p.val a *
+          ∑ r : Fin m → CRTResidues w V, uniformPrimeTupleCRTLaw w V r +
+        exceptionalPrimeLocalExcess p.val a *
+          ∑ r : Fin m → CRTResidues w V,
+            uniformPrimeTupleCRTLaw w V r * (if bad r then 1 else 0) := by
+    unfold linearFormsLocalBeta
+    calc
+      _ = ∑ r : Fin m → CRTResidues w V,
+          (uniformPrimeTupleCRTLaw w V r * regularPrimeLocalExcess p.val a +
+            (uniformPrimeTupleCRTLaw w V r * (if bad r then 1 else 0)) *
+              exceptionalPrimeLocalExcess p.val a) := by
+            apply Finset.sum_congr rfl
+            intro r hr
+            simp only [bad]
+            ring
+      _ = _ := by
+            rw [Finset.sum_add_distrib]
+            rw [← Finset.sum_mul, ← Finset.sum_mul]
+            ring
+  have hbadEq :
+      (∑ r : Fin m → CRTResidues w V,
+        uniformPrimeTupleCRTLaw w V r * (if bad r then 1 else 0)) ≤
+      2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / p.val := by
+    simpa [bad] using hbad
+  calc
+    _ = regularPrimeLocalExcess p.val a +
+        exceptionalPrimeLocalExcess p.val a *
+          ∑ r : Fin m → CRTResidues w V,
+            uniformPrimeTupleCRTLaw w V r * (if bad r then 1 else 0) := by
+      rw [hdecomp, htotal]
+      ring
+    _ ≤ regularPrimeLocalExcess p.val a +
+      exceptionalPrimeLocalExcess p.val a *
+          (2 * (B : ℝ) * ((tests.card + 1 : ℕ) : ℝ) / p.val) :=
+      by simpa [add_comm] using
+        (add_le_add_left (mul_le_mul_of_nonneg_left hbadEq hex)
+          (regularPrimeLocalExcess p.val a))
+    _ = _ := by ring
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
