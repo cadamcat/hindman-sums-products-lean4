@@ -90,7 +90,169 @@ theorem coarse_approximant (A : Parameters K) (U : Ultrafilter ℕ) (i l : Fin K
     (F : ℕ → ℤ → ℝ) (hF : ∀ N y, F N y ∈ Set.Icc (0 : ℝ) 1) (ε : ℝ) (hε : 0 < ε) :
     ∃ (Fm : Menu s) (Km : ℝ≥0) (Φ : RepFamily A l Fm Km),
       projNorm A U i l s (fun N y => F N y - Φ.eval N y) ≤ ε := by
-  sorry
+  classical
+  let S : Submodule ℝ (ℕ → ℤ → ℝ) := repSpan A l s
+  have hS : S ≤ BoundedFamilies := by
+    apply Submodule.span_le.mpr
+    intro v hv
+    rcases hv with ⟨Fm, Km, Φ, rfl⟩
+    refine ⟨1, by norm_num, ?_⟩
+    intro N y
+    exact repFamily_eval_abs_le_one Φ N y
+  let f : FamilySpace A U i := ⟨F, by
+    refine ⟨1, by norm_num, ?_⟩
+    intro N y
+    rw [abs_of_nonneg (hF N y).1]
+    exact (hF N y).2⟩
+  let T := boundedSubmoduleToHilbertLinear A U i S hS
+  let R := T.range
+  let Q := R.topologicalClosure
+  let x := familyToHilbert A U i f
+  let p := Q.starProjection x
+  have hvals :
+      (fun u : ℕ → ℤ → ℝ => familyInner A U i F u) ''
+          {u | u ∈ S ∧ familyInner A U i u u ≤ 1} =
+        (fun u : S => boundedFamilyInner A U i f ⟨u.1, hS u.2⟩) ''
+          {u : S | boundedFamilyInner A U i ⟨u.1, hS u.2⟩
+            ⟨u.1, hS u.2⟩ ≤ 1} := by
+    ext a
+    constructor
+    · rintro ⟨u, ⟨huS, hu⟩, rfl⟩
+      refine ⟨⟨u, huS⟩, ?_, ?_⟩
+      · simpa [familyInner, boundedFamilyInner, f] using hu
+      · rfl
+    · rintro ⟨u, hu, rfl⟩
+      refine ⟨u.1, ⟨u.2, ?_⟩, ?_⟩
+      · simpa [familyInner, boundedFamilyInner, f] using hu
+      · rfl
+  have hprojNorm : projNorm A U i l s F = ‖p‖ := by
+    unfold projNorm
+    calc
+      sSup ((fun u : ℕ → ℤ → ℝ => familyInner A U i F u) ''
+          {u | u ∈ S ∧ familyInner A U i u u ≤ 1}) =
+        sSup ((fun u : S => boundedFamilyInner A U i f ⟨u.1, hS u.2⟩) ''
+          {u : S | boundedFamilyInner A U i ⟨u.1, hS u.2⟩
+            ⟨u.1, hS u.2⟩ ≤ 1}) := congrArg sSup hvals
+      _ = ‖p‖ := by
+        simpa [p, Q, R, T, x] using
+          (boundedSubmodule_unit_sup_eq_projection_norm A U i S hS f)
+  let δ := ε / 2
+  have hδ : 0 < δ := by dsimp [δ]; linarith
+  have hδle : δ ≤ ε := by dsimp [δ]; linarith
+  have hpQ : p ∈ Q := Q.starProjection_apply_mem x
+  have hpcl : p ∈ closure (R : Set (FamilyHilbertSpace A U i)) := by
+    change p ∈ (R.topologicalClosure : Set (FamilyHilbertSpace A U i)) at hpQ
+    rw [Submodule.topologicalClosure_coe] at hpQ
+    exact hpQ
+  obtain ⟨v, hvR, hvclose⟩ := (Metric.mem_closure_iff.mp hpcl) δ hδ
+  obtain ⟨u, hTu⟩ := LinearMap.mem_range.mp hvR
+  let g : FamilySpace A U i := ⟨u.1, hS u.2⟩
+  obtain ⟨k, c, Fm, Km, Ψ₀, hsum⟩ :=
+    exists_finite_repFamily_combination (A := A) (l := l) u.2
+  let G : (Fin k → ℝ) → ℝ := fun z => clip01 (∑ j, c j * z j)
+  obtain ⟨lip, hGLip⟩ := exists_lipschitz_clip_linearCombination c
+  have hG01 : ∀ z : Fin k → ℝ, (∀ j, z j ∈ Set.Icc (0 : ℝ) 1) →
+      G z ∈ Set.Icc (0 : ℝ) 1 := by
+    intro z hz
+    exact clip01_mem_Icc _
+  obtain ⟨Fm', hcombine⟩ := rep_menu_combination A l Fm
+  obtain ⟨Km', Φ, hΦ⟩ := hcombine Km Ψ₀ G lip hGLip hG01
+  have hΦclip : ∀ N y, Φ.eval N y = clip01 (u.1 N y) := by
+    intro N y
+    calc
+      Φ.eval N y = G (fun j => (Ψ₀ j).eval N y) := hΦ N y
+      _ = clip01 (u.1 N y) := by
+        change clip01 (∑ j, c j * (Ψ₀ j).eval N y) = clip01 (u.1 N y)
+        rw [← hsum N y]
+  have hΦspan : Φ.eval ∈ S := by
+    apply Submodule.subset_span
+    exact ⟨Fm', Km', Φ, rfl⟩
+  let sf : FamilySpace A U i := ⟨Φ.eval, hS hΦspan⟩
+  have hresEq : f - sf = familySubClip A U i f g hF := by
+    apply Subtype.ext
+    funext N y
+    change F N y - Φ.eval N y = F N y - clip01 (u.1 N y)
+    rw [hΦclip]
+  have hcontract : ‖x - familyToHilbert A U i sf‖ ≤
+      ‖x - familyToHilbert A U i g‖ := by
+    have h := familyToHilbert_clip_contraction A U i f g hF
+    have hfg : familyToHilbert A U i (f - g) =
+        familyToHilbert A U i f - familyToHilbert A U i g :=
+      (familyToHilbertLinear A U i).map_sub f g
+    have hfs : familyToHilbert A U i (f - sf) =
+        familyToHilbert A U i f - familyToHilbert A U i sf :=
+      (familyToHilbertLinear A U i).map_sub f sf
+    rw [← hresEq, hfs, hfg] at h
+    exact h
+  have huR : familyToHilbert A U i g ∈ R := by
+    change T u ∈ T.range
+    exact ⟨u, rfl⟩
+  have hsfR : familyToHilbert A U i sf ∈ R := by
+    let us : S := ⟨sf.1, hΦspan⟩
+    change T us ∈ T.range
+    exact ⟨us, rfl⟩
+  have huQ : familyToHilbert A U i g ∈ Q := R.le_topologicalClosure huR
+  have hsfQ : familyToHilbert A U i sf ∈ Q := R.le_topologicalClosure hsfR
+  have hprojectionDistance := starProjection_sub_of_distance_le Q x
+    (familyToHilbert A U i g) (familyToHilbert A U i sf) huQ hsfQ hcontract
+  have hsmall : ‖p - familyToHilbert A U i g‖ < δ := by
+    have hTg : T u = familyToHilbert A U i g := rfl
+    have hgv : familyToHilbert A U i g = v := hTg.symm.trans hTu
+    rw [hgv]
+    simpa [dist_eq_norm] using hvclose
+  have hprojectionResidual :
+      ‖Q.starProjection (familyToHilbert A U i (f - sf))‖ ≤ δ := by
+    have hstar : Q.starProjection (familyToHilbert A U i (f - sf)) =
+        p - familyToHilbert A U i sf := by
+      have hmap : familyToHilbert A U i (f - sf) =
+          familyToHilbert A U i f - familyToHilbert A U i sf :=
+        (familyToHilbertLinear A U i).map_sub f sf
+      have hfix : Q.starProjection (familyToHilbert A U i sf) =
+          familyToHilbert A U i sf :=
+        Q.starProjection_eq_self_iff.mpr hsfQ
+      calc
+        Q.starProjection (familyToHilbert A U i (f - sf)) =
+            Q.starProjection (familyToHilbert A U i f - familyToHilbert A U i sf) :=
+          congrArg Q.starProjection hmap
+        _ = Q.starProjection (familyToHilbert A U i f) -
+            Q.starProjection (familyToHilbert A U i sf) := map_sub _ _ _
+        _ = p - familyToHilbert A U i sf := by simp [p, x, hfix]
+    rw [hstar]
+    exact (hprojectionDistance.trans hsmall.le)
+  have hresValues :
+      (fun u : ℕ → ℤ → ℝ => familyInner A U i (fun N y => F N y - Φ.eval N y) u) ''
+          {u | u ∈ S ∧ familyInner A U i u u ≤ 1} =
+        (fun u : S => boundedFamilyInner A U i (f - sf) ⟨u.1, hS u.2⟩) ''
+          {u : S | boundedFamilyInner A U i ⟨u.1, hS u.2⟩
+            ⟨u.1, hS u.2⟩ ≤ 1} := by
+    ext a
+    constructor
+    · rintro ⟨u, ⟨huS, hu⟩, rfl⟩
+      refine ⟨⟨u, huS⟩, ?_, ?_⟩
+      · simpa [familyInner, boundedFamilyInner] using hu
+      · rfl
+    · rintro ⟨u, hu, rfl⟩
+      refine ⟨u.1, ⟨u.2, ?_⟩, ?_⟩
+      · simpa [familyInner, boundedFamilyInner] using hu
+      · rfl
+  have hprojNormResidual :
+      projNorm A U i l s (fun N y => F N y - Φ.eval N y) =
+        ‖Q.starProjection (familyToHilbert A U i (f - sf))‖ := by
+    unfold projNorm
+    calc
+      sSup ((fun u : ℕ → ℤ → ℝ =>
+          familyInner A U i (fun N y => F N y - Φ.eval N y) u) ''
+          {u | u ∈ S ∧ familyInner A U i u u ≤ 1}) =
+        sSup ((fun u : S => boundedFamilyInner A U i (f - sf)
+            ⟨u.1, hS u.2⟩) ''
+          {u : S | boundedFamilyInner A U i ⟨u.1, hS u.2⟩
+            ⟨u.1, hS u.2⟩ ≤ 1}) := congrArg sSup hresValues
+      _ = ‖Q.starProjection (familyToHilbert A U i (f - sf))‖ := by
+        simpa [Q, R, T] using
+          (boundedSubmodule_unit_sup_eq_projection_norm A U i S hS (f - sf))
+  refine ⟨Fm', Km', Φ, ?_⟩
+  rw [hprojNormResidual]
+  exact hprojectionResidual.trans hδle
 
 /-- The Ramsey step of Lemma `lem:energy-selection` (05:399–405): a tuple `(T, l, i)` with
 `T < l < i` is identified with the set `T ∪ {l, i}`; for `c` colours there is a master count
@@ -100,7 +262,25 @@ theorem energy_ramsey (n c : ℕ) :
     ∃ K₀ : ℕ, ∀ col : Finset (Fin K₀) → Fin c, ∃ H : Finset (Fin K₀), H.card = 2 * n ∧
       ∀ T T' : Finset (Fin K₀), T ⊆ H → T' ⊆ H → T.card = T'.card → 3 ≤ T.card →
         T.card ≤ n + 1 → col T = col T' := by
-  sorry
+  by_cases hc : 0 < c
+  · obtain ⟨B, hB, hRamsey⟩ :=
+      HindmanSumsProducts.FiniteRamsey.finite_ramsey_simultaneous_subsets
+        (n + 2) (2 * n) (fun _ : Fin (n + 2) => c) (fun _ => hc)
+    refine ⟨B, ?_⟩
+    intro col
+    have hlarge : B ≤ (Finset.univ : Finset (Fin B)).card := by
+      simpa using (le_of_max_le_right hB)
+    obtain ⟨H, hHsub, hHcard, hmono⟩ :=
+      hRamsey (Fin B) Finset.univ hlarge (fun _ T => col T)
+    refine ⟨H, hHcard, ?_⟩
+    intro T T' hTH hT'H hcard hlower hupper
+    let m : Fin (n + 2) := ⟨T.card, by omega⟩
+    exact hmono m T hTH (by simp [m]) T' hT'H (by simpa [m] using hcard.symm)
+  · refine ⟨2 * n, ?_⟩
+    intro col
+    have hc0 : c = 0 := Nat.eq_zero_of_not_pos hc
+    subst c
+    exact Fin.elim0 (col ∅)
 
 /-- A master block whose pivot is the principal index `prin u` and whose tail consists of
 principal indices `prin v`, `v < u₁` (`u₁ ≤ u`). -/
