@@ -869,6 +869,68 @@ theorem RowTemplate.parallel_symm {m q : ℕ} {T T' : RowTemplate m q}
 def RowBranchIndex {r : ℕ} (I : Fin r → Prop) :=
   {x : Fin r × Fin 2 // x.2.val = 0 ∨ ¬ I x.1}
 
+def pkgMask_RowBranchAllowed {r : ℕ} (I : Fin r → Prop) (i : Fin r) :=
+  {b : Fin 2 // b.val = 0 ∨ ¬ I i}
+
+noncomputable def pkgMask_rowBranchSigmaEquiv {r : ℕ} (I : Fin r → Prop) :
+    RowBranchIndex I ≃ Σ i : Fin r, pkgMask_RowBranchAllowed I i := by
+  refine
+    { toFun := fun x => ⟨x.val.1, ⟨x.val.2, x.property⟩⟩
+      invFun := fun x => ⟨(x.1, x.2.val), x.2.property⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro x
+    apply Subtype.ext
+    rfl
+  · intro x
+    cases x with
+    | mk i b => cases b with | mk b hb => rfl
+
+theorem pkgMask_prodRowBranchAllowed {r : ℕ} (I : Fin r → Prop)
+    (i : Fin r) [Fintype (pkgMask_RowBranchAllowed I i)] (g : Fin 2 → ℝ) :
+    (∏ b : pkgMask_RowBranchAllowed I i, g b.val) =
+      if I i then g 0 else g 0 * g 1 := by
+  classical
+  letI : DecidablePred (fun b : Fin 2 => b.val = 0 ∨ ¬ I i) := Classical.decPred _
+  by_cases hi : I i
+  · let e : pkgMask_RowBranchAllowed I i ≃ PUnit.{1} :=
+      { toFun := fun _ => PUnit.unit
+        invFun := fun _ => ⟨0, Or.inl rfl⟩
+        left_inv := by
+          intro b
+          apply Subtype.ext
+          apply Fin.ext
+          rcases b.property with hb | hnot
+          · exact hb.symm
+          · exact False.elim (hnot hi)
+        right_inv := by intro x; cases x; rfl }
+    have hzero (b : pkgMask_RowBranchAllowed I i) : b.val = 0 := by
+      apply Fin.ext
+      rcases b.property with hb | hnot
+      · exact hb
+      · exact False.elim (hnot hi)
+    calc
+      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g 0 := by
+        apply Finset.prod_congr rfl
+        intro b hb
+        rw [hzero b]
+      _ = ∏ x : PUnit.{1}, g 0 := Equiv.prod_comp e (fun _ => g 0)
+      _ = g 0 := by simp
+      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+  · let e : pkgMask_RowBranchAllowed I i ≃ Fin 2 :=
+      { toFun := fun b => b.val
+        invFun := fun b => ⟨b, Or.inr hi⟩
+        left_inv := by intro b; apply Subtype.ext; rfl
+        right_inv := by intro b; rfl }
+    calc
+      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g (e b) := by
+        apply Finset.prod_congr rfl
+        intro b hb
+        rfl
+      _ = ∏ b : Fin 2, g b := Equiv.prod_comp e g
+      _ = g 0 * g 1 := Fin.prod_univ_two g
+      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+
 def RowBranchTemplate {m q r : ℕ} (Sh : RowShape m q r)
     (L R : Fin r → RowTemplate m (q + 2)) (i : Fin r) (b : Fin 2) :
     RowTemplate m (q + 2) :=
@@ -3260,6 +3322,36 @@ def balancedBranchMaskFunction {m q : ℕ}
       ((if v ∈ U then (p 0 : ℤ) else 1) *
         (if u ∈ U then (p 1 : ℤ) else 1) * y)
 
+theorem pkgMask_outsideBranchMask_substitution {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ)
+    (z : Fin m → ℤ) :
+    outsideBranchMaskFunction f u U p (∏ k ∈ U, z k) =
+      f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update z u ((p 1 : ℤ) * z u) k) *
+        f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update z u ((p 0 : ℤ) * z u) k) := by
+  unfold outsideBranchMaskFunction
+  rw [← mask_product_scale_at U u z (p 1 : ℤ),
+    ← mask_product_scale_at U u z (p 0 : ℤ)]
+
+theorem pkgMask_balancedBranchMask_substitution {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u v : Fin m) (U : Finset (Fin m)) (huv : u ≠ v)
+    (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
+    balancedBranchMaskFunction f u v U p (∏ k ∈ U, z k) =
+      f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update (Function.update z u
+            ((p 0 : ℤ) * z u)) v
+            ((p 1 : ℤ) * Function.update z u ((p 0 : ℤ) * z u) v) k) *
+        f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update (Function.update z v
+            ((p 0 : ℤ) * z v)) u
+            ((p 1 : ℤ) * Function.update z v ((p 0 : ℤ) * z v) u) k) := by
+  unfold balancedBranchMaskFunction
+  rw [← mask_product_scale_two U u v huv z (p 0 : ℤ) (p 1 : ℤ),
+    ← mask_product_scale_two U v u (Ne.symm huv) z (p 0 : ℤ) (p 1 : ℤ)]
+
 theorem outsideBranchMaskFunction_abs_le {m q : ℕ}
     (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
     (u : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ) (y : ℤ)
@@ -3768,6 +3860,54 @@ theorem mergedBranchRowFunction_abs_le {m q r r' : ℕ} {I : Fin r → Prop}
       simpa [mergedBranchRowFunction, x, h, hg, hInvRow] using hBound y
     · simpa [mergedBranchRowFunction, x, h, hg] using hW x.val.1 y
   · simpa [mergedBranchRowFunction, x, h] using hf x.val.1 (dropPrimeTuple2 p) y
+
+theorem pkgMask_mergedInvariantRow_eval {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ) (i : Fin r) (hi : I i) (hgood : good p)
+    (c : Fin m → ℚ) (z : Fin m → ℚ) (y : ℤ)
+    (hform : rowForm c (L i) p z = (y : ℚ))
+    (hscaleDen :
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p *
+        (y : ℚ)).den = 1)
+    (hWpos : 0 < W i y) :
+    W i y * atQ (mergedBranchRowFunction good L R e hInv f W p
+        (e ⟨(i, 0), Or.inl rfl⟩)) (rowForm c (L i) p z) =
+      f i (dropPrimeTuple2 p) y *
+        f i (dropPrimeTuple2 p)
+          (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p *
+            (y : ℚ)).num := by
+  let x : RowBranchIndex I := ⟨(i, 0), Or.inl rfl⟩
+  have hmerged :
+      mergedBranchRowFunction good L R e hInv f W p (e x) =
+        combineParallelRowFunction (f i)
+          (fun p' => RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p')
+          (W i) p := by
+    funext t
+    unfold mergedBranchRowFunction
+    simp only [Equiv.symm_apply_apply]
+    simp [x, hi, hgood]
+  rw [show (e x) = e ⟨(i, 0), Or.inl rfl⟩ by rfl, hmerged, hform]
+  simp [atQ]
+  unfold combineParallelRowFunction
+  simp [atQ, hscaleDen]
+  field_simp [ne_of_gt hWpos]
+
+theorem pkgMask_mergedNonInvariantRow_eq {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ) (x : RowBranchIndex I) (hx : ¬ I x.val.1) :
+    mergedBranchRowFunction good L R e hInv f W p (e x) =
+      f x.val.1 (dropPrimeTuple2 p) := by
+  funext y
+  unfold mergedBranchRowFunction
+  simp [Equiv.symm_apply_apply, hx]
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
@@ -4669,6 +4809,110 @@ theorem pkgMask_gapRestAverage_error_le {K s m q : ℕ} {Aset : Finset ℚ}
   · exact pkgMask_gapRestMass_tsum_one S C N u hMass
   · exact hε
   · exact hE
+
+theorem pkgMask_gapRestTsum_fubini {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (F : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) → ℝ) :
+    ∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
+      ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+        pkgMask_pivotRestMass S C N u w * F (p, w) =
+      ∑' x : (Fin q → ℕ) ×
+        (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+        (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * F x := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let B := Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  let D := P ×ˢ B
+  have hPzero (p : Fin q → ℕ) (hp : p ∉ P) : gapSlotMass S C.gap N p = 0 := by
+    unfold gapSlotMass
+    exact independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) p hp
+  have hBzero (w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) (hw : w ∉ B) :
+      pkgMask_pivotRestMass S C N u w = 0 :=
+    pkgMask_pivotRestMass_zero_of_not_mem S C N u w hw
+  have hOuterZero (p : Fin q → ℕ) (hp : p ∉ P) :
+      gapSlotMass S C.gap N p *
+        ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+          pkgMask_pivotRestMass S C N u w * F (p, w) = 0 := by
+    rw [hPzero p hp]
+    simp
+  have hDzero (x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ)) (hx : x ∉ D) :
+      (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * F x = 0 := by
+    by_cases hp : x.1 ∈ P
+    · have hw : x.2 ∉ B := by
+        intro hw
+        exact hx (Finset.mem_product.mpr ⟨hp, hw⟩)
+      rw [hBzero x.2 hw]
+      simp
+    · rw [hPzero x.1 hp]
+      simp
+  calc
+    (∑' p : Fin q → ℕ, gapSlotMass S C.gap N p *
+        ∑' w : ∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ,
+          pkgMask_pivotRestMass S C N u w * F (p, w)) =
+        ∑ p ∈ P, gapSlotMass S C.gap N p *
+          ∑ w ∈ B, pkgMask_pivotRestMass S C N u w * F (p, w) := by
+      rw [tsum_eq_sum (s := P) hOuterZero]
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [tsum_eq_sum (s := B) (fun w hw => by rw [hBzero w hw]; simp)]
+    _ = ∑ p ∈ P, ∑ w ∈ B,
+          (gapSlotMass S C.gap N p * pkgMask_pivotRestMass S C N u w) * F (p, w) := by
+      apply Finset.sum_congr rfl
+      intro p hp
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro w hw
+      ring
+    _ = ∑ x ∈ D,
+          (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * F x := by
+      dsimp [D]
+      symm
+      exact Finset.sum_product' P B (fun p w =>
+        (gapSlotMass S C.gap N p * pkgMask_pivotRestMass S C N u w) * F (p, w))
+    _ = ∑' x : (Fin q → ℕ) ×
+          (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+          (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * F x := by
+      symm
+      exact tsum_eq_sum (s := D) hDzero
+
+theorem pkgMask_gapRestMass_mul_summable {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (u : Fin m)
+    (F : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) → ℝ) :
+    Summable (fun x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ) =>
+        (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) * F x) := by
+  classical
+  let P := independentPrimePoolSupport
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)
+  let B := Fintype.piFinset fun i : finsetComplement ({u} : Finset (Fin m)) =>
+    harmonicLawSupport (S.core.parameters.X N (C.block i.1).1) (primorial (N + 1))
+  let D := P ×ˢ B
+  have hPzero (p : Fin q → ℕ) (hp : p ∉ P) : gapSlotMass S C.gap N p = 0 := by
+    unfold gapSlotMass
+    exact independentPrimePoolMass_zero_of_not_mem_support
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) p hp
+  apply summable_of_ne_finset_zero (s := D)
+  intro x hx
+  by_cases hp : x.1 ∈ P
+  · have hw : x.2 ∉ B := by
+      intro hw
+      exact hx (Finset.mem_product.mpr ⟨hp, hw⟩)
+    rw [pkgMask_pivotRestMass_zero_of_not_mem S C N u x.2 hw]
+    simp
+  · rw [hPzero x.1 hp]
+    simp
 
 theorem pivotBaseResidueLaw_eq_prod_harmonicResidueLaw
     {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
@@ -7373,6 +7617,15 @@ noncomputable def correlation {m q r K s : ℕ} {Aset : Finset ℚ}
           (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
             fun k => (z k : ℚ)))
 
+def pkgMask_stateIntegrand {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
+    (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
+  (∏ U ∈ st.masks, st.maskFunction U p (∏ k ∈ U, z k)) *
+    ∏ R, atQ (st.rowFunction R p)
+      (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+        fun k => (z k : ℚ))
+
 theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ)
@@ -7477,6 +7730,19 @@ theorem pkgMask_stateCorrelation_coordinate_split {m q r K s : ℕ} {Aset : Fins
       ∏ R, atQ (st.rowFunction R p)
         (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
           fun k => (z k : ℚ)))
+
+noncomputable def pkgMask_stateCoordinatePrimeInsertion {m q r K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (st : MaskRemovalState m q r) (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N : ℕ) (u : Fin m) : ℝ :=
+  ∑' x : (Fin q → ℕ) ×
+      (∀ i : finsetComplement ({u} : Finset (Fin m)), ℤ),
+    (gapSlotMass S C.gap N x.1 * pkgMask_pivotRestMass S C N u x.2) *
+      poolAverage S C.gap N (fun p =>
+        ∑' y : ℤ, harmonicLaw (S.core.parameters.X N (C.block u).1)
+          (primorial (N + 1)) y *
+            pkgMask_stateIntegrand st S C a N x.1
+              (pkgMask_coordinateJoin u ((p : ℤ) * y) x.2))
 
 theorem pkgMask_stateIntegrand_abs_le {m q r K s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
