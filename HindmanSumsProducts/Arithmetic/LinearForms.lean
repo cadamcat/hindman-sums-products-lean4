@@ -4117,6 +4117,100 @@ theorem divisor_weight_expansion_cancellation {q : ℕ}
 `P(E)` up to the absolute error `O(1/w + V^q(ε_base+ε_CRT))`, uniformly over every
 prime-only event `E⊆G`. The formulation permits rational rows with denominators that are
 units modulo every possible divisor (§3 lines 463–519). -/
+private def primeVectorMass (P : Finset ℕ) (law : ℕ → ℝ)
+    (a : ℕ → ℕ) : ℝ :=
+  ∑' n : ℕ, law n * (if ∀ p ∈ P, Nat.factorization n p = a p then 1 else 0)
+
+private theorem independentPrimeVectorMass_eq {q : ℕ} (P : Finset ℕ)
+    (laws : Fin q → ℕ → ℝ) (support : Fin q → Finset ℕ)
+    (hlawZero : ∀ u n, n ∉ support u → laws u n = 0)
+    (a : ℕ → Fin q → ℕ) :
+    (∑' σ : Fin q → ℕ, (∏ u, laws u (σ u)) *
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) =
+      ∏ u, primeVectorMass P (laws u) (fun p => a p u) := by
+  classical
+  let T : Finset (Fin q → ℕ) := Fintype.piFinset support
+  let rowEvent (u : Fin q) (n : ℕ) : ℝ :=
+    if ∀ p ∈ P, Nat.factorization n p = a p u then 1 else 0
+  have hzero (σ : Fin q → ℕ) (hσ : σ ∉ T) :
+      (∏ u, laws u (σ u)) *
+        (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0) = 0 := by
+    have hnot : ¬ ∀ u, σ u ∈ support u := by
+      intro h
+      exact hσ (Fintype.mem_piFinset.mpr h)
+    obtain ⟨u, hu⟩ := not_forall.mp hnot
+    rw [Finset.prod_eq_zero (Finset.mem_univ u) (hlawZero u (σ u) hu)]
+    simp
+  have hrowZero (u : Fin q) (n : ℕ) (hn : n ∉ support u) :
+      laws u n * rowEvent u n = 0 := by
+    rw [hlawZero u n hn]
+    simp
+  have hrowMass (u : Fin q) :
+      primeVectorMass P (laws u) (fun p => a p u) =
+        ∑ n ∈ support u, laws u n * rowEvent u n := by
+    unfold primeVectorMass
+    rw [tsum_eq_sum (s := support u) (hrowZero u)]
+  have hindicator (σ : Fin q → ℕ) :
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0) =
+        ∏ u, rowEvent u (σ u) := by
+    by_cases h : ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u
+    · have hrow : ∀ u, rowEvent u (σ u) = 1 := by
+        intro u
+        dsimp [rowEvent]
+        rw [if_pos (h u)]
+      rw [if_pos h]
+      calc
+        1 = ∏ u, (1 : ℝ) := by simp
+        _ = ∏ u, rowEvent u (σ u) := by
+          apply Finset.prod_congr rfl
+          intro u hu
+          rw [hrow u]
+    · obtain ⟨u, hu⟩ := not_forall.mp h
+      have hrow : rowEvent u (σ u) = 0 := by
+        dsimp [rowEvent]
+        rw [if_neg hu]
+      rw [if_neg h]
+      exact (Finset.prod_eq_zero (Finset.mem_univ u) hrow).symm
+  calc
+    (∑' σ : Fin q → ℕ, (∏ u, laws u (σ u)) *
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) =
+        ∑ σ ∈ T, (∏ u, laws u (σ u)) *
+          (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0) :=
+      tsum_eq_sum (s := T) hzero
+    _ = ∑ σ ∈ T, ∏ u, (laws u (σ u) * rowEvent u (σ u)) := by
+      apply Finset.sum_congr rfl
+      intro σ hσ
+      rw [hindicator]
+      rw [← Finset.prod_mul_distrib]
+    _ = ∏ u, ∑ n ∈ support u, laws u n * rowEvent u n := by
+      simpa [T] using (Finset.prod_univ_sum support
+        (fun u n => laws u n * rowEvent u n)).symm
+    _ = ∏ u, primeVectorMass P (laws u) (fun p => a p u) := by
+      apply Finset.prod_congr rfl
+      intro u hu
+      rw [hrowMass u]
+
+private theorem independentPrimeVectorMass_le {q : ℕ} (P : Finset ℕ)
+    (laws : Fin q → ℕ → ℝ) (support : Fin q → Finset ℕ)
+    (hlawZero : ∀ u n, n ∉ support u → laws u n = 0)
+    (hlawNonneg : ∀ u n, 0 ≤ laws u n) (a : ℕ → Fin q → ℕ)
+    (upper : Fin q → ℝ) (hupper : ∀ u, 0 ≤ upper u)
+    (hrow : ∀ u, primeVectorMass P (laws u) (fun p => a p u) ≤ upper u) :
+    (∑' σ : Fin q → ℕ, (∏ u, laws u (σ u)) *
+      (if ∀ u, ∀ p ∈ P, Nat.factorization (σ u) p = a p u then 1 else 0)) ≤
+        ∏ u, upper u := by
+  rw [independentPrimeVectorMass_eq P laws support hlawZero a]
+  exact finset_prod_le_prod_of_nonneg Finset.univ
+    (fun u => primeVectorMass P (laws u) (fun p => a p u)) upper
+    (by
+      intro u hu
+      unfold primeVectorMass
+      apply tsum_nonneg
+      intro n
+      exact mul_nonneg (hlawNonneg u n) (by split_ifs <;> norm_num))
+    (by intro u hu; exact hupper u)
+    (by intro u hu; exact hrow u)
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
