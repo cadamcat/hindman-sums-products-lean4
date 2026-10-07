@@ -371,7 +371,7 @@ private theorem c_test2_parameterTailProductLaw_nonneg {n : ℕ}
     exact c_test2_harmonicNatLaw_nonneg _ _ _
   · simp [hprod]
 
-private theorem c_test2_chainCoefficientData_eventually {K s m : ℕ}
+theorem c_test2_chainCoefficientData_eventually {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
@@ -1319,10 +1319,57 @@ noncomputable def c_test2_subsetBitsEquiv (d : ℕ) :
     have hv : v i = 0 ∨ v i = 1 := by
       have hvval : (v i).val = 0 ∨ (v i).val = 1 := by omega
       rcases hvval with h0 | h1
-      · exact Or.inl (Fin.ext h0)
-      · exact Or.inr (Fin.ext h1)
+      · exact Or.inl (Fin.ext (by simpa using h0))
+      · exact Or.inr (Fin.ext (by simpa using h1))
     rcases hv with h0 | h1
     · simp [c_test2_subsetToBits, c_test2_bitsToSubset, h0]
     · simp [c_test2_subsetToBits, c_test2_bitsToSubset, h1]
+
+theorem c_test2_shiftAverage_reindex {α β : Type*} [Fintype α] [DecidableEq α]
+    [Fintype β] [DecidableEq β] (e : α ≃ β) (L : ℕ)
+    (F : (α → Fin 2 → ℕ) → ℝ) :
+    shiftAverage α L F =
+      shiftAverage β L (fun u => F (fun a => u (e a))) := by
+  classical
+  let eFun : (α → Fin 2 → ℕ) ≃ (β → Fin 2 → ℕ) :=
+    Equiv.piCongrLeft (fun _ : β => Fin 2 → ℕ) e
+  let sα := Fintype.piFinset (fun _ : α =>
+    Fintype.piFinset fun _ : Fin 2 => Finset.range L)
+  let sβ := Fintype.piFinset (fun _ : β =>
+    Fintype.piFinset fun _ : Fin 2 => Finset.range L)
+  have hcard : Fintype.card α = Fintype.card β := Fintype.card_congr e
+  have hsum : ∑ u ∈ sα, F u =
+      ∑ u ∈ sβ, F (fun a => u (e a)) := by
+    apply Finset.sum_equiv eFun
+    · intro u
+      simp only [sα, sβ, Fintype.mem_piFinset]
+      change (∀ a : α, ∀ bit : Fin 2, u a bit ∈ Finset.range L) ↔
+        (∀ b : β, ∀ bit : Fin 2, eFun u b bit ∈ Finset.range L)
+      constructor
+      · intro h b
+        intro bit
+        simpa [eFun, Equiv.piCongrLeft] using h (e.symm b) bit
+      · intro h a
+        intro bit
+        have hh := h (e a) bit
+        simpa [eFun, Equiv.piCongrLeft] using hh
+    · intro u hu
+      simp [eFun, Equiv.piCongrLeft]
+  unfold shiftAverage
+  rw [← hcard, hsum]
+
+theorem c_test2_cubeProduct_reindex {d : ℕ} (g : ℤ → ℝ) (y M : ℤ)
+    (u : Fin d → Fin 2 → ℕ) :
+    (∏ v : Fin d → Fin 2,
+      g (y + M * ∑ j : Fin d,
+        if v j = 1 then (u j 1 : ℤ) - u j 0 else 0)) =
+      ∏ s : Finset (Fin d), g (y + M * ∑ j ∈ s, ((u j 1 : ℤ) - u j 0)) := by
+  classical
+  let e := c_test2_subsetBitsEquiv d
+  apply Fintype.prod_equiv e.symm
+  intro v
+  congr 2
+  have hs : e.symm v = Finset.univ.filter fun j => v j = 1 := rfl
+  rw [hs, Finset.sum_filter]
 
 end HindmanSumsProducts
