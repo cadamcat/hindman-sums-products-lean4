@@ -152,6 +152,7 @@ private theorem active_unit_residue_card (W k a : ℕ) (hW : 0 < W) (hk : 0 < k)
 -- OAI/NumberTheory/JointDickman/Arithmetic/HarmonicSummation.lean.
 private noncomputable def samplingFiniteCountingFunction (w : ℕ → ℝ) (t : ℝ) : ℝ :=
   ∑ n ∈ Finset.Icc 0 ⌊t⌋₊, w n
+-- End of code adapted from OpenAI
 
 private theorem interval_residue_card_error (a T k r : ℕ) (hk : 0 < k)
     (hr : r < k) :
@@ -837,6 +838,7 @@ private theorem sampling_sum_div_eq_boundary_add_integral (w : ℕ → ℝ) {a b
   rw [heq, intervalIntegral.integral_neg] at h
   simpa only [div_eq_mul_inv, mul_comm, samplingFiniteCountingFunction,
     sub_neg_eq_add] using h
+-- End of code adapted from OpenAI
 
 -- Adapted from OpenAI openai/math (Apache-2.0),
 -- OAI/NumberTheory/JointDickman/Arithmetic/HarmonicSummation.lean.
@@ -880,6 +882,7 @@ private theorem samplingFiniteCountingFunction_div_sq_integrable (w : ℕ → �
   have hi := integrableOn_mul_sum_Icc (m := 0) w ha.le hcont.integrableOn_Icc
   rw [intervalIntegrable_iff_integrableOn_Icc_of_le hab]
   simpa only [samplingFiniteCountingFunction, div_eq_mul_inv, mul_comm] using hi
+-- End of code adapted from OpenAI
 
 private theorem integral_inv_sq_pos {a b : ℝ} (ha : 0 < a) (hab : a ≤ b) :
     (∫ t in a..b, (t ^ 2)⁻¹) = a⁻¹ - b⁻¹ := by
