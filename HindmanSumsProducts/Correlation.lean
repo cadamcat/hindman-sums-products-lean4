@@ -11,6 +11,7 @@ import HindmanSumsProducts.Correlation.PkgOpusCorr
 import HindmanSumsProducts.Correlation.PkgVarS
 import HindmanSumsProducts.Correlation.PkgMsoS
 import HindmanSumsProducts.Correlation.PkgRootS
+import HindmanSumsProducts.Correlation.PkgOpusCorrElim
 
 /-!
 # Removing multiplicative masks and detecting a shifted error (§4)
@@ -380,7 +381,10 @@ theorem opus_corr_elim_cauchy {m q r : ℕ} (Sh : RowShape m q r)
                 (targetVertex (chainScale S.core.parameters C a N) Sh p
                   (directionModulus S N dirs.poly p) z u ω)) *
                 retainedWeights S C a N dirs p z u| + ε := by
-  sorry
+  exact opus_corr_elim_cauchy_proof Sh dirs hdirs tests htests hdt
+    (fun S ι hlisted C a ha J0 hJ0 =>
+      (additive_elimination_auxiliary_moments Sh dirs hdirs tests htests hdt S ι hlisted C a ha
+        J0 hJ0).2.1)
 
 /-- Part of Lemma `lem:additive-elimination` (04:516–530): translating `z` by `v_0u_0`, `u_0`
 uniform on `[0,R)`, changes `E GΨ` by `o(1)`; `G` is unchanged since `ℓ_*(v_0)=0`, so
