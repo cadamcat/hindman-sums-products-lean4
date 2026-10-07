@@ -1566,45 +1566,6 @@ theorem opus_dpo_translation_error_proof {K sl b : ℕ} {As : Finset ℚ}
 
 /-! ### Terminal state (copy of PkgB2's terminal chain without `0 < sl`) -/
 
-open Lean Elab Term in
-/-- Refer to a declaration of an imported module by its full name, whether it is public or
-private there.  Used for `PkgB2` helpers that are private at this revision; the result is the
-existing compiled constant, checked by the kernel like any other reference. -/
-syntax (name := opusDpoPrivateTerm) "opus_dpo_private% " ident : term
-
-open Lean Meta Elab Term in
-@[term_elab opusDpoPrivateTerm]
-def opus_dpo_elabPrivate : TermElab := fun stx _ => do
-  let requested := stx[1].getId.eraseMacroScopes
-  let env ← getEnv
-  if env.contains requested then
-    return ← mkConstWithFreshMVarLevels requested
-  let priv := Name.mkNum (`_private ++ `HindmanSumsProducts.Prediction.PkgB2) 0 ++ requested
-  if env.contains priv then
-    return ← mkConstWithFreshMVarLevels priv
-  let found := env.constants.toList.find? fun entry =>
-    Lean.privateToUserName? entry.1 == some requested
-  match found with
-  | none => throwError "declaration {requested} is unavailable"
-  | some entry => mkConstWithFreshMVarLevels entry.1
-
-set_option quotPrecheck false
-
-local notation "opusP_nonrootOccurrenceSet" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_nonrootOccurrenceSet
-local notation "opusP_rootOccurrenceSet" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_rootOccurrenceSet
-local notation "opusP_rootOccurrenceSet_nonempty" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_rootOccurrenceSet_nonempty
-local notation "opusP_occurrenceIsNonroot" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_occurrenceIsNonroot
-local notation "opusP_stateMonomialAverage" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_stateMonomialAverage
-local notation "opusP_stateMonomialAverage_eq_wlf" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_stateMonomialAverage_eq_wlf
-local notation "opusP_terminalStateAverage_expansion" =>
-  opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_terminalStateAverage_expansion
-
 theorem opus_dpo_repGoodProbability_eq_product {K sl b : ℕ}
     {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K)
@@ -1666,8 +1627,7 @@ theorem opus_dpo_repGoodProbability_eq_product {K sl b : ℕ}
     apply forall_congr'
     intro k
     rw [hproject p k]
-  have hfactor := (opus_dpo_private%
-      HindmanSumsProducts.Prediction.pkgB2_independentPrimePoolProbability_blockFactor)
+  have hfactor := pkgB2_independentPrimePoolProbability_blockFactor
     lo hi loBlock hiBlock hlo hhi ⟨hboundFull, hboundBlock⟩ G
   have hmarginal (k : Fin b) :
       independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
@@ -1788,10 +1748,10 @@ theorem opus_dpo_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
       good N p → D.goodDomain N p := by
     have hreg := opus_dpo_regular_eventually MS B gap T J0 hgap hT hJ0
     have hN0 : ∀ᶠ N : ℕ in atTop,
-        (opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_directionConstantBound) T direction + 1 ≤ N :=
+        pkgB2_directionConstantBound T direction + 1 ≤ N :=
       eventually_ge_atTop _
     filter_upwards [hreg, hN0] with N hregN hN0 p hp
-    change (opus_dpo_private% HindmanSumsProducts.Prediction.pkgB2_directionConstantBound) T direction + 1 ≤ N ∧
+    change pkgB2_directionConstantBound T direction + 1 ≤ N ∧
       pkgB2_baseRegular MS B T J0 gap hT N p
     exact ⟨hN0, hregN p hp⟩
   obtain ⟨C, hC, hlinear⟩ := prop_linear_forms D
@@ -1854,8 +1814,8 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : (k : Fin b) → DualInput MS B (T k) N,
       |pkgB2_stateAverage MS B gap T J0 hgap hT hJ0 direction hdir k0 Finset.univ N I| ≤ ε := by
   classical
-  let plus := opusP_nonrootOccurrenceSet (T := T) Finset.univ
-  let minus := opusP_rootOccurrenceSet (T := T) Finset.univ
+  let plus := pkgB2_nonrootOccurrenceSet (T := T) Finset.univ
+  let minus := pkgB2_rootOccurrenceSet (T := T) Finset.univ
   let q := Fintype.card (pkgB2_Occurrence T Finset.univ)
   let C : ℝ := (2 : ℝ) ^ (plus.card + minus.card)
   have hC : 0 < C := by dsimp [C]; positivity
@@ -1864,14 +1824,14 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
     intro o ho hm
     exact (Finset.mem_filter.mp hm).2 (Finset.mem_filter.mp ho).2
   have hminus : minus.Nonempty := by
-    simpa [minus] using opusP_rootOccurrenceSet_nonempty T
+    simpa [minus] using pkgB2_rootOccurrenceSet_nonempty T
   have hclose (U : Finset (Fin q)) (ε : ℝ) (hε : 0 < ε) :
       ∀ᶠ N : ℕ in atTop,
-        |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
     have hlim := opus_dpo_weightedGoodMonomial_tendsto_one MS B gap T J0
       hgap hT hJ0 direction hdir k0 Finset.univ U
     have hlimState :
-        Tendsto (fun N => opusP_stateMonomialAverage MS B gap T J0 hT
+        Tendsto (fun N => pkgB2_stateMonomialAverage MS B gap T J0 hT
           Finset.univ direction N U) atTop (𝓝 1) := by
       have hEq : (fun N =>
           weightedLinearFormsAverage
@@ -1882,13 +1842,13 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
               (pkgB2_weightedLinearFormsData MS B gap T J0 hgap hT hJ0
                 direction hdir k0 Finset.univ U) N
               (pkgB2_goodPrimeEvent MS gap T hT N)) =ᶠ[atTop]
-          fun N => opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U := by
+          fun N => pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U := by
         filter_upwards with N
-        exact (opusP_stateMonomialAverage_eq_wlf MS B gap T J0 hgap hT hJ0
+        exact (pkgB2_stateMonomialAverage_eq_wlf MS B gap T J0 hgap hT hJ0
           direction hdir k0 Finset.univ U N).symm
       exact hlim.congr' hEq
     have hdist : Tendsto
-        (fun N => |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1|)
+        (fun N => |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1|)
         atTop (𝓝 0) := by
       simpa [Real.norm_eq_abs] using (tendsto_iff_norm_sub_tendsto_zero).1 hlimState
     filter_upwards [hdist.eventually (Iio_mem_nhds hε)] with N hN
@@ -1896,13 +1856,13 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
   have hcloseForP (ε : ℝ) (hε : 0 < ε)
       (P : Finset (Fin q)) : ∀ᶠ N : ℕ in atTop,
         ∀ M ∈ minus.powerset,
-          |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+          |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
     have h := (eventually_all_finset minus.powerset).2
       (fun M hM => hclose (P ∪ M) ε hε)
     exact h
   have hclosePairs (ε : ℝ) (hε : 0 < ε) : ∀ᶠ N : ℕ in atTop,
       ∀ P ∈ plus.powerset, ∀ M ∈ minus.powerset,
-        |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N (P ∪ M) - 1| ≤ ε := by
     have h := (eventually_all_finset plus.powerset).2
       (fun P hP => hcloseForP ε hε P)
     exact h
@@ -1918,11 +1878,11 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
       · intro h
         trivial
       · intro _
-        by_cases hn : opusP_occurrenceIsNonroot (T := T) Finset.univ o
+        by_cases hn : pkgB2_occurrenceIsNonroot (T := T) Finset.univ o
         · exact Or.inl (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
         · exact Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
     have hmain : ∀ U : Finset (Fin q),
-        |opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
+        |pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N U - 1| ≤ ε := by
       intro U
       let P := U ∩ plus
       let M := U ∩ minus
@@ -1948,11 +1908,11 @@ theorem opus_dpo_terminal_proof {K sl b : ℕ}
           · exact (Finset.mem_inter.mp hM).1
       rw [hU]
       exact hcloseN P hP M hM
-    have hexpand := opusP_terminalStateAverage_expansion MS B gap T J0 hgap hT hJ0
+    have hexpand := pkgB2_terminalStateAverage_expansion MS B gap T J0 hgap hT hJ0
       direction hdir k0 N I hNonroot
     rw [hexpand]
     have herr := pkgB2_signedMomentError_bound plus minus 1
-      (opusP_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N)
+      (pkgB2_stateMonomialAverage MS B gap T J0 hT Finset.univ direction N)
       ε (le_of_lt hε) hmain hminus
     simpa [C, plus, minus] using herr
   intro ε hε
@@ -3641,19 +3601,6 @@ theorem opus_dpo_s_branchProduct_insert {R J : Type*} [Fintype J]
       rw [Fin.prod_univ_two]
       rfl
 
-/-- Resolve an existing private helper by its original name. This emits its constant;
-the generated proof is checked by the kernel like any other use of a theorem. -/
-syntax (name := opus_dpo_s_privateTerm) "opus_dpo_s_private% " ident : term
-
-@[term_elab opus_dpo_s_privateTerm]
-def opus_dpo_s_elabPrivate : Lean.Elab.Term.TermElab := fun stx expectedType => do
-  let requested := stx[1].getId
-  let env ← Lean.getEnv
-  let found := env.constants.toList.find? fun entry =>
-    Lean.privateToUserName? entry.1 == some requested
-  match found with
-  | none => Lean.throwError "Private helper {requested} is unavailable"
-  | some entry => Lean.Elab.Term.elabTerm (Lean.mkIdent entry.1) expectedType
 theorem opus_dpo_s_intervalError_superPolynomial {q : ℕ}
     (V L : ℕ → ℕ) (hVtendsto : Tendsto (fun N => (V N : ℝ)) atTop atTop)
     (hVone : ∀ N, 1 ≤ V N)
@@ -4672,7 +4619,7 @@ theorem opus_dpo_s_check_rowValue
           direction E (pkgB2_occurrenceEnum T E u) a * x a := by
   classical
   unfold pkgB2_stateRowValue
-  rw [(opus_dpo_s_private% HindmanSumsProducts.Prediction.pkgB2_linearRowValue_eq_castInt)
+  rw [pkgB2_linearRowValue_eq_castInt
     MS T hT J0 gap direction E N p u (fun j => x (pkgB2_coordEnum T j))]
   simp only [Rat.num_intCast]
   exact Fintype.sum_equiv (pkgB2_coordEnum T) _ _ (fun _ => rfl)
@@ -5085,7 +5032,7 @@ theorem opus_dpo_s_check_primeMass_zero
     (hT : ∀ k, Allowed Dm (T k)) (N : ℕ) (p : Fin (b * sl) → ℕ)
     (hp : p ∉ opus_dpo_s_check_primeSupport MS gap N) :
     opus_dpo_s_check_primeMass MS gap T hT N p = 0 := by
-  have hraw := (opus_dpo_s_private% HindmanSumsProducts.Prediction.pkgB2_independentPrimePoolMass_zero_of_not_mem)
+  have hraw := pkgB2_independentPrimePoolMass_zero_of_not_mem
     (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
     (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper) p hp
   simp [opus_dpo_s_check_primeMass, hraw]

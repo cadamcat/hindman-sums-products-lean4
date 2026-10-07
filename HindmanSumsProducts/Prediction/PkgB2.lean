@@ -1386,10 +1386,10 @@ private theorem pkgB2_independentPrimePoolProbability_finite {m : ℕ}
           simp only [independentPrimePoolMass]
           rw [← hval]
 
-private def pkgB2_primeTupleSupport {m : ℕ} (lo hi : Fin m → ℕ) :
+def pkgB2_primeTupleSupport {m : ℕ} (lo hi : Fin m → ℕ) :
     Finset (Fin m → ℕ) := Fintype.piFinset (fun i => Finset.Ico (lo i) (hi i))
 
-private theorem pkgB2_independentPrimePoolMass_zero_of_not_mem {m : ℕ}
+theorem pkgB2_independentPrimePoolMass_zero_of_not_mem {m : ℕ}
     (lo hi : Fin m → ℕ) (p : Fin m → ℕ)
     (hp : p ∉ pkgB2_primeTupleSupport lo hi) :
     independentPrimePoolMass lo hi p = 0 := by
@@ -1422,7 +1422,7 @@ private noncomputable def pkgB2_blockTupleEquiv {b sl M : ℕ} :
 
 /-- Independent prime slots factor across disjoint replica blocks, even when each block has a
 different pool. -/
-private theorem pkgB2_independentPrimePoolProbability_blockFactor {b sl M : ℕ}
+theorem pkgB2_independentPrimePoolProbability_blockFactor {b sl M : ℕ}
     (lo hi : Fin (b * sl) → ℕ) (loBlock hiBlock : Fin b → ℕ)
     (hlo : ∀ k j, lo (pkgB2_replicaEmbedding k j) = loBlock k)
     (hhi : ∀ k j, hi (pkgB2_replicaEmbedding k j) = hiBlock k)
@@ -2219,7 +2219,7 @@ noncomputable instance pkgB2_coordFintype {b : ℕ} (T : Fin b → CubeTemplate)
 noncomputable instance pkgB2_occurrenceFintype {b : ℕ} (T : Fin b → CubeTemplate)
     (E : Finset (pkgB2_Nonroot T)) : Fintype (pkgB2_Occurrence T E) := Fintype.ofFinite _
 
-private noncomputable def pkgB2_directionConstantBound {b : ℕ}
+noncomputable def pkgB2_directionConstantBound {b : ℕ}
     (T : Fin b → CubeTemplate)
     (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) : ℕ := by
   classical
@@ -2665,7 +2665,7 @@ private theorem pkgB2_rowCoefficientArray_residue_eq_copyCoeff {K sl b : ℕ}
       (fun t s => (rhoInt t s : ZMod r)) (pkgB2_activeRow T) E o coord
   exact hcopy.symm
 
-private theorem pkgB2_linearRowValue_eq_castInt {K sl b : ℕ} {As : Finset ℚ}
+theorem pkgB2_linearRowValue_eq_castInt {K sl b : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k))
     (J0 : Fin b → ℕ) (gap : Fin b → Fin K)
@@ -6968,18 +6968,18 @@ noncomputable def pkgB2_stateAverage {K sl b : ℕ} {As : Finset ℚ}
         D.baseMass N p x * pkgB2_stateIntegrand MS B gap T hT J0 direction E N I p x
         else 0)
 
-private def pkgB2_occurrenceIsNonroot {b : ℕ} {T : Fin b → CubeTemplate}
+def pkgB2_occurrenceIsNonroot {b : ℕ} {T : Fin b → CubeTemplate}
     (E : Finset (pkgB2_Nonroot T))
     (o : Fin (Fintype.card (pkgB2_Occurrence T E))) : Prop :=
   match (pkgB2_occurrenceEnum T E o).1 with
   | .inl _ => False
   | .inr _ => True
 
-private noncomputable def pkgB2_nonrootOccurrenceSet {b : ℕ} {T : Fin b → CubeTemplate}
+noncomputable def pkgB2_nonrootOccurrenceSet {b : ℕ} {T : Fin b → CubeTemplate}
     (E : Finset (pkgB2_Nonroot T)) : Finset (Fin (Fintype.card (pkgB2_Occurrence T E))) :=
   Finset.univ.filter (pkgB2_occurrenceIsNonroot E)
 
-private noncomputable def pkgB2_rootOccurrenceSet {b : ℕ} {T : Fin b → CubeTemplate}
+noncomputable def pkgB2_rootOccurrenceSet {b : ℕ} {T : Fin b → CubeTemplate}
     (E : Finset (pkgB2_Nonroot T)) : Finset (Fin (Fintype.card (pkgB2_Occurrence T E))) :=
   Finset.univ.filter (fun o => ¬ pkgB2_occurrenceIsNonroot E o)
 
@@ -7073,7 +7073,7 @@ private theorem pkgB2_weightedGoodMonomial_tendsto_one {K sl b : ℕ}
   apply (tendsto_iff_norm_sub_tendsto_zero).2
   simpa [Real.norm_eq_abs, average, prob, D, good] using hratio
 
-private noncomputable def pkgB2_stateMonomialAverage {K sl b : ℕ} {As : Finset ℚ}
+noncomputable def pkgB2_stateMonomialAverage {K sl b : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
     (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
@@ -7095,7 +7095,7 @@ private noncomputable def pkgB2_stateMonomialAverage {K sl b : ℕ} {As : Finset
             (pkgB2_stateRowValue MS T hT J0 gap direction E N p u x)
         else 0)
 
-private theorem pkgB2_stateMonomialAverage_eq_wlf {K sl b : ℕ}
+theorem pkgB2_stateMonomialAverage_eq_wlf {K sl b : ℕ}
     {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
     (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
@@ -7458,7 +7458,7 @@ private theorem pkgB2_terminalStateInnerExpansion {K sl b : ℕ}
       intro M hM
       rw [← hmonomialSum P M]
 
-private theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
+theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
     {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
     (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
@@ -7646,7 +7646,7 @@ private theorem pkgB2_terminalStateAverage_expansion {K sl b : ℕ}
                     unfold pkgB2_stateMonomialAverage
                     dsimp [Good, Pgood, lo, hi, innerMonomial, pkgB2_goodPrimeEvent]
 
-private theorem pkgB2_rootOccurrenceSet_nonempty {b : ℕ} (T : Fin b → CubeTemplate) :
+theorem pkgB2_rootOccurrenceSet_nonempty {b : ℕ} (T : Fin b → CubeTemplate) :
     (pkgB2_rootOccurrenceSet (T := T) Finset.univ).Nonempty := by
   classical
   let rootO : pkgB2_Occurrence T Finset.univ := ⟨Sum.inl (), fun _ => 0⟩
