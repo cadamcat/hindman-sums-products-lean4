@@ -820,6 +820,20 @@ theorem prop_linear_forms_counterexample_when_base_error_negative
   norm_num at h
   nlinarith
 
+/-- A concrete instance of the counterexample, using the project's master-scale existence
+theorem for empty templates. -/
+theorem prop_linear_forms_counterexample_exists :
+    ∃ S : MasterScales 0 ∅ 0 ∅,
+      ∃ D : WeightedLinearFormsData (q := 0) (d := 0) (b := 0) S,
+        ¬ (∃ C : ℝ, 0 < C ∧ ∀ N (E : (Fin 0 → ℕ) → Prop),
+          (∀ p, E p → D.goodDomain N p) →
+          |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
+            C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ 0 *
+              (D.epsilonBase N + D.epsilonCRT N))) := by
+  obtain ⟨S⟩ := lem_master_scales 0 ∅ (by intro a ha; simp at ha) 0 ∅
+    (by intro P hP; simp at hP)
+  exact ⟨S, prop_linear_forms_counterexample_when_base_error_negative S⟩
+
 /-- With master-scale CRT accuracy and base residue errors smaller than every fixed inverse
 power of V, the linear-forms error tends to zero at each fixed row count. -/
 theorem weighted_linear_forms_error_tends_zero {n q d b m : ℕ}
