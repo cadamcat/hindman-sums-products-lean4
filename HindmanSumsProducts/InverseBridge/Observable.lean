@@ -206,6 +206,89 @@ private theorem evLinReal_lieBCH_of_translation_zero {L : Type*}
     _ = lieBCH s (evLinReal F m x) (evLinReal F m y) := by
           rw [← hEval X, ← hEval Y, hx', hy']
 
+private theorem rLin_lieBCH {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
+    (F : NilpotentLieFiltration L s) (hs : 0 < s) (x y : Lin F) :
+    rLin F (lieBCH (2 * s) x y) = rLin F x + rLin F y := by
+  calc
+    rLin F (lieBCH (2 * s) x y) = lieBCH (2 * s) (rLin F x) (rLin F y) := by
+      rw [map_lieBCH]
+    _ = rLin F x + rLin F y := by
+      rw [lieBCH_eq_add_of_isLieAbelian (by omega : 1 ≤ 2 * s)]
+
+private theorem rLin_group_mul {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
+    (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (g h : (weightFiltration F hs).Group) :
+    rLin F (g * h).coord = rLin F g.coord + rLin F h.coord := by
+  change rLin F (lieBCH (2 * s) g.coord h.coord) = _
+  exact rLin_lieBCH F hs g.coord h.coord
+
+private theorem rLin_group_inv {L : Type*} [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
+    (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (g : (weightFiltration F hs).Group) :
+    rLin F (g⁻¹).coord = -rLin F g.coord := by
+  change rLin F (-g.coord) = _
+  rw [map_neg]
+
+private noncomputable def linearizedShiftElement {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (k : ℤ) : (weightFiltration F hs).realification.Group :=
+  ⟨(k : ℝ) • realDhat F⟩
+
+private theorem exists_realification_lattice_factor {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (B : ℕ) (GammaHat : Subgroup (weightFiltration F hs).Group)
+    (hcoord : ∀ γ ∈ GammaHat, ∃ z : ℤ, rLin F γ.coord = (B * z : ℚ))
+    (hshift : ∀ z : ℤ,
+      (⟨(B * z : ℚ) • Dhat F⟩ : (weightFiltration F hs).Group) ∈ GammaHat)
+    {γ : (weightFiltration F hs).realification.Group}
+    (hγ : γ ∈ GammaHat.map (NilpotentLieBCHGroup.realificationHom
+      (hnil := (weightFiltration F hs).lowerCentralSeries_eq_bot))) :
+    ∃ k : ℤ, ∃ γ₀ : (weightFiltration F hs).realification.Group,
+      γ₀ ∈ GammaHat.map (NilpotentLieBCHGroup.realificationHom
+        (hnil := (weightFiltration F hs).lowerCentralSeries_eq_bot)) ∧
+      realTranslationCoordinate F γ₀.coord = 0 ∧
+      γ = γ₀ * linearizedShiftElement F hs k := by
+  classical
+  obtain ⟨g, hg, rfl⟩ := Subgroup.mem_map.mp hγ
+  obtain ⟨z, hz⟩ := hcoord g hg
+  let k : ℤ := B * z
+  let shift : (weightFiltration F hs).Group := ⟨(B * z : ℚ) • Dhat F⟩
+  have hshiftmem : shift ∈ GammaHat := by simpa [shift] using hshift z
+  let g₀ : (weightFiltration F hs).Group := g * shift⁻¹
+  have hg₀ : g₀ ∈ GammaHat := GammaHat.mul_mem hg (GammaHat.inv_mem hshiftmem)
+  have hshiftCoord : rLin F shift.coord = (B * z : ℚ) := by
+    simp [shift, rLin, Dhat]
+  have hg₀coord : rLin F g₀.coord = 0 := by
+    rw [rLin_group_mul, rLin_group_inv, hz, hshiftCoord]
+    simp [k]
+  let γ₀ := NilpotentLieBCHGroup.realificationHom g₀
+  have hγ₀mem : γ₀ ∈ GammaHat.map (NilpotentLieBCHGroup.realificationHom
+      (hnil := (weightFiltration F hs).lowerCentralSeries_eq_bot)) := by
+    exact Subgroup.mem_map.mpr ⟨g₀, hg₀, rfl⟩
+  have hγ₀coord : realTranslationCoordinate F γ₀.coord = 0 := by
+    simpa [γ₀, realTranslationCoordinate, rLinReal,
+      NilpotentLieBCHGroup.realificationHom_coord, hg₀coord]
+  let shiftR := linearizedShiftElement F hs k
+  have hshiftR : NilpotentLieBCHGroup.realificationHom shift = shiftR := by
+    apply NilpotentLieBCHGroup.ext
+    change (1 : ℝ) ⊗ₜ[ℚ] ((B * z : ℚ) • Dhat F) =
+      (k : ℝ) • ((1 : ℝ) ⊗ₜ[ℚ] Dhat F)
+    calc
+      _ = (B * z : ℚ) • ((1 : ℝ) ⊗ₜ[ℚ] Dhat F) :=
+        TensorProduct.tmul_smul (R := ℚ) (B * z : ℚ) (1 : ℝ) (Dhat F)
+      _ = ((B * z : ℚ) : ℝ) • ((1 : ℝ) ⊗ₜ[ℚ] Dhat F) := by
+        symm
+        simpa using (IsScalarTower.algebraMap_smul (R := ℚ) (A := ℝ)
+          (B * z : ℚ) ((1 : ℝ) ⊗ₜ[ℚ] Dhat F))
+      _ = (k : ℝ) • ((1 : ℝ) ⊗ₜ[ℚ] Dhat F) := by simp [k]
+  refine ⟨k, γ₀, hγ₀mem, hγ₀coord, ?_⟩
+  have hfactor : γ₀ * shiftR = NilpotentLieBCHGroup.realificationHom g := by
+    change NilpotentLieBCHGroup.realificationHom (g * shift⁻¹) * shiftR =
+      NilpotentLieBCHGroup.realificationHom g
+    rw [← hshiftR, map_mul, map_inv]
+    simp
+  exact hfactor.symm
+
 /-- Remove the translation coordinate by an integer evaluation shift, then
 evaluate the polynomial component in the original quotient. -/
 noncomputable def linearizedObservablePoint {L : Type*} [LieRing L] [LieAlgebra ℚ L]
