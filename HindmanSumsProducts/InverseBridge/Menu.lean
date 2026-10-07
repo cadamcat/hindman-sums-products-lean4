@@ -26,7 +26,7 @@ theorem exists_linearized_chart {d s : ℕ} {G : Type} [Group G] [TopologicalSpa
 
 /-- A finite collection of canonical linearized models forms one fixed charted menu.
 The construction includes the maximum of the observable Lipschitz constants (IB.b2). -/
-theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) :
+theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
     ∃ (M : Menu (2 * s)) (K : ℝ≥0)
       (data : Fin M.size → BaseData s),
       0 < M.size ∧ (∀ i, RealizableAt K₀ (data i)) ∧
@@ -34,30 +34,31 @@ theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) :
   sorry
 
 /-- A charted menu selected uniformly from the finite canonical list. -/
-noncomputable def bridgeMenu (s : ℕ) (K₀ : ℝ) : Menu (2 * s) :=
-  Classical.choose (exists_bridgeMenu s K₀)
+noncomputable def bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) : Menu (2 * s) :=
+  Classical.choose (exists_bridgeMenu s K₀ hK₀)
 
-noncomputable def bridgeMenuLip (s : ℕ) (K₀ : ℝ) : ℝ≥0 :=
-  Classical.choose (Classical.choose_spec (exists_bridgeMenu s K₀))
+noncomputable def bridgeMenuLip (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) : ℝ≥0 :=
+  Classical.choose (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀))
 
-noncomputable def bridgeMenuData (s : ℕ) (K₀ : ℝ) :
-    Fin (bridgeMenu s K₀).size → BaseData s :=
+noncomputable def bridgeMenuData (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
+    Fin (bridgeMenu s K₀ hK₀).size → BaseData s :=
   Classical.choose (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀)))
+    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))
 
-theorem bridgeMenu_size_pos (s : ℕ) (K₀ : ℝ) : 0 < (bridgeMenu s K₀).size :=
+theorem bridgeMenu_size_pos (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
+    0 < (bridgeMenu s K₀ hK₀).size :=
   (Classical.choose_spec (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀)))).1
+    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))).1
 
-theorem bridgeMenuData_realizable (s : ℕ) (K₀ : ℝ) (i : Fin (bridgeMenu s K₀).size) :
-    RealizableAt K₀ (bridgeMenuData s K₀ i) :=
+theorem bridgeMenuData_realizable (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀)
+    (i : Fin (bridgeMenu s K₀ hK₀).size) : RealizableAt K₀ (bridgeMenuData s K₀ hK₀ i) :=
   (Classical.choose_spec (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀)))).2.1 i
+    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))).2.1 i
 
-theorem bridgeMenuData_covers (s : ℕ) (K₀ : ℝ) (δ : BaseData s)
-    (hδ : RealizableAt K₀ δ) : ∃ i, bridgeMenuData s K₀ i = δ :=
+theorem bridgeMenuData_covers (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) (δ : BaseData s)
+    (hδ : RealizableAt K₀ δ) : ∃ i, bridgeMenuData s K₀ hK₀ i = δ :=
   (Classical.choose_spec (Classical.choose_spec
-    (Classical.choose_spec (exists_bridgeMenu s K₀)))).2.2 δ hδ
+    (Classical.choose_spec (exists_bridgeMenu s K₀ hK₀)))).2.2 δ hδ
 
 /-- Construct a menu piece from a point, translation, and bounded continuous observable. -/
 def ofObservable {M : Menu s} {K : ℝ≥0} (i : Fin M.size)
