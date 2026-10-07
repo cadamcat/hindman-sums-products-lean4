@@ -6324,6 +6324,161 @@ private theorem pkgB_dualMoment_fixedN_le_activeAverages {K sl : ℕ}
           (pkgB_momentWeightedLinearFormsAverage_eq_goodActiveShiftTerm
             MS B l hgap T hT J0 hJ0 b hb N A hMass hreg).symm
 
+theorem pkgB_dualMoment_bound_asymptotic {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (hT : Allowed Dm T)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hb : 0 < b) :
+    ∀ ε > 0, ∀ᶠ N : ℕ in atTop, ∀ I : DualInput MS B T N,
+      Emu MS.core.parameters N B.1 (fun y => (1 + nu MS.core.parameters N B y) *
+        |dualTest MS B T l J0 N I y| ^ b) ≤
+        (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) + ε := by
+  classical
+  intro ε hε
+  let Pow : Finset (Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    (Finset.univ : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset
+  let GoodFull (N : ℕ) (p : Fin sl → ℕ) :=
+    T.Good (corrScales MS) l N (fun j => p (momentMasterEmbedding hT j))
+  let Pseq (N : ℕ) := gapSlotProbability (corrScales MS) l N
+    (T.Good (corrScales MS) l N)
+  let D (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b A
+  let C (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    Classical.choose (prop_linear_forms (D A))
+  let err (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) (N : ℕ) :=
+    1 / (N + 1 : ℝ) + ((D A).V N : ℝ) ^
+      Fintype.card (MomentRowIndex b T.d) *
+      ((D A).epsilonBase N + (D A).epsilonCRT N)
+  let mReal : ℝ := Pow.card
+  let δ : ℝ := ε / (2 * mReal + 1)
+  have hPowCardPos : 0 < Pow.card := by
+    apply Finset.card_pos.mpr
+    exact ⟨∅, by simp [Pow]⟩
+  have hmRealPos : 0 < mReal := by
+    dsimp [mReal]
+    exact_mod_cast hPowCardPos
+  have hδ : 0 < δ := by
+    dsimp [δ]
+    positivity
+  have hC (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      0 < C A ∧ ∀ N E,
+        (∀ p, E p → (D A).goodDomain N p) →
+        |weightedLinearFormsAverage (D A) N E -
+          weightedLinearFormsEventProbability (D A) N E| ≤ C A * err A N := by
+    simpa [C, err] using Classical.choose_spec (prop_linear_forms (D A))
+  have hErr (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      Tendsto (fun N : ℕ => err A N) atTop (𝓝 0) := by
+    simpa [err] using weighted_linear_forms_error_tends_zero (D A)
+  have hCerr (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      Tendsto (fun N : ℕ => C A * err A N) atTop (𝓝 0) := by
+    simpa using (tendsto_const_nhds.mul (hErr A))
+  have hSmall (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      ∀ᶠ N : ℕ in atTop, C A * err A N < δ := by
+    exact (hCerr A).eventually (Iio_mem_nhds hδ)
+  have hSmallAll : ∀ᶠ N : ℕ in atTop,
+      ∀ A ∈ Pow, C A * err A N < δ := by
+    exact (eventually_all_finset Pow).2 (fun A hA => hSmall A)
+  have hPone : Tendsto Pseq atTop (𝓝 1) :=
+    good_probability_tendsto_one MS T hT l
+  have hPbig : ∀ᶠ N : ℕ in atTop, (1 / 2 : ℝ) < Pseq N := by
+    exact hPone.eventually (Ioi_mem_nhds (by norm_num))
+  have hMassPos := pkgB_primePoolMass_pos_eventually MS l
+  have hregular := pkgB_momentBaseRegular_goodTemplate_eventually
+    MS B l hgap T J0 hJ0 b hT
+  have hPowCard : Pow.card = 2 ^ Fintype.card (MomentRowIndex b T.d) := by
+    simp [Pow]
+  have hCount : mReal = (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) := by
+    dsimp [mReal]
+    rw [hPowCard, pkgB_momentRowIndex_card]
+    norm_cast
+  have hTotalErr : 2 * mReal * δ < ε := by
+    have hden : 0 < 2 * mReal + 1 := by positivity
+    dsimp [δ]
+    calc
+      2 * mReal * (ε / (2 * mReal + 1)) =
+          ε * (2 * mReal / (2 * mReal + 1)) := by ring
+      _ < ε * 1 := by
+        apply mul_lt_mul_of_pos_left _ hε
+        apply (div_lt_iff₀ hden).2
+        nlinarith
+      _ = ε := by ring
+  filter_upwards [hPbig, hMassPos, hregular, hSmallAll]
+    with N hPbig hMassN hregularN hsmallN
+  intro I
+  let P := Pseq N
+  have hPpos : 0 < P := by dsimp [P]; linarith
+  have hPInv2 : P⁻¹ ≤ 2 := by
+    calc
+      P⁻¹ = 1 / P := by simp
+      _ ≤ 2 := (div_le_iff₀ hPpos).2 (by linarith)
+  have hdom (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+      (p : Fin sl → ℕ) (hp : GoodFull N p) : (D A).goodDomain N p := by
+    dsimp [D, pkgB_momentWeightedLinearFormsData]
+    refine ⟨?_, ?_⟩
+    · intro k
+      exact hp
+    · have hbase := hregularN (fun j => p (momentMasterEmbedding hT j)) hp
+      rw [pkgB_momentPrimeDiagonal_eq_repeat hT p]
+      exact hbase
+  have hWLFle (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      weightedLinearFormsAverage (D A) N (GoodFull N) ≤
+        P + C A * err A N := by
+    have hbound := (hC A).2 N (GoodFull N) (fun p hp => hdom A p hp)
+    let lo0 := (MS.primeStage.pool N l).lower
+    let hi0 := (MS.primeStage.pool N l).upper
+    have hpool : (corrScales MS).primeStage.pool N l = MS.primeStage.pool N l := rfl
+    have hprob : weightedLinearFormsEventProbability (D A) N (GoodFull N) = P := by
+      have hMarg := pkgB_independentPrimePoolProbability_embedding
+        (momentMasterEmbedding hT) lo0 hi0 hMassN
+        (T.Good (corrScales MS) l N)
+      simpa [weightedLinearFormsEventProbability, D,
+        pkgB_momentWeightedLinearFormsData, GoodFull, P, Pseq,
+        gapSlotProbability, lo0, hi0, hpool] using hMarg
+    rw [hprob] at hbound
+    have habs :
+        |weightedLinearFormsAverage (D A) N (GoodFull N) - P| ≤ C A * err A N := by
+      simpa [err] using hbound
+    have hup := (abs_le.mp habs).2
+    linarith
+  have hSumErr :
+      (∑ A ∈ Pow, C A * err A N) ≤ mReal * δ := by
+    calc
+      _ ≤ ∑ A ∈ Pow, δ := by
+        apply Finset.sum_le_sum
+        intro A hA
+        exact le_of_lt (hsmallN A hA)
+      _ = mReal * δ := by
+        simp [mReal, Finset.sum_const, nsmul_eq_mul]
+  have hSumWLF :
+      (∑ A ∈ Pow, weightedLinearFormsAverage (D A) N (GoodFull N)) ≤
+        mReal * P + (∑ A ∈ Pow, C A * err A N) := by
+    calc
+      _ ≤ ∑ A ∈ Pow, (P + C A * err A N) := by
+        apply Finset.sum_le_sum
+        intro A hA
+        exact hWLFle A
+      _ = mReal * P + (∑ A ∈ Pow, C A * err A N) := by
+        simp [mReal, Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]
+  have hSumWLF' :
+      (∑ A ∈ Pow, weightedLinearFormsAverage (D A) N (GoodFull N)) ≤
+        mReal * P + mReal * δ := by
+    linarith [hSumWLF, hSumErr]
+  have hfixed := pkgB_dualMoment_fixedN_le_activeAverages
+    MS B l hgap T hT J0 hJ0 b hb N hMassN hPpos hregularN I
+  calc
+    _ ≤ P⁻¹ * ∑ A ∈ Pow, weightedLinearFormsAverage (D A) N (GoodFull N) := hfixed
+    _ ≤ P⁻¹ * (mReal * P + mReal * δ) :=
+      mul_le_mul_of_nonneg_left hSumWLF' (inv_nonneg.mpr hPpos.le)
+    _ = mReal + P⁻¹ * (mReal * δ) := by
+      field_simp [ne_of_gt hPpos]
+    _ ≤ mReal + 2 * (mReal * δ) := by
+      have hterm := mul_le_mul_of_nonneg_right hPInv2
+        (mul_nonneg hmRealPos.le hδ.le)
+      linarith
+    _ ≤ (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) + ε := by
+      rw [hCount]
+      nlinarith [hTotalErr]
+
 end Prediction
 
 end HindmanSumsProducts
