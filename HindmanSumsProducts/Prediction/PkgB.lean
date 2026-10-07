@@ -3741,6 +3741,56 @@ private theorem pkgB_finiteL1_pushforward_le {α β : Type*} [Fintype α] [Finty
           by_cases h : f a = b <;> simp [h, abs_mul]
         _ = |μ a - ν a| := by simp
 
+private noncomputable def momentPrimePoolSupport (lo hi : ℕ) : Finset ℕ :=
+  (Finset.Ico lo hi).filter Nat.Prime
+
+private theorem momentPrimePoolLaw_zero_of_not_mem (lo hi p : ℕ)
+    (hp : p ∉ momentPrimePoolSupport lo hi) : primePoolLaw lo hi p = 0 := by
+  have hcond : ¬(lo ≤ p ∧ p < hi ∧ p.Prime) := by
+    intro h
+    exact hp (Finset.mem_filter.mpr ⟨Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩, h.2.2⟩)
+  simp [primePoolLaw, hcond]
+
+private theorem momentPrimePoolResidueLaw_eq_sum {lo hi Q : ℕ} (a : Fin Q) :
+    primePoolResidueLaw lo hi Q a =
+      ∑ p ∈ momentPrimePoolSupport lo hi,
+        primePoolLaw lo hi p * if p % Q = a.val then (1 : ℝ) else 0 := by
+  classical
+  unfold primePoolResidueLaw
+  rw [Finset.sum_div]
+  apply Finset.sum_congr rfl
+  intro p hp
+  have hpIco : p ∈ Finset.Ico lo hi := (Finset.mem_filter.mp hp).1
+  have hcond : lo ≤ p ∧ p < hi ∧ p.Prime :=
+    ⟨(Finset.mem_Ico.mp hpIco).1, (Finset.mem_Ico.mp hpIco).2,
+      (Finset.mem_filter.mp hp).2⟩
+  by_cases hres : p % Q = a.val <;> simp [primePoolLaw, hcond, hres]
+
+private theorem momentCRTProjection_integerCRTResidues {w e V : ℕ} (n : ℕ) :
+    integerCRTResidues w V n =
+      momentCRTProjection w V (masterCRTModulus w e V)
+        ⟨n % masterCRTModulus w e V, Nat.mod_lt _ (by
+          have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+            Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+          rw [masterCRTModulus]
+          exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod)⟩ := by
+  classical
+  let Q := masterCRTModulus w e V
+  have hQ : 0 < Q := by
+    have hprod : 0 < ∏ p ∈ (Finset.Ioc w (V + 1)).filter Nat.Prime, p :=
+      Finset.prod_pos fun p hp => (Finset.mem_filter.mp hp).2.pos
+    change 0 < masterCRTModulus w e V
+    rw [masterCRTModulus]
+    exact Nat.mul_pos (pow_pos (primorial_pos w) e) hprod
+  letI : NeZero Q := ⟨Nat.ne_of_gt hQ⟩
+  funext p
+  apply Fin.ext
+  have hpPrime : p.val.Prime := (Finset.mem_filter.mp p.property).2
+  have hpQ : p.val ∣ Q := Nat.dvd_trans
+    (Finset.dvd_prod_of_mem _ (Finset.mem_univ p))
+    (momentCRTPrimeProduct_dvd_master w e V)
+  simp [integerCRTResidues, momentCRTProjection, Q, Nat.mod_mod_of_dvd n hpQ]
+
 end Prediction
 
 end HindmanSumsProducts
