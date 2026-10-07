@@ -256,11 +256,43 @@ noncomputable def c_elim2_shiftCoordAssignmentSplitEquiv {α : Type u}
     (c_elim2_ShiftCoord E → Fin L) ≃
       (c_elim2_ShiftCoordExcept E R → Fin L) × Fin L := by
   classical
-  let eCoord := c_elim2_shiftCoord_split_equiv E R
-  exact (Equiv.arrowCongr eCoord (Equiv.refl (Fin L))).trans
-    ((Equiv.sumArrowEquivProdArrow (c_elim2_ShiftCoordExcept E R) PUnit.{u + 1} (Fin L)).trans
-      (Equiv.prodCongr (Equiv.refl (c_elim2_ShiftCoordExcept E R → Fin L))
-        (Equiv.punitArrowEquiv (Fin L))) )
+  let point : c_elim2_ShiftCoord E := ⟨(R, 0), Or.inl rfl⟩
+  let f : (c_elim2_ShiftCoord E → Fin L) →
+      (c_elim2_ShiftCoordExcept E R → Fin L) × Fin L :=
+    fun u => (fun c => u c.val, u point)
+  let g : (c_elim2_ShiftCoordExcept E R → Fin L) × Fin L →
+      c_elim2_ShiftCoord E → Fin L := fun p c =>
+    if h : c.val = (R, 0) then p.2 else p.1 ⟨c, h⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro u
+    funext c
+    by_cases h : c.val = (R, 0)
+    · have hc : c = point := Subtype.ext h
+      subst c
+      simp [f, g, point]
+    · simp [f, g, h]
+  · intro p
+    apply Prod.ext
+    · funext c
+      simp [f, g, c.property]
+    · simp [f, g, point]
+
+@[simp] theorem c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except
+    {α : Type u} [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (L : ℕ)
+    (o : c_elim2_ShiftCoordExcept E R → Fin L) (t : Fin L)
+    (c : c_elim2_ShiftCoordExcept E R) :
+    (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t) c.val = o c := by
+  change (if h : c.val.val = (R, 0) then t else o ⟨c.val, h⟩) = o c
+  simp [c.property]
+
+@[simp] theorem c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_point
+    {α : Type u} [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (L : ℕ)
+    (o : c_elim2_ShiftCoordExcept E R → Fin L) (t : Fin L) :
+    (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t)
+      ⟨(R, 0), Or.inl rfl⟩ = t := by
+  change (if h : (R, 0) = (R, 0) then t else
+    o ⟨⟨(R, 0), Or.inl rfl⟩, h⟩) = t
+  simp
 
 theorem c_elim2_shiftStateAverage_split {α : Type u} [Fintype α]
     [DecidableEq α] (E : Finset α) (R : α) (L : ℕ)
@@ -350,6 +382,51 @@ noncomputable def c_elim2_shiftStateInsertEquiv {α : Type u} [Fintype α]
     ((Equiv.sumArrowEquivProdArrow (c_elim2_ShiftCoord E) PUnit.{u + 1} (Fin L)).trans
       (Equiv.prodCongr (Equiv.refl (c_elim2_ShiftCoord E → Fin L))
         (Equiv.punitArrowEquiv (Fin L))) )
+
+def c_elim2_shiftCoordInsertOld {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) (c : c_elim2_ShiftCoord E) :
+    c_elim2_ShiftCoord (insert R E) :=
+  ⟨c.val, Or.elim c.property Or.inl (fun hc => Or.inr (Finset.mem_insert_of_mem hc))⟩
+
+def c_elim2_shiftCoordInsertExtra {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) :
+    c_elim2_ShiftCoord (insert R E) :=
+  ⟨(R, 1), Or.inr (Finset.mem_insert_self R E)⟩
+
+@[simp] theorem c_elim2_shiftStateInsertEquiv_symm_apply_old {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ)
+    (u : c_elim2_ShiftCoord E → Fin L) (t : Fin L) (c : c_elim2_ShiftCoord E) :
+    (c_elim2_shiftStateInsertEquiv E R hR L).symm (u, t)
+      (c_elim2_shiftCoordInsertOld E R c) = u c := by
+  let e := c_elim2_shiftCoord_insert_equiv E R hR
+  have hInv : e.symm (Sum.inl c) = c_elim2_shiftCoordInsertOld E R c := by
+    apply Subtype.ext
+    rfl
+  have hc : e (c_elim2_shiftCoordInsertOld E R c) = Sum.inl c := by
+    rw [← hInv]
+    exact e.apply_symm_apply (Sum.inl c)
+  change ((Equiv.sumArrowEquivProdArrow (c_elim2_ShiftCoord E)
+      PUnit.{u + 1} (Fin L)).symm (u, (Equiv.punitArrowEquiv (Fin L)).symm t))
+      (e (c_elim2_shiftCoordInsertOld E R c)) = u c
+  rw [hc, Equiv.sumArrowEquivProdArrow_symm_apply_inl]
+
+@[simp] theorem c_elim2_shiftStateInsertEquiv_symm_apply_extra {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ)
+    (u : c_elim2_ShiftCoord E → Fin L) (t : Fin L) :
+    (c_elim2_shiftStateInsertEquiv E R hR L).symm (u, t)
+      (c_elim2_shiftCoordInsertExtra E R) = t := by
+  let e := c_elim2_shiftCoord_insert_equiv E R hR
+  have hInv : e.symm (Sum.inr PUnit.unit) = c_elim2_shiftCoordInsertExtra E R := by
+    apply Subtype.ext
+    rfl
+  have hc : e (c_elim2_shiftCoordInsertExtra E R) = Sum.inr PUnit.unit := by
+    rw [← hInv]
+    exact e.apply_symm_apply (Sum.inr PUnit.unit)
+  change ((Equiv.sumArrowEquivProdArrow (c_elim2_ShiftCoord E)
+      PUnit.{u + 1} (Fin L)).symm (u, (Equiv.punitArrowEquiv (Fin L)).symm t))
+      (e (c_elim2_shiftCoordInsertExtra E R)) = t
+  rw [hc, Equiv.sumArrowEquivProdArrow_symm_apply_inr]
+  simp [Equiv.punitArrowEquiv]
 
 theorem c_elim2_shiftStateAverage_insert {α : Type*} [Fintype α]
     [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ)
@@ -820,11 +897,49 @@ noncomputable def c_elim2_boxBranchInsertEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) :
     c_elim2_BoxBranch (insert R E) ≃ c_elim2_BoxBranch E × Fin 2 := by
   classical
-  let e := c_elim2_finsetSubtypeInsertEquiv E R hR
-  exact (Equiv.arrowCongr e (Equiv.refl (Fin 2))).trans
-    ((Equiv.sumArrowEquivProdArrow {i : α // i ∈ E} PUnit.{u + 1} (Fin 2)).trans
-      (Equiv.prodCongr (Equiv.refl (c_elim2_BoxBranch E))
-        (Equiv.punitArrowEquiv (Fin 2))) )
+  let f : c_elim2_BoxBranch (insert R E) → c_elim2_BoxBranch E × Fin 2 :=
+    fun ω => (fun i => ω ⟨i.val, Finset.mem_insert_of_mem i.property⟩,
+      ω ⟨R, Finset.mem_insert_self R E⟩)
+  let g : c_elim2_BoxBranch E × Fin 2 → c_elim2_BoxBranch (insert R E) :=
+    fun p i => if hi : i.val = R then p.2 else
+      p.1 ⟨i.val, (Finset.mem_insert.mp i.property).resolve_left hi⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro ω
+    funext i
+    by_cases hi : i.val = R
+    · change (if h : i.val = R then ω ⟨R, Finset.mem_insert_self R E⟩ else
+          ω ⟨i.val, Finset.mem_insert_of_mem
+            ((Finset.mem_insert.mp i.property).resolve_left h)⟩) = ω i
+      rw [dif_pos hi]
+      have hEq : (⟨R, Finset.mem_insert_self R E⟩ : {i : α // i ∈ insert R E}) = i :=
+        Subtype.ext hi.symm
+      exact congrArg ω hEq
+    · change (if h : i.val = R then ω ⟨R, Finset.mem_insert_self R E⟩ else
+          ω ⟨i.val, Finset.mem_insert_of_mem
+            ((Finset.mem_insert.mp i.property).resolve_left h)⟩) = ω i
+      rw [dif_neg hi]
+  · intro p
+    apply Prod.ext
+    · funext i
+      have hi : i.val ≠ R := by
+        intro heq
+        exact hR (heq ▸ i.property)
+      simp [f, g, hi]
+    · simp [f, g]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_old {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch (insert R E)) (i : {i : α // i ∈ E}) :
+    (c_elim2_boxBranchInsertEquiv E R hR ω).1 i =
+      ω ⟨i.val, Finset.mem_insert_of_mem i.property⟩ := by
+  rfl
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_new {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch (insert R E)) :
+    (c_elim2_boxBranchInsertEquiv E R hR ω).2 =
+      ω ⟨R, Finset.mem_insert_self R E⟩ := by
+  rfl
 
 noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
     [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
@@ -847,21 +962,6 @@ noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
   exact (Equiv.arrowCongr eDom (Equiv.refl (Fin 2))).trans
     (c_elim2_boxBranchInsertEquiv (E.erase I) R hR')
 
-@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_old {α : Type u} [Fintype α]
-    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
-    (ω : c_elim2_BoxBranch (insert R E)) (i : {i : α // i ∈ E}) :
-    (c_elim2_boxBranchInsertEquiv E R hR ω).1 i =
-      ω ⟨i.val, Finset.mem_insert_of_mem i.property⟩ := by
-  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv]
-
-@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_new {α : Type u} [Fintype α]
-    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
-    (ω : c_elim2_BoxBranch (insert R E)) :
-    (c_elim2_boxBranchInsertEquiv E R hR ω).2 =
-      ω ⟨R, Finset.mem_insert_self R E⟩ := by
-  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
-    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
-
 @[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_old {α : Type u}
     [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
     (ω : c_elim2_BoxBranch E) (b : Fin 2) (i : {i : α // i ∈ E}) :
@@ -870,16 +970,229 @@ noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
   have hne : i.val ≠ R := by
     intro heq
     exact hR (heq ▸ i.property)
-  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
-    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv, hne]
+  let e := c_elim2_boxBranchInsertEquiv E R hR
+  have hproj := c_elim2_boxBranchInsertEquiv_apply_old E R hR (e.symm (ω, b)) i
+  have hEq := congrArg (fun p : c_elim2_BoxBranch E × Fin 2 => p.1 i)
+    (e.apply_symm_apply (ω, b))
+  calc
+    e.symm (ω, b) ⟨i.val, Finset.mem_insert_of_mem i.property⟩ =
+        (e (e.symm (ω, b))).1 i := hproj.symm
+    _ = ω i := hEq
 
 @[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_new {α : Type u}
     [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
     (ω : c_elim2_BoxBranch E) (b : Fin 2) :
-    ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))
+  ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))
         ⟨R, Finset.mem_insert_self R E⟩ = b := by
-  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
-    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
+  let e := c_elim2_boxBranchInsertEquiv E R hR
+  have hproj := c_elim2_boxBranchInsertEquiv_apply_new E R hR (e.symm (ω, b))
+  have hEq := congrArg Prod.snd (e.apply_symm_apply (ω, b))
+  calc
+    e.symm (ω, b) ⟨R, Finset.mem_insert_self R E⟩ =
+        (e (e.symm (ω, b))).2 := hproj.symm
+    _ = b := hEq
+
+
+noncomputable def c_elim2_boxEndpointAssignment {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ)
+    (o : c_elim2_ShiftOutside E R L) (t₀ t₁ : Fin L) :
+    c_elim2_ShiftCoord (insert R E) → Fin L :=
+  (c_elim2_shiftStateInsertEquiv E R hR L).symm
+    ((c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₀), t₁)
+
+noncomputable def c_elim2_boxOldEndpointAssignment {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (L : ℕ)
+    (o : c_elim2_ShiftOutside E R L) (t : Fin L) :
+    c_elim2_ShiftCoord E → Fin L :=
+  (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t)
+
+@[simp] theorem c_elim2_boxEndpointAssignment_old_eval {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (L : ℕ) (o : c_elim2_ShiftOutside E R L) (t₀ t₁ : Fin L)
+    (c : c_elim2_ShiftCoord E) :
+    c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+      (c_elim2_shiftCoordInsertOld E R c) =
+    c_elim2_boxOldEndpointAssignment E R L o t₀ c := by
+  simp only [c_elim2_boxEndpointAssignment,
+    c_elim2_shiftStateInsertEquiv_symm_apply_old,
+    c_elim2_boxOldEndpointAssignment]
+
+@[simp] theorem c_elim2_boxEndpointAssignment_extra_eval {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (L : ℕ) (o : c_elim2_ShiftOutside E R L) (t₀ t₁ : Fin L) :
+    c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+      (c_elim2_shiftCoordInsertExtra E R) = t₁ := by
+  simp only [c_elim2_boxEndpointAssignment,
+    c_elim2_shiftStateInsertEquiv_symm_apply_extra]
+
+def c_elim2_boxEndpointChoice {L : ℕ} (t₀ t₁ : Fin L) (b : Fin 2) : Fin L :=
+  if b.val = 0 then t₀ else t₁
+
+theorem c_elim2_boxShiftValue_endpoint {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ)
+    (o : c_elim2_ShiftOutside E R L) (t₀ t₁ : Fin L)
+    (ω : c_elim2_BoxBranch E) (b : Fin 2) (i : α) :
+    c_elim2_boxShiftValue (insert R E)
+      (c_elim2_boxEndpointAssignment E R hR L o t₀ t₁)
+      (c_elim2_boxBranchFull (insert R E)
+        ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))) i =
+    c_elim2_boxShiftValue E
+      (c_elim2_boxOldEndpointAssignment E R L o
+        (c_elim2_boxEndpointChoice t₀ t₁ b))
+      (c_elim2_boxBranchFull E ω) i := by
+  classical
+  have hbranchOld (j : α) (hj : j ∈ E) :
+      c_elim2_boxBranchFull (insert R E)
+          ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) j =
+        c_elim2_boxBranchFull E ω j := by
+    simpa [c_elim2_boxBranchFull, hj] using
+      c_elim2_boxBranchInsertEquiv_symm_apply_old E R hR ω b ⟨j, hj⟩
+  have hbranchNew :
+      c_elim2_boxBranchFull (insert R E)
+          ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R = b := by
+    simpa [c_elim2_boxBranchFull] using
+      c_elim2_boxBranchInsertEquiv_symm_apply_new E R hR ω b
+  by_cases hiE : i ∈ E
+  · have hiR : i ≠ R := by
+      intro heq
+      subst i
+      exact hR hiE
+    let c : c_elim2_ShiftCoord E :=
+      ⟨(i, c_elim2_boxBranchFull E ω i), Or.inr hiE⟩
+    have hc : c.val ≠ (R, 0) := by
+      intro heq
+      exact hiR (congrArg Prod.fst heq)
+    have hsame (t : Fin L) :
+        c_elim2_boxOldEndpointAssignment E R L o t c =
+          o ⟨c, hc⟩ := by
+      change (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t) c = _
+      exact c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except
+        E R L o t ⟨c, hc⟩
+    have hcoord :
+        (⟨(i, c_elim2_boxBranchFull (insert R E)
+            ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) i),
+          Or.inr (Finset.mem_insert_of_mem hiE)⟩ :
+          c_elim2_ShiftCoord (insert R E)) =
+        c_elim2_shiftCoordInsertOld E R c := by
+      apply Subtype.ext
+      apply Prod.ext
+      · rfl
+      · exact hbranchOld i hiE
+    unfold c_elim2_boxShiftValue
+    simp only [dif_pos (Finset.mem_insert_of_mem hiE), dif_pos hiE]
+    exact congrArg Fin.val <| calc
+      c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+          ⟨(i, c_elim2_boxBranchFull (insert R E)
+            ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) i),
+            Or.inr (Finset.mem_insert_of_mem hiE)⟩ =
+        c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+          (c_elim2_shiftCoordInsertOld E R c) :=
+            congrArg (c_elim2_boxEndpointAssignment E R hR L o t₀ t₁) hcoord
+      _ = c_elim2_boxOldEndpointAssignment E R L o t₀ c :=
+            c_elim2_boxEndpointAssignment_old_eval E R hR L o t₀ t₁ c
+      _ = c_elim2_boxOldEndpointAssignment E R L o
+            (c_elim2_boxEndpointChoice t₀ t₁ b) c := by
+              rw [hsame t₀, hsame (c_elim2_boxEndpointChoice t₀ t₁ b)]
+  · by_cases hiR : i = R
+    · subst i
+      have hmemNew : R ∈ insert R E := Finset.mem_insert_self R E
+      let c : c_elim2_ShiftCoord E := ⟨(R, 0), Or.inl rfl⟩
+      by_cases hb : b.val = 0
+      · have hbFin : b = 0 := Fin.ext hb
+        have hcoord :
+            (⟨(R, c_elim2_boxBranchFull (insert R E)
+              ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R),
+              Or.inr (Finset.mem_insert_self R E)⟩ :
+              c_elim2_ShiftCoord (insert R E)) =
+              c_elim2_shiftCoordInsertOld E R c := by
+          apply Subtype.ext
+          apply Prod.ext
+          · rfl
+          · calc
+              c_elim2_boxBranchFull (insert R E)
+                  ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R = b := hbranchNew
+              _ = 0 := hbFin
+        unfold c_elim2_boxShiftValue
+        simp only [dif_pos hmemNew, dif_neg hiE]
+        exact congrArg Fin.val <| calc
+          c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+              ⟨(R, c_elim2_boxBranchFull (insert R E)
+                ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R),
+                Or.inr hmemNew⟩ =
+            c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+              (c_elim2_shiftCoordInsertOld E R c) :=
+                congrArg (c_elim2_boxEndpointAssignment E R hR L o t₀ t₁) hcoord
+          _ = c_elim2_boxOldEndpointAssignment E R L o t₀ c :=
+                c_elim2_boxEndpointAssignment_old_eval E R hR L o t₀ t₁ c
+          _ = c_elim2_boxOldEndpointAssignment E R L o
+                (c_elim2_boxEndpointChoice t₀ t₁ b) c := by
+                  simp [c_elim2_boxOldEndpointAssignment, c_elim2_boxEndpointChoice,
+                    c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_point, hbFin]
+      · have hbval : b.val = 1 := by omega
+        have hbFin : b = 1 := Fin.ext hbval
+        have hcoord :
+            (⟨(R, c_elim2_boxBranchFull (insert R E)
+              ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R),
+              Or.inr (Finset.mem_insert_self R E)⟩ :
+              c_elim2_ShiftCoord (insert R E)) =
+              c_elim2_shiftCoordInsertExtra E R := by
+          apply Subtype.ext
+          apply Prod.ext
+          · rfl
+          · calc
+              c_elim2_boxBranchFull (insert R E)
+                  ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R = b := hbranchNew
+              _ = 1 := hbFin
+        unfold c_elim2_boxShiftValue
+        simp only [dif_pos hmemNew, dif_neg hiE]
+        exact congrArg Fin.val <| calc
+          c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+              ⟨(R, c_elim2_boxBranchFull (insert R E)
+                ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b)) R),
+                Or.inr hmemNew⟩ =
+            c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+              (c_elim2_shiftCoordInsertExtra E R) :=
+                congrArg (c_elim2_boxEndpointAssignment E R hR L o t₀ t₁) hcoord
+          _ = t₁ := c_elim2_boxEndpointAssignment_extra_eval E R hR L o t₀ t₁
+          _ = c_elim2_boxOldEndpointAssignment E R L o
+                (c_elim2_boxEndpointChoice t₀ t₁ b) c := by
+                  rw [hbFin]
+                  change t₁ =
+                    (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t₁)
+                      ⟨(R, 0), Or.inl rfl⟩
+                  exact (c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_point
+                    E R L o t₁).symm
+    · let c : c_elim2_ShiftCoord E := ⟨(i, 0), Or.inl rfl⟩
+      have hc : c.val ≠ (R, 0) := by
+        intro heq
+        exact hiR (congrArg Prod.fst heq)
+      have hiInsert : i ∉ insert R E := by
+        simpa [Finset.mem_insert, hiR] using hiE
+      have hcoord :
+          (⟨(i, 0), Or.inl rfl⟩ : c_elim2_ShiftCoord (insert R E)) =
+            c_elim2_shiftCoordInsertOld E R c := by
+        apply Subtype.ext
+        rfl
+      have hsame (t : Fin L) :
+          c_elim2_boxOldEndpointAssignment E R L o t c =
+            o ⟨c, hc⟩ := by
+        change (c_elim2_shiftCoordAssignmentSplitEquiv E R L).symm (o, t) c = _
+        exact c_elim2_shiftCoordAssignmentSplitEquiv_symm_apply_except
+          E R L o t ⟨c, hc⟩
+      unfold c_elim2_boxShiftValue
+      simp only [dif_neg hiInsert, dif_neg hiE]
+      exact congrArg Fin.val <| calc
+        c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+            ⟨(i, 0), Or.inl rfl⟩ =
+          c_elim2_boxEndpointAssignment E R hR L o t₀ t₁
+            (c_elim2_shiftCoordInsertOld E R c) :=
+              congrArg (c_elim2_boxEndpointAssignment E R hR L o t₀ t₁) hcoord
+        _ = c_elim2_boxOldEndpointAssignment E R L o t₀ c :=
+              c_elim2_boxEndpointAssignment_old_eval E R hR L o t₀ t₁ c
+        _ = o ⟨c, hc⟩ := hsame t₀
+        _ = c_elim2_boxOldEndpointAssignment E R L o
+              (c_elim2_boxEndpointChoice t₀ t₁ b) c :=
+                (hsame (c_elim2_boxEndpointChoice t₀ t₁ b)).symm
 
 theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
     (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
