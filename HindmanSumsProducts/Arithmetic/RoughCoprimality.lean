@@ -21,147 +21,17 @@ noncomputable def roughSmallestEndpoint {kF kG : ℕ}
     (roughEndpointSet YF YG).min' h
   else 1
 
-private def constantTwo : IntegerPolynomial 0 := MvPolynomial.C 2
+private lemma primePoolMass_nonneg (lo hi : ℕ) : 0 ≤ primePoolMass lo hi := by
+  unfold primePoolMass
+  apply Finset.sum_nonneg
+  intro p hp
+  exact one_div_nonneg.mpr (Nat.cast_nonneg p)
 
-private lemma constantTwo_ne_zero : constantTwo ≠ 0 := by
-  norm_num [constantTwo]
-
-private lemma constantTwo_eval (x : Fin 0 → ℤ) :
-    evalIntegerPolynomial constantTwo x = 2 := by
-  simp [constantTwo, evalIntegerPolynomial]
-
-private lemma emptyTuple_pair_probability_true :
-    independentPrimePairProbability
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      (fun _ _ => True) = 1 := by
-  classical
-  simp [independentPrimePairProbability, independentPrimePoolMass]
-
-private def smallPrimeCounterexampleEvent (x y : Fin 0 → ℕ) : Prop :=
-  evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ≠ 0 ∧
-    evalIntegerPolynomial constantTwo (fun i => (y i : ℤ)) ≠ 0 ∧
-    ∃ p : ℕ, p.Prime ∧ 0 < p ∧ p ^ 2 ≤ 4 ∧
-      (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ∧
-      (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (y i : ℤ))
-
-private lemma small_prime_counterexample_event_probability :
-    independentPrimePairProbability
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      smallPrimeCounterexampleEvent = 1 := by
-  change independentPrimePairProbability
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 0)
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 0)
-      smallPrimeCounterexampleEvent = 1
-  have hE : smallPrimeCounterexampleEvent = fun _ _ => True := by
-    funext x y
-    apply propext
-    constructor
-    · intro _
-      trivial
-    · intro _
-      refine ⟨by simp [constantTwo_eval], by simp [constantTwo_eval], ?_⟩
-      refine ⟨2, Nat.prime_two, by norm_num, by norm_num, ?_, ?_⟩
-      · rw [constantTwo_eval]
-        norm_num
-      · rw [constantTwo_eval]
-        norm_num
-  rw [hE]
-  exact emptyTuple_pair_probability_true
-
-private lemma no_small_prime_counterexample_constant :
-    ¬ ∃ C : ℝ, 0 < C ∧ ∀ (YF : Fin 0 → ℕ) (YG : Fin 0 → ℕ) (w L : ℕ),
-      (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) → w < L →
-      independentPrimePairProbability YF (fun i => 2 * YF i)
-        YG (fun i => 2 * YG i)
-        (fun x y =>
-          evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ≠ 0 ∧
-          evalIntegerPolynomial constantTwo (fun i => (y i : ℤ)) ≠ 0 ∧
-          ∃ p : ℕ, p.Prime ∧ w < p ∧ p ^ 2 ≤ L ∧
-            (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ∧
-            (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (y i : ℤ))) ≤ C / w := by
-  rintro ⟨C, _, hbound⟩
-  have h := hbound (fun _ : Fin 0 => 0) (fun _ : Fin 0 => 0) 0 4
-    (by intro i; exact Fin.elim0 i) (by intro j; exact Fin.elim0 j) (by norm_num)
-  have hE : (fun (x y : Fin 0 → ℕ) =>
-      evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ≠ 0 ∧
-      evalIntegerPolynomial constantTwo (fun i => (y i : ℤ)) ≠ 0 ∧
-      ∃ p : ℕ, p.Prime ∧ 0 < p ∧ p ^ 2 ≤ 4 ∧
-        (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ∧
-        (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (y i : ℤ))) =
-      smallPrimeCounterexampleEvent := rfl
-  have hzero : independentPrimePairProbability
-      (fun _ : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      (fun _ : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      smallPrimeCounterexampleEvent ≤ C / (0 : ℝ) := by
-    rw [← hE]
-    simpa using h
-  rw [small_prime_counterexample_event_probability] at hzero
-  norm_num at hzero
-
-private def largePrimeCounterexampleEvent (x y : Fin 0 → ℕ) : Prop :=
-  evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ≠ 0 ∧
-    evalIntegerPolynomial constantTwo (fun i => (y i : ℤ)) ≠ 0 ∧
-    ∃ p : ℕ, p.Prime ∧ Real.sqrt (1 : ℝ) < (p : ℝ) ∧
-      (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ∧
-      (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (y i : ℤ))
-
-private lemma large_prime_counterexample_event_probability :
-    independentPrimePairProbability
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      largePrimeCounterexampleEvent = 1 := by
-  change independentPrimePairProbability
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 0)
-      (fun i : Fin 0 => 0) (fun i : Fin 0 => 0)
-      largePrimeCounterexampleEvent = 1
-  have hE : largePrimeCounterexampleEvent = fun _ _ => True := by
-    funext x y
-    apply propext
-    constructor
-    · intro _
-      trivial
-    · intro _
-      refine ⟨by simp [constantTwo_eval], by simp [constantTwo_eval], ?_⟩
-      refine ⟨2, Nat.prime_two, by norm_num, ?_, ?_⟩
-      · rw [constantTwo_eval]
-        norm_num
-      · rw [constantTwo_eval]
-        norm_num
-  rw [hE]
-  exact emptyTuple_pair_probability_true
-
-private lemma no_large_prime_counterexample_constant :
-    ¬ ∃ C : ℝ, 0 < C ∧ ∀ (YF : Fin 0 → ℕ) (YG : Fin 0 → ℕ) (L : ℕ),
-      (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) →
-      independentPrimePairProbability YF (fun i => 2 * YF i)
-        YG (fun i => 2 * YG i)
-        (fun x y =>
-          evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ≠ 0 ∧
-          evalIntegerPolynomial constantTwo (fun i => (y i : ℤ)) ≠ 0 ∧
-          ∃ p : ℕ, p.Prime ∧ Real.sqrt (L : ℝ) < (p : ℝ) ∧
-            (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ∧
-            (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (y i : ℤ))) ≤
-        C * Real.log L / Real.sqrt L := by
-  rintro ⟨C, _, hbound⟩
-  have h := hbound (fun _ : Fin 0 => 0) (fun _ : Fin 0 => 0) 1
-    (by intro i; exact Fin.elim0 i) (by intro j; exact Fin.elim0 j)
-  have hE : (fun (x y : Fin 0 → ℕ) =>
-      evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ≠ 0 ∧
-      evalIntegerPolynomial constantTwo (fun i => (y i : ℤ)) ≠ 0 ∧
-      ∃ p : ℕ, p.Prime ∧ Real.sqrt (1 : ℝ) < (p : ℝ) ∧
-        (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (x i : ℤ)) ∧
-        (p : ℤ) ∣ evalIntegerPolynomial constantTwo (fun i => (y i : ℤ))) =
-      largePrimeCounterexampleEvent := rfl
-  have hzero : independentPrimePairProbability
-      (fun _ : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      (fun _ : Fin 0 => 0) (fun i : Fin 0 => 2 * 0)
-      largePrimeCounterexampleEvent ≤ C * Real.log 1 / Real.sqrt 1 := by
-    rw [← hE]
-    simpa using h
-  rw [large_prime_counterexample_event_probability] at hzero
-  norm_num at hzero
+private lemma primePoolLaw_nonneg (lo hi p : ℕ) : 0 ≤ primePoolLaw lo hi p := by
+  unfold primePoolLaw
+  split_ifs with h
+  · exact div_nonneg (one_div_nonneg.mpr (Nat.cast_nonneg p)) (primePoolMass_nonneg lo hi)
+  · simp
 
 private lemma dyadicPrimePoolMass_pos (Y : ℕ) (hY : 2 ≤ Y) :
     0 < primePoolMass Y (2 * Y) := by
@@ -375,7 +245,8 @@ theorem polynomial_zero_dyadic_prime_bound {k : ℕ}
       intro i
       exact dyadicPrimePoolLaw_tsum_eq_one (Y i) (hY i)
     have hgrid := polynomial_zero_product_grid_bound F hF
-      (fun i p => primePoolLaw (Y i) (2 * Y i) p) α hmax hprob
+      (fun i p => primePoolLaw (Y i) (2 * Y i) p) α
+      (fun i p => primePoolLaw_nonneg (Y i) (2 * Y i) p) hmax hprob
     have hd : 0 ≤ d := by dsimp [d]; positivity
     have halpha : 0 ≤ α := by dsimp [α]; positivity
     have hbound : d * α ≤ C * (Real.log (L : ℝ) / L) := by
@@ -551,18 +422,6 @@ private lemma independentPrimePairProbability_add_disjoint {kF kG : ℕ}
               independentPrimePoolMass loG hiG y * if F x y then 1 else 0) :=
             hOuterE.tsum_add hOuterF
 
-private lemma primePoolMass_nonneg (lo hi : ℕ) : 0 ≤ primePoolMass lo hi := by
-  unfold primePoolMass
-  apply Finset.sum_nonneg
-  intro p hp
-  exact one_div_nonneg.mpr (Nat.cast_nonneg p)
-
-private lemma primePoolLaw_nonneg (lo hi p : ℕ) : 0 ≤ primePoolLaw lo hi p := by
-  unfold primePoolLaw
-  split_ifs with h
-  · exact div_nonneg (one_div_nonneg.mpr (Nat.cast_nonneg p)) (primePoolMass_nonneg lo hi)
-  · simp
-
 private lemma independentPrimePoolMass_nonneg {m : ℕ}
     (lo hi : Fin m → ℕ) (p : Fin m → ℕ) :
     0 ≤ independentPrimePoolMass lo hi p := by
@@ -628,12 +487,16 @@ private lemma roughGcd_ne_one_implies_common {w : ℕ} {a b : ℤ}
   omega
 
 /-- Small common rough prime divisors, `w<p≤√L`, are controlled by two independent
-root-class tests and contribute `O(1/w)` (§3 lines 391–411). -/
+root-class tests and contribute `O(1/w)` (§3 lines 391–411). Here `w ≥ 1`: the paper's
+`1/w` is meaningless at `w=0`, where Lean's `C/0=0` makes the bound false for constant
+polynomials with a common prime factor. Every variable has lower endpoint at least
+`L ≥ p²`, so the Brun–Titchmarsh consequence applies to each slot modulo `p`; primes dividing
+a content of `F` or `G`, and small `L`, are absorbed by the constant. -/
 theorem rough_coprimality_small_prime_divisors {kF kG : ℕ}
     (F : IntegerPolynomial kF) (G : IntegerPolynomial kG)
     (hF : F ≠ 0) (hG : G ≠ 0) :
     ∃ C : ℝ, 0 < C ∧ ∀ (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) (w L : ℕ),
-      (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) → w < L →
+      (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) → 1 ≤ w → w < L →
       independentPrimePairProbability YF (fun i => 2 * YF i)
         YG (fun i => 2 * YG i)
         (fun x y =>
@@ -646,12 +509,15 @@ theorem rough_coprimality_small_prime_divisors {kF kG : ℕ}
 
 /-- Large common rough prime divisors, `p>√L`, contribute `O(log L/√L)` by testing
 the finitely many large prime factors of the polynomial with the smaller main endpoint
-(§3 lines 413–432). -/
+(§3 lines 413–432), with the leading-coefficient induction of §3 lines 391–403 and the
+small-prime count for primes between `√L` and the main endpoints. Here `L ≥ 2`: at `L ≤ 1`
+the bound `C·log L/√L` is `0`, false for constant polynomials with a common prime factor;
+for bounded `L ≥ 2` the constant absorbs the probability. -/
 theorem rough_coprimality_large_prime_divisors {kF kG : ℕ}
     (F : IntegerPolynomial kF) (G : IntegerPolynomial kG)
     (hF : F ≠ 0) (hG : G ≠ 0) :
     ∃ C : ℝ, 0 < C ∧ ∀ (YF : Fin kF → ℕ) (YG : Fin kG → ℕ) (L : ℕ),
-      (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) →
+      (∀ i, L ≤ YF i) → (∀ j, L ≤ YG j) → 2 ≤ L →
       independentPrimePairProbability YF (fun i => 2 * YF i)
         YG (fun i => 2 * YG i)
         (fun x y =>
