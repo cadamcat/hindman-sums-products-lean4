@@ -2443,6 +2443,135 @@ private theorem momentShiftCoordinateResidue_l1_bound {K sl : ℕ} {As : Finset 
           simpa [Nat.zero_add, hIco] using
             (uniform_interval_sampling_bounds 0 L modulus hL hmod)
 
+private theorem harmonicResidueError_mono {X W k K : ℕ} (hk : k ≤ K)
+    (hden : 0 < (X : ℝ) * (Real.log X - (W : ℝ) / X)) :
+    harmonicResidueError X W k ≤ harmonicResidueError X W K := by
+  unfold harmonicResidueError
+  apply div_le_div_of_nonneg_right _ hden.le
+  apply mul_le_mul_of_nonneg_left _ (by positivity)
+  exact_mod_cast Nat.add_le_add_right hk 1
+
+private noncomputable def momentBaseEpsilonBase {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (T : CubeTemplate) (J0 b N : ℕ) : ℝ := by
+  let V := masterScaleV MS.core.parameters N l
+  let rows := Fintype.card (MomentRowIndex b T.d)
+  let base := Fintype.card (MomentBaseIndex b T.d)
+  let kbound := V ^ rows
+  let lengthFloor := momentShiftLengthLower MS l T J0 N
+  exact (base : ℝ) *
+    (harmonicResidueError (MS.core.parameters.X N B.1) (primorial (N + 1)) kbound +
+      2 * (kbound : ℝ) / (max 1 lengthFloor : ℝ))
+
+private theorem momentBaseResidue_uniform_bound {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (J0 b N : ℕ) (hJ0 : 0 < J0)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (hreg : momentBaseRegular MS B l T J0 N b p)
+    (hgood : ∀ k : Fin b,
+      T.Good (corrScales MS) l N
+        (fun j => p ((momentPrimeEnum b T.q).symm (k, j))))
+    (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+    (σ : Fin (Fintype.card (MomentRowIndex b T.d)) → ℕ)
+    (hσ : ∀ u, divisorTemplateLaw MS.core.parameters N
+      (momentDivisorFamily B active u) (σ u) ≠ 0) :
+    finiteL1
+      (baseResidueLaw (∏ u, σ u) (by
+        have hs (u : Fin (Fintype.card (MomentRowIndex b T.d))) : 0 < σ u := by
+          have hh := momentDivisorFamily_support_specs MS B l hgap.1 active u N (σ u) (hσ u)
+          exact lt_of_lt_of_le Nat.zero_lt_one hh.1
+        exact Finset.prod_pos fun u _ => hs u)
+        (momentBaseMass MS B l T J0 N b p))
+      (uniformBaseResidueLaw (∏ u, σ u)
+        (Fintype.card (MomentBaseIndex b T.d))) ≤
+      momentBaseEpsilonBase MS B l T J0 b N := by
+  classical
+  let rows := Fintype.card (MomentRowIndex b T.d)
+  let base := Fintype.card (MomentBaseIndex b T.d)
+  let V := masterScaleV MS.core.parameters N l
+  let Kmod := ∏ u : Fin rows, σ u
+  let Kbound := V ^ rows
+  let lengthFloor := momentShiftLengthLower MS l T J0 N
+  let pivotErr := harmonicResidueError
+    (MS.core.parameters.X N B.1) (primorial (N + 1)) Kbound
+  let shiftErr := 2 * (Kbound : ℝ) / (max 1 lengthFloor : ℝ)
+  have hVone : 1 ≤ V := by dsimp [V, masterScaleV]; omega
+  have hspec (u : Fin rows) : 1 ≤ σ u ∧ σ u ≤ V := by
+    exact momentDivisorFamily_support_specs MS B l hgap.1 active u N (σ u) (hσ u)
+  have hKpos : 0 < Kmod := by
+    dsimp [Kmod]
+    apply Finset.prod_pos
+    intro u hu
+    exact lt_of_lt_of_le Nat.zero_lt_one (hspec u).1
+  have hKcop : Nat.Coprime Kmod (primorial (N + 1)) := by
+    dsimp [Kmod]
+    rw [Nat.coprime_fintype_prod_left_iff]
+    intro u
+    exact momentDivisorFamily_support_coprime MS B active u N (σ u) (hσ u)
+  have hKle : Kmod ≤ Kbound := by
+    dsimp [Kmod, Kbound, V]
+    calc
+      ∏ u : Fin rows, σ u ≤ ∏ _u : Fin rows, masterScaleV MS.core.parameters N l :=
+        Finset.prod_le_prod fun u hu => (hspec u).2
+      _ = masterScaleV MS.core.parameters N l ^ rows := by simp
+  have hSampling := momentHarmonicPivotResidue_l1_bound MS B N Kmod hKpos hKcop
+  obtain ⟨hW, hX, hlog⟩ := momentPivotSamplingHypotheses MS B N
+  have hXpos : (0 : ℝ) < MS.core.parameters.X N B.1 := by exact_mod_cast (by omega : 0 < MS.core.parameters.X N B.1)
+  have hDenPos : 0 < (MS.core.parameters.X N B.1 : ℝ) *
+      (Real.log (MS.core.parameters.X N B.1) - (primorial (N + 1) : ℝ) /
+        MS.core.parameters.X N B.1) := mul_pos hXpos (sub_pos.mpr hlog)
+  have hPivotNonneg : 0 ≤ pivotErr := by
+    dsimp [pivotErr, harmonicResidueError]
+    exact div_nonneg (by positivity) hDenPos.le
+  have hShiftNonneg : 0 ≤ shiftErr := by dsimp [shiftErr]; positivity
+  have hδ (i : Fin base) :
+      finiteL1
+        (momentBaseCoordinateResidueLaw MS B l T J0 N b p Kmod hKpos i)
+        (uniformResidueLaw Kmod) ≤ pivotErr + shiftErr := by
+    cases hi : momentBaseEnum b T.d i with
+    | inl u =>
+        have hp := momentPivotCoordinateResidue_l1_bound
+          MS B l T J0 N b p Kmod hKpos i hi hKcop
+        exact le_trans (hp.trans (harmonicResidueError_mono hKle hDenPos))
+          (le_add_of_nonneg_right hShiftNonneg)
+    | inr idx =>
+        rcases idx with ⟨k, ⟨j, side⟩⟩
+        let pk : Fin T.q → ℕ := fun t => p ((momentPrimeEnum b T.q).symm (k, t))
+        have hInt := momentShiftCoordinateResidue_l1_bound
+          MS B l T J0 N b p hreg Kmod hKpos i k j side hi
+        have hlow := momentShiftLength_lower MS l T J0 N hJ0 pk (hgood k)
+        have hlength : max 1 lengthFloor ≤
+            T.length (corrScales MS) l J0 N pk := by
+          exact (Nat.max_le).2 ⟨Nat.succ_le_iff.mpr (hreg.2 k), hlow⟩
+        have hInterval :
+            finiteL1
+              (momentBaseCoordinateResidueLaw MS B l T J0 N b p Kmod hKpos i)
+              (uniformResidueLaw Kmod) ≤ shiftErr := by
+          dsimp [shiftErr]
+          calc
+            _ ≤ 2 * (Kmod : ℝ) /
+                  (T.length (corrScales MS) l J0 N pk : ℝ) := hInt
+            _ ≤ 2 * (Kbound : ℝ) /
+                  (T.length (corrScales MS) l J0 N pk : ℝ) := by
+                apply div_le_div_of_nonneg_right _ (by positivity)
+                exact_mod_cast (Nat.mul_le_mul_left 2 hKle)
+            _ ≤ 2 * (Kbound : ℝ) / (max 1 lengthFloor : ℝ) := by
+                apply div_le_div_of_nonneg_left (by positivity)
+                  (by exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left 1 lengthFloor)))
+                exact_mod_cast hlength
+        exact le_trans hInterval (le_add_of_nonneg_left hPivotNonneg)
+  have hresidue := momentBaseResidueL1_le_coordinate_errors
+    MS B l T J0 N b p hreg Kmod hKpos (fun _ => pivotErr + shiftErr) hδ
+  calc
+    _ ≤ ∑ _i : Fin base, (pivotErr + shiftErr) := hresidue
+    _ = (base : ℝ) * (pivotErr + shiftErr) := by
+          simp [Finset.sum_const, nsmul_eq_mul]
+          ring
+    _ = momentBaseEpsilonBase MS B l T J0 b N := by
+          simp [momentBaseEpsilonBase, rows, base, V, Kbound, lengthFloor, pivotErr, shiftErr]
+
 theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) :
     0 ≤ parameterTailProductLaw A N T σ := by
