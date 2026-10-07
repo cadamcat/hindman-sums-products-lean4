@@ -2175,6 +2175,53 @@ private theorem momentReplicaShiftMassInt_zero_of_not_mem {b d L : ℕ}
     Finset.prod_eq_zero (Finset.mem_univ j) hside
   exact Finset.prod_eq_zero (Finset.mem_univ k) hjprod
 
+private def momentReplicaShiftSupportNat (b d L : ℕ) :
+    Finset (Fin b → Fin d → Fin 2 → ℕ) :=
+  Fintype.piFinset (fun _ : Fin b =>
+    Fintype.piFinset (fun _ : Fin d =>
+      Fintype.piFinset (fun _ : Fin 2 => Finset.range L)))
+
+private noncomputable def momentReplicaShiftSupportEquiv {b d : ℕ} (L : ℕ) :
+    {u : Fin b → Fin d → Fin 2 → ℕ // u ∈ momentReplicaShiftSupportNat b d L} ≃
+      {v : MomentShiftIntegerTuple b d // v ∈ momentReplicaShiftSupportInt b d L} where
+  toFun u := ⟨fun k j side => (u.1 k j side : ℤ), by
+    have hfields : ∀ k j side, u.1 k j side < L := by
+      simpa [momentReplicaShiftSupportNat, Finset.mem_range] using u.2
+    simp only [momentReplicaShiftSupportInt, Fintype.mem_piFinset, Finset.mem_Ico]
+    intro k j side
+    constructor
+    · positivity
+    · exact_mod_cast hfields k j side⟩
+  invFun v := ⟨fun k j side => (v.1 k j side).toNat, by
+    have hfields : ∀ k j side,
+        0 ≤ v.1 k j side ∧ v.1 k j side < (L : ℤ) := by
+      simpa [momentReplicaShiftSupportInt, Finset.mem_Ico] using v.2
+    simp only [momentReplicaShiftSupportNat, Fintype.mem_piFinset, Finset.mem_range]
+    intro k j side
+    have hcast : (((v.1 k j side).toNat : ℕ) : ℤ) = v.1 k j side :=
+      Int.toNat_of_nonneg (hfields k j side).1
+    have hlt : (v.1 k j side).toNat < L := by
+      have hltZ : (((v.1 k j side).toNat : ℕ) : ℤ) < (L : ℤ) := by
+        rw [hcast]
+        exact (hfields k j side).2
+      exact_mod_cast hltZ
+    exact hlt⟩
+  left_inv u := by
+    apply Subtype.ext
+    funext k j side
+    have hcast :
+        ((((u.1 k j side : ℕ) : ℤ).toNat : ℕ) : ℤ) = (u.1 k j side : ℤ) :=
+      Int.natCast_toNat_eq_self.mpr (by positivity)
+    exact_mod_cast hcast
+  right_inv v := by
+    apply Subtype.ext
+    funext k j side
+    have hcoords : ∀ k j side,
+        v.1 k j side ∈ Finset.Ico (0 : ℤ) (L : ℤ) := by
+      simpa [momentReplicaShiftSupportInt] using v.2
+    exact Int.toNat_of_nonneg
+      ((Finset.mem_Ico.mp (hcoords k j side)).1)
+
 private theorem momentBaseMass_tsum_eq_Emu_replicaShift {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
@@ -3557,6 +3604,8 @@ theorem finite_holder_weighted {ι α : Type*} (I : Finset ι) (B : Finset α)
       intro x hx
       rw [hterm x hx]
     _ ≤ ∏ i ∈ I, (∑ x ∈ B, F i x) ^ p := hmain
+
+-- End of code adapted from OpenAI
 
 theorem Emu_weighted_holder {ι : Type*} (I : Finset ι) (hI : I.Nonempty)
     {n : ℕ} (A : Parameters n) (N : ℕ) (pivot : Fin n) (w : ℤ → ℝ)
