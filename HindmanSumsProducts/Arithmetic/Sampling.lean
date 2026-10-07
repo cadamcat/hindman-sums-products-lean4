@@ -38,7 +38,8 @@ structure SamplingPointwiseBounds (X W : ℕ) : Prop where
       |(∑' z : ℤ, dilationReference (harmonicLaw X W) k z) - 1| ≤
         harmonicResidueError X W k
 
-/-- The pointwise sampling statement as written does not exclude modulus `W = 0`.
+/-- Why `sampling_pointwise_claim` assumes `0 < W` (in the paper `W` is a primorial): without it
+the statement fails at `W = 0`.
 For that value, `Nat.Coprime 1 0` leaves the single term `n = 1`, while its
 claimed error bound is zero. -/
 theorem sampling_pointwise_bounds_zero_false : ¬ SamplingPointwiseBounds 2 0 := by
@@ -55,7 +56,7 @@ theorem sampling_pointwise_bounds_zero_false : ¬ SamplingPointwiseBounds 2 0 :=
   norm_num at hh
 
 /-- Pointwise harmonic estimates underlying Lemma `lem:sampling`. -/
-theorem sampling_pointwise_claim (X W : ℕ) (hX : 2 ≤ X)
+theorem sampling_pointwise_claim (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
     (hlog : Real.log X > (W : ℝ) / X) : SamplingPointwiseBounds X W := by
   sorry
 
@@ -321,7 +322,7 @@ theorem sampling_asymptotics
 /-- Lemma `lem:sampling`: exact periodic harmonic, residue, translation, and dilation
 bounds together with the super-polynomial asymptotic conclusions and their stated growth
 conditions (§3 lines 34–129). -/
-theorem lem_sampling (X W : ℕ) (hX : 2 ≤ X)
+theorem lem_sampling (X W : ℕ) (hW : 0 < W) (hX : 2 ≤ X)
     (hlog : Real.log X > (W : ℝ) / X) :
     SamplingPointwiseBounds X W ∧
     (∀ (Wseq K H V Xseq : ℕ → ℕ),
@@ -347,7 +348,7 @@ theorem lem_sampling (X W : ℕ) (hX : 2 ≤ X)
           (harmonicResidueUniformError (Xseq n) (Wseq n) (K n) +
             harmonicTranslationUniformError (Xseq n) (Wseq n) (H n) +
             harmonicDilationUniformError (Xseq n) (Wseq n) (K n))) atTop (𝓝 0))) := by
-  refine ⟨sampling_pointwise_claim X W hX hlog, ?_⟩
+  refine ⟨sampling_pointwise_claim X W hW hX hlog, ?_⟩
   intro Wseq K H V Xseq hK hH hV hW hXseq hden hDomX hDomLogX
   exact sampling_asymptotics Wseq K H V Xseq hK hH hV hW hXseq hden hDomX hDomLogX
 
