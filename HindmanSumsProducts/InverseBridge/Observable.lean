@@ -8,7 +8,7 @@ namespace HindmanSumsProducts.InverseBridge
 
 open OAI OAI.Erdos3
 open Filter
-open scoped BigOperators NNReal Topology
+open scoped BigOperators BoundedContinuousFunction NNReal Topology
 
 /-- A triangular bump supported in the interval `(-1/3, 1/3)`. -/
 noncomputable def bump (x : ℝ) : ℝ := max 0 (1 - 3 * |x|)
@@ -29,7 +29,15 @@ theorem liftObs_at_integer {X Y : Type*} (r : X → ℝ) (point : X → ℤ → 
     (H : Y → ℝ) (x : X) (n : ℤ) (hr : r x = n)
     (hzero : ∀ m : ℤ, m ≠ n → bump (r x - m) = 0) :
     liftObs r point H x = H (point x n) := by
-  sorry
+  unfold liftObs
+  calc
+    (∑ᶠ m : ℤ, bump (r x - m) * H (point x m)) =
+        bump (r x - n) * H (point x n) :=
+      finsum_eq_single _ n (by
+        intro m hm
+        rw [hzero m hm]
+        simp)
+    _ = H (point x n) := by simp [hr, bump]
 
 /-- An observable lift together with the lattice invariance needed to descend it. -/
 structure ObservableDescent (G : Type*) [Group G] (Γ : Subgroup G) (Y : Type*) where
@@ -61,6 +69,15 @@ theorem exists_observable_menuMetric {G : Type*} [Group G] [TopologicalSpace G]
         LipschitzWith K₁ H →
           letI := d
           LipschitzWith (max 1 K₁) (O.desc H) := by
+  /-
+  The hypotheses do not require the supplied metric on `G ⧸ Γ` to induce
+  `QuotientGroup.instTopologicalSpace Γ`.  The requested conclusion implies
+  that this topology is metrizable, which fails for compact nonmetrizable
+  quotient groups (for example an uncountable product of two-element groups)
+  with the trivial observable descent.  The missing compatibility hypothesis
+  is `QuotientGroup.instTopologicalSpace Γ =
+    (inferInstance : PseudoMetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace`.
+  -/
   sorry
 
 end HindmanSumsProducts.InverseBridge
