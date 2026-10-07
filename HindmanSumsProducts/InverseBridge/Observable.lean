@@ -147,6 +147,65 @@ private theorem realInl_realProjl_add_smul {L : Type*} [LieRing L] [LieAlgebra �
             (realInl F (realProjl F y) + realTranslationCoordinate F y • realDhat F) := by abel
         _ = x + y := by rw [hx, hy]
 
+private theorem realInl_eq_self_of_realTranslation_zero {L : Type*}
+    [LieRing L] [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s)
+    (x : ℝ ⊗[ℚ] Lin F) (hx : realTranslationCoordinate F x = 0) :
+    realInl F (realProjl F x) = x := by
+  calc
+    realInl F (realProjl F x) =
+        realInl F (realProjl F x) + realTranslationCoordinate F x • realDhat F := by
+          rw [hx]
+          simp
+    _ = x := realInl_realProjl_add_smul F x
+
+private noncomputable def realifiedInlLieHom {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) :
+    (ℝ ⊗[ℚ] Poly F) →ₗ⁅ℚ⁆ (ℝ ⊗[ℚ] Lin F) where
+  toLinearMap := (realificationLieHom
+    (LieAlgebra.SemiDirectSum.inl (shiftAction F))).toLinearMap.restrictScalars ℚ
+  map_lie' := by
+    intro x y
+    exact (realificationLieHom
+      (LieAlgebra.SemiDirectSum.inl (shiftAction F))).map_lie x y
+
+private noncomputable def realEvalLieHom {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s : ℕ} (F : NilpotentLieFiltration L s) (m : ℤ) :
+    (ℝ ⊗[ℚ] Poly F) →ₗ⁅ℚ⁆ (ℝ ⊗[ℚ] L) :=
+  (VectorPolynomial.evalLie (fun _ : Unit => (m : ℚ))).comp
+    (F.realAdaptedPolynomialMap (fun _ : Unit => 1))
+
+private theorem evLinReal_lieBCH_of_translation_zero {L : Type*}
+    [LieRing L] [LieAlgebra ℚ L] {s : ℕ}
+    (F : NilpotentLieFiltration L s) (hs : 0 < s) (m : ℤ)
+    (x y : ℝ ⊗[ℚ] Lin F)
+    (hx : realTranslationCoordinate F x = 0)
+    (hy : realTranslationCoordinate F y = 0) :
+    evLinReal F m (lieBCH (2 * s) x y) =
+      lieBCH s (evLinReal F m x) (evLinReal F m y) := by
+  let X := realProjl F x
+  let Y := realProjl F y
+  have hx' : realInl F X = x := realInl_eq_self_of_realTranslation_zero F x hx
+  have hy' : realInl F Y = y := realInl_eq_self_of_realTranslation_zero F y hy
+  have hInl := map_lieBCH (realifiedInlLieHom F) (2 * s) X Y
+  change realInl F (lieBCH (2 * s) X Y) =
+    lieBCH (2 * s) (realInl F X) (realInl F Y) at hInl
+  have hEval (Z : ℝ ⊗[ℚ] Poly F) :
+      evLinReal F m (realInl F Z) = realEvalLieHom F m Z := by
+    exact evLinReal_realInl_apply F m Z
+  calc
+    evLinReal F m (lieBCH (2 * s) x y) =
+        evLinReal F m (lieBCH (2 * s) (realInl F X) (realInl F Y)) := by
+          rw [← hx', ← hy']
+    _ = evLinReal F m (realInl F (lieBCH (2 * s) X Y)) := by rw [← hInl]
+    _ = realEvalLieHom F m (lieBCH (2 * s) X Y) := hEval _
+    _ = lieBCH (2 * s) (realEvalLieHom F m X) (realEvalLieHom F m Y) := by
+          rw [map_lieBCH]
+    _ = lieBCH s (realEvalLieHom F m X) (realEvalLieHom F m Y) := by
+          rw [lieBCH_eq_of_step_le (F.realification.lowerCentralSeries_eq_bot)
+            (by omega : s ≤ 2 * s)]
+    _ = lieBCH s (evLinReal F m x) (evLinReal F m y) := by
+          rw [← hEval X, ← hEval Y, hx', hy']
+
 /-- Remove the translation coordinate by an integer evaluation shift, then
 evaluate the polynomial component in the original quotient. -/
 noncomputable def linearizedObservablePoint {L : Type*} [LieRing L] [LieAlgebra ℚ L]
