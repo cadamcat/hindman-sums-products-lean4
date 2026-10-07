@@ -3658,4 +3658,150 @@ theorem c_elim2_pivotTranslationError_superpolynomial
   simpa [V, W, X, T, G, Hshift, hSampleSeq,
     FromArithmetic.harmonicTranslationUniformError] using hSampling.2.1
 
+noncomputable abbrev c_elim2_GoodPivotPair {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) :=
+  {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests} ×
+    {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N}
+
+noncomputable def c_elim2_goodPivotShiftLength {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (J0 N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh) (p : Fin q → ℕ) : ℕ :=
+  shiftLength S C.gap J0 N dirs.poly p
+
+noncomputable def c_elim2_stateLiftIntegrand
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (E : Finset (NonTarget Sh))
+    (L : c_elim2_GoodPivotPair S C N Sh dirs tests → ℕ)
+    (G : ∀ b : c_elim2_GoodPivotPair S C N Sh dirs tests,
+      (c_elim2_ShiftCoord E → Fin (L b)) → ℝ)
+    (hL : ∀ b, 0 < L b) :
+    (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ := by
+  classical
+  let Zsupport := c_elim2_pivotSupport S.core.parameters C N
+  exact fun p z u =>
+    if hp : p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests then
+      if hz : (∀ k, (z k).den = 1) ∧ (fun k => (z k).num) ∈ Zsupport then
+        let b : c_elim2_GoodPivotPair S C N Sh dirs tests :=
+          (⟨p, hp⟩, ⟨fun k => (z k).num, hz.2⟩)
+        let len := L b
+        let uFin : NonTarget Sh → Fin 2 → Fin len := fun i j =>
+          ⟨u i j % len, Nat.mod_lt _ (hL b)⟩
+        G b ((c_elim2_shiftAssignmentPartitionEquiv E len uFin).1)
+      else 0
+    else 0
+
+set_option maxHeartbeats 1000000 in
+theorem c_elim2_eliminationAverage_eq_jointStateAverage
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ) (E : Finset (NonTarget Sh))
+    (L : c_elim2_GoodPivotPair S C N Sh dirs tests → ℕ)
+    (G : ∀ b : c_elim2_GoodPivotPair S C N Sh dirs tests,
+      (c_elim2_ShiftCoord E → Fin (L b)) → ℝ)
+    (hL : ∀ b, 0 < L b)
+    (hLdef : ∀ b, L b = shiftLength S C.gap J0 N dirs.poly b.1.1) :
+    eliminationAverage S C N dirs tests J0
+        (c_elim2_stateLiftIntegrand S C N Sh dirs tests E L G hL) =
+      c_elim2_jointStateAverage E
+        (fun b => (gapSlotProbability S C.gap N
+          (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
+          gapSlotMass S C.gap N b.1.1 * pivotMass S.core.parameters C N b.2.val)
+        L G := by
+  classical
+  let PGood := {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests}
+  let ZSub := {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N}
+  let β := c_elim2_GoodPivotPair S C N Sh dirs tests
+  let prob := gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly)
+  let μ : β → ℝ := fun b => prob⁻¹ * gapSlotMass S C.gap N b.1.1 *
+    pivotMass S.core.parameters C N b.2.val
+  let F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ :=
+    c_elim2_stateLiftIntegrand S C N Sh dirs tests E L G hL
+  have hshift (p : PGood) (z : ZSub) :
+      shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+        (fun u => F p.1 (fun k => (z.1 k : ℚ)) u) =
+      c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+    rw [← hLdef (p, z)]
+    have hLp := hL (p, z)
+    apply c_elim2_shiftAverage_eq_shiftStateAverage_of_depends E (L (p, z)) hLp
+    intro u
+    have hDen : ∀ k, ((z.1 k : ℚ).den) = 1 := by intro k; simp
+    have hNum : (fun k => ((z.1 k : ℚ).num)) = z.1 := by
+      funext k
+      simp
+    have hZmem : (fun k => ((z.1 k : ℚ).num)) ∈
+        c_elim2_pivotSupport S.core.parameters C N := by
+      simpa [hNum] using z.property
+    have hZok : (∀ k, (z.1 k : ℚ).den = 1) ∧
+        (fun k => ((z.1 k : ℚ).num)) ∈ c_elim2_pivotSupport S.core.parameters C N :=
+      ⟨hDen, hZmem⟩
+    let b' : c_elim2_GoodPivotPair S C N Sh dirs tests :=
+      (⟨p.1, p.property⟩, ⟨fun k => ((z.1 k : ℚ).num), hZmem⟩)
+    have hb' : b' = (p, z) := by
+      apply Prod.ext
+      · apply Subtype.ext
+        rfl
+      · apply Subtype.ext
+        exact hNum
+    simp only [F, c_elim2_stateLiftIntegrand,
+      dif_pos p.property, dif_pos hZok]
+    change G b'
+      ((c_elim2_shiftAssignmentPartitionEquiv E (L b')
+        (fun i j => ⟨(u i j).val % L b', Nat.mod_lt _ (hL b')⟩)).1) =
+      G (p, z) ((c_elim2_shiftAssignmentPartitionEquiv E (L (p, z)) u).1)
+    rw [hb']
+    have huFin :
+        (fun i j =>
+          (⟨(u i j).val % L (p, z), Nat.mod_lt _ (hL (p, z))⟩ : Fin (L (p, z)))) = u := by
+      funext i j
+      apply Fin.ext
+      exact Nat.mod_eq_of_lt (u i j).isLt
+    rw [huFin]
+  have hfinite := c_elim2_eliminationAverage_eq_finiteGoodSupport
+    S C N Sh dirs tests J0 F
+  have hjoint : c_elim2_jointStateAverage E μ L G =
+      prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+        gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+          c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+    unfold c_elim2_jointStateAverage
+    rw [Fintype.sum_prod_type]
+    calc
+      _ = ∑ p : PGood, ∑ z : ZSub,
+          prob⁻¹ * (gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            c_elim2_shiftStateAverage E (L (p, z)) (G (p, z))) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              apply Finset.sum_congr rfl
+              intro z hz
+              simp [μ, mul_assoc, mul_left_comm, mul_comm]
+      _ = ∑ p : PGood, prob⁻¹ *
+          ∑ z : ZSub, gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              rw [← Finset.mul_sum]
+      _ = _ := by rw [← Finset.mul_sum]
+  calc
+    eliminationAverage S C N dirs tests J0 F =
+        prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p.1)
+              (F p.1 (fun k => (z.1 k : ℚ))) := hfinite
+    _ = prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := by
+              apply congrArg (fun x : ℝ => prob⁻¹ * x)
+              apply Finset.sum_congr rfl
+              intro p hp
+              apply Finset.sum_congr rfl
+              intro z hz
+              rw [hshift p z]
+    _ = c_elim2_jointStateAverage E μ L G := hjoint.symm
+
 end HindmanSumsProducts
