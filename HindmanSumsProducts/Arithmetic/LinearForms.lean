@@ -7673,6 +7673,138 @@ private theorem inverseSquare_prime_product_tail (w V : ℕ) (hw : 0 < w)
     _ ≤ Real.exp C₁ * (C₁ / (w : ℝ)) := hmulBound
     _ = (Real.exp C₁ * C₁) / (w : ℝ) := by ring
 
+set_option maxHeartbeats 2000000 in
+private theorem linearFormsPrimeAverage_divisorExpansion {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (slots : Fin m → ℕ) :
+    linearFormsPrimeAverage D N slots =
+      ∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ * (∏ u, (σ u : ℝ)) *
+          (∑' x : Fin d → ℤ, D.baseMass N slots x *
+            (if ∀ u, (σ u : ℤ) ∣
+              (linearRowValue D.rowCoeff N slots u x).num then 1 else 0)) := by
+  classical
+  let support := linearFormsDivisorTupleSupport D N
+  let μ : (Fin d → ℤ) → ℝ := D.baseMass N slots
+  let rowDiv (σ : Fin q → ℕ) (x : Fin d → ℤ) : Prop :=
+    ∀ u, (σ u : ℤ) ∣ (linearRowValue D.rowCoeff N slots u x).num
+  let coeffMass (σ : Fin q → ℕ) : ℝ :=
+    linearFormsDivisorTupleMass D N σ * ∏ u, (σ u : ℝ)
+  let f (σ : Fin q → ℕ) (x : Fin d → ℤ) : ℝ :=
+    coeffMass σ * (if rowDiv σ x then 1 else 0)
+  have hμtotal : (∑' x : Fin d → ℤ, μ x) = 1 := by
+    simpa [μ] using D.base_normalized N slots
+  have hμsum : Summable μ := summable_of_tsum_eq_one μ hμtotal
+  have hμnonneg (x : Fin d → ℤ) : 0 ≤ μ x := by
+    exact D.base_nonnegative N slots x
+  have hcoeffNonneg (σ : Fin q → ℕ) : 0 ≤ coeffMass σ := by
+    dsimp [coeffMass]
+    exact mul_nonneg (linearFormsDivisorTuple_support_facts D N |>.1 σ) (by positivity)
+  have hindicatorBounds (σ : Fin q → ℕ) (x : Fin d → ℤ) :
+      0 ≤ (if rowDiv σ x then (1 : ℝ) else 0) ∧
+        (if rowDiv σ x then (1 : ℝ) else 0) ≤ 1 := by
+    by_cases h : rowDiv σ x <;> simp [h]
+  have htermNonneg (σ : Fin q → ℕ) (x : Fin d → ℤ) :
+      0 ≤ μ x * f σ x := by
+    dsimp [f]
+    exact mul_nonneg (hμnonneg x)
+      (mul_nonneg (hcoeffNonneg σ) (hindicatorBounds σ x).1)
+  have htermBound (σ : Fin q → ℕ) (x : Fin d → ℤ) :
+      μ x * f σ x ≤ μ x * coeffMass σ := by
+    dsimp [f]
+    calc
+      μ x * (coeffMass σ * (if rowDiv σ x then 1 else 0)) =
+          (μ x * coeffMass σ) * (if rowDiv σ x then 1 else 0) := by ring
+      _ ≤ μ x * coeffMass σ :=
+        mul_le_of_le_one_right (mul_nonneg (hμnonneg x) (hcoeffNonneg σ))
+          (hindicatorBounds σ x).2
+  have htermSummable (σ : Fin q → ℕ) : Summable (fun x => μ x * f σ x) := by
+    have hbound : Summable (fun x => μ x * coeffMass σ) :=
+      hμsum.mul_right (coeffMass σ)
+    exact hbound.of_nonneg_of_le (fun x => htermNonneg σ x) (fun x => htermBound σ x)
+  have hindicatorSummable (σ : Fin q → ℕ) :
+      Summable (fun x => μ x * (if rowDiv σ x then (1 : ℝ) else 0)) := by
+    have hbound : Summable (fun x => μ x) := hμsum
+    apply hbound.of_nonneg_of_le
+    · intro x
+      exact mul_nonneg (hμnonneg x) (hindicatorBounds σ x).1
+    · intro x
+      simpa using mul_le_mul_of_nonneg_left (hindicatorBounds σ x).2 (hμnonneg x)
+  have hindicatorProd (σ : Fin q → ℕ) (x : Fin d → ℤ) :
+      (∏ u, (if (σ u : ℤ) ∣
+        (linearRowValue D.rowCoeff N slots u x).num then (1 : ℝ) else 0)) =
+        (if rowDiv σ x then 1 else 0) := by
+    by_cases h : rowDiv σ x
+    · simp [rowDiv, h]
+    · obtain ⟨u, hu⟩ := not_forall.mp h
+      have hzero : (if (σ u : ℤ) ∣
+          (linearRowValue D.rowCoeff N slots u x).num then (1 : ℝ) else 0) = 0 :=
+        if_neg hu
+      rw [if_neg h]
+      change (∏ v : Fin q,
+        if (σ v : ℤ) ∣ (linearRowValue D.rowCoeff N slots v x).num then
+          (1 : ℝ) else 0) = 0
+      exact Finset.prod_eq_zero (Finset.mem_univ u) (by simpa using hzero)
+  have hproductTerm (σ : Fin q → ℕ) (x : Fin d → ℤ) :
+      (∏ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u) *
+        (σ u : ℝ) *
+          (if (σ u : ℤ) ∣
+            (linearRowValue D.rowCoeff N slots u x).num then (1 : ℝ) else 0)) =
+        f σ x := by
+    calc
+      _ = (∏ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u)) *
+            (∏ u, (σ u : ℝ)) *
+            ∏ u, (if (σ u : ℤ) ∣
+              (linearRowValue D.rowCoeff N slots u x).num then (1 : ℝ) else 0) := by
+                rw [← Finset.prod_mul_distrib, Finset.prod_mul_distrib]
+      _ = f σ x := by
+            simp [f, coeffMass, linearFormsDivisorTupleMass, rowDiv, hindicatorProd]
+  have hpoint (x : Fin d → ℤ) :
+      ∏ u, nuB (divisorTemplateLaw S.core.parameters N (D.divisor u))
+        (linearRowValue D.rowCoeff N slots u x).num =
+      ∑ σ ∈ support, f σ x := by
+    rw [linearFormsDivisorWeightExpansion D N slots x]
+    apply Finset.sum_congr rfl
+    intro σ hσ
+    simpa [linearFormsDivisorTupleSupport, support, f] using hproductTerm σ x
+  have hinterchange :
+      (∑' x : Fin d → ℤ, μ x * ∑ σ ∈ support, f σ x) =
+        ∑ σ ∈ support, ∑' x : Fin d → ℤ, μ x * f σ x := by
+    calc
+      (∑' x : Fin d → ℤ, μ x * ∑ σ ∈ support, f σ x) =
+          ∑' x : Fin d → ℤ, ∑ σ ∈ support, μ x * f σ x := by
+            apply tsum_congr
+            intro x
+            rw [Finset.mul_sum]
+      _ = ∑ σ ∈ support, ∑' x : Fin d → ℤ, μ x * f σ x :=
+            Summable.tsum_finsetSum (fun σ hσ => htermSummable σ)
+  calc
+    linearFormsPrimeAverage D N slots =
+        ∑' x : Fin d → ℤ, μ x * ∑ σ ∈ support, f σ x := by
+          unfold linearFormsPrimeAverage
+          apply tsum_congr
+          intro x
+          rw [hpoint x]
+    _ = ∑ σ ∈ support, ∑' x : Fin d → ℤ, μ x * f σ x := hinterchange
+    _ = ∑ σ ∈ support, coeffMass σ *
+          (∑' x : Fin d → ℤ,
+            μ x * (if rowDiv σ x then (1 : ℝ) else 0)) := by
+          apply Finset.sum_congr rfl
+          intro σ hσ
+          calc
+            _ = ∑' x : Fin d → ℤ,
+                coeffMass σ * (μ x * (if rowDiv σ x then 1 else 0)) := by
+                  apply tsum_congr
+                  intro x
+                  dsimp [f]
+                  ring
+            _ = _ := (hindicatorSummable σ).tsum_mul_left (coeffMass σ)
+    _ = _ := by
+      simpa [support, coeffMass, μ, rowDiv,
+        linearFormsDivisorTupleMass, mul_ite]
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
