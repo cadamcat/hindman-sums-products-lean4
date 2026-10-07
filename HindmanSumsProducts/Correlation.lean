@@ -109,7 +109,7 @@ theorem weighted_cauchy_schwarz {α : Type*} (μ Ω H₀ H₁ : α → ℝ) (hμ
     (h1s : Summable fun x => μ x * (Ω x * H₁ x ^ 2)) :
     |∑' x, μ x * (H₀ x * H₁ x)| ^ 2 ≤
       (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2) := by
-  sorry
+  exact weighted_cauchy_schwarz_aux μ Ω H₀ H₁ hμ hΩ h0 hΩs h1s
 
 /-! ## Weighted removal of multiplicative masks (Lemma `lem:mask-removal`, 04:128–307) -/
 
