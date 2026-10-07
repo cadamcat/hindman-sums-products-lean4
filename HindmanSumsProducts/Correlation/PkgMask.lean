@@ -424,6 +424,26 @@ theorem RowTemplate.exists_nonzero_minor_of_not_parallel {m q : ℕ}
   push_neg at hnone
   exact h (T.parallel_of_all_minors_zero hnone)
 
+theorem RowShape.nonparallel_minor_mem_templateMinors {m q r : ℕ}
+    (Sh : RowShape m q r) (R I : Fin r) (hRI : R ≠ I) :
+    ∃ P ∈ templateMinors Sh, ∃ j k,
+      P = (Sh.row R).poly j * (Sh.row I).poly k -
+        (Sh.row R).poly k * (Sh.row I).poly j := by
+  obtain ⟨j, k, hne⟩ :=
+    RowTemplate.exists_nonzero_minor_of_not_parallel (Sh.nonparallel R I hRI)
+  let P := (Sh.row R).poly j * (Sh.row I).poly k -
+    (Sh.row R).poly k * (Sh.row I).poly j
+  have hmem : P ∈ templateMinors Sh := by
+    unfold templateMinors
+    apply Finset.mem_filter.mpr
+    constructor
+    · apply Finset.mem_image.mpr
+      let x : Fin r × Fin r × Fin m × Fin m := (R, I, j, k)
+      refine ⟨x, Finset.mem_univ x, ?_⟩
+      rfl
+    · exact hne
+  exact ⟨P, hmem, j, k, rfl⟩
+
 theorem RowTemplate.scaleBranchP_entry {m q : ℕ} (T : RowTemplate m q) (u k : Fin m)
     (e : Fin q → ℕ) (he : T.entry k = some e) :
     (T.scaleBranchP u).entry k =
