@@ -887,9 +887,11 @@ noncomputable def pkgMask_rowBranchSigmaEquiv {r : ℕ} (I : Fin r → Prop) :
     | mk i b => cases b with | mk b hb => rfl
 
 theorem pkgMask_prodRowBranchAllowed {r : ℕ} (I : Fin r → Prop)
-    (i : Fin r) [Fintype (pkgMask_RowBranchAllowed I i)] (g : Fin 2 → ℝ) :
-    (∏ b : pkgMask_RowBranchAllowed I i, g b.val) =
-      if I i then g 0 else g 0 * g 1 := by
+    (i : Fin r) [Fintype (pkgMask_RowBranchAllowed I i)]
+    (g : pkgMask_RowBranchAllowed I i → ℝ) :
+    (∏ b : pkgMask_RowBranchAllowed I i, g b) =
+      if hi : I i then g ⟨0, Or.inl rfl⟩ else
+        g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by
   classical
   letI : DecidablePred (fun b : Fin 2 => b.val = 0 ∨ ¬ I i) := Classical.decPred _
   by_cases hi : I i
@@ -904,32 +906,51 @@ theorem pkgMask_prodRowBranchAllowed {r : ℕ} (I : Fin r → Prop)
           · exact hb.symm
           · exact False.elim (hnot hi)
         right_inv := by intro x; cases x; rfl }
-    have hzero (b : pkgMask_RowBranchAllowed I i) : b.val = 0 := by
-      apply Fin.ext
-      rcases b.property with hb | hnot
-      · exact hb
-      · exact False.elim (hnot hi)
+    have hzero : e.symm PUnit.unit = ⟨0, Or.inl rfl⟩ := by
+      apply Subtype.ext
+      rfl
     calc
-      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g 0 := by
-        apply Finset.prod_congr rfl
-        intro b hb
-        rw [hzero b]
-      _ = ∏ x : PUnit.{1}, g 0 := Equiv.prod_comp e (fun _ => g 0)
-      _ = g 0 := by simp
-      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+      (∏ b : pkgMask_RowBranchAllowed I i, g b) =
+          ∏ x : PUnit.{1}, g (e.symm x) := (Equiv.prod_comp e.symm g).symm
+      _ = g (e.symm PUnit.unit) := by simp
+      _ = g ⟨0, Or.inl rfl⟩ := by rw [hzero]
+      _ = if hi : I i then g ⟨0, Or.inl rfl⟩ else
+            g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by simp [hi]
   · let e : pkgMask_RowBranchAllowed I i ≃ Fin 2 :=
       { toFun := fun b => b.val
         invFun := fun b => ⟨b, Or.inr hi⟩
         left_inv := by intro b; apply Subtype.ext; rfl
         right_inv := by intro b; rfl }
+    have hzero : e.symm (0 : Fin 2) = ⟨0, Or.inl rfl⟩ := by
+      apply Subtype.ext
+      rfl
+    have hone : e.symm (1 : Fin 2) = ⟨1, Or.inr hi⟩ := by
+      rfl
     calc
-      (∏ b : pkgMask_RowBranchAllowed I i, g b.val) = ∏ b, g (e b) := by
-        apply Finset.prod_congr rfl
-        intro b hb
-        rfl
-      _ = ∏ b : Fin 2, g b := Equiv.prod_comp e g
-      _ = g 0 * g 1 := Fin.prod_univ_two g
-      _ = if I i then g 0 else g 0 * g 1 := by simp [hi]
+      (∏ b : pkgMask_RowBranchAllowed I i, g b) =
+          ∏ b : Fin 2, g (e.symm b) := (Equiv.prod_comp e.symm g).symm
+      _ = g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by
+        rw [Fin.prod_univ_two]
+        rw [hzero, hone]
+      _ = if hi : I i then g ⟨0, Or.inl rfl⟩ else
+            g ⟨0, Or.inl rfl⟩ * g ⟨1, Or.inr hi⟩ := by simp [hi]
+
+theorem pkgMask_rowBranchProduct_sigma {r : ℕ} (I : Fin r → Prop)
+    [Fintype (RowBranchIndex I)]
+    [∀ i : Fin r, Fintype (pkgMask_RowBranchAllowed I i)]
+    (g : RowBranchIndex I → ℝ) :
+    (∏ x : RowBranchIndex I, g x) =
+      ∏ i : Fin r, ∏ b : pkgMask_RowBranchAllowed I i,
+        g ⟨(i, b.val), b.property⟩ := by
+  classical
+  calc
+    (∏ x : RowBranchIndex I, g x) =
+        ∏ x : Σ i : Fin r, pkgMask_RowBranchAllowed I i,
+          g ((pkgMask_rowBranchSigmaEquiv I).symm x) :=
+      (Equiv.prod_comp (pkgMask_rowBranchSigmaEquiv I).symm g).symm
+    _ = ∏ i : Fin r, ∏ b : pkgMask_RowBranchAllowed I i,
+          g ((pkgMask_rowBranchSigmaEquiv I).symm ⟨i, b⟩) := by
+      rw [Fintype.prod_sigma]
 
 def RowBranchTemplate {m q r : ℕ} (Sh : RowShape m q r)
     (L R : Fin r → RowTemplate m (q + 2)) (i : Fin r) (b : Fin 2) :
@@ -3398,6 +3419,26 @@ theorem dropPrimeTuple2_extend {q : ℕ} (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
   funext i
   simp [dropPrimeTuple2, extendPrimeTuple]
 
+theorem pkgMask_gapSlotMass_extend2 {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
+    gapSlotMass S C.gap N (extendPrimeTuple (extendPrimeTuple p p₁) p₀) =
+      gapSlotMass S C.gap N p *
+        primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper p₁ *
+        primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper p₀ := by
+  unfold gapSlotMass independentPrimePoolMass
+  rw [Fin.prod_univ_succ, Fin.prod_univ_succ]
+  have hslot₁ :
+      (extendPrimeTuple (extendPrimeTuple p p₁) p₀)
+        (Fin.succ (0 : Fin (q + 1))) = p₁ := by
+    change (extendPrimeTuple p p₁) 0 = p₁
+    rfl
+  rw [hslot₁]
+  simp [extendPrimeTuple]
+  ring
+
 theorem rowForm_scaleBranchP_tuple2 {m q : ℕ} (c : Fin m → ℚ)
     (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
     rowForm c (T.scaleBranchP u) p (fun k => (z k : ℚ)) =
@@ -3512,6 +3553,229 @@ theorem rowForm_update_mul_singleton {m q : ℕ}
   rw [hform, hform]
   simp [Function.update_self]
   ring
+
+theorem pkgMask_chainWeight_rowUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (u : Fin m) (p₀ : ℕ)
+    (z : Fin m → ℤ) (hcase : u ∉ T.support ∨ T.support = {u})
+    (hc : c u ≠ 0) (hp₀ : p₀.Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
+    (hdenOld : (rowForm c T p (fun k => (z k : ℚ))).den = 1)
+    (hdenNew : (rowForm c T p
+      (Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ)))).den = 1) :
+    chainWeight S.core.parameters C N d
+        ((rowForm c T p (Function.update (fun k => (z k : ℚ)) u
+          ((p₀ : ℚ) * (z u : ℚ)))).num) =
+      chainWeight S.core.parameters C N d
+        (rowForm c T p (fun k => (z k : ℚ))).num := by
+  let oldValue := rowForm c T p (fun k => (z k : ℚ))
+  let newValue := rowForm c T p
+    (Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ)))
+  have holdNum : (oldValue.num : ℚ) = oldValue :=
+    (Rat.den_eq_one_iff oldValue).mp (by simpa [oldValue] using hdenOld)
+  have hnewNum : (newValue.num : ℚ) = newValue :=
+    (Rat.den_eq_one_iff newValue).mp (by simpa [newValue] using hdenNew)
+  rcases hcase with hu | hsingle
+  · have hEq : newValue = oldValue := by
+      dsimp [newValue, oldValue]
+      exact rowForm_update_of_not_mem_support c T p (fun k => (z k : ℚ)) u
+        ((p₀ : ℚ) * (z u : ℚ)) hu
+    have hnumQ : (newValue.num : ℚ) = (oldValue.num : ℚ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = oldValue := hEq
+        _ = (oldValue.num : ℚ) := holdNum.symm
+    have hnum : newValue.num = oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+  · have hEq : newValue = (p₀ : ℚ) * oldValue := by
+      dsimp [newValue, oldValue]
+      exact rowForm_update_mul_singleton c T p (fun k => (z k : ℚ)) u
+        (p₀ : ℚ) hsingle hc
+    have hnumQ : (newValue.num : ℚ) = ((p₀ : ℤ) * oldValue.num : ℤ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = (p₀ : ℚ) * oldValue := hEq
+        _ = (p₀ : ℚ) * (oldValue.num : ℚ) := by rw [holdNum]
+        _ = ((p₀ : ℤ) * oldValue.num : ℤ) := by norm_cast
+    have hnum : newValue.num = (p₀ : ℤ) * oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+    exact chainWeight_mul_eq_of_prime_gt S C N d p₀ hp₀ hV₀ oldValue.num
+
+theorem pkgMask_chainWeight_balancedUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (u v : Fin m) (huv : u ≠ v)
+    (p₀ p₁ : ℕ) (z : Fin m → ℤ)
+    (hcase : (u ∉ T.support ∧ v ∉ T.support) ∨ T.support = {u} ∨ T.support = {v})
+    (hcu : c u ≠ 0) (hcv : c v ≠ 0)
+    (hp₀ : p₀.Prime) (hp₁ : p₁.Prime)
+    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p₁)
+    (hdenOld : (rowForm c T p (fun k => (z k : ℚ))).den = 1)
+    (hdenNew : (rowForm c T p
+      (Function.update (Function.update (fun k => (z k : ℚ)) u
+        ((p₀ : ℚ) * (z u : ℚ))) v ((p₁ : ℚ) * (z v : ℚ)))).den = 1) :
+    chainWeight S.core.parameters C N d
+        ((rowForm c T p (Function.update (Function.update (fun k => (z k : ℚ)) u
+          ((p₀ : ℚ) * (z u : ℚ))) v ((p₁ : ℚ) * (z v : ℚ)))).num) =
+      chainWeight S.core.parameters C N d ((rowForm c T p (fun k => (z k : ℚ))).num) := by
+  let oldValue := rowForm c T p (fun k => (z k : ℚ))
+  let z₁ := Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ))
+  let z₂ := Function.update z₁ v ((p₁ : ℚ) * (z v : ℚ))
+  let newValue := rowForm c T p z₂
+  have holdNum : (oldValue.num : ℚ) = oldValue :=
+    (Rat.den_eq_one_iff oldValue).mp (by simpa [oldValue] using hdenOld)
+  have hnewNum : (newValue.num : ℚ) = newValue :=
+    (Rat.den_eq_one_iff newValue).mp (by simpa [newValue, z₁, z₂] using hdenNew)
+  have hweightOfEq (hEq : newValue = oldValue) :
+      chainWeight S.core.parameters C N d newValue.num =
+        chainWeight S.core.parameters C N d oldValue.num := by
+    have hnumQ : (newValue.num : ℚ) = (oldValue.num : ℚ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = oldValue := hEq
+        _ = (oldValue.num : ℚ) := holdNum.symm
+    have hnum : newValue.num = oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+  have hweightOfMul (p' : ℕ) (hp' : p'.Prime)
+      (hV' : masterScaleV S.core.parameters N C.gap < p')
+      (hEq : newValue = (p' : ℚ) * oldValue) :
+      chainWeight S.core.parameters C N d newValue.num =
+        chainWeight S.core.parameters C N d oldValue.num := by
+    have hnumQ : (newValue.num : ℚ) = ((p' : ℤ) * oldValue.num : ℤ) := by
+      calc
+        (newValue.num : ℚ) = newValue := hnewNum
+        _ = (p' : ℚ) * oldValue := hEq
+        _ = (p' : ℚ) * (oldValue.num : ℚ) := by rw [holdNum]
+        _ = ((p' : ℤ) * oldValue.num : ℤ) := by norm_cast
+    have hnum : newValue.num = (p' : ℤ) * oldValue.num := by exact_mod_cast hnumQ
+    rw [hnum]
+    exact chainWeight_mul_eq_of_prime_gt S C N d p' hp' hV' oldValue.num
+  rcases hcase with ⟨hu, hv⟩ | hsingleU | hsingleV
+  · have hEq : newValue = oldValue := by
+      dsimp [newValue, z₂]
+      rw [rowForm_update_of_not_mem_support c T p z₁ v
+        ((p₁ : ℚ) * (z v : ℚ)) hv]
+      dsimp [z₁, oldValue]
+      exact rowForm_update_of_not_mem_support c T p (fun k => (z k : ℚ)) u
+        ((p₀ : ℚ) * (z u : ℚ)) hu
+    exact hweightOfEq hEq
+  · have hv : v ∉ T.support := by
+      rw [hsingleU]
+      simp [Ne.symm huv]
+    have hEq : newValue = (p₀ : ℚ) * oldValue := by
+      dsimp [newValue, z₂]
+      rw [rowForm_update_of_not_mem_support c T p z₁ v
+        ((p₁ : ℚ) * (z v : ℚ)) hv]
+      exact rowForm_update_mul_singleton c T p (fun k => (z k : ℚ)) u
+        (p₀ : ℚ) hsingleU hcu
+    exact hweightOfMul p₀ hp₀ hV₀ hEq
+  · have hu : u ∉ T.support := by
+      rw [hsingleV]
+      simp [huv]
+    have hcomm :
+        Function.update (Function.update (fun k => (z k : ℚ)) u
+          ((p₀ : ℚ) * (z u : ℚ))) v
+          ((p₁ : ℚ) * (z v : ℚ)) =
+        Function.update (Function.update (fun k => (z k : ℚ)) v
+          ((p₁ : ℚ) * (z v : ℚ))) u ((p₀ : ℚ) * (z u : ℚ)) := by
+      exact Function.update_comm huv _ _ _
+    have hEq : newValue = (p₁ : ℚ) * oldValue := by
+      dsimp [newValue, z₂]
+      rw [hcomm]
+      rw [rowForm_update_of_not_mem_support c T p
+        (Function.update (fun k => (z k : ℚ)) v ((p₁ : ℚ) * (z v : ℚ)))
+        u ((p₀ : ℚ) * (z u : ℚ)) hu]
+      exact rowForm_update_mul_singleton c T p (fun k => (z k : ℚ)) v
+        (p₁ : ℚ) hsingleV hcv
+    exact hweightOfMul p₁ hp₁ hV₁ hEq
+
+theorem pkgMask_chainWeight_scaleBranchP_eq {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
+    (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
+    (z : Fin m → ℤ)
+    (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u))
+    (hc : c u ≠ 0) (hp₁ : (p 1).Prime)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hdenBranch :
+      (rowForm c (T.scaleBranchP u) p fun k => (z k : ℚ)).den = 1)
+    (hdenOld :
+      (rowForm c T (dropPrimeTuple2 p) fun k => (z k : ℚ)).den = 1) :
+    chainWeight S.core.parameters C N d
+        (rowForm c (T.scaleBranchP u) p (fun k => (z k : ℚ))).num =
+      chainWeight S.core.parameters C N d
+        (rowForm c T (dropPrimeTuple2 p) (fun k => (z k : ℚ))).num := by
+  let oldp := dropPrimeTuple2 p
+  let zQ : Fin m → ℚ := fun k => (z k : ℚ)
+  let value := rowForm c T oldp zQ
+  let branchValue := rowForm c (T.scaleBranchP u) p zQ
+  have hrowUpdate := rowForm_scaleBranchP_tuple2 c T u p z
+  have hbranchNum : (branchValue.num : ℚ) = branchValue :=
+    (Rat.den_eq_one_iff branchValue).mp (by simpa [branchValue] using hdenBranch)
+  have holdNum : (value.num : ℚ) = value :=
+    (Rat.den_eq_one_iff value).mp (by simpa [value, oldp, zQ] using hdenOld)
+  rcases T.scaleBranches_parallel_support u hpar with hu | hsingle
+  · have hEq : branchValue = value := by
+      dsimp [branchValue, value, oldp, zQ] at *
+      rw [hrowUpdate]
+      exact rowForm_update_of_not_mem_support c T (dropPrimeTuple2 p)
+        (fun k => (z k : ℚ)) u ((p 1 : ℚ) * (z u : ℚ)) hu
+    have hnumQ : (branchValue.num : ℚ) = (value.num : ℚ) := by
+      calc
+        (branchValue.num : ℚ) = branchValue := hbranchNum
+        _ = value := hEq
+        _ = (value.num : ℚ) := holdNum.symm
+    have hnum : branchValue.num = value.num := by exact_mod_cast hnumQ
+    rw [hnum]
+  · have hEq : branchValue = (p 1 : ℚ) * value := by
+      dsimp [branchValue, value, oldp, zQ] at *
+      rw [hrowUpdate]
+      exact rowForm_update_mul_singleton c T (dropPrimeTuple2 p)
+        (fun k => (z k : ℚ)) u (p 1 : ℚ) hsingle hc
+    have hnumQ : (branchValue.num : ℚ) = ((p 1 : ℤ) * value.num : ℤ) := by
+      calc
+        (branchValue.num : ℚ) = branchValue := hbranchNum
+        _ = (p 1 : ℚ) * value := hEq
+        _ = (p 1 : ℚ) * (value.num : ℚ) := by rw [holdNum]
+        _ = ((p 1 : ℤ) * value.num : ℤ) := by norm_cast
+    have hnum : branchValue.num = (p 1 : ℤ) * value.num := by exact_mod_cast hnumQ
+    rw [hnum]
+    exact chainWeight_mul_eq_of_prime_gt S C N d (p 1) hp₁ hV₁ value.num
+
+theorem pkgMask_invariantBranchWeightProduct_eq_old {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (a : Fin m → ℚ) (T : Fin r → RowTemplate m q) (u : Fin m)
+    (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) (I : Fin r → Prop)
+    (hI : ∀ i, I i ↔ ((T i).scaleBranchP u).Parallel ((T i).scaleBranchQ u))
+    (hc : chainScale S.core.parameters C a N u ≠ 0) (hp₁ : (p 1).Prime)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hdenBranch : ∀ i,
+      (rowForm (chainScale S.core.parameters C a N) ((T i).scaleBranchP u) p
+        fun k => (z k : ℚ)).den = 1)
+    (hdenOld : ∀ i,
+      (rowForm (chainScale S.core.parameters C a N) (T i) (dropPrimeTuple2 p)
+        fun k => (z k : ℚ)).den = 1) :
+    (∏ i : Fin r, if hi : I i then
+        1 + chainWeight S.core.parameters C N (T i).anchor
+          (rowForm (chainScale S.core.parameters C a N) ((T i).scaleBranchP u) p
+            fun k => (z k : ℚ)).num else 1) =
+      ∏ i : Fin r, if hi : I i then
+        1 + chainWeight S.core.parameters C N (T i).anchor
+          (rowForm (chainScale S.core.parameters C a N) (T i) (dropPrimeTuple2 p)
+            fun k => (z k : ℚ)).num else 1 := by
+  classical
+  apply Finset.prod_congr rfl
+  intro i hi
+  by_cases hinv : I i
+  ·
+    have hwt := pkgMask_chainWeight_scaleBranchP_eq S C N (T i).anchor
+      (chainScale S.core.parameters C a N) (T i) u p z
+      ((hI i).mp hinv) hc hp₁ hV₁ (hdenBranch i) (hdenOld i)
+    rw [hwt]
+  · simp [hinv]
 
 theorem RowTemplate.scaleBranch_parallel_factor_eq {m q : ℕ}
     (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
@@ -3908,6 +4172,140 @@ theorem pkgMask_mergedNonInvariantRow_eq {m q r r' : ℕ} {I : Fin r → Prop}
   funext y
   unfold mergedBranchRowFunction
   simp [Equiv.symm_apply_apply, hx]
+
+theorem pkgMask_branchRowProductIdentity {m q r r' : ℕ} {I : Fin r → Prop}
+    (Sh : RowShape m q r) (Sh' : RowShape m (q + 2) r')
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (hrow : ∀ x, Sh'.row (e x) =
+      RowBranchTemplate Sh L R x.val.1 x.val.2)
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (c : Fin m → ℚ) (p : Fin (q + 2) → ℕ) (hgood : good p) (z : Fin m → ℚ)
+    (hp : ∀ j, p j ≠ 0)
+    (hdenL : ∀ i, (rowForm c (L i) p z).den = 1)
+    (hscaleDen : ∀ i (hi : I i),
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p *
+        ((rowForm c (L i) p z).num : ℚ)).den = 1)
+    (hWpos : ∀ i, 0 < W i (rowForm c (L i) p z).num) :
+    (∏ i : Fin r, if hi : I i then
+        W i (rowForm c (L i) p z).num else 1) *
+      ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv f W p j)
+        (rowForm c (Sh'.row j) p z) =
+      (∏ i : Fin r, atQ (f i (dropPrimeTuple2 p)) (rowForm c (L i) p z)) *
+        ∏ i : Fin r, atQ (f i (dropPrimeTuple2 p)) (rowForm c (R i) p z) := by
+  classical
+  letI : DecidablePred I := Classical.decPred I
+  letI : Finite (RowBranchIndex I) :=
+    Finite.of_injective Subtype.val Subtype.val_injective
+  letI : Fintype (RowBranchIndex I) := Fintype.ofFinite _
+  letI : ∀ i : Fin r, Fintype (pkgMask_RowBranchAllowed I i) := fun i => by
+    letI : DecidablePred (fun b : Fin 2 => b.val = 0 ∨ ¬ I i) := Classical.decPred _
+    letI : Finite (pkgMask_RowBranchAllowed I i) :=
+      Finite.of_injective Subtype.val Subtype.val_injective
+    exact Fintype.ofFinite _
+  let branchEval : RowBranchIndex I → ℝ := fun x =>
+    atQ (mergedBranchRowFunction good L R e hInv f W p (e x))
+      (rowForm c (RowBranchTemplate Sh L R x.val.1 x.val.2) p z)
+  let branchValue (i : Fin r) (b : pkgMask_RowBranchAllowed I i) : ℝ :=
+    branchEval ⟨(i, b.val), b.property⟩
+  let leftValue (i : Fin r) : ℝ :=
+    atQ (f i (dropPrimeTuple2 p)) (rowForm c (L i) p z)
+  let rightValue (i : Fin r) : ℝ :=
+    atQ (f i (dropPrimeTuple2 p)) (rowForm c (R i) p z)
+  have hshapeProd :
+      (∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv f W p j)
+        (rowForm c (Sh'.row j) p z)) = ∏ x : RowBranchIndex I, branchEval x := by
+    calc
+      _ = ∏ x : RowBranchIndex I,
+          atQ (mergedBranchRowFunction good L R e hInv f W p (e x))
+            (rowForm c (Sh'.row (e x)) p z) :=
+        (Equiv.prod_comp e (fun j =>
+          atQ (mergedBranchRowFunction good L R e hInv f W p j)
+            (rowForm c (Sh'.row j) p z))).symm
+      _ = _ := by
+        apply Finset.prod_congr rfl
+        intro x hx
+        simp [branchEval, hrow x]
+  have hbranchProd := pkgMask_rowBranchProduct_sigma I branchEval
+  have hperRow (i : Fin r) :
+      (if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+        ∏ b : pkgMask_RowBranchAllowed I i, branchValue i b =
+          leftValue i * rightValue i := by
+    rw [pkgMask_prodRowBranchAllowed I i (branchValue i)]
+    by_cases hi : I i
+    · simp [hi]
+      let x0 : RowBranchIndex I := ⟨(i, 0), Or.inl rfl⟩
+      have hform : rowForm c (L i) p z = ((rowForm c (L i) p z).num : ℚ) :=
+        (Rat.den_eq_one_iff _).mp (hdenL i) |>.symm
+      have hpar := (hInv i).mp hi
+      have hrowScale := RowTemplate.rowForm_eq_monomial_scale_of_parallel
+        c (L i) (R i) hpar p hp z
+      have hRform : rowForm c (R i) p z =
+          RowTemplate.parallelScaleFactor (L i) (R i) hpar p *
+            ((rowForm c (L i) p z).num : ℚ) := by
+        exact hrowScale.trans (congrArg
+          (fun t : ℚ => RowTemplate.parallelScaleFactor (L i) (R i) hpar p * t) hform)
+      have hleft : leftValue i = f i (dropPrimeTuple2 p)
+          (rowForm c (L i) p z).num := by
+        simp [leftValue, atQ, hdenL i]
+      have hright : rightValue i = f i (dropPrimeTuple2 p)
+          (RowTemplate.parallelScaleFactor (L i) (R i) hpar p *
+            ((rowForm c (L i) p z).num : ℚ)).num := by
+        dsimp [rightValue]
+        rw [hRform]
+        simp [atQ, hscaleDen i hi]
+      have hInvEval := pkgMask_mergedInvariantRow_eval good L R e hInv f W p
+        i hi hgood c z (rowForm c (L i) p z).num hform
+        (hscaleDen i hi) (hWpos i)
+      let b0 : pkgMask_RowBranchAllowed I i := ⟨0, Or.inl rfl⟩
+      have hb0 : branchValue i ⟨0, Or.inl rfl⟩ =
+          atQ (mergedBranchRowFunction good L R e hInv f W p (e x0))
+            (rowForm c (L i) p z) := by
+        change branchValue i b0 = _
+        simp [branchValue, branchEval, b0, x0, RowBranchTemplate]
+      rw [hb0]
+      calc
+        W i (rowForm c (L i) p z).num *
+            atQ (mergedBranchRowFunction good L R e hInv f W p (e x0))
+              (rowForm c (L i) p z) =
+            f i (dropPrimeTuple2 p) (rowForm c (L i) p z).num *
+              f i (dropPrimeTuple2 p)
+                (RowTemplate.parallelScaleFactor (L i) (R i) hpar p *
+                  ((rowForm c (L i) p z).num : ℚ)).num := hInvEval
+        _ = leftValue i * rightValue i := by rw [hleft, hright]
+    · simp [hi, one_mul]
+      let x0 : RowBranchIndex I := ⟨(i, 0), Or.inl rfl⟩
+      let x1 : RowBranchIndex I := ⟨(i, 1), Or.inr hi⟩
+      let b0 : pkgMask_RowBranchAllowed I i := ⟨0, Or.inl rfl⟩
+      let b1 : pkgMask_RowBranchAllowed I i := ⟨1, Or.inr hi⟩
+      have hleft : branchValue i b0 = leftValue i := by
+        dsimp [branchValue, branchEval, b0]
+        rw [pkgMask_mergedNonInvariantRow_eq good L R e hInv f W p x0 hi]
+        simp [leftValue, x0, RowBranchTemplate]
+      have hright : branchValue i b1 = rightValue i := by
+        dsimp [branchValue, branchEval, b1]
+        rw [pkgMask_mergedNonInvariantRow_eq good L R e hInv f W p x1 hi]
+        simp [rightValue, x1, RowBranchTemplate]
+      rw [hleft, hright]
+  calc
+    (∏ i : Fin r, if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+        ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv f W p j)
+          (rowForm c (Sh'.row j) p z) =
+      (∏ i : Fin r, if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+        ∏ i : Fin r, ∏ b : pkgMask_RowBranchAllowed I i, branchValue i b := by
+          rw [hshapeProd, hbranchProd]
+    _ = ∏ i : Fin r,
+          ((if hi : I i then W i (rowForm c (L i) p z).num else 1) *
+            ∏ b : pkgMask_RowBranchAllowed I i, branchValue i b) := by
+          rw [← Finset.prod_mul_distrib]
+    _ = ∏ i : Fin r, leftValue i * rightValue i := by
+          apply Finset.prod_congr rfl
+          intro i hi
+          exact hperRow i
+    _ = (∏ i : Fin r, leftValue i) * ∏ i : Fin r, rightValue i :=
+          Finset.prod_mul_distrib
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
@@ -7820,6 +8218,175 @@ noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
     L R e hI st.rowFunction
     (fun R y => 1 + chainWeight S.core.parameters C N (st.shape.row R).anchor y)
     p R' y
+
+theorem pkgMask_outsideBranchStateIntegrand_identity {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBranchP u).Parallel
+        ((st.shape.row i).scaleBranchQ u)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBranchP u)
+      (fun i => (st.shape.row i).scaleBranchQ u) x.val.1 x.val.2)
+    (p : Fin (q + 2) → ℕ)
+    (hgood : p ∈ independentPrimePoolSupport
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper))
+    (z : Fin m → ℤ) (hp : ∀ j, p j ≠ 0)
+    (hdenL : ∀ i,
+      (rowForm (chainScale S.core.parameters C a N) ((st.shape.row i).scaleBranchP u)
+        p fun k => (z k : ℚ)).den = 1)
+    (hscaleDen : ∀ i (hi :
+        ((st.shape.row i).scaleBranchP u).Parallel ((st.shape.row i).scaleBranchQ u)),
+      (RowTemplate.parallelScaleFactor ((st.shape.row i).scaleBranchP u)
+        ((st.shape.row i).scaleBranchQ u) hi p *
+        ((rowForm (chainScale S.core.parameters C a N)
+          ((st.shape.row i).scaleBranchP u) p (fun k => (z k : ℚ))).num : ℚ)).den = 1) :
+    (∏ i : Fin r, if hi :
+        ((st.shape.row i).scaleBranchP u).Parallel ((st.shape.row i).scaleBranchQ u) then
+          1 + chainWeight S.core.parameters C N (st.shape.row i).anchor
+            (rowForm (chainScale S.core.parameters C a N)
+              ((st.shape.row i).scaleBranchP u) p (fun k => (z k : ℚ))).num
+        else 1) *
+      MaskRemovalState.pkgMask_stateIntegrand
+        (outsideBranchMaskRemovalState S C N st U u Sh' e) S C a N p z =
+      ((∏ V ∈ st.masks.erase U,
+          st.maskFunction V (dropPrimeTuple2 p)
+            (∏ k ∈ V, Function.update z u ((p 1 : ℤ) * z u) k)) *
+        ∏ R, atQ (st.rowFunction R (dropPrimeTuple2 p))
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row R)
+            (dropPrimeTuple2 p)
+            (Function.update (fun k => (z k : ℚ)) u ((p 1 : ℚ) * (z u : ℚ))))) *
+      ((∏ V ∈ st.masks.erase U,
+          st.maskFunction V (dropPrimeTuple2 p)
+            (∏ k ∈ V, Function.update z u ((p 0 : ℤ) * z u) k)) *
+        ∏ R, atQ (st.rowFunction R (dropPrimeTuple2 p))
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row R)
+            (dropPrimeTuple2 p)
+            (Function.update (fun k => (z k : ℚ)) u ((p 0 : ℚ) * (z u : ℚ))))) := by
+  classical
+  let good : (Fin (q + 2) → ℕ) → Prop := fun p => p ∈ independentPrimePoolSupport
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper)
+  let L : Fin r → RowTemplate m (q + 2) :=
+    fun i => (st.shape.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) :=
+    fun i => (st.shape.row i).scaleBranchQ u
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  let hInv : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  let c := chainScale S.core.parameters C a N
+  let W : Fin r → ℤ → ℝ := fun i y =>
+    1 + chainWeight S.core.parameters C N (st.shape.row i).anchor y
+  let Ω : ℝ := ∏ i : Fin r, if hi : I i then
+    W i (rowForm c (L i) p (fun k => (z k : ℚ))).num else 1
+  let zP : Fin m → ℤ := Function.update z u ((p 1 : ℤ) * z u)
+  let zQ : Fin m → ℤ := Function.update z u ((p 0 : ℤ) * z u)
+  let maskP : ℝ := ∏ V ∈ st.masks.erase U,
+    st.maskFunction V (dropPrimeTuple2 p) (∏ k ∈ V, zP k)
+  let maskQ : ℝ := ∏ V ∈ st.masks.erase U,
+    st.maskFunction V (dropPrimeTuple2 p) (∏ k ∈ V, zQ k)
+  let rowP : ℝ := ∏ R, atQ (st.rowFunction R (dropPrimeTuple2 p))
+    (rowForm c (st.shape.row R) (dropPrimeTuple2 p) (fun k => (zP k : ℚ)))
+  let rowQ : ℝ := ∏ R, atQ (st.rowFunction R (dropPrimeTuple2 p))
+    (rowForm c (st.shape.row R) (dropPrimeTuple2 p) (fun k => (zQ k : ℚ)))
+  have hrow' : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape L R x.val.1 x.val.2 := by
+    intro x
+    simpa [L, R] using hrow x
+  have hWpos : ∀ i y, 0 < W i y := by
+    intro i y
+    dsimp [W]
+    have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+    linarith
+  have hWposRow : ∀ i, 0 < W i (rowForm c (L i) p (fun k => (z k : ℚ))).num :=
+    fun i => hWpos i _
+  have hRows := pkgMask_branchRowProductIdentity st.shape Sh' L R e hInv hrow'
+    good st.rowFunction W c p hgood (fun k => (z k : ℚ)) hp
+    (by simpa [L, c] using hdenL)
+    (by simpa [L, R, c] using hscaleDen) hWposRow
+  have hupdate (t : ℕ) :
+      (fun k => (Function.update z u ((t : ℤ) * z u) k : ℚ)) =
+        Function.update (fun k => (z k : ℚ)) u ((t : ℚ) * (z u : ℚ)) := by
+    funext k
+    by_cases hk : k = u
+    · subst k
+      simp [Function.update_self, Int.cast_mul]
+    · simp [Function.update_of_ne hk]
+  have hformP (j : Fin r) :
+      rowForm c (L j) p (fun k => (z k : ℚ)) =
+        rowForm c (st.shape.row j) (dropPrimeTuple2 p)
+          (fun k => (zP k : ℚ)) := by
+    calc
+      rowForm c (L j) p (fun k => (z k : ℚ)) =
+          rowForm c (st.shape.row j) (dropPrimeTuple2 p)
+            (Function.update (fun k => (z k : ℚ)) u ((p 1 : ℚ) * (z u : ℚ))) := by
+        simpa [L] using rowForm_scaleBranchP_tuple2 c (st.shape.row j) u p z
+      _ = rowForm c (st.shape.row j) (dropPrimeTuple2 p)
+          (fun k => (zP k : ℚ)) := by
+        congr 1
+        exact (hupdate (p 1)).symm
+  have hformQ (j : Fin r) :
+      rowForm c (R j) p (fun k => (z k : ℚ)) =
+        rowForm c (st.shape.row j) (dropPrimeTuple2 p)
+          (fun k => (zQ k : ℚ)) := by
+    calc
+      rowForm c (R j) p (fun k => (z k : ℚ)) =
+          rowForm c (st.shape.row j) (dropPrimeTuple2 p)
+            (Function.update (fun k => (z k : ℚ)) u ((p 0 : ℚ) * (z u : ℚ))) := by
+        simpa [R] using rowForm_scaleBranchQ_tuple2 c (st.shape.row j) u p z
+      _ = rowForm c (st.shape.row j) (dropPrimeTuple2 p)
+          (fun k => (zQ k : ℚ)) := by
+        congr 1
+        exact (hupdate (p 0)).symm
+  have hRows' : Ω *
+      (∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv
+        st.rowFunction W p j) (rowForm c (Sh'.row j) p (fun k => (z k : ℚ)))) =
+        rowP * rowQ := by
+    calc
+      Ω * (∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv
+          st.rowFunction W p j) (rowForm c (Sh'.row j) p (fun k => (z k : ℚ)))) =
+          (∏ i : Fin r, atQ (st.rowFunction i (dropPrimeTuple2 p))
+            (rowForm c (L i) p (fun k => (z k : ℚ)))) *
+          ∏ i : Fin r, atQ (st.rowFunction i (dropPrimeTuple2 p))
+            (rowForm c (R i) p (fun k => (z k : ℚ))) := hRows
+      _ = rowP * rowQ := by
+        simp_rw [hformP, hformQ]
+        rfl
+  have hMasks :
+      (∏ V ∈ st.masks.erase U,
+        outsideBranchMaskFunction st.maskFunction u V p (∏ k ∈ V, z k)) =
+          maskP * maskQ := by
+    calc
+      _ = ∏ V ∈ st.masks.erase U,
+          st.maskFunction V (dropPrimeTuple2 p) (∏ k ∈ V, zP k) *
+            st.maskFunction V (dropPrimeTuple2 p) (∏ k ∈ V, zQ k) := by
+        apply Finset.prod_congr rfl
+        intro V hV
+        simpa [zP, zQ] using
+          pkgMask_outsideBranchMask_substitution st.maskFunction u V p z
+      _ = maskP * maskQ := by
+        simp [maskP, maskQ, Finset.prod_mul_distrib]
+  change Ω *
+      ((∏ V ∈ st.masks.erase U,
+          outsideBranchMaskFunction st.maskFunction u V p (∏ k ∈ V, z k)) *
+        ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv
+          st.rowFunction W p j) (rowForm c (Sh'.row j) p (fun k => (z k : ℚ)))) = _
+  calc
+    Ω *
+        ((∏ V ∈ st.masks.erase U,
+            outsideBranchMaskFunction st.maskFunction u V p (∏ k ∈ V, z k)) *
+          ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv
+            st.rowFunction W p j) (rowForm c (Sh'.row j) p (fun k => (z k : ℚ)))) =
+        (Ω * ∏ j : Fin r', atQ (mergedBranchRowFunction good L R e hInv
+          st.rowFunction W p j) (rowForm c (Sh'.row j) p (fun k => (z k : ℚ)))) *
+          (∏ V ∈ st.masks.erase U,
+            outsideBranchMaskFunction st.maskFunction u V p (∏ k ∈ V, z k)) := by ring
+    _ = (rowP * rowQ) * (maskP * maskQ) := by rw [hRows', hMasks]
+    _ = _ := by
+      simp only [maskP, maskQ, rowP, rowQ, zP, zQ]
+      rw [hupdate (p 1), hupdate (p 0)]
+      ring
 
 theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
