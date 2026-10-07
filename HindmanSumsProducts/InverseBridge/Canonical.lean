@@ -1,4 +1,5 @@
 import OAI.Combinatorics.Progressions.Estimates.AxisCompression
+import OAI.Combinatorics.Progressions.Estimates.NativeModelOrbit
 
 /-!
 Canonical finite base models for the inverse-theorem bridge.
@@ -386,4 +387,218 @@ theorem transport_to_canonical {L M : Type*} [LieRing L] [LieAlgebra ℚ L]
     rw [horbit n]
     rfl
 
+
+open OAI OAI.Erdos3 HindmanSumsProducts.InverseBridge
+open scoped TensorProduct NNReal
+
+section Algebra
+
+variable {L M : Type*} [LieRing L] [LieAlgebra ℚ L]
+  [LieRing M] [LieAlgebra ℚ M] {s d : ℕ}
+
+noncomputable def replaceLattice (W : RationalFilteredNilmanifold M s d)
+    (B : ℕ) (hB : 0 < B) (Λ : Subgroup W.filtration.Group)
+    (hcoords : bchSubgroupCoordinates W.basis Λ = scaledIntegerGrid B) :
+    RationalFilteredNilmanifold M s d where
+  filtration := W.filtration
+  basis := W.basis
+  layerBasis := W.layerBasis
+  lattice := Λ
+  grid := B
+  grid_pos := hB
+  inner_grid := by rw [hcoords]
+  outer_grid := by
+    rw [hcoords]
+    exact fun _ hx => scaledIntegerGrid_mem_denominatorGrid B B hx
+
+theorem cover_of_equal_data (W : RationalFilteredNilmanifold M s d)
+    (B : ℕ) (hB : 0 < B) (hdiv : W.grid ∣ B)
+    (Λ : Subgroup W.filtration.Group)
+    (hcoords : bchSubgroupCoordinates W.basis Λ = scaledIntegerGrid B)
+    (D : RationalFilteredNilmanifold L s d) (hdata : baseData W = baseData D) :
+    ∃ φ : M ≃ₗ⁅ℚ⁆ L,
+      (∀ i, φ ((replaceLattice W B hB Λ hcoords).basis i) = D.basis i) ∧
+      (∀ k a, a ∈ (replaceLattice W B hB Λ hcoords).filtration.layer k ↔
+        φ a ∈ D.filtration.layer k) ∧
+      (replaceLattice W B hB Λ hcoords).lattice ≤ D.lattice.comap
+        (NilpotentLieBCHGroup.mapOfSteps
+          (hL := (replaceLattice W B hB Λ hcoords).filtration.lowerCentralSeries_eq_bot)
+          (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom) := by
+  obtain ⟨φ, hbasis, hlayer⟩ := exists_dataEquiv W D hdata
+  have hgrid : W.grid = D.grid := congrArg BaseData.grid hdata
+  have hdivD : D.grid ∣ B := by simpa only [hgrid] using hdiv
+  have hcoordEq : φ.toLinearEquiv.trans D.basis.equivFun = W.basis.equivFun := by
+    apply W.basis.ext'
+    intro i
+    simp [hbasis]
+  have hcoord (a : M) : D.basis.equivFun (φ a) = W.basis.equivFun a := by
+    exact congrArg (fun e : M ≃ₗ[ℚ] (Fin d → ℚ) => e a) hcoordEq
+  refine ⟨φ, hbasis, hlayer, ?_⟩
+  intro γ hγ
+  apply (bchSubgroupCoordinates_repr D.basis D.lattice _).mp
+  change D.basis.equivFun (φ γ.coord) ∈ bchSubgroupCoordinates D.basis D.lattice
+  rw [hcoord]
+  apply D.inner_grid
+  apply scaledIntegerGrid_subset_of_dvd hdivD
+  rw [← hcoords]
+  exact (bchSubgroupCoordinates_repr W.basis Λ γ).mpr hγ
+
+theorem exists_canonical_covering_model (W : RationalFilteredNilmanifold M s d) :
+    ∃ E : RationalFilteredNilmanifold M s d,
+      E.filtration = W.filtration ∧ E.basis = W.basis ∧ W.grid ∣ E.grid ∧
+      bchSubgroupCoordinates E.basis E.lattice = scaledIntegerGrid E.grid ∧
+      ∀ (L : Type*) [LieRing L] [LieAlgebra ℚ L]
+        (D : RationalFilteredNilmanifold L s d), baseData W = baseData D →
+        ∃ φ : M ≃ₗ⁅ℚ⁆ L,
+          (∀ i, φ (E.basis i) = D.basis i) ∧
+          (∀ k a, a ∈ E.filtration.layer k ↔ φ a ∈ D.filtration.layer k) ∧
+          E.lattice ≤ D.lattice.comap
+            (NilpotentLieBCHGroup.mapOfSteps
+              (hL := E.filtration.lowerCentralSeries_eq_bot)
+              (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom) := by
+  obtain ⟨B, hB, hdiv, Λ, hcoords, _hsub⟩ := exists_canonical_lattice W
+  refine ⟨replaceLattice W B hB Λ hcoords, rfl, rfl, hdiv, hcoords, ?_⟩
+  intro L _ _ D hdata
+  exact cover_of_equal_data W B hB hdiv Λ hcoords D hdata
+
+end Algebra
+
+section Transport
+
+variable {L M : Type*} [LieRing L] [LieAlgebra ℚ L]
+  [LieRing M] [LieAlgebra ℚ M]
+  [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+  [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)]
+  [TopologicalSpace (ℝ ⊗[ℚ] M)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] M)]
+  [ContinuousSMul ℝ (ℝ ⊗[ℚ] M)] [T2Space (ℝ ⊗[ℚ] M)]
+  {s d : ℕ}
+  (D : RationalFilteredNilmanifold L s d)
+  (E : RationalFilteredNilmanifold M s d)
+  (φ : M ≃ₗ⁅ℚ⁆ L)
+  (hφbasis : ∀ i, φ (E.basis i) = D.basis i)
+  (hφlayer : ∀ k a, a ∈ E.filtration.layer k ↔ φ a ∈ D.filtration.layer k)
+  (hφlattice : E.lattice ≤ D.lattice.comap
+    (NilpotentLieBCHGroup.mapOfSteps
+      (hL := E.filtration.lowerCentralSeries_eq_bot)
+      (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom))
+
+noncomputable def transportMap : E.Space → D.Space :=
+  cosetMap E.realLattice D.realLattice
+    (NilpotentLieBCHGroup.realificationMap
+      (hnil := E.filtration.lowerCentralSeries_eq_bot)
+      (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom)
+    (NilpotentLieBCHGroup.realificationMap_subgroup φ.toLieHom
+      E.lattice D.lattice hφlattice)
+
+theorem rational_cover_iff_real_cover :
+    (E.lattice ≤ D.lattice.comap
+      (NilpotentLieBCHGroup.mapOfSteps
+        (hL := E.filtration.lowerCentralSeries_eq_bot)
+        (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom)) ↔
+    (E.realLattice ≤ D.realLattice.comap
+      (NilpotentLieBCHGroup.realificationMap
+        (hnil := E.filtration.lowerCentralSeries_eq_bot)
+        (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom)) := by
+  constructor
+  · exact NilpotentLieBCHGroup.realificationMap_subgroup φ.toLieHom E.lattice D.lattice
+  · intro h γ hγ
+    have hmem := h (Subgroup.mem_map.mpr ⟨γ, hγ, rfl⟩)
+    change NilpotentLieBCHGroup.realificationMap
+      (hnil := E.filtration.lowerCentralSeries_eq_bot)
+      (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom
+      (NilpotentLieBCHGroup.realificationHom γ) ∈ D.realLattice at hmem
+    rw [NilpotentLieBCHGroup.realificationMap_realificationHom_ofSteps] at hmem
+    obtain ⟨δ, hδ, heq⟩ := Subgroup.mem_map.mp hmem
+    have heq' := NilpotentLieBCHGroup.realificationHom_injective D.basis heq
+    change NilpotentLieBCHGroup.mapOfSteps
+      (hL := E.filtration.lowerCentralSeries_eq_bot)
+      (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom γ ∈ D.lattice
+    rw [← heq']
+    exact hδ
+
+include hφbasis in
+theorem transportMap_lipschitz :
+    letI := E.metricSpace
+    letI := D.metricSpace
+    LipschitzWith (coordinateLipschitzBound d d 1) (transportMap D E φ hφlattice) := by
+  have hmatrix : ∀ k i, RationalHeightLE (D.basis.repr (φ (E.basis i)) k) 1 := by
+    intro k i
+    rw [hφbasis]
+    simp only [Module.Basis.repr_self, Finsupp.single_apply]
+    split_ifs <;> norm_num [RationalHeightLE]
+  have h := NilpotentLieBCHGroup.lipschitz_realificationMap_quotient
+    E.basis D.basis φ.toLieHom E.lattice D.lattice hφlattice
+    E.grid D.grid E.grid_pos D.grid_pos E.outer_grid D.outer_grid 1 hmatrix
+  simp only [Fintype.card_fin, Nat.cast_one] at h
+  convert h using 1
+  rfl
+
+include hφlayer in
+theorem exists_lifted_orbit {σ : Type*} (w : σ → ℕ)
+    (q : D.filtration.realification.PolynomialOrbit w) :
+    ∃ p : E.filtration.realification.PolynomialOrbit w,
+      ∀ x : σ → ℤ,
+        NilpotentLieBCHGroup.realificationMap
+          (hnil := E.filtration.lowerCentralSeries_eq_bot)
+          (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom
+          (E.filtration.realification.polynomialOrbitEval w x p) =
+        D.filtration.realification.polynomialOrbitEval w x q := by
+  let A := (realificationLieHom φ.toLieHom).toLinearMap.restrictScalars ℚ
+  let J := (realificationLieHom φ.symm.toLieHom).toLinearMap.restrictScalars ℚ
+  have hj : Function.RightInverse J A := by
+    intro a
+    exact realificationLieEquiv_inverse φ.symm a
+  have hlayer : ∀ k a, a ∈ D.filtration.layer k → φ.symm a ∈ E.filtration.layer k := by
+    intro k a ha
+    apply (hφlayer k (φ.symm a)).mpr
+    simpa only [LieEquiv.apply_symm_apply] using ha
+  have hreal := D.filtration.realificationLieHom_mem_layer E.filtration
+    φ.symm.toLieHom hlayer
+  obtain ⟨p, hp⟩ := E.filtration.realification.exists_polynomialOrbit_lift
+    D.filtration.realification A J hj hreal w q
+  refine ⟨p, fun x => ?_⟩
+  apply NilpotentLieBCHGroup.ext
+  exact hp x
+
+include hφbasis hφlayer hφlattice in
+theorem exists_transport_map (T : D.Niltest (fun _ : Unit => 1)) :
+    ∃ π : E.Space → D.Space,
+      (letI := E.metricSpace
+       letI := D.metricSpace
+       LipschitzWith (coordinateLipschitzBound d d 1) π) ∧
+      ∃ p : E.filtration.realification.PolynomialOrbit (fun _ : Unit => 1),
+        ∀ n : ℤ, π (E.integerOrbitPoint p n) = D.integerOrbitPoint T.orbit n := by
+  obtain ⟨p, hp⟩ := exists_lifted_orbit D E φ hφlayer (fun _ : Unit => 1) T.orbit
+  refine ⟨transportMap D E φ hφlattice,
+    transportMap_lipschitz D E φ hφbasis hφlattice, p, fun n => ?_⟩
+  change QuotientGroup.mk
+    (NilpotentLieBCHGroup.realificationMap
+      (hnil := E.filtration.lowerCentralSeries_eq_bot)
+      (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom
+      (E.filtration.realification.polynomialOrbitEval (fun _ : Unit => 1) (fun _ => n) p)) = _
+  rw [hp (fun _ => n)]
+  rfl
+
+include hφbasis hφlayer hφlattice in
+theorem exists_transport_map_uniform :
+    ∃ π : E.Space → D.Space,
+      (letI := E.metricSpace
+       letI := D.metricSpace
+       LipschitzWith (coordinateLipschitzBound d d 1) π) ∧
+      ∀ q : D.filtration.realification.PolynomialOrbit (fun _ : Unit => 1),
+        ∃ p : E.filtration.realification.PolynomialOrbit (fun _ : Unit => 1),
+          ∀ n : ℤ, π (E.integerOrbitPoint p n) = D.integerOrbitPoint q n := by
+  refine ⟨transportMap D E φ hφlattice,
+    transportMap_lipschitz D E φ hφbasis hφlattice, fun q => ?_⟩
+  obtain ⟨p, hp⟩ := exists_lifted_orbit D E φ hφlayer (fun _ : Unit => 1) q
+  refine ⟨p, fun n => ?_⟩
+  change QuotientGroup.mk
+    (NilpotentLieBCHGroup.realificationMap
+      (hnil := E.filtration.lowerCentralSeries_eq_bot)
+      (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom
+      (E.filtration.realification.polynomialOrbitEval (fun _ : Unit => 1) (fun _ => n) p)) = _
+  rw [hp (fun _ => n)]
+  rfl
+
+end Transport
 end HindmanSumsProducts.InverseBridge
