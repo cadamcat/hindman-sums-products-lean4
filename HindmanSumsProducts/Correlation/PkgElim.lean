@@ -3535,6 +3535,45 @@ def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
   arity_le := Nat.zero_le K
   cutoff := Fin.elim0
 
+noncomputable def pkgElim_momentDivisorTemplate {K m q r h : ℕ}
+    (C : MasterChain K m) (Sh : RowShape m q r)
+    (eO : Occurrence Sh ≃ Fin h) (F : Finset (Occurrence Sh)) :
+    Fin h → DivisorTemplate K K := fun u =>
+      if eO.symm u ∈ F then occurrenceDivisorTemplate C Sh (eO.symm u)
+      else emptyDivisorTemplate K
+
+theorem pkgElim_momentDivisorTemplate_support {K m q r h s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (eO : Occurrence Sh ≃ Fin h)
+    (F : Finset (Occurrence Sh)) (N : ℕ) (u : Fin h) (σ : ℕ)
+    (hσ : FromArithmetic.divisorTemplateLaw S.core.parameters N
+      (pkgElim_momentDivisorTemplate C Sh eO F u) σ ≠ 0) :
+    1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap ∧
+      Nat.Coprime σ (primorial (N + 1)) := by
+  classical
+  by_cases hF : eO.symm u ∈ F
+  · have hσ' : FromArithmetic.divisorTemplateLaw S.core.parameters N
+        (occurrenceDivisorTemplate C Sh (eO.symm u)) σ ≠ 0 := by
+      simpa [pkgElim_momentDivisorTemplate, hF] using hσ
+    exact pkgElim_selectedOccurrenceDivisor_support S C Sh (eO.symm u) N σ hσ'
+  · have hσ' : FromArithmetic.divisorTemplateLaw S.core.parameters N
+        (emptyDivisorTemplate K) σ ≠ 0 := by
+      simpa [pkgElim_momentDivisorTemplate, hF] using hσ
+    have hempty := divisorTemplateLaw_support_facts S.core.parameters N
+      (emptyDivisorTemplate K) σ hσ'
+    have hσone : σ ≤ 1 := by
+      have hprod :
+          (∏ i : Fin (emptyDivisorTemplate K).arity,
+            (S.core.parameters.X N ((emptyDivisorTemplate K).cutoff i)) ^ 2) ≤ 1 := by
+        change (∏ i : Fin 0, (S.core.parameters.X N (Fin.elim0 i)) ^ 2) ≤ 1
+        rw [Fin.prod_univ_zero]
+      exact hempty.2.1.trans hprod
+    have hV : 1 ≤ masterScaleV S.core.parameters N C.gap := by
+      unfold masterScaleV
+      omega
+    exact ⟨hempty.1, hσone.trans hV, hempty.2.2⟩
+
 noncomputable def pkgElim_retainedChoice {m q r : ℕ} (Sh : RowShape m q r)
     (I : NonTarget Sh) (η : {R : NonTarget Sh // R ≠ I} → Fin 2)
     (R : NonTarget Sh) : Fin 2 := by
