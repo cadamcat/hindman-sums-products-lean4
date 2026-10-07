@@ -3182,4 +3182,133 @@ theorem c_elim2_arithmeticL1_product_le_sum
       unfold finiteL1
       exact hattach.trans htsum.symm
 
+theorem c_elim2_arithmeticL1_test_bound
+    {α : Type*} [DecidableEq α] (μ ν F : α → ℝ) (S : Finset α)
+    (B : ℝ) (hB : 0 ≤ B)
+    (hμzero : ∀ x, x ∉ S → μ x = 0)
+    (hνzero : ∀ x, x ∉ S → ν x = 0)
+    (hF : ∀ x, |F x| ≤ B) :
+    |∑' x, (μ x - ν x) * F x| ≤ B * arithmeticL1 μ ν := by
+  classical
+  have hexpect : ∑' x, (μ x - ν x) * F x =
+      ∑ x ∈ S, (μ x - ν x) * F x := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional α) (s := S)
+      (f := fun x => (μ x - ν x) * F x)
+      (by intro x hx; simp [hμzero x hx, hνzero x hx])]
+  have hL1 : arithmeticL1 μ ν = ∑ x ∈ S, |μ x - ν x| := by
+    unfold arithmeticL1
+    rw [tsum_eq_sum (L := SummationFilter.unconditional α) (s := S)
+      (f := fun x => |μ x - ν x|)
+      (by intro x hx; simp [hμzero x hx, hνzero x hx])]
+  rw [hexpect, hL1]
+  calc
+    |∑ x ∈ S, (μ x - ν x) * F x| ≤
+        ∑ x ∈ S, |(μ x - ν x) * F x| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ x ∈ S, B * |μ x - ν x| := by
+      apply Finset.sum_le_sum
+      intro x hx
+      rw [abs_mul]
+      calc
+        |μ x - ν x| * |F x| ≤ |μ x - ν x| * B :=
+          mul_le_mul_of_nonneg_left (hF x) (abs_nonneg _)
+        _ = B * |μ x - ν x| := mul_comm _ _
+    _ = B * ∑ x ∈ S, |μ x - ν x| := by rw [Finset.mul_sum]
+
+theorem c_elim2_productTranslation_expectation_bound
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (μ : ι → ℤ → ℝ)
+    (h : ι → ℤ) (S : Finset ℤ) (F : (ι → ℤ) → ℝ) (B ε : ℝ)
+    (hB : 0 ≤ B)
+    (hμzero : ∀ i z, z ∉ S → μ i z = 0)
+    (hνzero : ∀ i z, z ∉ S → translatedLaw (μ i) (h i) z = 0)
+    (hμnonneg : ∀ i z, 0 ≤ μ i z)
+    (hμmass : ∀ i, ∑' z : ℤ, μ i z = 1)
+    (hcoordL1 : ∀ i, arithmeticL1 (translatedLaw (μ i) (h i)) (μ i) ≤ ε)
+    (hF : ∀ z, |F z| ≤ B) :
+    |(∑' z : ι → ℤ, (∏ i, μ i (z i)) * F (fun i => z i + h i)) -
+      ∑' z, (∏ i, μ i (z i)) * F z| ≤ B * (Fintype.card ι : ℝ) * ε := by
+  classical
+  let ν : ι → ℤ → ℝ := fun i z => translatedLaw (μ i) (h i) z
+  let μProd : (ι → ℤ) → ℝ := fun z => ∏ i, μ i (z i)
+  let νProd : (ι → ℤ) → ℝ := fun z => ∏ i, ν i (z i)
+  let Sprod : Finset (ι → ℤ) := Fintype.piFinset fun _ : ι => S
+  have hνnonneg : ∀ i z, 0 ≤ ν i z := by
+    intro i z
+    exact hμnonneg i (z - h i)
+  have hνmass : ∀ i, ∑' z : ℤ, ν i z = 1 := by
+    intro i
+    calc
+      _ = ∑' z : ℤ, μ i (Equiv.addRight (-h i) z) := by
+        simp [ν, translatedLaw, Equiv.coe_addRight, sub_eq_add_neg]
+      _ = ∑' z : ℤ, μ i z := (Equiv.addRight (-h i)).tsum_eq (fun z => μ i z)
+      _ = 1 := hμmass i
+  have hμprodZero : ∀ z, z ∉ Sprod → μProd z = 0 := by
+    intro z hz
+    have hnotall : ¬ ∀ i : ι, z i ∈ S := by
+      intro hall
+      apply hz
+      change z ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hμzero i (z i) hi)
+  have hνprodZero : ∀ z, z ∉ Sprod → νProd z = 0 := by
+    intro z hz
+    have hnotall : ¬ ∀ i : ι, z i ∈ S := by
+      intro hall
+      apply hz
+      change z ∈ Fintype.piFinset (fun _ : ι => S)
+      exact Fintype.mem_piFinset.mpr hall
+    obtain ⟨i, hi⟩ := not_forall.mp hnotall
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hνzero i (z i) hi)
+  have hchange :
+      (∑' z : ι → ℤ, μProd z * F (fun i => z i + h i)) =
+        ∑' z : ι → ℤ, νProd z * F z := by
+    calc
+      _ = ∑' z : ι → ℤ, νProd (fun i => z i + h i) *
+          F (fun i => z i + h i) := by
+        apply tsum_congr
+        intro z
+        simp [μProd, νProd, ν, translatedLaw, sub_add_cancel]
+      _ = _ := (Equiv.addRight h).tsum_eq (fun z => νProd z * F z)
+  have hprodTV := c_elim2_arithmeticL1_product_le_sum ν μ S
+    (by intro i z hz; exact hνzero i z hz)
+    hμzero hνnonneg hμnonneg hνmass hμmass
+  have hprodTVle : arithmeticL1 νProd μProd ≤ (Fintype.card ι : ℝ) * ε := by
+    calc
+      arithmeticL1 νProd μProd ≤ ∑ i, arithmeticL1 (ν i) (μ i) := hprodTV
+      _ ≤ ∑ _i : ι, ε := Finset.sum_le_sum (fun i hi => hcoordL1 i)
+      _ = (Fintype.card ι : ℝ) * ε := by simp
+  have htest := c_elim2_arithmeticL1_test_bound νProd μProd F Sprod B hB
+    hνprodZero hμprodZero hF
+  have hsumνF : ∑' z : ι → ℤ, νProd z * F z =
+      ∑ z ∈ Sprod, νProd z * F z := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ)) (s := Sprod)
+      (f := fun z => νProd z * F z)
+      (by intro z hz; simp [hνprodZero z hz])]
+  have hsumμF : ∑' z : ι → ℤ, μProd z * F z =
+      ∑ z ∈ Sprod, μProd z * F z := by
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ)) (s := Sprod)
+      (f := fun z => μProd z * F z)
+      (by intro z hz; simp [hμprodZero z hz])]
+  have hdiff :
+      (∑' z : ι → ℤ, νProd z * F z) - ∑' z, μProd z * F z =
+        ∑' z : ι → ℤ, (νProd z - μProd z) * F z := by
+    rw [hsumνF, hsumμF]
+    rw [tsum_eq_sum (L := SummationFilter.unconditional (ι → ℤ)) (s := Sprod)
+      (f := fun z => (νProd z - μProd z) * F z)
+      (by intro z hz; simp [hνprodZero z hz, hμprodZero z hz])]
+    calc
+      _ = ∑ z ∈ Sprod, (νProd z * F z - μProd z * F z) := by
+        rw [Finset.sum_sub_distrib]
+      _ = ∑ z ∈ Sprod, (νProd z - μProd z) * F z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        ring
+  calc
+    _ = |(∑' z : ι → ℤ, νProd z * F z) - ∑' z, μProd z * F z| := by rw [hchange]
+    _ = |∑' z : ι → ℤ, (νProd z - μProd z) * F z| := by rw [hdiff]
+    _ ≤ B * arithmeticL1 νProd μProd := htest
+    _ ≤ B * ((Fintype.card ι : ℝ) * ε) :=
+      mul_le_mul_of_nonneg_left hprodTVle hB
+    _ = B * (Fintype.card ι : ℝ) * ε := by ring
+
 end HindmanSumsProducts
