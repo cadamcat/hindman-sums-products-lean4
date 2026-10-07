@@ -291,6 +291,14 @@ theorem c_test2_rowValues_coprime {m q : ℕ} (T : RowTemplate m q)
   simpa [c_test2_rowValueNat, he, hf] using
     c_test2_monomials_coprime e f p hp hinj hdisj 
 
+theorem c_test2_rowValueNat_pos_of_entry {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (i : Fin m) (hi : ∃ e, T.entry i = some e)
+    (hp : ∀ j, 0 < p j) : 0 < c_test2_rowValueNat T p i := by
+  obtain ⟨e, he⟩ := hi
+  change 0 < (T.entry i).elim 0 (fun e => ∏ j : Fin q, p j ^ e j)
+  rw [he]
+  exact Finset.prod_pos (fun j hj => Nat.pow_pos (hp j))
+
 private theorem c_test2_harmonicNatLaw_nonneg (X W n : ℕ) :
     0 ≤ harmonicNatLaw X W n := by
   have hZ : 0 ≤ harmonicNormalizer X W := by
@@ -373,6 +381,172 @@ private theorem c_test2_scaleRatioNat {K s m : ℕ}
   have hρMInt : (ρ : ℤ) ∣ (S.core.parameters.M N : ℤ) := hρci.trans hciM
   have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
   exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
+
+theorem c_test2_targetCoeffData {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ)
+    (c : Fin m → ℤ) (hcpos : ∀ d, 0 < c d)
+    (hratio : ∀ u d, u < d → ∃ t : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (t : ℤ) * c d)
+    (hmod : ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))
+    (T : RowTemplate m q) (j : Fin m) (hj : j ∈ T.support) (hja : j < T.anchor)
+    (p : Fin q → ℕ) (hp : ∀ i, Nat.Prime (p i))
+    (hpinj : Function.Injective p)
+    (hlarge : ∀ i, primorial (N + 1) < p i)
+    (size : ℕ) (hsize : 0 < size) (hpbound : ∀ i, p i ≤ size)
+    (hMle : S.core.parameters.M N ≤ size) :
+    ∃ alpha : Fin m → ℕ,
+      (∀ i, alpha i ≤ size ^ (c_test2_rowExponent T + 1)) ∧
+      (∀ i, i < T.anchor → primorial (N + 1) ∣ alpha i) ∧
+      0 < alpha T.anchor ∧ 0 < alpha j ∧
+      primorial (N + 1) ∣ alpha j ∧
+      Nat.Coprime (alpha T.anchor) (primorial (N + 1)) ∧
+      Nat.Coprime (alpha j) (alpha T.anchor) ∧
+      alpha T.anchor ≤ size ^ c_test2_rowExponent T ∧
+      alpha j ≤ size ^ (c_test2_rowExponent T + 1) ∧
+      ∀ i, (c i : ℚ) / (c T.anchor : ℚ) * T.value p i = (alpha i : ℚ) := by
+  classical
+  let rho : Fin m → ℕ := fun i =>
+    if hi : i < T.anchor then
+      Classical.choose (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+    else 1
+  let alpha : Fin m → ℕ := fun i =>
+    if hi : i < T.anchor then rho i * c_test2_rowValueNat T p i
+    else if i = T.anchor then c_test2_rowValueNat T p i else 0
+  have hentryA : ∃ e, T.entry T.anchor = some e := by
+    have hmem : T.anchor ∈ T.support := Finset.max'_mem T.support T.support_nonempty
+    have hisSome : (T.entry T.anchor).isSome := by
+      simpa [RowTemplate.support] using hmem
+    exact Option.isSome_iff_exists.mp hisSome
+  have hentryJ : ∃ e, T.entry j = some e := by
+    have hisSome : (T.entry j).isSome := by
+      simpa [RowTemplate.support] using hj
+    exact Option.isSome_iff_exists.mp hisSome
+  have hvalA : 0 < c_test2_rowValueNat T p T.anchor :=
+    c_test2_rowValueNat_pos_of_entry T p T.anchor hentryA (fun i => (hp i).pos)
+  have hvalJ : 0 < c_test2_rowValueNat T p j :=
+    c_test2_rowValueNat_pos_of_entry T p j hentryJ (fun i => (hp i).pos)
+  have hWpos : 0 < primorial (N + 1) := primorial_pos _
+  have hpW : ∀ i, Nat.Coprime (p i) (primorial (N + 1)) := by
+    intro i
+    apply (hp i).coprime_iff_not_dvd.mpr
+    intro hd
+    have hle := Nat.le_of_dvd hWpos hd
+    have hgt := hlarge i
+    omega
+  have hKcop : Nat.Coprime (c_test2_rowValueNat T p T.anchor) (primorial (N + 1)) := by
+    obtain ⟨e, he⟩ := hentryA
+    have hprod : Nat.Coprime (∏ i, p i ^ e i) (primorial (N + 1)) := by
+      rw [Nat.coprime_fintype_prod_left_iff]
+      intro i
+      by_cases hei : e i = 0
+      · simp [hei]
+      · exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hei) (p i)
+          (primorial (N + 1))).2 (hpW i)
+    simpa [c_test2_rowValueNat, he] using hprod
+  have hrowCop : Nat.Coprime (c_test2_rowValueNat T p j)
+      (c_test2_rowValueNat T p T.anchor) :=
+    c_test2_rowValues_coprime T j T.anchor p hentryJ hentryA (by omega) hp hpinj
+  have hAnchorAlpha : alpha T.anchor = c_test2_rowValueNat T p T.anchor := by
+    simp [alpha]
+  have hLowerAlpha : alpha j = rho j * c_test2_rowValueNat T p j := by
+    simp [alpha, hja]
+  have hKpos : 0 < alpha T.anchor := by rw [hAnchorAlpha]; exact hvalA
+  let ρj := Classical.choose (c_test2_scaleRatioNat S N c hcpos hratio hmod j T.anchor hja)
+  have hρjSpec := Classical.choose_spec
+    (c_test2_scaleRatioNat S N c hcpos hratio hmod j T.anchor hja)
+  have hρjEq : rho j = ρj := by simp [rho, hja, ρj]
+  have hBpos : 0 < alpha j := by
+    rw [hLowerAlpha, hρjEq]
+    exact Nat.mul_pos hρjSpec.1 hvalJ
+  have hAlphaBound : ∀ i, alpha i ≤ size ^ (c_test2_rowExponent T + 1) := by
+    intro i
+    by_cases hi : i < T.anchor
+    · let ρi := Classical.choose (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+      have hρspec := Classical.choose_spec
+        (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+      have hρeq' : rho i = ρi := by simp [rho, hi, ρi]
+      have hρle : rho i ≤ S.core.parameters.M N := by
+        rw [hρeq']
+        exact Nat.le_of_dvd (S.core.parameters.Mpos N) hρspec.2.2.2
+      have hvalle := c_test2_rowValueNat_le T p size hsize hpbound i
+      have hmul := Nat.mul_le_mul (hρle.trans hMle) hvalle
+      calc
+        alpha i = rho i * c_test2_rowValueNat T p i := by simp [alpha, hi]
+        _ ≤ size * size ^ c_test2_rowExponent T := hmul
+        _ = size ^ (c_test2_rowExponent T + 1) := by
+          rw [Nat.pow_succ]
+          ring
+    · by_cases hia : i = T.anchor
+      · subst i
+        rw [hAnchorAlpha]
+        calc
+          c_test2_rowValueNat T p T.anchor ≤ size ^ c_test2_rowExponent T :=
+            c_test2_rowValueNat_le T p size hsize hpbound T.anchor
+          _ ≤ size ^ (c_test2_rowExponent T + 1) :=
+            Nat.pow_le_pow_right hsize (by omega)
+      · simp [alpha, hi, hia]
+  refine ⟨alpha, hAlphaBound, ?_, hKpos, hBpos, ?_, ?_, ?_, ?_, hAlphaBound j, ?_⟩
+  · intro i hi
+    let ρi := Classical.choose (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+    have hρspec := Classical.choose_spec
+      (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+    have hρeq' : rho i = ρi := by simp [rho, hi, ρi]
+    rw [show alpha i = rho i * c_test2_rowValueNat T p i by simp [alpha, hi], hρeq']
+    exact dvd_mul_of_dvd_left hρspec.2.2.1 _
+  · have hρeq' : rho j = ρj := by simp [rho, hja, ρj]
+    rw [hLowerAlpha, hρeq']
+    exact dvd_mul_of_dvd_left hρjSpec.2.2.1 _
+  · simpa [hAnchorAlpha] using hKcop
+  · have hρM := hρjSpec.2.2.2
+    obtain ⟨e, heM⟩ := S.core.modulus_power N
+    have hKM : Nat.Coprime (c_test2_rowValueNat T p T.anchor)
+        (S.core.parameters.M N) := by
+      rw [heM]
+      exact hKcop.pow_right e
+    have hρK : Nat.Coprime ρj (c_test2_rowValueNat T p T.anchor) :=
+      (hKM.coprime_dvd_right hρM).symm
+    rw [hLowerAlpha]
+    have hρeq' : rho j = ρj := by simp [rho, hja, ρj]
+    rw [hρeq']
+    rw [hAnchorAlpha]
+    rw [Nat.coprime_mul_iff_left]
+    exact ⟨hρK, hrowCop⟩
+  · rw [hAnchorAlpha]
+    exact c_test2_rowValueNat_le T p size hsize hpbound T.anchor
+  · intro i
+    by_cases hi : i < T.anchor
+    · let ρi := Classical.choose (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+      have hρspec := Classical.choose_spec
+        (c_test2_scaleRatioNat S N c hcpos hratio hmod i T.anchor hi)
+      have hρeq' : rho i = ρi := by simp [rho, hi, ρi]
+      calc
+        (c i : ℚ) / (c T.anchor : ℚ) * T.value p i =
+            (ρi : ℚ) * (c_test2_rowValueNat T p i : ℚ) := by
+              rw [hρspec.2.1, c_test2_rowValue_eq_cast]
+        _ = (alpha i : ℚ) := by
+          rw [show alpha i = rho i * c_test2_rowValueNat T p i by simp [alpha, hi], hρeq']
+          simp [Nat.cast_mul]
+    · by_cases hia : i = T.anchor
+      · subst i
+        have hca : (c T.anchor : ℚ) ≠ 0 := by
+          exact_mod_cast ne_of_gt (hcpos T.anchor)
+        rw [div_self hca, c_test2_rowValue_eq_cast, hAnchorAlpha]
+        simp
+      · have hnone : T.entry i = none := by
+          by_contra hsome
+          obtain ⟨e, he⟩ : ∃ e, T.entry i = some e := by
+            cases h : T.entry i with
+            | none => exact (hsome h).elim
+            | some e => exact ⟨e, rfl⟩
+          have hmem : i ∈ T.support := by
+            simpa [RowTemplate.support, he]
+          have hle : i ≤ T.anchor := Finset.le_max' T.support i hmem
+          omega
+        have hval0 : T.value p i = 0 := by simp [RowTemplate.value, hnone]
+        simp [hval0, alpha, hi, hia]
 
 theorem c_test2_chainWeight_nonneg {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
