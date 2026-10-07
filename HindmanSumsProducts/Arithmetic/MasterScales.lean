@@ -141,11 +141,112 @@ structure MasterScales (n : ℕ) (Aset : Finset ℚ) (m : ℕ)
 
 /-- Binary subset separation used to make every earlier block-height ratio contain `W^w`
 (§3 lines 254–266). -/
+private lemma sum_pow_two_range (k : ℕ) :
+    ∑ e ∈ Finset.range k, (2 : ℕ) ^ e = 2 ^ k - 1 := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+      rw [Finset.sum_range_succ, ih, pow_succ]
+      omega
+
 theorem binary_subset_weight_separation (n : ℕ)
     (S T : Finset (Fin n)) (j : Fin n) (hjS : j ∈ S) (hjT : j ∉ T)
     (hfirst : ∀ i, i < j → (i ∈ S ↔ i ∈ T)) :
     ∑ i ∈ S, 2 ^ (n - i.val - 1) > ∑ i ∈ T, 2 ^ (n - i.val - 1) := by
-  sorry
+  classical
+  let f : Fin n → ℕ := fun i => 2 ^ (n - i.val - 1)
+  let tail : Finset (Fin n) := Finset.univ.filter (fun i => j < i)
+  let exponents : Finset ℕ := tail.image (fun i => (Fin.rev i).val)
+  have hexp (i : Fin n) : f i = 2 ^ (Fin.rev i).val := by
+    change 2 ^ (n - i.val - 1) = 2 ^ (Fin.rev i).val
+    rw [Fin.val_rev, Nat.sub_sub]
+  have hinj : Set.InjOn (fun i : Fin n => (Fin.rev i).val) (tail : Set (Fin n)) := by
+    intro i hi i' hi' heq
+    have hrev : Fin.rev i = Fin.rev i' := Fin.ext heq
+    have heq' : i = i' := Fin.rev_injective hrev
+    exact heq'
+  have hexpsub : exponents ⊆ Finset.range (n - j.val - 1) := by
+    intro e he
+    rcases Finset.mem_image.mp he with ⟨i, hi, rfl⟩
+    have hij : j < i := (Finset.mem_filter.mp hi).2
+    rw [Finset.mem_range, Fin.val_rev]
+    omega
+  have htail : (∑ i ∈ tail, f i) < f j := by
+    have himage : (∑ i ∈ tail, f i) =
+        ∑ e ∈ exponents, (2 : ℕ) ^ e := by
+      calc
+        (∑ i ∈ tail, f i) = ∑ i ∈ tail, (2 : ℕ) ^ (Fin.rev i).val := by
+          apply Finset.sum_congr rfl
+          intro i hi
+          exact hexp i
+        _ = ∑ e ∈ exponents, (2 : ℕ) ^ e :=
+          (Finset.sum_image hinj).symm
+    have hgeom := sum_pow_two_range (n - j.val - 1)
+    calc
+      (∑ i ∈ tail, f i) = ∑ e ∈ exponents, (2 : ℕ) ^ e := himage
+      _ ≤ ∑ e ∈ Finset.range (n - j.val - 1), (2 : ℕ) ^ e :=
+        Finset.sum_le_sum_of_subset hexpsub
+      _ = 2 ^ (n - j.val - 1) - 1 := hgeom
+      _ < 2 ^ (n - j.val - 1) := by
+        have hp : 0 < 2 ^ (n - j.val - 1) := by positivity
+        omega
+      _ = f j := rfl
+  let common := S ∩ T
+  let sdiff := S \ T
+  let tdiff := T \ S
+  have hSset : S = common ∪ sdiff := by
+    ext i
+    change i ∈ S ↔ i ∈ S ∩ T ∪ S \ T
+    simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
+    tauto
+  have hTset : T = common ∪ tdiff := by
+    ext i
+    change i ∈ T ↔ i ∈ S ∩ T ∪ T \ S
+    simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
+    tauto
+  have hdisjS : Disjoint common sdiff := by
+    apply Finset.disjoint_left.mpr
+    intro i hi hs
+    exact (Finset.mem_sdiff.mp hs).2 (Finset.mem_inter.mp hi).2
+  have hdisjT : Disjoint common tdiff := by
+    apply Finset.disjoint_left.mpr
+    intro i hi ht
+    exact (Finset.mem_sdiff.mp ht).2 (Finset.mem_inter.mp hi).1
+  have hsumS : (∑ i ∈ S, f i) = (∑ i ∈ common, f i) + ∑ i ∈ sdiff, f i := by
+    rw [hSset, Finset.sum_union hdisjS]
+  have hsumT : (∑ i ∈ T, f i) = (∑ i ∈ common, f i) + ∑ i ∈ tdiff, f i := by
+    rw [hTset, Finset.sum_union hdisjT]
+  have hjSdiff : j ∈ sdiff := Finset.mem_sdiff.mpr ⟨hjS, hjT⟩
+  have hsdiffLower : f j ≤ ∑ i ∈ sdiff, f i := by
+    calc
+      f j = ∑ i ∈ ({j} : Finset (Fin n)), f i := (Finset.sum_singleton f j).symm
+      _ ≤ ∑ i ∈ sdiff, f i :=
+        Finset.sum_le_sum_of_subset_of_nonneg (Finset.singleton_subset_iff.mpr hjSdiff)
+          (by intro i hi hni; exact Nat.zero_le _)
+  have htdiffSubset : tdiff ⊆ tail := by
+    intro i hi
+    apply Finset.mem_filter.mpr
+    refine ⟨Finset.mem_univ _, ?_⟩
+    by_contra hnot
+    have hile : i.val ≤ j.val := Fin.not_lt.mp (by
+      intro hij
+      exact hnot (Fin.lt_iff_val_lt_val.mpr hij))
+    by_cases heq : i.val = j.val
+    · have hieq : i = j := Fin.ext heq
+      subst i
+      exact hjT (Finset.mem_sdiff.mp hi).1
+    · have hijv : i.val < j.val := by omega
+      have his : i ∈ S := (hfirst i (Fin.lt_iff_val_lt_val.mpr hijv)).2
+        (Finset.mem_sdiff.mp hi).1
+      exact (Finset.mem_sdiff.mp hi).2 his
+  have htdiffUpper : (∑ i ∈ tdiff, f i) ≤ ∑ i ∈ tail, f i :=
+    Finset.sum_le_sum_of_subset_of_nonneg htdiffSubset
+      (by intro i hi hni; exact Nat.zero_le _)
+  have hdiff : (∑ i ∈ tdiff, f i) < ∑ i ∈ sdiff, f i :=
+    lt_of_le_of_lt htdiffUpper (lt_of_lt_of_le htail hsdiffLower)
+  rw [hsumS, hsumT]
+  simpa [gt_iff_lt, add_comm] using
+    (add_lt_add_left hdiff (∑ i ∈ common, f i))
 
 /-- A nonzero integer polynomial has zero Haar measure on a product of p-adic unit groups;
 in the finite quotient form, its divisibility probability tends to zero with the modulus
@@ -167,6 +268,23 @@ theorem choose_small_prime_exception_exponent {m : ℕ}
         (uniformSmallPrimeException D w e) ≤ 1 / (w : ℝ) := by
   sorry
 
+private theorem small_prime_exponent_counterexample :
+    ¬ ∃ e : ℕ, 1 ≤ e ∧
+      uniformUnitTupleProbability ((primorial 2) ^ e) 0
+        (uniformSmallPrimeException ({0} : Finset (IntegerPolynomial 0)) 2 e) ≤
+          1 / (2 : ℝ) := by
+  rintro ⟨e, he, hprob⟩
+  have hevent : ∀ u : Fin 0 → Fin ((primorial 2) ^ e),
+      uniformSmallPrimeException ({0} : Finset (IntegerPolynomial 0)) 2 e u := by
+    intro u
+    refine ⟨2, by norm_num, by norm_num, 0, by simp, ?_⟩
+    simp [evalIntegerPolynomial]
+  have hmass : uniformUnitTupleProbability ((primorial 2) ^ e) 0
+      (uniformSmallPrimeException ({0} : Finset (IntegerPolynomial 0)) 2 e) = 1 := by
+    simp [uniformUnitTupleProbability, uniformUnitTupleMass, hevent]
+  rw [hmass] at hprob
+  norm_num at hprob
+
 /-- Elementary product-grid zero bound used to show polynomial zeros and repeated prime
 slots have super-polynomially small probability in the constructed pools. -/
 theorem polynomial_zero_product_grid_bound {m : ℕ}
@@ -179,6 +297,70 @@ theorem polynomial_zero_product_grid_bound {m : ℕ}
         (if evalIntegerPolynomial P (fun i => (x i : ℤ)) = 0 then (1 : ℝ) else 0)
       ≤ (MvPolynomial.totalDegree P : ℝ) * a := by
   sorry
+
+private theorem no_master_scale_core_for_half :
+    ¬ Nonempty (MasterScaleCore 3 ({(1 / 2 : ℚ)} : Finset ℚ)) := by
+  rintro ⟨C⟩
+  classical
+  let zero : Fin 3 := ⟨0, by omega⟩
+  let gap : Fin 3 := ⟨1, by omega⟩
+  let pivot : Fin 3 := ⟨2, by omega⟩
+  let tail : OAI.SourceBlocks.Tail pivot := ⟨{zero}, by
+    constructor
+    · simp
+    · intro i hi
+      have h : i = zero := Finset.mem_singleton.mp hi
+      subst i
+      norm_num [zero, pivot]
+  ⟩
+  let block : OAI.SourceBlocks.Block 3 := ⟨pivot, tail⟩
+  let chain : MasterChain 3 1 := {
+    gap := gap
+    block := fun _ => block
+    tails_before_gap := by
+      intro d i hi
+      simp [block, tail] at hi
+      subst i
+      norm_num [zero, gap]
+    tails_ordered := by
+      intro u d hud i hi k hk
+      fin_cases u
+      fin_cases d
+      simp at hud
+    pivots_after_gap := by
+      intro d
+      fin_cases d
+      norm_num [gap, block, pivot]
+    pivots_ordered := by
+      intro u d hud
+      fin_cases u
+      fin_cases d
+      simp at hud
+  }
+  have hht : ∀ i : Fin 3, C.parameters.ht 0 i = 1 := by
+    intro i
+    rw [C.height_formula 0 i]
+    simp [primorial_one]
+  have hheight :
+      OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+        (C.parameters.ht 0) (chain.block 0).set = 1 := by
+    unfold OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+    simp_rw [hht]
+    simp
+  obtain ⟨c, hc, -, -⟩ := C.chain_coefficients 0 1 chain
+      (fun _ => (1 / 2 : ℚ)) (by intro d; simp)
+  have hhalf : (c 0 : ℚ) = 1 / 2 := by
+    simpa [hheight] using hc 0
+  have hcast : ((c 0 : ℤ) : ℚ) * 2 = 1 := by
+    simpa using congrArg (fun x : ℚ => x * 2) hhalf
+  have hz : c 0 * 2 = 1 := by exact_mod_cast hcast
+  omega
+
+private theorem no_master_scales_for_half :
+    ¬ Nonempty (MasterScales 3 ({(1 / 2 : ℚ)} : Finset ℚ) 0
+      (∅ : Finset (IntegerPolynomial 0))) := by
+  rintro ⟨S⟩
+  exact no_master_scale_core_for_half ⟨S.core⟩
 
 /-- Algebraic master-scale stage: constructs `OAI.SourceAdmissible.Parameters n` with the
 paper's binary `h_j`, a power-of-W modulus, and all rational chain divisibilities. -/
@@ -220,7 +402,39 @@ theorem arithmetic_countable_test_diagonal
     ∃ threshold : ℕ → ℕ, StrictMono threshold ∧
       ∀ j, ∀ᶠ N in atTop, threshold j ≤ N →
         requiredError j N ≤ 1 / ((j + 1 : ℕ) : ℝ) := by
-  sorry
+  have hbound : ∀ j, ∀ᶠ N : ℕ in atTop,
+      requiredError j N ≤ 1 / ((j + 1 : ℕ) : ℝ) := by
+    intro j
+    have heps : 0 < (1 / ((j + 1 : ℕ) : ℝ)) := by positivity
+    filter_upwards [(hsmall j).eventually (Metric.ball_mem_nhds 0 heps)] with N hN
+    change dist (requiredError j N) 0 < 1 / ((j + 1 : ℕ) : ℝ) at hN
+    have habs : |requiredError j N| < 1 / ((j + 1 : ℕ) : ℝ) := by
+      simpa [Real.dist_eq] using hN
+    exact le_of_lt (abs_lt.mp habs).2
+  let start : ℕ → ℕ := fun j => Classical.choose (eventually_atTop.mp (hbound j))
+  have hstart : ∀ j N, start j ≤ N →
+      requiredError j N ≤ 1 / ((j + 1 : ℕ) : ℝ) := by
+    intro j N hN
+    exact (Classical.choose_spec (eventually_atTop.mp (hbound j))) N hN
+  let threshold : ℕ → ℕ := Nat.rec (start 0)
+    (fun j t => max (t + 1) (start (j + 1)))
+  have hthreshold : ∀ j, start j ≤ threshold j := by
+    intro j
+    induction j with
+    | zero => exact Nat.le_refl _
+    | succ j ih =>
+        change start (j + 1) ≤ max (threshold j + 1) (start (j + 1))
+        exact Nat.le_max_right _ _
+  refine ⟨threshold, ?_, ?_⟩
+  · apply strictMono_nat_of_lt_succ
+    intro j
+    change threshold j < max (threshold j + 1) (start (j + 1))
+    exact lt_of_lt_of_le (Nat.lt_succ_self _) (Nat.le_max_left _ _)
+  · intro j
+    apply eventually_atTop.2
+    refine ⟨threshold j, ?_⟩
+    intro N hN hthresholdN
+    exact hstart j N ((hthreshold j).trans hthresholdN)
 
 end
 end HindmanSumsProducts
