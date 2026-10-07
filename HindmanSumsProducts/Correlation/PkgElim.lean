@@ -4464,6 +4464,53 @@ theorem pkgElim_evalIntegerPolynomial_rename {q s : ℕ}
   rw [MvPolynomial.eval_rename]
   rfl
 
+abbrev pkgElim_primeSlotComplement {q s : ℕ} (ι : Fin q ↪ Fin s) :=
+  {j : Fin s // j ∉ Set.range ι}
+
+noncomputable def pkgElim_primeSlotIndexEquiv {q s : ℕ} (ι : Fin q ↪ Fin s) :
+    Fin q ⊕ pkgElim_primeSlotComplement ι ≃ Fin s := by
+  classical
+  let eRange : Fin q ≃ {j : Fin s // j ∈ Set.range ι} := ι.toEquivRange
+  exact (Equiv.sumCongr eRange (Equiv.refl _)).trans
+    (Equiv.sumCompl (fun j : Fin s => j ∈ Set.range ι))
+
+noncomputable def pkgElim_primeTupleSplitEquiv {q s : ℕ} (ι : Fin q ↪ Fin s) :
+    (Fin q → ℕ) × (pkgElim_primeSlotComplement ι → ℕ) ≃ (Fin s → ℕ) := by
+  classical
+  let e := pkgElim_primeSlotIndexEquiv ι
+  let ePi : (Fin s → ℕ) ≃ (Fin q ⊕ pkgElim_primeSlotComplement ι → ℕ) :=
+    Equiv.piCongrLeft' (fun _ : Fin s => ℕ) e.symm
+  let ePair : (Fin q → ℕ) × (pkgElim_primeSlotComplement ι → ℕ) ≃
+      (Fin q ⊕ pkgElim_primeSlotComplement ι → ℕ) :=
+    { toFun := fun x => fun i => Sum.elim x.1 x.2 i
+      invFun := fun f => (fun i => f (.inl i), fun j => f (.inr j))
+      left_inv := by
+        rintro ⟨f, g⟩
+        apply Prod.ext
+        · funext i
+          rfl
+        · funext j
+          rfl
+      right_inv := by
+        intro f
+        funext i
+        cases i <;> rfl }
+  exact ePair.trans ePi.symm
+
+@[simp] theorem pkgElim_primeTupleSplitEquiv_apply_left {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (p : Fin q → ℕ)
+    (u : pkgElim_primeSlotComplement ι → ℕ) (i : Fin q) :
+    pkgElim_primeTupleSplitEquiv ι (p, u) (ι i) = p i := by
+  classical
+  simp [pkgElim_primeTupleSplitEquiv, pkgElim_primeSlotIndexEquiv]
+
+@[simp] theorem pkgElim_primeTupleSplitEquiv_apply_right {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (p : Fin q → ℕ)
+    (u : pkgElim_primeSlotComplement ι → ℕ) (j : pkgElim_primeSlotComplement ι) :
+    pkgElim_primeTupleSplitEquiv ι (p, u) j.1 = u j := by
+  classical
+  simp [pkgElim_primeTupleSplitEquiv, pkgElim_primeSlotIndexEquiv]
+
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
@@ -4813,6 +4860,103 @@ noncomputable def pkgElim_weightedMomentData {K m q r s h d : ℕ}
     · simp [pkgElim_momentCRTError, hGlobal]
   · exact pkgElim_momentBaseError_superpolynomial S C Sh J0 B hJ0
   · exact pkgElim_momentCRTError_superpolynomial S C a Sh dirs tests J0 B hGlobalEvent
+
+theorem pkgElim_occurrenceDivisorNuB_eq_chainWeight {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (o : Occurrence Sh) (N : ℕ) (y : ℤ) :
+    nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N
+      (occurrenceDivisorTemplate C Sh o)) y =
+      chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor y := by
+  have hLaw : FromArithmetic.divisorTemplateLaw S.core.parameters N
+      (occurrenceDivisorTemplate C Sh o) =
+      parameterTailProductLaw S.core.parameters N
+        (C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val := by
+    funext σ
+    exact pkgElim_occurrenceDivisorTemplateLaw_eq S C Sh o N σ
+  rw [hLaw]
+  rfl
+
+theorem pkgElim_emptyDivisorNuB_eq_one {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (N : ℕ) (y : ℤ) :
+    nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N (emptyDivisorTemplate K)) y = 1 := by
+  exact nuB_divisorTemplate_arity_zero S.core.parameters N (emptyDivisorTemplate K)
+    (by rfl) y
+
+theorem pkgElim_weightedDivisorProduct_eq_occurrenceWeights
+    {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ) (Sh : RowShape m q r)
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (J0 B : ℕ) (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
+    (F : Finset (Occurrence Sh)) (N : ℕ) (p' : Fin s → ℕ) (x : Fin d → ℤ)
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly (fun i => p' (ι i))) :
+    (∏ u : Fin h,
+      nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N
+        (pkgElim_momentDivisorTemplate C Sh eO F u))
+        (FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX)
+          N p' u x).num) =
+      ∏ o ∈ F,
+        atQ (chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor)
+          (occurrenceValue S C a Sh dirs N (fun i => p' (ι i)) o
+            (fun v => x (eX v))) := by
+  classical
+  let g : Occurrence Sh → ℝ := fun o =>
+    atQ (chainWeight S.core.parameters C N (Sh.row (occurrenceRow Sh o)).anchor)
+      (occurrenceValue S C a Sh dirs N (fun i => p' (ι i)) o
+        (fun v => x (eX v)))
+  have hfactor (u : Fin h) :
+      nuB (FromArithmetic.divisorTemplateLaw S.core.parameters N
+        (pkgElim_momentDivisorTemplate C Sh eO F u))
+        (FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX)
+          N p' u x).num =
+      if eO.symm u ∈ F then g (eO.symm u) else 1 := by
+    by_cases hu : eO.symm u ∈ F
+    · have hrow := pkgElim_linearRowValue_integer S ι C a Sh dirs eO eX
+        N p' u x J0 B tests hGlobal hGood
+      rcases hrow with ⟨z, hz⟩
+      have hval := linearRowValue_eq_occurrenceValue S ι C a Sh dirs eO eX
+        N p' u x
+      let rowVal := FromArithmetic.linearRowValue (rowCoeff S ι C a Sh dirs eO eX) N p' u x
+      let occVal := occurrenceValue S C a Sh dirs N (fun i => p' (ι i))
+        (eO.symm u) (fun v => x (eX v))
+      have hrowEq : rowVal = occVal := hval
+      have hrowDen : rowVal.den = 1 := by
+        dsimp [rowVal]
+        rw [hz]
+        simp
+      have hoccDen : occVal.den = 1 := by
+        rw [← hrowEq]
+        exact hrowDen
+      have hnumEq : rowVal.num = occVal.num := by
+        have hnumQ : (rowVal.num : ℚ) = (occVal.num : ℚ) := by
+          calc
+            (rowVal.num : ℚ) = rowVal := (Rat.den_eq_one_iff rowVal).mp hrowDen
+            _ = occVal := hrowEq
+            _ = (occVal.num : ℚ) := ((Rat.den_eq_one_iff occVal).mp hoccDen).symm
+        exact_mod_cast hnumQ
+      have hdiv : pkgElim_momentDivisorTemplate C Sh eO F u =
+          occurrenceDivisorTemplate C Sh (eO.symm u) := by
+        simp [pkgElim_momentDivisorTemplate, hu]
+      rw [if_pos hu, hdiv, pkgElim_occurrenceDivisorNuB_eq_chainWeight]
+      rw [hnumEq]
+      simp [g, occVal, atQ, hoccDen]
+    · have hdiv : pkgElim_momentDivisorTemplate C Sh eO F u = emptyDivisorTemplate K := by
+        simp [pkgElim_momentDivisorTemplate, hu]
+      rw [if_neg hu, hdiv, pkgElim_emptyDivisorNuB_eq_one]
+  calc
+    _ = ∏ u : Fin h, if eO.symm u ∈ F then g (eO.symm u) else 1 := by
+      apply Finset.prod_congr rfl
+      intro u hu
+      exact hfactor u
+    _ = ∏ o : Occurrence Sh, if o ∈ F then g o else 1 := by
+      exact (Fintype.prod_equiv eO
+        (fun o => if o ∈ F then g o else 1)
+        (fun u => if eO.symm u ∈ F then g (eO.symm u) else 1)
+        (by intro o; simp)).symm
+    _ = ∏ o ∈ F, g o := by simp [Finset.prod_filter]
 
 
 end AdditiveMoment
