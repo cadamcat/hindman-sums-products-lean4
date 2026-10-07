@@ -3,3 +3,4 @@ import HindmanSumsProducts.ChainSelection
 import HindmanSumsProducts.CubeCorner
 import HindmanSumsProducts.Arithmetic
 import HindmanSumsProducts.Concatenation
+import HindmanSumsProducts.Framework
