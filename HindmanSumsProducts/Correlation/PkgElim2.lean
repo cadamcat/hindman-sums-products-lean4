@@ -5,10 +5,29 @@ import HindmanSumsProducts.Correlation.Outside
 
 namespace HindmanSumsProducts
 open FromArithmetic
+open Filter
+open scoped Topology
 
 theorem c_elim2_weighted_variance_identity (b h c : ℝ) :
     b * h ^ 2 - (2 * c) * (b * h) + c ^ 2 * b = b * (h - c) ^ 2 := by
   ring
+
+theorem c_elim2_weighted_variance_tendsto {B c : ℝ} (b h : ℕ → ℝ)
+    (hb : Tendsto b atTop (𝓝 B))
+    (hbh : Tendsto (fun n => b n * h n) atTop (𝓝 (B * c)))
+    (hbh2 : Tendsto (fun n => b n * h n ^ 2) atTop (𝓝 (B * c ^ 2))) :
+    Tendsto (fun n => b n * (h n - c) ^ 2) atTop (𝓝 0) := by
+  have hlinear : Tendsto
+      (fun n => b n * h n ^ 2 - (2 * c) * (b n * h n) + c ^ 2 * b n)
+      atTop (𝓝 (B * c ^ 2 - (2 * c) * (B * c) + c ^ 2 * B)) := by
+    exact (hbh2.sub (hbh.const_mul (2 * c))).add (hb.const_mul (c ^ 2))
+  have hzero : B * c ^ 2 - (2 * c) * (B * c) + c ^ 2 * B = 0 := by ring
+  have heq : (fun n => b n * (h n - c) ^ 2) =ᶠ[atTop]
+      fun n => b n * h n ^ 2 - (2 * c) * (b n * h n) + c ^ 2 * b n := by
+    filter_upwards [] with n
+    exact (c_elim2_weighted_variance_identity (b n) (h n) c).symm
+  rw [hzero] at hlinear
+  exact (tendsto_congr' heq).2 hlinear
 
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
