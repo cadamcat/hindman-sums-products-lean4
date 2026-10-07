@@ -4601,6 +4601,68 @@ private theorem localKernel_regularExcess_bound {p A q d : ℕ}
     rw [hEq]
     exact add_le_add_left (regularPrimeLocalExcess_nonneg p hp a) 1
 
+set_option maxHeartbeats 1000000 in
+private theorem localKernel_exceptionalExcess_bound {p A q d : ℕ}
+    (hp : p.Prime) (a : Fin q → ℕ) (ha : ∀ u, a u ≤ A)
+    (coeff : Fin q → Fin d → ZMod (p ^ A))
+    (hrow : ∀ u, ∃ j, IsUnit (coeff u j)) :
+    normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+      1 + exceptionalPrimeLocalExcess p a := by
+  classical
+  letI : NeZero (p ^ A) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  letI (u : Fin q) : NeZero (p ^ (a u)) := ⟨Nat.ne_of_gt (Nat.pow_pos hp.pos)⟩
+  let f := (localDivisibilityAddHom a ha coeff).toMultiplicative
+  let U : Finset (Fin q) := (Finset.univ : Finset (Fin q)).filter fun u => 0 < a u
+  by_cases hUempty : U = ∅
+  · have hEq := localKernel_eq_one_of_atMostOnePositive hp a ha coeff hrow (by
+      simp [U, hUempty])
+    rw [hEq]
+    exact add_le_add_left (exceptionalPrimeLocalExcess_nonneg p hp a) 1
+  · have hUne : U.Nonempty := Finset.nonempty_iff_ne_empty.mpr hUempty
+    obtain ⟨u, huU, huMax⟩ := Finset.exists_max_image U a hUne
+    have huPos : 0 < a u := (Finset.mem_filter.mp huU).2
+    have htop : ∀ v, v ≠ u → a v ≤ a u := by
+      intro v hvu
+      by_cases hv : 0 < a v
+      · have hvU : v ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩
+        exact huMax v hvU
+      · omega
+    obtain ⟨j, hj⟩ := hrow u
+    have hone := localKernel_upper_one_row hp a ha coeff u ⟨j, hj⟩
+    let total : ℕ := ∑ v, a v
+    have hsum : a u ≤ total := rowValuation_le_sum a u
+    have hprodPow : (∏ v : Fin q, (p : ℝ) ^ (a v)) = (p : ℝ) ^ total := by
+      exact Finset.prod_pow_eq_pow_sum Finset.univ a (p : ℝ)
+    have hpR : (p : ℝ) ≠ 0 := by exact_mod_cast hp.ne_zero
+    have hpowRatio : (p : ℝ) ^ total / (p : ℝ) ^ (a u) =
+        (p : ℝ) ^ (total - a u) := by
+      simpa [div_eq_mul_inv] using
+        (pow_sub₀ (p : ℝ) hpR hsum).symm
+    have hratio : (∏ v : Fin q, (p : ℝ) ^ (a v)) / (p : ℝ) ^ (a u) =
+        (p : ℝ) ^ (total - a u) := by
+      simpa [hprodPow] using hpowRatio
+    have hcond : 0 < a u ∧ ∀ v, v ≠ u → a v ≤ a u := ⟨huPos, htop⟩
+    have htermVal : exceptionalPrimeLocalExcessTerm p a u =
+        (p : ℝ) ^ (total - a u) - 1 := by
+      unfold exceptionalPrimeLocalExcessTerm
+      rw [if_pos hcond]
+    have htermLE := exceptionalPrimeLocalExcessTerm_le p hp a u
+    have hAlphaUpper : normalizedKernelCount f ≤ (p : ℝ) ^ (total - a u) := by
+      calc
+        normalizedKernelCount f ≤
+            (∏ v : Fin q, (p : ℝ) ^ (a v)) / (p : ℝ) ^ (a u) := by
+          change normalizedKernelCount
+              (localDivisibilityAddHom a ha coeff).toMultiplicative ≤ _
+          exact hone
+        _ = _ := hratio
+    calc
+      normalizedKernelCount (localDivisibilityAddHom a ha coeff).toMultiplicative ≤
+          (p : ℝ) ^ (total - a u) := by simpa [f] using hAlphaUpper
+      _ = 1 + ((p : ℝ) ^ (total - a u) - 1) := by ring
+      _ ≤ 1 + exceptionalPrimeLocalExcess p a := by
+        rw [← htermVal]
+        nlinarith [htermLE]
+
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     {S : MasterScales n Aset m tests}
