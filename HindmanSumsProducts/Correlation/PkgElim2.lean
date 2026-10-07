@@ -225,6 +225,141 @@ theorem c_elim2_independentPrimePoolMass_zero_of_not_mem_support {q : ℕ}
   · exact False.elim (hi (Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩))
   · rfl
 
+noncomputable def c_elim2_shiftRangeEquiv {α : Type u} [Fintype α]
+    [DecidableEq α] (L : ℕ) :
+    (α → Fin 2 → Fin L) ≃
+      {u : α → Fin 2 → ℕ // u ∈ Fintype.piFinset
+        (fun _ : α => Fintype.piFinset (fun _ : Fin 2 => Finset.range L))} := by
+  classical
+  let S : Finset (α → Fin 2 → ℕ) := Fintype.piFinset
+    (fun _ : α => Fintype.piFinset (fun _ : Fin 2 => Finset.range L))
+  refine
+    { toFun := fun u => ⟨fun i j => (u i j).val, ?_⟩
+      invFun := fun u i j => ⟨u.1 i j, ?_⟩
+      left_inv := ?_
+      right_inv := ?_ }
+  · apply Fintype.mem_piFinset.mpr
+    intro i
+    apply Fintype.mem_piFinset.mpr
+    intro j
+    exact Finset.mem_range.mpr (u i j).isLt
+  · have hi := Fintype.mem_piFinset.mp u.2 i
+    exact Finset.mem_range.mp (Fintype.mem_piFinset.mp hi j)
+  · intro u
+    funext i
+    funext j
+    apply Fin.ext
+    rfl
+  · intro u
+    apply Subtype.ext
+    funext i
+    funext j
+    rfl
+
+theorem c_elim2_shiftAverage_eq_uniformFintypeAverage {α : Type u} [Fintype α]
+    [DecidableEq α] (L : ℕ) (F : (α → Fin 2 → ℕ) → ℝ) :
+    shiftAverage α L F =
+      c_elim2_uniformFintypeAverage (fun u : α → Fin 2 → Fin L =>
+        F (fun i j => (u i j).val)) := by
+  classical
+  let S : Finset (α → Fin 2 → ℕ) := Fintype.piFinset
+    (fun _ : α => Fintype.piFinset (fun _ : Fin 2 => Finset.range L))
+  let e := c_elim2_shiftRangeEquiv (α := α) L
+  have hsum : (∑ u ∈ S, F u) =
+      ∑ v : α → Fin 2 → Fin L, F (fun i j => (v i j).val) := by
+    calc
+      _ = ∑ u : {u : α → Fin 2 → ℕ // u ∈ S}, F u.1 := by
+        simp [S, Finset.sum_attach]
+      _ = _ := by
+        symm
+        exact Fintype.sum_equiv e
+          (fun v => F (fun i j => (v i j).val))
+          (fun u => F u.1) (by intro v; rfl)
+  have hcard : Fintype.card (α → Fin 2 → Fin L) = L ^ (2 * Fintype.card α) := by
+    calc
+      Fintype.card (α → Fin 2 → Fin L) =
+          (Fintype.card (Fin 2 → Fin L)) ^ Fintype.card α := by simp
+      _ = (L ^ 2) ^ Fintype.card α := by simp
+      _ = L ^ (2 * Fintype.card α) :=
+        (pow_mul L 2 (Fintype.card α)).symm
+  have hcardR : (Fintype.card (α → Fin 2 → Fin L) : ℝ) =
+      (L : ℝ) ^ (2 * Fintype.card α) := by exact_mod_cast hcard
+  unfold shiftAverage c_elim2_uniformFintypeAverage
+  rw [hsum, hcardR]
+
+noncomputable def c_elim2_shiftCoordPartitionEquiv {α : Type u}
+    [DecidableEq α] (E : Finset α) :
+    (α × Fin 2) ≃ c_elim2_ShiftCoord E ⊕ {i : α // i ∉ E} := by
+  classical
+  let f : (α × Fin 2) → c_elim2_ShiftCoord E ⊕ {i : α // i ∉ E} :=
+    fun x => if hx : x.2.val = 0 ∨ x.1 ∈ E then
+      Sum.inl ⟨x, hx⟩ else Sum.inr ⟨x.1, fun hE => hx (Or.inr hE)⟩
+  let g : c_elim2_ShiftCoord E ⊕ {i : α // i ∉ E} → α × Fin 2 :=
+    fun y => match y with
+      | Sum.inl c => c.val
+      | Sum.inr i => (i.val, 1)
+  refine ⟨f, g, ?_, ?_⟩
+  · intro x
+    by_cases hx : x.2.val = 0 ∨ x.1 ∈ E
+    · dsimp only [f]
+      rw [dif_pos hx]
+    · have hval : x.2.val = 1 := by omega
+      have hxE : x.1 ∉ E := by
+        intro hE
+        exact hx (Or.inr hE)
+      dsimp only [f]
+      rw [dif_neg hx]
+      dsimp only [g]
+      change (x.1, 1) = x
+      apply Prod.ext
+      · rfl
+      · exact Fin.ext hval.symm
+  · intro y
+    cases y with
+    | inl c =>
+        change f c.val = Sum.inl c
+        dsimp only [f]
+        rw [dif_pos c.property]
+    | inr i => simp [f, g, i.property]
+
+noncomputable def c_elim2_shiftAssignmentPartitionEquiv {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (L : ℕ) :
+    (α → Fin 2 → Fin L) ≃
+      (c_elim2_ShiftCoord E → Fin L) × ({i : α // i ∉ E} → Fin L) := by
+  let eCurry : (α → Fin 2 → Fin L) ≃ (α × Fin 2 → Fin L) :=
+    { toFun := fun f x => f x.1 x.2
+      invFun := fun f i j => f (i, j)
+      left_inv := by intro f; funext i j; rfl
+      right_inv := by intro f; funext x; cases x; rfl }
+  exact eCurry.trans
+    ((Equiv.arrowCongr (c_elim2_shiftCoordPartitionEquiv E)
+      (Equiv.refl (Fin L))).trans
+      (Equiv.sumArrowEquivProdArrow (c_elim2_ShiftCoord E)
+        {i : α // i ∉ E} (Fin L)))
+
+theorem c_elim2_uniformFintypeAverage_equiv {α β : Type*} [Fintype α]
+    [Fintype β] (e : α ≃ β) (F : α → ℝ) :
+    c_elim2_uniformFintypeAverage F =
+      c_elim2_uniformFintypeAverage (fun b => F (e.symm b)) := by
+  classical
+  unfold c_elim2_uniformFintypeAverage
+  have hsum : (∑ a, F a) = ∑ b, F (e.symm b) := by
+    exact Fintype.sum_equiv e F (fun b => F (e.symm b)) (by intro a; simp)
+  have hcard : Fintype.card α = Fintype.card β := Fintype.card_congr e
+  rw [hsum, hcard]
+
+theorem c_elim2_uniformFintypeAverage_depends_on_state {α β γ : Type*}
+    [Fintype α] [Fintype β] [Fintype γ] [Nonempty β]
+    (e : γ ≃ α × β) (F : γ → ℝ) (G : α → ℝ)
+    (hF : ∀ x, F x = G (e x).1) :
+    c_elim2_uniformFintypeAverage F = c_elim2_uniformFintypeAverage G := by
+  classical
+  rw [c_elim2_uniformFintypeAverage_equiv e F,
+    c_elim2_uniformFintypeAverage_prod]
+  apply congrArg c_elim2_uniformFintypeAverage
+  funext a
+  simp [hF, Equiv.apply_symm_apply, c_elim2_uniformFintypeAverage_const]
+
 noncomputable def c_elim2_shiftCoord_insert_equiv {α : Type u} [DecidableEq α]
     (E : Finset α) (R : α) (hR : R ∉ E) :
     c_elim2_ShiftCoord (insert R E) ≃ c_elim2_ShiftCoord E ⊕ PUnit.{u + 1} := by
