@@ -1847,6 +1847,104 @@ theorem divisorTemplateOfFinset_cutoff_mem {n b : ℕ} (T : Finset (Fin n))
     (hT : T.card ≤ b) (i : Fin (T.card)) :
     (divisorTemplateOfFinset T hT).cutoff i ∈ T := (T.orderIsoOfFin rfl i).property
 
+theorem parameterTailProductLaw_eq_divisorTemplateLaw_ofFinset {n b : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (T : Finset (Fin n)) (hT : T.card ≤ b)
+    (hX : ∀ j, 0 < A.X N j)
+    (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1)))
+    (σ : ℕ) :
+    parameterTailProductLaw A N T σ =
+      divisorTemplateLaw A N (divisorTemplateOfFinset T hT) σ := by
+  classical
+  let D := divisorTemplateOfFinset T hT
+  let ord : Fin T.card ≃ T := (T.orderIsoOfFin rfl).toEquiv
+  let ePi : (Fin T.card → ℕ) ≃ (∀ i : T, ℕ) :=
+    Equiv.piCongrLeft' (fun _ : Fin T.card => ℕ) ord
+  let Dsub := Fintype.piFinset
+    (fun i : T => Finset.range ((A.X N i.val) ^ 2))
+  let Dfin := Fintype.piFinset
+    (fun i : Fin T.card => Finset.range ((A.X N (D.cutoff i)) ^ 2))
+  have hmem (w : Fin T.card → ℕ) : w ∈ Dfin ↔ ePi w ∈ Dsub := by
+    constructor
+    · intro hw
+      apply Fintype.mem_piFinset.mpr
+      intro j
+      let i := ord.symm j
+      have hi := (Fintype.mem_piFinset.mp hw) i
+      have hcut : D.cutoff i = j.val := by
+        change (ord (ord.symm j)).val = j.val
+        exact congrArg Subtype.val (ord.apply_symm_apply j)
+      have hfun : ePi w j = w i := by
+        simp [ePi, i, Equiv.piCongrLeft']
+      simpa [hcut, hfun] using hi
+    · intro hu
+      apply Fintype.mem_piFinset.mpr
+      intro i
+      have hi := (Fintype.mem_piFinset.mp hu) (ord i)
+      have hcut : D.cutoff i = (ord i).val := by rfl
+      have hfun : ePi w (ord i) = w i := by
+        simp [ePi, Equiv.piCongrLeft']
+      simpa [hcut, hfun] using hi
+  have hprod (w : Fin T.card → ℕ) :
+      (∏ j : T, (ePi w) j) = ∏ i : Fin T.card, w i := by
+    symm
+    exact Fintype.prod_equiv ord (fun i => w i) (fun j => (ePi w) j) (by
+      intro i
+      simp [ePi, Equiv.piCongrLeft'])
+  have hmass (w : Fin T.card → ℕ) :
+      (∏ j : T,
+        harmonicNatLaw (A.X N j.val) (primorial (N + 1)) ((ePi w) j)) =
+        ∏ i : Fin T.card,
+          harmonicNatLaw (A.X N (D.cutoff i)) (primorial (N + 1)) (w i) := by
+    symm
+    exact Fintype.prod_equiv ord
+      (fun i => harmonicNatLaw (A.X N (D.cutoff i))
+        (primorial (N + 1)) (w i))
+      (fun j => harmonicNatLaw (A.X N j.val)
+        (primorial (N + 1)) ((ePi w) j))
+      (by
+        intro i
+        have hcut : D.cutoff i = (ord i).val := rfl
+        have heval : ePi w (ord i) = w i := by
+          simp [ePi, Equiv.piCongrLeft']
+        rw [hcut, heval])
+  let subTerm (u : ∀ i : T, ℕ) :=
+    (if (∏ i : T, u i) = σ then 1 else 0) *
+      ∏ i : T, harmonicNatLaw (A.X N i.val) (primorial (N + 1)) (u i)
+  let finTerm (w : Fin T.card → ℕ) :=
+    (if (∏ i, w i) = σ then 1 else 0) *
+      ∏ i, harmonicNatLaw (A.X N (D.cutoff i)) (primorial (N + 1)) (w i)
+  have hbij :
+      (∑ w ∈ Dfin, finTerm w) = ∑ u ∈ Dsub, subTerm u := by
+    apply Finset.sum_bij (fun w _ => ePi w)
+    · intro w hw
+      exact (hmem w).mp hw
+    · intro w hw w' hw' hEq
+      exact ePi.injective hEq
+    · intro u hu
+      refine ⟨ePi.symm u, ?_, ePi.apply_symm_apply u⟩
+      exact (hmem (ePi.symm u)).mpr (by simpa using hu)
+    · intro w hw
+      simp only [subTerm, finTerm, hprod w, hmass w]
+      by_cases h : (∏ i, w i) = σ <;> simp [h]
+      rfl
+  have hsub := parameterTailProductLaw_eq_tailSubtype_sum A N T σ hX hNorm
+  have hfin := harmonicProductLaw_eq_finite_sum (primorial (N + 1))
+    (fun i => A.X N (D.cutoff i)) σ
+  calc
+    parameterTailProductLaw A N T σ = ∑ u ∈ Dsub, subTerm u := by
+      simpa [Dsub, subTerm] using hsub
+    _ = ∑ w ∈ Dfin, finTerm w := hbij.symm
+    _ = harmonicProductLaw (primorial (N + 1))
+        (fun i => A.X N (D.cutoff i)) σ := by
+      change (∑ w ∈ Fintype.piFinset
+          (fun i : Fin T.card => Finset.range ((A.X N (D.cutoff i)) ^ 2)),
+          (if (∏ i, w i) = σ then 1 else 0) *
+            ∏ i, harmonicNatLaw (A.X N (D.cutoff i))
+              (primorial (N + 1)) (w i)) = _
+      exact hfin.symm
+    _ = divisorTemplateLaw A N D σ := by rfl
+
 theorem parameterTailProductLaw_support_pos {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
     (hX : ∀ j, 0 < A.X N j)
