@@ -2082,6 +2082,35 @@ theorem chainScale_num_coprime_of_prime_gt_eventually {K s m : ℕ} {Aset : Fins
     simp
   simpa [hnum] using hcoprime
 
+theorem chainScale_pos_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ d, 0 < chainScale S.core.parameters C a N d := by
+  filter_upwards [S.core.chain_coefficients] with N hcoeff
+  obtain ⟨c, hcEq, hcPos, _⟩ := hcoeff m C a ha
+  intro d
+  change 0 < (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+    (S.core.parameters.ht N) (C.block d).set : ℚ) * a d
+  rw [← hcEq d]
+  exact_mod_cast hcPos d
+
+theorem pool_lower_gt_masterScaleV_eventually {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
+    ∀ᶠ N in atTop, masterScaleV S.core.parameters N l <
+      (S.primeStage.pool N l).lower := by
+  have hdom := S.primeStage.pool_lower_dominates l 1 (by norm_num)
+  have hlarge : ∀ᶠ N in atTop,
+      1 < (S.primeStage.pool N l).lower / (masterScaleV S.core.parameters N l : ℝ) := by
+    simpa [Real.rpow_one] using hdom.eventually_gt_atTop 1
+  filter_upwards [hlarge] with N hN
+  have hV : 0 < (masterScaleV S.core.parameters N l : ℝ) := by
+    unfold masterScaleV
+    positivity
+  have hlt' := (lt_div_iff₀ hV).mp hN
+  have hlt : (masterScaleV S.core.parameters N l : ℝ) <
+      ((S.primeStage.pool N l).lower : ℝ) := by simpa using hlt'
+  exact_mod_cast hlt
+
 def RowTemplate.valueNat {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (k : Fin m) : ℕ := (T.entry k).elim 0 fun e => ∏ i, p i ^ e i
 
