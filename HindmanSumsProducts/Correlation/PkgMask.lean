@@ -2034,6 +2034,46 @@ theorem chainScale_ratio_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
     rw [← Nat.cast_mul]
     exact Rat.den_natCast _
 
+theorem chainScale_num_coprime_of_prime_gt_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ d r, r.Prime → N + 1 < r →
+      Nat.Coprime (chainScale S.core.parameters C a N d).num.natAbs r := by
+  filter_upwards [S.core.chain_coefficients, S.gapStage.coefficient_divides_modulus]
+    with N hcoeff hdiv
+  obtain ⟨c, hcEq, hcPos, _⟩ := hcoeff m C a ha
+  have hcRel : ∀ d, (c d : ℚ) =
+      (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+        (S.core.parameters.ht N) (C.block d).set : ℚ) * a d := by
+    simpa [chainScale] using hcEq
+  intro d r hr hNr
+  have hmod : ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+      (S.core.parameters.M N : ℤ) := hdiv m C a ha c hcRel d
+  have hcdvdM : c d ∣ (S.core.parameters.M N : ℤ) := by
+    apply dvd_trans ?_ hmod
+    refine ⟨(primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ), ?_⟩
+    push_cast
+    ring
+  have hsmooth : OAI.RoughScales.Smooth (N + 1) (c d) := by
+    intro p hp hpc
+    exact S.core.parameters.Msmooth N p hp (dvd_trans hpc hcdvdM)
+  have hrough : OAI.RoughScales.Rough (N + 1) (r : ℤ) := by
+    intro p hp hpw hpr
+    have hprNat : p ∣ r := Int.natCast_dvd.mp hpr
+    have hEq : p = r := (Nat.prime_dvd_prime_iff_eq hp hr).mp hprNat
+    omega
+  have hsmoothAbs : OAI.RoughScales.Smooth (N + 1) ((c d).natAbs : ℤ) := by
+    have hcast : ((c d).natAbs : ℤ) = c d :=
+      Int.natAbs_of_nonneg (by exact_mod_cast (hcPos d).le)
+    simpa [hcast] using hsmooth
+  have hcoprime := OAI.RoughProductRemoval.smooth_nat_coprime_rough hsmoothAbs hrough
+  have hnum : (chainScale S.core.parameters C a N d).num = c d := by
+    change ((OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+      (S.core.parameters.ht N) (C.block d).set : ℚ) * a d).num = c d
+    rw [← hcEq d]
+    simp
+  simpa [hnum] using hcoprime
+
 def RowTemplate.valueNat {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (k : Fin m) : ℕ := (T.entry k).elim 0 fun e => ∏ i, p i ^ e i
 
