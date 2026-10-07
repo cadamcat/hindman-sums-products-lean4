@@ -5753,6 +5753,50 @@ private theorem pkgB_momentModulus_repeat {K sl : ℕ} {As : Finset ℚ}
       T.modulus (corrScales MS) N p := by
   simp [momentModulus, pkgB_momentPrimeRepeat]
 
+private noncomputable def pkgB_extendPrimeTuple {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (p : Fin q → ℕ) (fill : ℕ) : Fin m → ℕ :=
+  (pkgB_embeddingTupleEquiv ι).symm (p, fun _ => fill)
+
+private theorem pkgB_extendPrimeTuple_apply {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (p : Fin q → ℕ) (fill : ℕ) (i : Fin q) :
+    pkgB_extendPrimeTuple ι p fill (ι i) = p i := by
+  have h := pkgB_embeddingTupleEquiv_apply_left ι
+    (pkgB_extendPrimeTuple ι p fill) i
+  simpa [pkgB_extendPrimeTuple] using h.symm
+
+private theorem pkgB_momentPrimeDiagonal_eq_repeat {sl b : ℕ}
+    {Dm : Finset (IntegerPolynomial sl)} {T : CubeTemplate} (hT : Allowed Dm T)
+    (p : Fin sl → ℕ) :
+    momentPrimeDiagonal hT p =
+      pkgB_momentPrimeRepeat (b := b) (fun j => p (momentMasterEmbedding hT j)) := by
+  funext i
+  rfl
+
+private theorem pkgB_momentBaseRegular_goodTemplate_eventually {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (J0 : ℕ) (hJ0 : 0 < J0)
+    (b : ℕ) (hT : Allowed Dm T) :
+    ∀ᶠ N : ℕ in atTop, ∀ p : Fin T.q → ℕ,
+      T.Good (corrScales MS) l N p →
+        momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p) := by
+  filter_upwards [pkgB_momentBaseRegular_eventually MS B l hgap T J0 hJ0 b hT]
+    with N hreg p hp
+  let pFull := pkgB_extendPrimeTuple (momentMasterEmbedding hT) p 0
+  have hselected : (fun j => pFull (momentMasterEmbedding hT j)) = p := by
+    funext j
+    exact pkgB_extendPrimeTuple_apply (momentMasterEmbedding hT) p 0 j
+  have hpFull : T.Good (corrScales MS) l N
+      (fun j => pFull (momentMasterEmbedding hT j)) := by
+    simpa [hselected] using hp
+  have hbase := hreg pFull hpFull
+  rw [pkgB_momentPrimeDiagonal_eq_repeat hT pFull] at hbase
+  have hrepeat : pkgB_momentPrimeRepeat (b := b)
+      (fun j => pFull (momentMasterEmbedding hT j)) =
+        pkgB_momentPrimeRepeat (b := b) p := by
+    rw [hselected]
+  rwa [hrepeat] at hbase
+
 private noncomputable def pkgB_momentActiveShiftTerm {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
     (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
@@ -6057,6 +6101,383 @@ private theorem pkgB_momentShiftExpansion_eq_activeTerms {K sl : ℕ}
       apply Finset.sum_congr rfl
       intro A hA
       exact hcommute A
+
+private theorem pkgB_dualMoment_fixedN_le_activeAverages {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (hT : Allowed Dm T)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hb : 0 < b) (N : ℕ)
+    (hMass : 0 < primePoolMass (MS.primeStage.pool N l).lower
+      (MS.primeStage.pool N l).upper)
+    (hP : 0 < gapSlotProbability (corrScales MS) l N
+      (T.Good (corrScales MS) l N))
+    (hreg : ∀ p : Fin T.q → ℕ, T.Good (corrScales MS) l N p →
+      momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p))
+    (I : DualInput MS B T N) :
+    Emu MS.core.parameters N B.1 (fun y => (1 + nu MS.core.parameters N B y) *
+      |dualTest MS B T l J0 N I y| ^ b) ≤
+      (gapSlotProbability (corrScales MS) l N (T.Good (corrScales MS) l N))⁻¹ *
+        ∑ active ∈ (Finset.univ : Finset
+          (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset,
+          weightedLinearFormsAverage
+            (pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b active)
+            N (fun p => T.Good (corrScales MS) l N
+              (fun j => p (momentMasterEmbedding hT j))) := by
+  classical
+  let Good : (Fin T.q → ℕ) → Prop := T.Good (corrScales MS) l N
+  let lo : Fin T.q → ℕ := fun _ => (MS.primeStage.pool N l).lower
+  let hi : Fin T.q → ℕ := fun _ => (MS.primeStage.pool N l).upper
+  let S : Finset (Fin T.q → ℕ) :=
+    Fintype.piFinset (fun i : Fin T.q => Finset.Ico (lo i) (hi i))
+  let Pow : Finset (Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    (Finset.univ : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset
+  let P := gapSlotProbability (corrScales MS) l N Good
+  let massQ (p : Fin T.q → ℕ) :=
+    independentPrimePoolMass lo hi p
+  have hpool : (corrScales MS).primeStage.pool N l = MS.primeStage.pool N l := rfl
+  let shiftBound (y : ℤ) (p : Fin T.q → ℕ) :=
+    ((T.length (corrScales MS) l J0 N p : ℝ) ^
+      (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+      ∑ v ∈ Fintype.piFinset (fun _ : Fin b =>
+        pkgB_shiftSupport T.d (T.length (corrScales MS) l J0 N p)),
+        ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+          (1 + nu MS.core.parameters N B
+            (y + (T.modulus (corrScales MS) N p : ℤ) *
+              ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0)))
+  let F (y : ℤ) (p : Fin T.q → ℕ) := I.e p * shiftAverage (Fin T.d)
+    (T.length (corrScales MS) l J0 N p) (fun u =>
+      ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+        I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+          ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0)))
+  have hGood : 0 < independentPrimePoolProbability lo hi Good := by
+    simpa [gapSlotProbability, lo, hi, Good, hpool] using hP
+  have hFG (y : ℤ) (p : Fin T.q → ℕ) (hp : Good p) :
+      |F y p| ^ b ≤ shiftBound y p := by
+    simpa [F, shiftBound] using
+      (pkgB_momentShiftReplicaProduct_bound MS B T l J0 N
+        (T.length (corrScales MS) l J0 N p) b I p y)
+  have hMassAll : ∀ i : Fin T.q, 0 < primePoolMass (lo i) (hi i) := by
+    intro i
+    simpa [lo, hi] using hMass
+  have hprimeJensen (y : ℤ) :
+    |dualTest MS B T l J0 N I y| ^ b ≤
+        P⁻¹ * ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then shiftBound y p else 0) := by
+    have h := pkgB_goodPrimeAverage_abs_pow_le_of_dom lo hi Good
+      hMassAll hGood (F y) (fun p => shiftBound y p) b (fun p hp => hFG y p hp)
+    simpa [P, F, Good, massQ, dualTest, goodSlotAverage, gapSlotProbability,
+      gapSlotMass, lo, hi, hpool] using h
+  have hmassZero (p : Fin T.q → ℕ) (hp : p ∉ S) : massQ p = 0 := by
+    simpa [massQ, independentPrimePoolMass] using
+      (pkgB_primeTupleMass_zero_of_not_mem_pi
+        lo hi p (by simpa [S] using hp))
+  have hrootNonneg (y : ℤ) : 0 ≤ 1 + nu MS.core.parameters N B y := by
+    have h := pkgB_nu_nonneg MS.core.parameters N B y
+    linarith
+  have hsumZero (y : ℤ) (p : Fin T.q → ℕ) (hp : p ∉ S) :
+      massQ p * (if Good p then shiftBound y p else 0) = 0 := by
+    rw [hmassZero p hp]
+    ring
+  have hsumSummable (y : ℤ) : Summable (fun p : Fin T.q → ℕ =>
+      massQ p * (if Good p then shiftBound y p else 0)) := by
+    apply summable_of_ne_finset_zero (s := S)
+    intro p hp
+    exact hsumZero y p hp
+  have hsumRootZero (y : ℤ) (p : Fin T.q → ℕ) (hp : p ∉ S) :
+      massQ p * (if Good p then
+        (1 + nu MS.core.parameters N B y) * shiftBound y p else 0) = 0 := by
+    rw [hmassZero p hp]
+    ring
+  have hpointwise (y : ℤ) :
+      (1 + nu MS.core.parameters N B y) * |dualTest MS B T l J0 N I y| ^ b ≤
+        P⁻¹ * ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0) := by
+    calc
+      _ ≤ (1 + nu MS.core.parameters N B y) *
+          (P⁻¹ * ∑' p : Fin T.q → ℕ,
+            massQ p * (if Good p then shiftBound y p else 0)) :=
+        mul_le_mul_of_nonneg_left (hprimeJensen y) (hrootNonneg y)
+      _ = P⁻¹ *
+          (∑' p : Fin T.q → ℕ,
+            (1 + nu MS.core.parameters N B y) *
+              (massQ p * (if Good p then shiftBound y p else 0))) := by
+        calc
+          _ = P⁻¹ * ((1 + nu MS.core.parameters N B y) *
+              ∑' p : Fin T.q → ℕ,
+                massQ p * (if Good p then shiftBound y p else 0)) := by ring
+          _ = _ := by
+            apply congrArg (fun z : ℝ => P⁻¹ * z)
+            exact (hsumSummable y).tsum_mul_left
+              (1 + nu MS.core.parameters N B y) |>.symm
+      _ = _ := by
+        congr 1
+        apply tsum_congr
+        intro p
+        by_cases hp : Good p <;> simp [hp] <;> ring
+  have hpointEmu := pkgB_Emu_mono MS.core.parameters N B.1
+    (fun y => hpointwise y)
+  have hEmuPrime :
+      Emu MS.core.parameters N B.1 (fun y =>
+        ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) =
+      ∑ p ∈ S, massQ p * (if Good p then
+        Emu MS.core.parameters N B.1
+          (fun y => (1 + nu MS.core.parameters N B y) * shiftBound y p) else 0) := by
+    calc
+      _ = Emu MS.core.parameters N B.1 (fun y =>
+            ∑ p ∈ S, massQ p * (if Good p then
+              (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) := by
+        congr 1
+        funext y
+        apply tsum_eq_sum
+        intro p hp
+        exact hsumRootZero y p hp
+      _ = ∑ p ∈ S, Emu MS.core.parameters N B.1
+            (fun y => massQ p * (if Good p then
+              (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) :=
+        Emu_finset_sum MS.core.parameters N B.1 S
+          (fun p y => massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0))
+      _ = _ := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        by_cases hgood : Good p
+        · simp only [if_pos hgood]
+          rw [Emu_mul_left]
+        · simp [hgood, Emu]
+  have hExpansion (p : Fin T.q → ℕ) :
+      Emu MS.core.parameters N B.1
+        (fun y => (1 + nu MS.core.parameters N B y) * shiftBound y p) =
+      ∑ A ∈ Pow, Emu MS.core.parameters N B.1
+        (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) := by
+    have h := pkgB_momentShiftExpansion_eq_activeTerms MS B T l J0 N b p
+    have hfun : (fun y => (1 + nu MS.core.parameters N B y) * shiftBound y p) =
+        (fun y => (1 + nu MS.core.parameters N B y) *
+          ((T.length (corrScales MS) l J0 N p : ℝ) ^
+            (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+            ∑ v ∈ Fintype.piFinset (fun _ : Fin b =>
+              pkgB_shiftSupport T.d (T.length (corrScales MS) l J0 N p)),
+              ∏ k : Fin b, ∏ ω ∈
+                (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+                (1 + nu MS.core.parameters N B
+                  (y + (T.modulus (corrScales MS) N p : ℤ) *
+                    ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0)))) := by
+      funext y
+      dsimp [shiftBound]
+      ring_nf
+    rw [hfun]
+    simpa [Pow, Fintype.card_fin] using h
+  let activeTerm (p : Fin T.q → ℕ)
+      (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    Emu MS.core.parameters N B.1
+      (pkgB_momentActiveShiftTerm MS B T l J0 N b p A)
+  have hswap :
+      (∑ p ∈ S, massQ p *
+        (if Good p then ∑ A ∈ Pow, activeTerm p A else 0)) =
+      ∑ A ∈ Pow, ∑ p ∈ S, massQ p * (if Good p then activeTerm p A else 0) := by
+    calc
+      _ = ∑ p ∈ S, ∑ A ∈ Pow, massQ p * (if Good p then activeTerm p A else 0) := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        by_cases hg : Good p
+        · simp [hg, Finset.mul_sum]
+        · simp [hg]
+      _ = _ := Finset.sum_comm
+  calc
+    _ ≤ Emu MS.core.parameters N B.1 (fun y => P⁻¹ *
+        ∑' p : Fin T.q → ℕ,
+          massQ p * (if Good p then
+            (1 + nu MS.core.parameters N B y) * shiftBound y p else 0)) := hpointEmu
+    _ = P⁻¹ * ∑ p ∈ S, massQ p * (if Good p then
+          ∑ A ∈ Pow, Emu MS.core.parameters N B.1
+            (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) else 0) := by
+      rw [Emu_mul_left, hEmuPrime]
+      apply congrArg (fun z : ℝ => P⁻¹ * z)
+      apply Finset.sum_congr rfl
+      intro p hp
+      by_cases hgood : Good p
+      · simp [hgood, activeTerm, hExpansion p]
+      · simp [hgood]
+    _ = P⁻¹ * ∑ A ∈ Pow, weightedLinearFormsAverage
+          (pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b A)
+          N (fun p => T.Good (corrScales MS) l N
+            (fun j => p (momentMasterEmbedding hT j))) := by
+      apply congrArg (fun z : ℝ => P⁻¹ * z)
+      rw [hswap]
+      apply Finset.sum_congr rfl
+      intro A hA
+      have hzero (p : Fin T.q → ℕ) (hp : p ∉ S) :
+          massQ p * (if Good p then
+            Emu MS.core.parameters N B.1
+              (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) else 0) = 0 := by
+        rw [hmassZero p hp]
+        ring
+      calc
+        _ = ∑' p : Fin T.q → ℕ,
+              massQ p * (if Good p then
+                Emu MS.core.parameters N B.1
+                  (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) else 0) := by
+          exact (tsum_eq_sum (s := S) hzero).symm
+        _ = _ :=
+          (pkgB_momentWeightedLinearFormsAverage_eq_goodActiveShiftTerm
+            MS B l hgap T hT J0 hJ0 b hb N A hMass hreg).symm
+
+theorem pkgB_dualMoment_bound_asymptotic {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (hT : Allowed Dm T)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hb : 0 < b) :
+    ∀ ε > 0, ∀ᶠ N : ℕ in atTop, ∀ I : DualInput MS B T N,
+      Emu MS.core.parameters N B.1 (fun y => (1 + nu MS.core.parameters N B y) *
+        |dualTest MS B T l J0 N I y| ^ b) ≤
+        (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) + ε := by
+  classical
+  intro ε hε
+  let Pow : Finset (Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    (Finset.univ : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset
+  let GoodFull (N : ℕ) (p : Fin sl → ℕ) :=
+    T.Good (corrScales MS) l N (fun j => p (momentMasterEmbedding hT j))
+  let Pseq (N : ℕ) := gapSlotProbability (corrScales MS) l N
+    (T.Good (corrScales MS) l N)
+  let D (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b A
+  let C (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    Classical.choose (prop_linear_forms (D A))
+  let err (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) (N : ℕ) :=
+    1 / (N + 1 : ℝ) + ((D A).V N : ℝ) ^
+      Fintype.card (MomentRowIndex b T.d) *
+      ((D A).epsilonBase N + (D A).epsilonCRT N)
+  let mReal : ℝ := Pow.card
+  let δ : ℝ := ε / (2 * mReal + 1)
+  have hPowCardPos : 0 < Pow.card := by
+    apply Finset.card_pos.mpr
+    exact ⟨∅, by simp [Pow]⟩
+  have hmRealPos : 0 < mReal := by
+    dsimp [mReal]
+    exact_mod_cast hPowCardPos
+  have hδ : 0 < δ := by
+    dsimp [δ]
+    positivity
+  have hC (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      0 < C A ∧ ∀ N E,
+        (∀ p, E p → (D A).goodDomain N p) →
+        |weightedLinearFormsAverage (D A) N E -
+          weightedLinearFormsEventProbability (D A) N E| ≤ C A * err A N := by
+    simpa [C, err] using Classical.choose_spec (prop_linear_forms (D A))
+  have hErr (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      Tendsto (fun N : ℕ => err A N) atTop (𝓝 0) := by
+    simpa [err] using weighted_linear_forms_error_tends_zero (D A)
+  have hCerr (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      Tendsto (fun N : ℕ => C A * err A N) atTop (𝓝 0) := by
+    simpa using (tendsto_const_nhds.mul (hErr A))
+  have hSmall (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      ∀ᶠ N : ℕ in atTop, C A * err A N < δ := by
+    exact (hCerr A).eventually (Iio_mem_nhds hδ)
+  have hSmallAll : ∀ᶠ N : ℕ in atTop,
+      ∀ A ∈ Pow, C A * err A N < δ := by
+    exact (eventually_all_finset Pow).2 (fun A hA => hSmall A)
+  have hPone : Tendsto Pseq atTop (𝓝 1) :=
+    good_probability_tendsto_one MS T hT l
+  have hPbig : ∀ᶠ N : ℕ in atTop, (1 / 2 : ℝ) < Pseq N := by
+    exact hPone.eventually (Ioi_mem_nhds (by norm_num))
+  have hMassPos := pkgB_primePoolMass_pos_eventually MS l
+  have hregular := pkgB_momentBaseRegular_goodTemplate_eventually
+    MS B l hgap T J0 hJ0 b hT
+  have hPowCard : Pow.card = 2 ^ Fintype.card (MomentRowIndex b T.d) := by
+    simp [Pow]
+  have hCount : mReal = (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) := by
+    dsimp [mReal]
+    rw [hPowCard, pkgB_momentRowIndex_card]
+    norm_cast
+  have hTotalErr : 2 * mReal * δ < ε := by
+    have hden : 0 < 2 * mReal + 1 := by positivity
+    dsimp [δ]
+    calc
+      2 * mReal * (ε / (2 * mReal + 1)) =
+          ε * (2 * mReal / (2 * mReal + 1)) := by ring
+      _ < ε * 1 := by
+        apply mul_lt_mul_of_pos_left _ hε
+        apply (div_lt_iff₀ hden).2
+        nlinarith
+      _ = ε := by ring
+  filter_upwards [hPbig, hMassPos, hregular, hSmallAll]
+    with N hPbig hMassN hregularN hsmallN
+  intro I
+  let P := Pseq N
+  have hPpos : 0 < P := by dsimp [P]; linarith
+  have hPInv2 : P⁻¹ ≤ 2 := by
+    calc
+      P⁻¹ = 1 / P := by simp
+      _ ≤ 2 := (div_le_iff₀ hPpos).2 (by linarith)
+  have hdom (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+      (p : Fin sl → ℕ) (hp : GoodFull N p) : (D A).goodDomain N p := by
+    dsimp [D, pkgB_momentWeightedLinearFormsData]
+    refine ⟨?_, ?_⟩
+    · intro k
+      exact hp
+    · have hbase := hregularN (fun j => p (momentMasterEmbedding hT j)) hp
+      rw [pkgB_momentPrimeDiagonal_eq_repeat hT p]
+      exact hbase
+  have hWLFle (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      weightedLinearFormsAverage (D A) N (GoodFull N) ≤
+        P + C A * err A N := by
+    have hbound := (hC A).2 N (GoodFull N) (fun p hp => hdom A p hp)
+    let lo0 := (MS.primeStage.pool N l).lower
+    let hi0 := (MS.primeStage.pool N l).upper
+    have hpool : (corrScales MS).primeStage.pool N l = MS.primeStage.pool N l := rfl
+    have hprob : weightedLinearFormsEventProbability (D A) N (GoodFull N) = P := by
+      have hMarg := pkgB_independentPrimePoolProbability_embedding
+        (momentMasterEmbedding hT) lo0 hi0 hMassN
+        (T.Good (corrScales MS) l N)
+      simpa [weightedLinearFormsEventProbability, D,
+        pkgB_momentWeightedLinearFormsData, GoodFull, P, Pseq,
+        gapSlotProbability, lo0, hi0, hpool] using hMarg
+    rw [hprob] at hbound
+    have habs :
+        |weightedLinearFormsAverage (D A) N (GoodFull N) - P| ≤ C A * err A N := by
+      simpa [err] using hbound
+    have hup := (abs_le.mp habs).2
+    linarith
+  have hSumErr :
+      (∑ A ∈ Pow, C A * err A N) ≤ mReal * δ := by
+    calc
+      _ ≤ ∑ A ∈ Pow, δ := by
+        apply Finset.sum_le_sum
+        intro A hA
+        exact le_of_lt (hsmallN A hA)
+      _ = mReal * δ := by
+        simp [mReal, Finset.sum_const, nsmul_eq_mul]
+  have hSumWLF :
+      (∑ A ∈ Pow, weightedLinearFormsAverage (D A) N (GoodFull N)) ≤
+        mReal * P + (∑ A ∈ Pow, C A * err A N) := by
+    calc
+      _ ≤ ∑ A ∈ Pow, (P + C A * err A N) := by
+        apply Finset.sum_le_sum
+        intro A hA
+        exact hWLFle A
+      _ = mReal * P + (∑ A ∈ Pow, C A * err A N) := by
+        simp [mReal, Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]
+  have hSumWLF' :
+      (∑ A ∈ Pow, weightedLinearFormsAverage (D A) N (GoodFull N)) ≤
+        mReal * P + mReal * δ := by
+    linarith [hSumWLF, hSumErr]
+  have hfixed := pkgB_dualMoment_fixedN_le_activeAverages
+    MS B l hgap T hT J0 hJ0 b hb N hMassN hPpos hregularN I
+  calc
+    _ ≤ P⁻¹ * ∑ A ∈ Pow, weightedLinearFormsAverage (D A) N (GoodFull N) := hfixed
+    _ ≤ P⁻¹ * (mReal * P + mReal * δ) :=
+      mul_le_mul_of_nonneg_left hSumWLF' (inv_nonneg.mpr hPpos.le)
+    _ = mReal + P⁻¹ * (mReal * δ) := by
+      field_simp [ne_of_gt hPpos]
+    _ ≤ mReal + 2 * (mReal * δ) := by
+      have hterm := mul_le_mul_of_nonneg_right hPInv2
+        (mul_nonneg hmRealPos.le hδ.le)
+      linarith
+    _ ≤ (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) + ε := by
+      rw [hCount]
+      nlinarith [hTotalErr]
 
 end Prediction
 

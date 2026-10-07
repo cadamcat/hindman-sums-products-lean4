@@ -121,7 +121,34 @@ theorem dual_moment_bound (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin 
     ∀ ε > 0, ∀ᶠ N in atTop, ∀ I : DualInput MS B T N,
       Emu MS.core.parameters N B.1 (fun y => (1 + nu MS.core.parameters N B y) *
         |dualTest MS B T l J0 N I y| ^ b) ≤ 2 * dualMomentConstant dStar ^ b + ε := by
-  sorry
+  intro ε hε
+  have htwoExp : (1 + b * (2 ^ T.d - 1)) ≤
+      1 + b * (2 ^ dStar - 1) := by
+    have hpow : 2 ^ T.d ≤ 2 ^ dStar := Nat.pow_le_pow_right (by omega) hd
+    have hsub : 2 ^ T.d - 1 ≤ 2 ^ dStar - 1 := Nat.sub_le_sub_right hpow 1
+    exact Nat.add_le_add_left (Nat.mul_le_mul_left b hsub) 1
+  have hcount : (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) ≤
+      2 * dualMomentConstant dStar ^ b := by
+    have hpow := pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 2) htwoExp
+    have hconst : 2 * dualMomentConstant dStar ^ b =
+        (2 : ℝ) ^ (1 + b * (2 ^ dStar - 1)) := by
+      unfold dualMomentConstant
+      calc
+        _ = (2 : ℝ) ^ 1 * ((2 : ℝ) ^ (2 ^ dStar - 1)) ^ b := by norm_num
+        _ = (2 : ℝ) ^ (1 + (2 ^ dStar - 1) * b) := by
+          rw [← pow_mul, ← pow_add]
+        _ = _ := by congr 1; rw [Nat.mul_comm]
+    exact hpow.trans (le_of_eq hconst.symm)
+  have hMoment := pkgB_dualMoment_bound_asymptotic
+    MS B l hgap T hT J0 hJ0 b hb ε hε
+  filter_upwards [hMoment] with N hN
+  intro I
+  have hI := hN I
+  have hI' : Emu MS.core.parameters N B.1
+      (fun y => (1 + nu MS.core.parameters N B y) *
+        |dualTest MS B T l J0 N I y| ^ b) ≤
+      (2 : ℝ) ^ (1 + b * (2 ^ T.d - 1)) + ε := hI
+  linarith [hI', hcount]
 
 /-- Clipping, 05:80–82 and 177–184: for fixed `K > A_*` and fixed `p ≥ 1`,
 `E_{μ_i}(1 + ν)|𝒟 − 𝒟^{[K]}|^p = o(1)` uniformly over the inputs. -/
