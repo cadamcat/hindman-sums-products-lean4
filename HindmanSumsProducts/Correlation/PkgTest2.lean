@@ -5,6 +5,8 @@ import HindmanSumsProducts.Correlation.Outside
 
 namespace HindmanSumsProducts
 
+attribute [local instance] Classical.propDecidable
+
 open Filter
 
 theorem c_test2_nonTarget_card {m q r : ℕ} (Sh : RowShape m q r) :
@@ -371,18 +373,23 @@ private theorem c_test2_parameterTailProductLaw_nonneg {n : ℕ}
     exact c_test2_harmonicNatLaw_nonneg _ _ _
   · simp [hprod]
 
+def c_test2_ScaleData {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) : Prop :=
+  ∃ c : Fin m → ℤ,
+    (∀ d, (c d : ℚ) = chainScale S.core.parameters C a N d) ∧
+    (∀ d, 0 < c d) ∧
+    (∀ u d, u < d → ∃ k : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (k : ℤ) * c d) ∧
+    ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ)
+
 theorem c_test2_chainCoefficientData_eventually {K s m : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
     (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
-    ∀ᶠ N in atTop, ∃ c : Fin m → ℤ,
-      (∀ d, (c d : ℚ) = chainScale S.core.parameters C a N d) ∧
-      (∀ d, 0 < c d) ∧
-      (∀ u d, u < d → ∃ k : ℕ,
-        c u = (primorial (N + 1) : ℤ) * (k : ℤ) * c d) ∧
-      ∀ d,
-        ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
-          (S.core.parameters.M N : ℤ) := by
+    ∀ᶠ N in atTop, c_test2_ScaleData S C a N := by
   filter_upwards [S.core.chain_coefficients, S.gapStage.coefficient_divides_modulus]
     with N hchain hdiv
   obtain ⟨c, hc, hcpos, hratio⟩ := hchain m C a ha
@@ -731,6 +738,94 @@ theorem c_test2_goodTupleCoeffData {K s m q : ℕ}
   have hjT : j ∈ T.support := by rw [hstar]; exact hj
   exact c_test2_targetCoeffData S N c hcpos hratio hmod T j hjT hja p hpprime hpinj
     hlarge _ hsize hpbound hMle
+
+noncomputable def c_test2_alphaFromGoodTuple {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) (T : RowTemplate m q)
+    (Jstar : Finset (Fin m)) (hstar : T.support = Jstar)
+    (j : Fin m) (hj : j ∈ Jstar) (hja : j < T.anchor)
+    (p : Fin q → ℕ) (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q)
+    (hgood : GoodTuple S C.gap N tests Dpoly p)
+    (hpool : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+      (S.primeStage.pool N C.gap).lower)
+    (hscale : c_test2_ScaleData S C a N) : Fin m → ℕ :=
+  let c := Classical.choose hscale
+  let hc := Classical.choose_spec hscale
+  Classical.choose (c_test2_goodTupleCoeffData S C a N T Jstar hstar j hj hja
+    p tests Dpoly hgood hpool c hc.2.1 hc.2.2.1 hc.2.2.2)
+
+theorem c_test2_alphaFromGoodTuple_spec {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) (T : RowTemplate m q)
+    (Jstar : Finset (Fin m)) (hstar : T.support = Jstar)
+    (j : Fin m) (hj : j ∈ Jstar) (hja : j < T.anchor)
+    (p : Fin q → ℕ) (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q)
+    (hgood : GoodTuple S C.gap N tests Dpoly p)
+    (hpool : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+      (S.primeStage.pool N C.gap).lower)
+    (hscale : c_test2_ScaleData S C a N) :
+    (∀ i, c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale i ≤
+        ((S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap) ^
+            (c_test2_rowExponent T + 1)) ∧
+    (∀ i, i < T.anchor → primorial (N + 1) ∣
+      c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+        hgood hpool hscale i) ∧
+    0 < c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale T.anchor ∧
+    0 < c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale j ∧
+    primorial (N + 1) ∣ c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale j ∧
+    Nat.Coprime (c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale T.anchor) (primorial (N + 1)) ∧
+    Nat.Coprime (c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale j)
+      (c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+        hgood hpool hscale T.anchor) ∧
+    c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale T.anchor ≤
+        ((S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ c_test2_rowExponent T ∧
+    c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale j ≤
+        ((S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap) ^
+            (c_test2_rowExponent T + 1) := by
+  classical
+  let c := Classical.choose hscale
+  let hc := Classical.choose_spec hscale
+  let hcoeff := c_test2_goodTupleCoeffData S C a N T Jstar hstar j hj hja
+    p tests Dpoly hgood hpool c hc.2.1 hc.2.2.1 hc.2.2.2
+  have halpha : c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja p tests Dpoly
+      hgood hpool hscale = Classical.choose hcoeff := by
+    rfl
+  rw [halpha]
+  rcases Classical.choose_spec hcoeff with
+    ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, _⟩
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
+
+noncomputable def c_test2_rootPairAt {K s m q : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (T : RowTemplate m q) (Jstar : Finset (Fin m))
+    (hstar : T.support = Jstar) (j : Fin m) (hj : j ∈ Jstar) (hja : j < T.anchor)
+    (tests : Finset (IntegerPolynomial q)) (Dpoly : IntegerPolynomial q)
+    (N : ℕ) (p : Fin q → ℕ) : ℕ × ℕ := by
+  classical
+  exact if hg : GoodTuple S C.gap N tests Dpoly p then
+    if hs : c_test2_ScaleData S C a N then
+      if hp : 2 * FromArithmetic.masterScaleV S.core.parameters N C.gap ≤
+          (S.primeStage.pool N C.gap).lower then
+        let alpha := c_test2_alphaFromGoodTuple S C a N T Jstar hstar j hj hja
+          p tests Dpoly hg hp hs
+        (alpha T.anchor, alpha j)
+      else (1, primorial (N + 1))
+    else (1, primorial (N + 1))
+  else (1, primorial (N + 1))
 
 theorem c_test2_chainWeight_nonneg {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
