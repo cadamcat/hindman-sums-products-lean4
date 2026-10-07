@@ -4,6 +4,7 @@ import HindmanSumsProducts.Correlation.PkgPrime
 import HindmanSumsProducts.Correlation.PkgMask
 import HindmanSumsProducts.Correlation.PkgRows
 import HindmanSumsProducts.Correlation.PkgElim
+import HindmanSumsProducts.Correlation.PkgElim2
 import HindmanSumsProducts.Correlation.PkgTest
 
 /-!
