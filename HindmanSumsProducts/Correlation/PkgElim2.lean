@@ -621,6 +621,171 @@ theorem c_elim2_weightedShiftStateStep {α β : Type u} [Fintype α]
         ∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2) := hcs
     _ = _ := by rw [hfirst, hsecond]
 
+structure c_elim2_AdditiveBoxData (α β : Type u) [Fintype α] [DecidableEq α] where
+  shiftLength : β → ℕ
+  targetBase : β → ℚ
+  targetCoefficient : β → α → ℤ
+  targetFunction : β → ℚ → ℝ
+  rowBase : α → β → ℚ
+  rowCoefficient : α → α → β → ℤ
+  rowFunction : α → β → ℚ → ℝ
+  rowWeight : α → β → ℚ → ℝ
+
+abbrev c_elim2_BoxBranch {α : Type u} (E : Finset α) :=
+  {i : α // i ∈ E} → Fin 2
+
+abbrev c_elim2_BoxRetainedBranch {α : Type u} (E : Finset α) (I : α) :=
+  {i : α // i ∈ E ∧ i ≠ I} → Fin 2
+
+def c_elim2_boxBranchFull {α : Type u} [DecidableEq α] (E : Finset α)
+    (ω : c_elim2_BoxBranch E) : α → Fin 2 :=
+  fun i => if hi : i ∈ E then ω ⟨i, hi⟩ else 0
+
+def c_elim2_boxRetainedBranchFull {α : Type u} [DecidableEq α]
+    (E : Finset α) (I : α) (η : c_elim2_BoxRetainedBranch E I) : α → Fin 2 :=
+  fun i => if hi : i ∈ E then if hne : i ≠ I then η ⟨i, hi, hne⟩ else 0 else 0
+
+def c_elim2_boxShiftValue {α : Type u} [DecidableEq α]
+    (E : Finset α) {L : ℕ} (u : c_elim2_ShiftCoord E → Fin L)
+    (ω : α → Fin 2) (i : α) : ℕ :=
+  if hi : i ∈ E then (u ⟨(i, ω i), Or.inr hi⟩).val
+  else (u ⟨(i, 0), Or.inl rfl⟩).val
+
+def c_elim2_boxTargetArgument {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (ω : c_elim2_BoxBranch E) : ℚ :=
+  D.targetBase b + ∑ i, (D.targetCoefficient b i : ℚ) *
+    (c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i : ℚ)
+
+def c_elim2_boxRowArgument {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β) (I : α)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) (ω : α → Fin 2) : ℚ :=
+  D.rowBase I b + ∑ i ∈ Finset.univ.erase I,
+    (D.rowCoefficient I i b : ℚ) * (c_elim2_boxShiftValue E u ω i : ℚ)
+
+def c_elim2_boxTargetProduct {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ ω : c_elim2_BoxBranch E,
+    D.targetFunction b (c_elim2_boxTargetArgument D E b u ω)
+
+def c_elim2_boxActiveProduct {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ I : {i : α // i ∉ E}, ∏ ω : c_elim2_BoxBranch E,
+    D.rowFunction I.1 b
+      (c_elim2_boxRowArgument D E b I.1 u (c_elim2_boxBranchFull E ω))
+
+def c_elim2_boxRetainedProduct {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ I : {i : α // i ∈ E}, ∏ η : c_elim2_BoxRetainedBranch E I.1,
+    D.rowWeight I.1 b
+      (c_elim2_boxRowArgument D E b I.1 u
+        (c_elim2_boxRetainedBranchFull E I.1 η))
+
+def c_elim2_boxStateIntegrand {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  c_elim2_boxTargetProduct D E b u * c_elim2_boxActiveProduct D E b u *
+    c_elim2_boxRetainedProduct D E b u
+
+def c_elim2_boxActiveRowFactor {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ ω : c_elim2_BoxBranch E,
+    D.rowFunction R b
+      (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))
+
+def c_elim2_boxWeightRowFactor {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ ω : c_elim2_BoxBranch E,
+    D.rowWeight R b
+      (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))
+
+def c_elim2_boxWithoutActiveRow {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+    c_elim2_boxTargetProduct D E b u *
+    (∏ I : {i : α // i ∉ E ∧ i ≠ R}, ∏ ω : c_elim2_BoxBranch E,
+      D.rowFunction I.1 b
+        (c_elim2_boxRowArgument D E b I.1 u (c_elim2_boxBranchFull E ω))) *
+    c_elim2_boxRetainedProduct D E b u
+
+abbrev c_elim2_ActiveRowIndex {α : Type u} (E : Finset α) :=
+  {i : α // i ∉ E}
+
+abbrev c_elim2_ActiveRowIndexExcept {α : Type u} (E : Finset α) (R : α) :=
+  {i : α // i ∉ E ∧ i ≠ R}
+
+noncomputable def c_elim2_activeRowIndexEquiv {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) (hR : R ∉ E) :
+    c_elim2_ActiveRowIndex E ≃ c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1} := by
+  classical
+  let f : c_elim2_ActiveRowIndex E →
+      c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1} := fun x =>
+    if hx : x.val = R then Sum.inr PUnit.unit
+    else Sum.inl ⟨x.val, ⟨x.property, hx⟩⟩
+  let g : c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1} →
+      c_elim2_ActiveRowIndex E := fun y => match y with
+    | Sum.inl x => ⟨x.val, x.property.1⟩
+    | Sum.inr _ => ⟨R, hR⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro x
+    by_cases hx : x.val = R
+    · have hEq : (⟨R, hR⟩ : c_elim2_ActiveRowIndex E) = x :=
+        Subtype.ext hx.symm
+      simpa [f, g, hx] using hEq
+    · simp [f, g, hx]
+  · intro y
+    cases y with
+    | inl x =>
+        have hx : x.val ≠ R := x.property.2
+        simp [f, g, hx]
+    | inr y =>
+        cases y
+        simp [f, g]
+
+theorem c_elim2_boxState_factor_active {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) :
+    c_elim2_boxStateIntegrand D E b u =
+      c_elim2_boxActiveRowFactor D E R b u * c_elim2_boxWithoutActiveRow D E R b u := by
+  classical
+  let e := c_elim2_activeRowIndexEquiv E R hR
+  let rowProd : c_elim2_ActiveRowIndex E → ℝ := fun I =>
+    ∏ ω : c_elim2_BoxBranch E,
+      D.rowFunction I.1 b
+        (c_elim2_boxRowArgument D E b I.1 u (c_elim2_boxBranchFull E ω))
+  have hprod : (∏ I : c_elim2_ActiveRowIndex E, rowProd I) =
+      ∏ J : c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1},
+        rowProd (e.symm J) := by
+    exact Fintype.prod_equiv e rowProd (fun J => rowProd (e.symm J))
+      (by intro I; simp)
+  have hsum :
+      (∏ J : c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1},
+        rowProd (e.symm J)) =
+      (∏ I : c_elim2_ActiveRowIndexExcept E R, rowProd ⟨I.val, I.property.1⟩) *
+        rowProd ⟨R, hR⟩ := by
+    rw [Fintype.prod_sum_type]
+    simp [e, c_elim2_activeRowIndexEquiv, rowProd]
+  have hactive : c_elim2_boxActiveProduct D E b u =
+      c_elim2_boxActiveRowFactor D E R b u *
+        (∏ I : c_elim2_ActiveRowIndexExcept E R,
+          rowProd ⟨I.val, I.property.1⟩) := by
+    unfold c_elim2_boxActiveProduct c_elim2_boxActiveRowFactor
+    change (∏ I : c_elim2_ActiveRowIndex E, rowProd I) =
+      rowProd ⟨R, hR⟩ * (∏ I : c_elim2_ActiveRowIndexExcept E R,
+        rowProd ⟨I.val, I.property.1⟩)
+    rw [hprod, hsum]
+    ring
+  unfold c_elim2_boxStateIntegrand c_elim2_boxWithoutActiveRow
+  rw [hactive]
+  ring
+
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
