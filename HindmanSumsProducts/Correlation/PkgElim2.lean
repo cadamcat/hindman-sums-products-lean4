@@ -109,6 +109,59 @@ theorem c_elim2_uniformIntervalAverage_le_pair {L : ℕ} (hL : 0 < L)
   have h := c_elim2_uniformIntervalAverage_ge_one hL f hf
   nlinarith [sq_nonneg (c_elim2_uniformIntervalAverage L f - 1)]
 
+abbrev c_elim2_ShiftCoord {α : Type*} (E : Finset α) :=
+  {x : α × Fin 2 // x.2.val = 0 ∨ x.1 ∈ E}
+
+noncomputable def c_elim2_shiftCoord_insert_equiv {α : Type*} [DecidableEq α]
+    (E : Finset α) (R : α) (hR : R ∉ E) :
+    c_elim2_ShiftCoord (insert R E) ≃ c_elim2_ShiftCoord E ⊕ PUnit := by
+  classical
+  let extra : c_elim2_ShiftCoord (insert R E) :=
+    ⟨(R, 1), Or.inr (Finset.mem_insert_self R E)⟩
+  have hcoord (x : c_elim2_ShiftCoord (insert R E))
+      (hx : ¬ (x.val.1 = R ∧ x.val.2.val = 1)) :
+      x.val.2.val = 0 ∨ x.val.1 ∈ E := by
+    rcases x.property with hzero | hxmem
+    · exact Or.inl hzero
+    · rcases Finset.mem_insert.mp hxmem with heq | hxE
+      ·
+        have hnotone : x.val.2.val ≠ 1 := by
+          intro hone
+          exact hx ⟨heq, hone⟩
+        have hlt : x.val.2.val < 2 := x.val.2.isLt
+        left
+        omega
+      · exact Or.inr hxE
+  let f : c_elim2_ShiftCoord (insert R E) → c_elim2_ShiftCoord E ⊕ PUnit :=
+    fun x => if hx : x.val.1 = R ∧ x.val.2.val = 1 then Sum.inr PUnit.unit
+      else Sum.inl ⟨x.val, hcoord x hx⟩
+  let g : c_elim2_ShiftCoord E ⊕ PUnit → c_elim2_ShiftCoord (insert R E) :=
+    fun y => match y with
+      | Sum.inl x => ⟨x.val, Or.elim x.property Or.inl (fun hx =>
+          Or.inr (Finset.mem_insert_of_mem hx))⟩
+      | Sum.inr _ => extra
+  refine ⟨f, g, ?_, ?_⟩
+  · intro x
+    rcases x with ⟨⟨a, b⟩, hp⟩
+    apply Subtype.ext
+    change (g (f ⟨(a, b), hp⟩)).val = (a, b)
+    by_cases hx : a = R ∧ b.val = 1
+    · have hb : (1 : Fin 2) = b := (Fin.ext hx.2).symm
+      simpa [f, g, hx, extra] using hb
+    · simp [f, g, hx, extra]
+  · intro y
+    cases y with
+    | inl x =>
+        have hx : ¬ (x.val.1 = R ∧ x.val.2.val = 1) := by
+          rintro ⟨hEq, hOne⟩
+          rcases x.property with hZero | hxE
+          · omega
+          · exact hR (hEq ▸ hxE)
+        simp [f, g, hx, extra]
+    | inr u =>
+        cases u
+        simp [f, g, extra]
+
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
