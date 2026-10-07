@@ -2148,6 +2148,51 @@ theorem evalIntegerPolynomial_rename {q s : ℕ} (ι : Fin q ↪ Fin s)
   unfold evalIntegerPolynomial
   exact MvPolynomial.eval_rename ι (fun i => (p i : ℤ)) P
 
+theorem rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, ∀ p R v (hv : v.Prime),
+      N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+      (∀ i, (S.primeStage.pool N C.gap).lower ≤ p i ∧
+        p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) →
+      FromArithmetic.rationalResidue v hv
+        (rowShapeLinearCoefficients Sh ι
+          (chainScale S.core.parameters C a N) N p R (Sh.row R).anchor) ≠ 0 := by
+  filter_upwards [chainScale_pos_eventually S C a ha,
+      pool_lower_gt_masterScaleV_eventually S C.gap] with N hscale hpoolLower
+  intro p R v hv hNv hvV hp
+  let T := Sh.row R
+  have hslot : ∀ i, ¬ v ∣ p (ι i) := by
+    intro i hdiv
+    have hpi := hp (ι i)
+    have heq : v = p (ι i) :=
+      (Nat.prime_dvd_prime_iff_eq hv hpi.2.2).mp hdiv
+    have hlarge : masterScaleV S.core.parameters N C.gap < p (ι i) :=
+      lt_of_lt_of_le hpoolLower hpi.1
+    omega
+  have hratio : (chainScale S.core.parameters C a N T.anchor) /
+      (chainScale S.core.parameters C a N T.anchor) = 1 :=
+    div_self (ne_of_gt (hscale T.anchor))
+  have hcoef :
+      rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N) N p R T.anchor =
+        (T.valueNat (fun i => p (ι i)) T.anchor : ℚ) := by
+    change (chainScale S.core.parameters C a N T.anchor /
+        chainScale S.core.parameters C a N T.anchor) *
+        T.value (fun i => p (ι i)) T.anchor = _
+    rw [hratio, T.value_eq_valueNat]
+    ring
+  have hres :
+      FromArithmetic.rationalResidue v hv
+          (T.valueNat (fun i => p (ι i)) T.anchor : ℚ) =
+        (T.valueNat (fun i => p (ι i)) T.anchor : ZMod v) := by
+    simpa using rationalResidue_eq_num_of_den_one hv
+      (T.valueNat (fun i => p (ι i)) T.anchor : ℚ) (by simp)
+  rw [hcoef, hres]
+  exact T.valueNat_cast_ne_zero_of_slot_not_dvd
+    (fun i => p (ι i)) T.anchor v hv (Finset.max'_mem T.support T.support_nonempty) hslot
+
 theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
