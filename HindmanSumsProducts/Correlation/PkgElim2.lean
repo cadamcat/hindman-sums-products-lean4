@@ -947,27 +947,6 @@ noncomputable def c_elim2_boxBranchInsertEquiv {α : Type u} [Fintype α]
       ω ⟨R, Finset.mem_insert_self R E⟩ := by
   rfl
 
-noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
-    [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
-    (hR : R ∉ E) (hI : I ∈ E) :
-    c_elim2_BoxRetainedBranch (insert R E) I ≃
-      c_elim2_BoxRetainedBranch E I × Fin 2 := by
-  classical
-  have hRI : R ≠ I := by
-    intro heq
-    subst I
-    exact hR hI
-  have hSet : (insert R E).erase I = insert R (E.erase I) :=
-    Finset.erase_insert_of_ne hRI
-  have hR' : R ∉ E.erase I := by
-    intro h
-    exact hR (Finset.mem_erase.mp h).2
-  let eDom : {i : α // i ∈ (insert R E).erase I} ≃
-      {i : α // i ∈ insert R (E.erase I)} :=
-    Equiv.subtypeEquivRight (fun i => by rw [hSet])
-  exact (Equiv.arrowCongr eDom (Equiv.refl (Fin 2))).trans
-    (c_elim2_boxBranchInsertEquiv (E.erase I) R hR')
-
 @[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_old {α : Type u}
     [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
     (ω : c_elim2_BoxBranch E) (b : Fin 2) (i : {i : α // i ∈ E}) :
@@ -998,6 +977,80 @@ noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
         (e (e.symm (ω, b))).2 := hproj.symm
     _ = b := hEq
 
+
+
+noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
+    (hR : R ∉ E) (hI : I ∈ E) :
+    c_elim2_BoxRetainedBranch (insert R E) I ≃
+      c_elim2_BoxRetainedBranch E I × Fin 2 := by
+  classical
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  have hSet : (insert R E).erase I = insert R (E.erase I) :=
+    Finset.erase_insert_of_ne hRI
+  have hR' : R ∉ E.erase I := by
+    intro h
+    exact hR (Finset.mem_erase.mp h).2
+  let eDom : {i : α // i ∈ (insert R E).erase I} ≃
+      {i : α // i ∈ insert R (E.erase I)} :=
+    Equiv.subtypeEquivRight (fun i => by rw [hSet])
+  exact (Equiv.arrowCongr eDom (Equiv.refl (Fin 2))).trans
+    (c_elim2_boxBranchInsertEquiv (E.erase I) R hR')
+
+@[simp] theorem c_elim2_boxRetainedBranchInsertEquiv_symm_apply_old
+    {α : Type u} [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
+    (hR : R ∉ E) (hI : I ∈ E) (η : c_elim2_BoxRetainedBranch E I)
+    (bit : Fin 2) (j : {j : α // j ∈ E.erase I}) :
+    ((c_elim2_boxRetainedBranchInsertEquiv E R I hR hI).symm (η, bit))
+      ⟨j.val, by
+        have hRI : R ≠ I := by
+          intro heq
+          subst I
+          exact hR hI
+        rw [Finset.erase_insert_of_ne hRI]
+        exact Finset.mem_insert_of_mem j.property⟩ = η j := by
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  have hSet : (insert R E).erase I = insert R (E.erase I) :=
+    Finset.erase_insert_of_ne hRI
+  have hR' : R ∉ E.erase I := by
+    intro h
+    exact hR (Finset.mem_erase.mp h).2
+  change ((c_elim2_boxBranchInsertEquiv (E.erase I) R hR').symm (η, bit))
+    ⟨j.val, Finset.mem_insert_of_mem j.property⟩ = η j
+  exact c_elim2_boxBranchInsertEquiv_symm_apply_old
+    (E.erase I) R hR' η bit j
+
+@[simp] theorem c_elim2_boxRetainedBranchInsertEquiv_symm_apply_new
+    {α : Type u} [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
+    (hR : R ∉ E) (hI : I ∈ E) (η : c_elim2_BoxRetainedBranch E I)
+    (bit : Fin 2) :
+    ((c_elim2_boxRetainedBranchInsertEquiv E R I hR hI).symm (η, bit))
+      ⟨R, by
+        have hRI : R ≠ I := by
+          intro heq
+          subst I
+          exact hR hI
+        rw [Finset.erase_insert_of_ne hRI]
+        exact Finset.mem_insert_self R (E.erase I)⟩ = bit := by
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  have hSet : (insert R E).erase I = insert R (E.erase I) :=
+    Finset.erase_insert_of_ne hRI
+  have hR' : R ∉ E.erase I := by
+    intro h
+    exact hR (Finset.mem_erase.mp h).2
+  change ((c_elim2_boxBranchInsertEquiv (E.erase I) R hR').symm (η, bit))
+    ⟨R, Finset.mem_insert_self R (E.erase I)⟩ = bit
+  exact c_elim2_boxBranchInsertEquiv_symm_apply_new
+    (E.erase I) R hR' η bit
 
 noncomputable def c_elim2_boxEndpointAssignment {α : Type u} [Fintype α]
     [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) (L : ℕ)
