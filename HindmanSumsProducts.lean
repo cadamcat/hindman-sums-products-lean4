@@ -7,3 +7,5 @@ import HindmanSumsProducts.Framework
 import HindmanSumsProducts.CubeCornerCharted
 import HindmanSumsProducts.InverseBridge
 import HindmanSumsProducts.Correlation
+import HindmanSumsProducts.Prediction
+import HindmanSumsProducts.Main

@@ -1,0 +1,121 @@
+# formalization.yaml (v0.4)
+version: "v0.4"
+
+project:
+  name: "A Lean 4 formalization of Hindman's finite sums and products conjecture"
+  description: >-
+    A complete Lean 4 formalization of Hindman's finite sums and products
+    conjecture, proved by OpenAI: every finite colouring of the positive
+    integers contains, for every m, an m-element set of positive integers
+    whose nonempty subset sums and nonempty subset products all have one
+    colour. The formal proof follows OpenAI's paper. It derives the theorem
+    from a Prediction Principle, formalized here, and an Alignment Principle
+    for charted menus, taken from OpenAI's Lean library openai/math. Two
+    steps of the paper are replaced: the Tao–Ziegler concatenation theorem by
+    the subgroup box-norm concatenation of Kravitz, Kuca and Leng, and the
+    Green–Tao–Ziegler inverse theorem by OpenAI's cyclic inverse theorem,
+    transferred to one finite charted menu of linear orbits. The final
+    theorem depends only on the axioms propext, Classical.choice and
+    Quot.sound.
+  authors:
+    - "Yao Xu"
+  responsible_maintainers:
+    - "Yao Xu"
+  license: "Apache-2.0"
+
+sources:
+  - title: "Monochromatic finite sums and products in the positive integers"
+    authors: ["OpenAI"]
+    id: "https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf"
+    type: "paper"
+    location: "September 23, 2026; Theorem thm:main without its separation clause, §2–§5 (the Alignment Principle of §6–§8 is used from OpenAI's library)"
+    relationship: "formalizes"
+    author_endorsement: "not-contacted"
+  - title: "Quantitative concatenation for polynomial box norms"
+    authors: ["Noah Kravitz", "Borys Kuca", "James Leng"]
+    id: "arXiv:2407.08636"
+    type: "paper"
+    location: "§6, Lemma 6.1 and Proposition 6.2 (subgroup box-norm concatenation)"
+    relationship: "formalizes"
+    note: "Replaces the Tao–Ziegler concatenation theorem used in §5 of the paper."
+    author_endorsement: "not-contacted"
+
+related_formalizations:
+  - id: "https://github.com/openai/math/tree/adc7f1241b42e322a6451854ab7e4b4c146bf78a/lean"
+    relationship: "builds-on"
+    note: >-
+      The project imports OpenAI's charted Alignment theorem
+      (OAI.SourceMenuLiteral.charted_finite_menu_alignment), its cyclic
+      inverse theorem (OAI.Erdos3.exists_cyclicNativeInverse_positive), its
+      Brun–Titchmarsh bound and supporting modules, and adapts a few short
+      files and blocks; README.md lists them with file and line ranges.
+
+classification:
+  arxiv: ["math.CO", "math.NT", "cs.LO"]
+  msc2020: ["05D10", "11B75", "11B30", "68V20"]
+
+status:
+  scope: >-
+    Complete formalization of the finite sums and products theorem in the
+    form stated in Challenge.lean. The separation clause of the paper's main
+    theorem is not formalized.
+  sorry_count: 0
+  sorry_in_definitions: 0
+  axioms: ["propext", "Classical.choice", "Quot.sound"]
+  main_results:
+    - declaration: "HindmanSumsProducts.hindman_finite_sums_products"
+      file: "HindmanSumsProducts/Main.lean"
+      sorry_count: 0
+      axioms: ["propext", "Classical.choice", "Quot.sound"]
+      comparator_config: "Challenge.json"
+      literature_dependencies: []
+
+automation:
+  methods:
+    - method: "agent"
+      models: ["Claude Opus 5.5", "GPT-6 Luna", "GPT-6.1 Sol"]
+      framework: "Claude Code and Codex CLI"
+      tool_setup: >-
+        AI coding agents wrote the Lean code under acceptance criteria set by
+        the author. The target statement was written first and reviewed
+        against the conjecture and the paper. Each intermediate statement was
+        frozen with a hash of its elaborated type before any proof of it was
+        attempted, and statements were attacked for counterexamples; the few
+        found false were repaired and frozen again. A proof was accepted only
+        if its statement kept the frozen type and its axioms stayed within the
+        three standard axioms, up to frozen statements still open.
+      cost:
+        spend_usd: "subscription-based usage"
+        hardware: "API-only models; local builds on an Apple Silicon Mac; a fresh-clone build and kernel replay on a compute cluster"
+  spend_usd: "subscription-based usage"
+  notes: >-
+    The author is responsible for the content. Model agreement was not
+    treated as verification; acceptance rests on the Lean kernel checks
+    described under review.
+
+fidelity:
+  divergences: >-
+    The paper's main theorem also asserts a separation clause, which the
+    conjecture does not ask for; it is omitted. Colourings are maps
+    χ : ℕ → Fin r; the value at 0 never enters, because every nonempty
+    subset sum or product of positive integers is positive. The statement
+    asks for exactly m elements, all positive, and constrains all nonempty
+    subsets, singletons included.
+
+review:
+  status: "agent-reviewed"
+  reviewers: []
+  notes: >-
+    {{REVIEW_NOTES}}
+
+alignment:
+  namespace: "HindmanSumsProducts"
+  statements:
+    - source: "OpenAI (2026), Theorem thm:main without the separation clause"
+      lean: "HindmanSumsProducts.hindman_finite_sums_products"
+      module: "HindmanSumsProducts/Main.lean"
+      status: "proved"
+
+acknowledgements: >-
+  Mathlib, OpenAI's openai/math library and PrimeNumberTheoremAnd (as pinned
+  by openai/math) supply the underlying theories.
