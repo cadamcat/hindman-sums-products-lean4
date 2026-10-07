@@ -3260,6 +3260,36 @@ def balancedBranchMaskFunction {m q : ℕ}
       ((if v ∈ U then (p 0 : ℤ) else 1) *
         (if u ∈ U then (p 1 : ℤ) else 1) * y)
 
+theorem pkgMask_outsideBranchMask_substitution {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ)
+    (z : Fin m → ℤ) :
+    outsideBranchMaskFunction f u U p (∏ k ∈ U, z k) =
+      f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update z u ((p 1 : ℤ) * z u) k) *
+        f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update z u ((p 0 : ℤ) * z u) k) := by
+  unfold outsideBranchMaskFunction
+  rw [← mask_product_scale_at U u z (p 1 : ℤ),
+    ← mask_product_scale_at U u z (p 0 : ℤ)]
+
+theorem pkgMask_balancedBranchMask_substitution {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u v : Fin m) (U : Finset (Fin m)) (huv : u ≠ v)
+    (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
+    balancedBranchMaskFunction f u v U p (∏ k ∈ U, z k) =
+      f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update (Function.update z u
+            ((p 0 : ℤ) * z u)) v
+            ((p 1 : ℤ) * Function.update z u ((p 0 : ℤ) * z u) v) k) *
+        f U (dropPrimeTuple2 p)
+          (∏ k ∈ U, Function.update (Function.update z v
+            ((p 0 : ℤ) * z v)) u
+            ((p 1 : ℤ) * Function.update z v ((p 0 : ℤ) * z v) u) k) := by
+  unfold balancedBranchMaskFunction
+  rw [← mask_product_scale_two U u v huv z (p 0 : ℤ) (p 1 : ℤ),
+    ← mask_product_scale_two U v u (Ne.symm huv) z (p 0 : ℤ) (p 1 : ℤ)]
+
 theorem outsideBranchMaskFunction_abs_le {m q : ℕ}
     (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
     (u : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ) (y : ℤ)
