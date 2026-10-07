@@ -48,6 +48,40 @@ theorem c_elim2_rowForm_add {m q : ℕ} (c : Fin m → ℚ) (T : RowTemplate m q
       rw [← Finset.mul_sum]
     _ = _ := by simp [w]
 
+theorem c_elim2_rowForm_finset_sum {m q : ℕ} {ι : Type*} [DecidableEq ι]
+    (c : Fin m → ℚ) (T : RowTemplate m q) (p : Fin q → ℕ)
+    (z : Fin m → ℚ) (U : Finset ι) (a : ι → ℚ)
+    (v : ι → Fin m → ℚ) :
+    rowForm c T p (fun k => z k + ∑ i ∈ U, a i * v i k) =
+      rowForm c T p z + ∑ i ∈ U, a i * rowForm c T p (v i) := by
+  classical
+  let w : Fin m → ℚ := fun k => c k / c T.anchor * T.value p k
+  change (∑ k, w k * (z k + ∑ i ∈ U, a i * v i k)) =
+    (∑ k, w k * z k) + ∑ i ∈ U, a i * ∑ k, w k * v i k
+  have hswap :
+      (∑ k : Fin m, w k * ∑ i ∈ U, a i * v i k) =
+        ∑ i ∈ U, a i * ∑ k : Fin m, w k * v i k := by
+    calc
+      _ = ∑ k : Fin m, ∑ i ∈ U, a i * (w k * v i k) := by
+        apply Finset.sum_congr rfl
+        intro k hk
+        rw [Finset.mul_sum]
+        apply Finset.sum_congr rfl
+        intro i hi
+        ring
+      _ = ∑ i ∈ U, ∑ k : Fin m, a i * (w k * v i k) := by
+        exact Finset.sum_comm
+      _ = ∑ i ∈ U, a i * ∑ k : Fin m, w k * v i k := by
+        apply Finset.sum_congr rfl
+        intro i hi
+        rw [← Finset.mul_sum]
+  calc
+    _ = (∑ k, w k * z k) + ∑ k : Fin m, w k * ∑ i ∈ U, a i * v i k := by
+      simp only [mul_add, Finset.sum_add_distrib]
+    _ = (∑ k, w k * z k) + ∑ i ∈ U, a i * ∑ k : Fin m, w k * v i k := by
+      rw [hswap]
+    _ = _ := by simp [rowForm, w]
+
 theorem c_elim2_targetVertex_add {m q r : ℕ} (c : Fin m → ℚ)
     (Sh : RowShape m q r) (p : Fin q → ℕ) (Mp : ℕ)
     (z v : Fin m → ℚ) (u : NonTarget Sh → Fin 2 → ℕ)
@@ -241,17 +275,16 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
     (F : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
     eliminationAverage S C N dirs tests J0 F =
       (gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
-        ∑ x : {x : (Fin q → ℕ) × (Fin m → ℤ) //
-            x ∈ c_elim2_independentPrimeSupport
-              (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
-              (fun _ : Fin q => (S.primeStage.pool N C.gap).upper) ×ˢ
-              c_elim2_pivotSupport S.core.parameters C N},
-          gapSlotMass S C.gap N x.1.1 *
-            c_elim2_goodIndicator S C N Sh dirs tests x.1.1 *
-            pivotMass S.core.parameters C N x.1.2 *
-            shiftAverage (NonTarget Sh)
-              (shiftLength S C.gap J0 N dirs.poly x.1.1)
-              (F x.1.1 (fun k => (x.1.2 k : ℚ))) := by
+        ∑ p : {p : Fin q → ℕ // p ∈ c_elim2_independentPrimeSupport
+            (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
+            (fun _ : Fin q => (S.primeStage.pool N C.gap).upper)},
+          ∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+            gapSlotMass S C.gap N p.1 *
+              c_elim2_goodIndicator S C N Sh dirs tests p.1 *
+              pivotMass S.core.parameters C N z.1 *
+              shiftAverage (NonTarget Sh)
+                (shiftLength S C.gap J0 N dirs.poly p.1)
+                (F p.1 (fun k => (z.1 k : ℚ))) := by
   classical
   let Good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
   let Psupport : Finset (Fin q → ℕ) :=
@@ -326,25 +359,30 @@ theorem c_elim2_eliminationAverage_eq_finiteOuterSupport
       exact hinner p
     _ = _ := by
       congr 1
-      let Pairs := Psupport ×ˢ Zsupport
       let g (p : Fin q → ℕ) (z : Fin m → ℤ) :=
         gapSlotMass S C.gap N p * c_elim2_goodIndicator S C N Sh dirs tests p *
           pivotMass S.core.parameters C N z *
           shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
             (F p (fun k => (z k : ℚ)))
-      have hpair :
+      let ZSub := {z : Fin m → ℤ // z ∈ Zsupport}
+      let PSub := {p : Fin q → ℕ // p ∈ Psupport}
+      have hZsum (p : Fin q → ℕ) :
+          (∑ z ∈ Zsupport, g p z) = ∑ z : ZSub, g p z.1 := by
+        simpa only [Finset.attach_eq_univ] using
+          (Finset.sum_attach Zsupport (fun z => g p z)).symm
+      have hPsum :
+          (∑ p ∈ Psupport, ∑ z : ZSub, g p z.1) =
+            ∑ p : PSub, ∑ z : ZSub, g p.1 z.1 := by
+        simpa only [Finset.attach_eq_univ] using
+          (Finset.sum_attach Psupport (fun p => ∑ z : ZSub, g p z.1)).symm
+      have hfinite :
           (∑ p ∈ Psupport, ∑ z ∈ Zsupport, g p z) =
-            ∑ x : {x : (Fin q → ℕ) × (Fin m → ℤ) // x ∈ Pairs},
-              g x.1.1 x.1.2 := by
-        calc
-          _ = ∑ x ∈ Pairs, g x.1 x.2 :=
-            (Finset.sum_product' Psupport Zsupport g).symm
-          _ = ∑ x : {x : (Fin q → ℕ) × (Fin m → ℤ) // x ∈ Pairs},
-              g x.1.1 x.1.2 := by
-                simpa only [Finset.attach_eq_univ] using
-                  (Finset.sum_attach Pairs (fun x : (Fin q → ℕ) × (Fin m → ℤ) =>
-                    g x.1 x.2)).symm
-      simpa [Pairs, Psupport, Zsupport, g] using hpair
+            ∑ p ∈ Psupport, ∑ z : ZSub, g p z.1 := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        exact hZsum p
+      rw [hfinite]
+      exact hPsum
 
 noncomputable def c_elim2_shiftRangeEquiv {α : Type u} [Fintype α]
     [DecidableEq α] (L : ℕ) :
@@ -2531,5 +2569,321 @@ theorem c_elim2_target_cube_product_abs_le_targetBound
   unfold targetBound
   exact Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _)
     (fun ω _ => hfactor ω)
+
+theorem c_elim2_boxWeightRowFactor_le_boxRetainedProduct
+    {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α)
+    (hR : R ∉ E) (b : β) (v : α → Fin 2 → Fin (D.shiftLength b))
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (hu : ∀ c, u c = v c.val.1 c.val.2)
+    (hweight : ∀ (I : {i : α // i ∈ (Finset.univ : Finset α)})
+      (η : c_elim2_BoxRetainedBranch (Finset.univ : Finset α) I.1),
+      1 ≤ D.rowWeight I.1 b
+        (c_elim2_boxRowArgument D Finset.univ b I.1
+          (fun c : c_elim2_ShiftCoord (Finset.univ : Finset α) =>
+            v c.val.1 c.val.2)
+          (c_elim2_boxRetainedBranchFull (Finset.univ : Finset α) I.1 η))) :
+    c_elim2_boxWeightRowFactor D E R b u ≤
+      c_elim2_boxRetainedProduct D Finset.univ b
+        (fun c : c_elim2_ShiftCoord (Finset.univ : Finset α) => v c.val.1 c.val.2) := by
+  classical
+  let fullU : c_elim2_ShiftCoord (Finset.univ : Finset α) → Fin (D.shiftLength b) :=
+    fun c => v c.val.1 c.val.2
+  let FullBranch := c_elim2_BoxRetainedBranch (Finset.univ : Finset α) R
+  let extend : c_elim2_BoxBranch E → FullBranch := fun ω => fun η =>
+    if hη : η.1 ∈ E then ω ⟨η.1, hη⟩ else 0
+  have hinj : Function.Injective extend := by
+    intro ω ω' h
+    funext i
+    have hiR : i.1 ≠ R := by
+      intro heq
+      exact hR (heq ▸ i.2)
+    let η : {j : α // j ∈ Finset.univ.erase R} :=
+      ⟨i.1, Finset.mem_erase.mpr ⟨hiR, Finset.mem_univ _⟩⟩
+    have hev := congrFun h η
+    have hmem : η.1 ∈ E := by simpa [η] using i.2
+    have hsub : (⟨η.1, hmem⟩ : {j : α // j ∈ E}) = i := by
+      apply Subtype.ext
+      rfl
+    simpa [extend, hmem, hsub] using hev
+  have harg (ω : c_elim2_BoxBranch E) :
+      c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω) =
+        c_elim2_boxRowArgument D Finset.univ b R fullU
+          (c_elim2_boxRetainedBranchFull Finset.univ R (extend ω)) := by
+    unfold c_elim2_boxRowArgument
+    congr 1
+    apply Finset.sum_congr rfl
+    intro i hi
+    have hiR : i ≠ R := (Finset.mem_erase.mp hi).1
+    by_cases hiE : i ∈ E
+    · let bit : Fin 2 := c_elim2_boxBranchFull E ω i
+      let cP : c_elim2_ShiftCoord E := ⟨(i, bit), Or.inr hiE⟩
+      let cF : c_elim2_ShiftCoord Finset.univ :=
+        ⟨(i, bit), Or.inr (Finset.mem_univ i)⟩
+      have hbit : bit = c_elim2_boxRetainedBranchFull Finset.univ R (extend ω) i := by
+        simp [bit, c_elim2_boxBranchFull, c_elim2_boxRetainedBranchFull,
+          extend, hiE, hiR]
+      have hcoord : u cP = fullU cF := by
+        have hu' := hu cP
+        simpa [cP, cF, fullU, hbit] using hu'
+      have hshiftP : c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i =
+          (u cP).val := by
+        simp [c_elim2_boxShiftValue, cP, bit, hiE]
+      have hshiftF : c_elim2_boxShiftValue Finset.univ fullU
+          (c_elim2_boxRetainedBranchFull Finset.univ R (extend ω)) i =
+          (fullU cF).val := by
+        simp [c_elim2_boxShiftValue, cF, bit, hbit]
+      rw [hshiftP, hshiftF, hcoord]
+    · have hbit : c_elim2_boxBranchFull E ω i = 0 := by
+        simp [c_elim2_boxBranchFull, hiE]
+      have hbitFull : c_elim2_boxRetainedBranchFull Finset.univ R (extend ω) i = 0 := by
+        simp [c_elim2_boxRetainedBranchFull, c_elim2_boxBranchFull, extend, hiE]
+      let cP : c_elim2_ShiftCoord E := ⟨(i, 0), Or.inl rfl⟩
+      let cF : c_elim2_ShiftCoord Finset.univ :=
+        ⟨(i, 0), Or.inr (Finset.mem_univ i)⟩
+      have hcoord : u cP = fullU cF := by
+        have hu' := hu cP
+        simpa [cP, cF, fullU] using hu'
+      have hshiftP : c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i =
+          (u cP).val := by
+        simp [c_elim2_boxShiftValue, cP, hiE]
+      have hshiftF : c_elim2_boxShiftValue Finset.univ fullU
+          (c_elim2_boxRetainedBranchFull Finset.univ R (extend ω)) i =
+          (fullU cF).val := by
+        simp [c_elim2_boxShiftValue, cF, hbitFull]
+      rw [hshiftP, hshiftF, hcoord]
+  let rowFactor : FullBranch → ℝ := fun η =>
+    D.rowWeight R b
+      (c_elim2_boxRowArgument D Finset.univ b R fullU
+        (c_elim2_boxRetainedBranchFull Finset.univ R η))
+  have hrowSub : c_elim2_boxWeightRowFactor D E R b u ≤
+      ∏ η : FullBranch, rowFactor η := by
+    unfold c_elim2_boxWeightRowFactor
+    exact Finset.prod_le_prod_of_injOn₀
+      (f := fun ω : c_elim2_BoxBranch E =>
+        D.rowWeight R b (c_elim2_boxRowArgument D E b R u
+          (c_elim2_boxBranchFull E ω)))
+      (g := rowFactor) (s := Finset.univ) (t := Finset.univ)
+      extend hinj.injOn
+      (by intro ω hω; exact Finset.mem_univ _)
+      (by
+        intro ω hω
+        rw [harg ω])
+      (by
+        intro ω hω
+        rw [harg ω]
+        exact le_trans (by positivity) (hweight ⟨R, Finset.mem_univ _⟩ (extend ω)))
+      (by
+        intro η hη hηnot
+        exact hweight ⟨R, Finset.mem_univ _⟩ η)
+  have hrowFactorLe : (∏ η : FullBranch, rowFactor η) ≤
+      c_elim2_boxRetainedProduct D Finset.univ b fullU := by
+    let Rows := {i : α // i ∈ (Finset.univ : Finset α)}
+    let rowFactorAll : Rows → ℝ := fun I =>
+      ∏ η : c_elim2_BoxRetainedBranch (Finset.univ : Finset α) I.1,
+        D.rowWeight I.1 b
+          (c_elim2_boxRowArgument D Finset.univ b I.1 fullU
+            (c_elim2_boxRetainedBranchFull Finset.univ I.1 η))
+    have hrowOne (I : Rows) : 1 ≤ rowFactorAll I := by
+      dsimp [rowFactorAll]
+      calc
+        1 = ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1, (1 : ℝ) := by simp
+        _ ≤ ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1,
+            D.rowWeight I.1 b
+              (c_elim2_boxRowArgument D Finset.univ b I.1 fullU
+                (c_elim2_boxRetainedBranchFull Finset.univ I.1 η)) := by
+          apply Finset.prod_le_prod₀
+          · intro η hη
+            norm_num
+          · intro η hη
+            exact hweight I η
+    let Rset : Finset Rows := Finset.univ.filter fun I => I.1 = R
+    have hRset : Rset = {⟨R, Finset.mem_univ R⟩} := by
+      ext I
+      constructor
+      · intro h
+        simp only [Finset.mem_singleton]
+        apply Subtype.ext
+        exact (Finset.mem_filter.mp h).2
+      · intro h
+        simp only [Finset.mem_singleton] at h
+        rw [h]
+        simp [Rset]
+    have hsubset : Rset ⊆ (Finset.univ : Finset Rows) := Finset.filter_subset _ _
+    have hprod : (∏ I ∈ Rset, rowFactorAll I) ≤ ∏ I, rowFactorAll I := by
+      apply Finset.prod_le_prod_of_subset_of_one_le₀ hsubset
+      · intro I hI
+        exact (zero_le_one.trans (hrowOne I))
+      · intro I hI hInot
+        exact hrowOne I
+    have hsingle : (∏ I ∈ Rset, rowFactorAll I) =
+        ∏ η : FullBranch, rowFactor η := by
+      rw [hRset]
+      simp only [Finset.prod_singleton]
+      change (∏ η : FullBranch, rowFactor η) = ∏ η : FullBranch, rowFactor η
+      rfl
+    have hwhole : (∏ I, rowFactorAll I) =
+        c_elim2_boxRetainedProduct D Finset.univ b fullU := by
+      unfold c_elim2_boxRetainedProduct
+      change (∏ I : Rows, rowFactorAll I) =
+        ∏ I : Rows, ∏ η : c_elim2_BoxRetainedBranch Finset.univ I.1,
+          D.rowWeight I.1 b
+            (c_elim2_boxRowArgument D Finset.univ b I.1 fullU
+              (c_elim2_boxRetainedBranchFull Finset.univ I.1 η))
+      apply Fintype.prod_congr
+      intro I
+      rfl
+    calc
+      (∏ η : FullBranch, rowFactor η) = ∏ I ∈ Rset, rowFactorAll I := hsingle.symm
+      _ ≤ ∏ I, rowFactorAll I := hprod
+      _ = c_elim2_boxRetainedProduct D Finset.univ b fullU := hwhole
+  calc
+    c_elim2_boxWeightRowFactor D E R b u ≤
+        ∏ η : FullBranch, rowFactor η := hrowSub
+    _ ≤ c_elim2_boxRetainedProduct D Finset.univ b fullU := hrowFactorLe
+
+theorem c_elim2_iterate_box_cauchy {α : Type u} [Fintype α] [DecidableEq α]
+    (F : Finset α → ℝ) (C : ℝ) (hC : 0 < C)
+    (hstep : ∀ (E : Finset α), E ⊆ Finset.univ → ∀ R, R ∈ Finset.univ → R ∉ E →
+      |F E| ^ 2 ≤ C * F (insert R E))
+    (hnonneg : ∀ E : Finset α, E.Nonempty → 0 ≤ F E) :
+    |F ∅| ^ (2 ^ Fintype.card α) ≤
+      C ^ (2 ^ Fintype.card α - 1) * |F Finset.univ| := by
+  classical
+  have hiter : ∀ n, ∀ E : Finset α,
+      (Finset.univ \ E).card = n → E ⊆ Finset.univ →
+      |F E| ^ (2 ^ n) ≤ C ^ (2 ^ n - 1) * |F Finset.univ| := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+        intro E hcard hE
+        by_cases hn0 : n = 0
+        · have hcard0 := hcard
+          subst n
+          have hEeq : E = Finset.univ := by
+            ext x
+            constructor
+            · intro hx
+              exact Finset.mem_univ x
+            · intro hx
+              by_contra hxE
+              have hpos : 0 < (Finset.univ \ E).card :=
+                Finset.card_pos.mpr ⟨x, Finset.mem_sdiff.mpr ⟨hx, hxE⟩⟩
+              rw [hcard0] at hpos
+              omega
+          simp [hEeq]
+        · have hnpos : 0 < n := Nat.pos_of_ne_zero hn0
+          have hremNonempty : (Finset.univ \ E).Nonempty := by
+            by_contra h
+            have hempty : Finset.univ \ E = ∅ := Finset.not_nonempty_iff_eq_empty.mp h
+            rw [hempty] at hcard
+            simp at hcard
+            omega
+          obtain ⟨R, hRrem⟩ := hremNonempty
+          have hRmem : R ∈ Finset.univ := (Finset.mem_sdiff.mp hRrem).1
+          have hRnotE : R ∉ E := (Finset.mem_sdiff.mp hRrem).2
+          let E' := insert R E
+          have hE' : E' ⊆ Finset.univ := by
+            intro x hx
+            rcases Finset.mem_insert.mp hx with hxR | hxE
+            · simpa [hxR]
+            · exact hE hxE
+          have hcard' : (Finset.univ \ E').card = n - 1 := by
+            dsimp [E']
+            rw [Finset.sdiff_insert, Finset.card_erase_of_mem hRrem, hcard]
+          have hnext := ih (n - 1) (by omega) E' hcard' hE'
+          have hFnext : 0 ≤ F E' :=
+            hnonneg E' ⟨R, Finset.mem_insert_self R E⟩
+          have hstepN := hstep E hE R hRmem hRnotE
+          let k : ℕ := 2 ^ (n - 1)
+          have hpowIndex : 2 ^ n = 2 * k := by
+            dsimp [k]
+            calc
+              2 ^ n = 2 ^ ((n - 1) + 1) := by congr 1; omega
+              _ = 2 ^ (n - 1) * 2 := by rw [Nat.pow_succ]
+              _ = 2 * 2 ^ (n - 1) := by omega
+          have hpower := pow_le_pow_left₀ (sq_nonneg (|F E|)) hstepN k
+          have hnextAbs : |F E'| = F E' := abs_of_nonneg hFnext
+          rw [hnextAbs] at hnext
+          calc
+            |F E| ^ (2 ^ n) = (|F E| ^ 2) ^ k := by
+              rw [hpowIndex, pow_mul]
+            _ ≤ (C * F E') ^ k := hpower
+            _ = C ^ k * F E' ^ k := by rw [mul_pow]
+            _ ≤ C ^ k * (C ^ (k - 1) * |F Finset.univ|) := by
+              exact mul_le_mul_of_nonneg_left hnext (by positivity)
+            _ = C ^ (2 ^ n - 1) * |F Finset.univ| := by
+              rw [← mul_assoc, ← pow_add]
+              congr 2
+              dsimp [k]
+              omega
+  have hmain := hiter (Fintype.card α) ∅ (by simp) (Finset.empty_subset _)
+  simpa using hmain
+
+theorem c_elim2_uniformFintypeAverage_mono {α : Type*} [Fintype α]
+    (f g : α → ℝ) (h : ∀ x, f x ≤ g x) :
+    c_elim2_uniformFintypeAverage f ≤ c_elim2_uniformFintypeAverage g := by
+  unfold c_elim2_uniformFintypeAverage
+  apply mul_le_mul_of_nonneg_left
+  · exact Finset.sum_le_sum (fun x hx => h x)
+  · exact inv_nonneg.mpr (Nat.cast_nonneg _)
+
+theorem c_elim2_shiftStateAverage_le_fullUniformAverage
+    {α : Type u} [Fintype α] [DecidableEq α] (E : Finset α) (L : ℕ)
+    (hL : 0 < L) (G : (c_elim2_ShiftCoord E → Fin L) → ℝ)
+    (F : (α → Fin 2 → Fin L) → ℝ)
+    (hpoint : ∀ u : α → Fin 2 → Fin L,
+      G (c_elim2_shiftAssignmentPartitionEquiv E L u).1 ≤ F u) :
+    c_elim2_shiftStateAverage E L G ≤ c_elim2_uniformFintypeAverage F := by
+  classical
+  let e := c_elim2_shiftAssignmentPartitionEquiv E L
+  let Outside := {i : α // i ∉ E} → Fin L
+  letI : Fintype Outside := inferInstance
+  letI : Nonempty Outside := ⟨fun _ => ⟨0, hL⟩⟩
+  have hdep : c_elim2_uniformFintypeAverage (fun u => G (e u).1) =
+      c_elim2_uniformFintypeAverage G :=
+    c_elim2_uniformFintypeAverage_depends_on_state e
+      (fun u => G (e u).1) G (by intro u; rfl)
+  change c_elim2_uniformFintypeAverage G ≤ c_elim2_uniformFintypeAverage F
+  calc
+    c_elim2_uniformFintypeAverage G =
+        c_elim2_uniformFintypeAverage (fun u => G (e u).1) := hdep.symm
+    _ ≤ c_elim2_uniformFintypeAverage F :=
+      c_elim2_uniformFintypeAverage_mono _ _ hpoint
+
+theorem c_elim2_normalized_product_measure {P Z : Type*} [Fintype P] [Fintype Z]
+    (a b : P → ℝ) (c : Z → ℝ) (prob : ℝ)
+    (hP : (∑ p, a p * b p) = prob) (hZ : (∑ z, c z) = 1)
+    (hprob : 0 < prob) :
+    ∑ x : P × Z, prob⁻¹ * (a x.1 * b x.1 * c x.2) = 1 := by
+  classical
+  rw [Fintype.sum_prod_type]
+  have hinner (p : P) :
+      (∑ z : Z, prob⁻¹ * (a p * b p * c z)) =
+        prob⁻¹ * (a p * b p * ∑ z : Z, c z) := by
+    calc
+      _ = ∑ z : Z, (prob⁻¹ * (a p * b p)) * c z := by
+        apply Finset.sum_congr rfl
+        intro z hz
+        ring
+      _ = (prob⁻¹ * (a p * b p)) * ∑ z : Z, c z := by
+        rw [← Finset.mul_sum]
+      _ = _ := by ring
+  calc
+    (∑ p : P, ∑ z : Z, prob⁻¹ * (a p * b p * c z)) =
+        ∑ p : P, prob⁻¹ * (a p * b p * ∑ z : Z, c z) := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          exact hinner p
+    _ = prob⁻¹ * (∑ p : P, a p * b p) * (∑ z : Z, c z) := by
+      calc
+        _ = ∑ p : P, (prob⁻¹ * (∑ z : Z, c z)) * (a p * b p) := by
+          apply Finset.sum_congr rfl
+          intro p hp
+          ring
+        _ = (prob⁻¹ * (∑ z : Z, c z)) * ∑ p : P, a p * b p := by
+          rw [← Finset.mul_sum]
+        _ = _ := by ring
+    _ = 1 := by rw [hP, hZ]; field_simp
 
 end HindmanSumsProducts
