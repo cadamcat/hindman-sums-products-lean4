@@ -3275,12 +3275,60 @@ noncomputable def coordinateLaw {K m q r s : ℕ} {Aset : Finset ℚ}
   | .inr (.inr _) => FromArithmetic.uniformIntegerIntervalLaw 0
       (S.core.parameters.H N C.gap) z
 
+theorem pkgElim_coordinateLaw_nonneg {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (v : Coordinate Sh) (z : ℤ) :
+    0 ≤ coordinateLaw S C Sh dirs J0 N p v z := by
+  cases v with
+  | inl k =>
+    change 0 ≤ harmonicLaw
+      (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) z
+    have hW : 0 < primorial (N + 1) := primorial_pos _
+    have hX : 4 * primorial (N + 1) ≤ S.core.parameters.X N (C.block k).1 :=
+      S.gapStage.valid_raw_cutoffs N (C.block k).1
+    have hnormalizer : 0 < harmonicNormalizer
+        (S.core.parameters.X N (C.block k).1) (primorial (N + 1)) := by
+      rw [harmonicNormalizer_eq_rawMass]
+      exact OAI.RawHarmonicProbability.mass_pos _ _ hW hX
+    unfold harmonicLaw
+    split_ifs with h
+    · have hz : 0 < (z.toNat : ℝ) := by
+        have hXpos : 0 < S.core.parameters.X N (C.block k).1 := by omega
+        exact_mod_cast lt_of_lt_of_le hXpos h.2.1
+      positivity
+    · positivity
+  | inr v =>
+    cases v with
+    | inl old =>
+      change 0 ≤ FromArithmetic.uniformIntegerIntervalLaw 0
+        (max 1 (shiftLength S C.gap J0 N dirs.poly p)) z
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      split_ifs <;> positivity
+    | inr root =>
+      change 0 ≤ FromArithmetic.uniformIntegerIntervalLaw 0
+        (S.core.parameters.H N C.gap) z
+      unfold FromArithmetic.uniformIntegerIntervalLaw
+      split_ifs <;> positivity
+
 noncomputable def coordinateProductLaw {K m q r s d : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
     (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
     (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) : ℝ :=
   ∏ i : Fin d, coordinateLaw S C Sh dirs J0 N p (eX.symm i) (x i)
+
+theorem pkgElim_coordinateProductLaw_nonneg {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) :
+    0 ≤ coordinateProductLaw S C Sh dirs J0 N p eX x := by
+  unfold coordinateProductLaw
+  apply Finset.prod_nonneg
+  intro i hi
+  exact pkgElim_coordinateLaw_nonneg S C Sh dirs J0 N p (eX.symm i) (x i)
 
 noncomputable def pkgElim_coordinateSupport {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
