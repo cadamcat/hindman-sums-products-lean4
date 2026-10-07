@@ -642,6 +642,9 @@ private lemma parameterJointBlockProductMass_eq_localBlockMass_product {n r : �
               _ = _ := by rw [hrest]; simp
       _ = ∏ d, localBlockMass A N (B d) (z d) := by
             rw [hgroupFactor]
+            simp only [one_mul]
+            apply Finset.prod_congr rfl
+            intro d hd
             simp [term, localBlockMass, V, U, hz]
   · have hbad : ∃ d, ¬ 0 ≤ z d := by simpa only [not_forall] using hz
     rcases hbad with ⟨d, hd⟩
