@@ -3459,6 +3459,29 @@ noncomputable def occurrenceDivisorTemplate {K m q r : ℕ}
     DivisorTemplate K K :=
   tailDivisorTemplate ((C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val)
 
+theorem pkgElim_occurrenceDivisorTemplateLaw_eq {K m q r s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (o : Occurrence Sh) (N σ : ℕ) :
+    divisorTemplateLaw S.core.parameters N (occurrenceDivisorTemplate C Sh o) σ =
+      parameterTailProductLaw S.core.parameters N
+        (C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val σ := by
+  unfold occurrenceDivisorTemplate
+  rw [parameterTailProductLaw_eq_divisorTemplateLaw S.core.parameters N
+    ((C.block (Sh.row (occurrenceRow Sh o)).anchor).2.val)
+    (fun j => S.gapStage.valid_raw_cutoffs N j)]
+
+theorem pkgElim_selectedOccurrenceDivisor_support {K m q r s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (o : Occurrence Sh) (N σ : ℕ)
+    (hσ : divisorTemplateLaw S.core.parameters N (occurrenceDivisorTemplate C Sh o) σ ≠ 0) :
+    1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap ∧
+      Nat.Coprime σ (primorial (N + 1)) := by
+  rw [pkgElim_occurrenceDivisorTemplateLaw_eq S C Sh o N] at hσ
+  exact chainTailProductLaw_support_facts S C N
+    (Sh.row (occurrenceRow Sh o)).anchor σ hσ
+
 def emptyDivisorTemplate (K : ℕ) : DivisorTemplate K K where
   arity := 0
   arity_le := Nat.zero_le K
