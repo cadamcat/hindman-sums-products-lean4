@@ -10,7 +10,7 @@ noncomputable section
 
 /-- Projection of a finite product law onto an injective list of coordinates is the product law
 on that list. -/
-theorem parameterLaw_map_injective {K n : ℕ} (A : Parameters K) (A' : Parameters n)
+theorem pkgH2_parameterLaw_map_injective {K n : ℕ} (A : Parameters K) (A' : Parameters n)
     (N : ℕ) (prin : Fin n → Fin K) (hprin : Function.Injective prin)
     (hXeq : ∀ i, A'.X N i = A.X N (prin i))
     (hXA : ∀ j, 4 * primorial (N + 1) ≤ A.X N j)
@@ -210,7 +210,7 @@ theorem ulim_add_of_bounded (U : Ultrafilter ℕ) (f g : ℕ → ℝ)
   exact tendsto_nhds_unique hst hsumt
 
 /-- Dominance survives an eventual decrease of a positive denominator. -/
-theorem dominates_of_eventually_le_denominator {f S T : ℕ → ℝ}
+theorem pkgH2_dominates_of_eventually_le_denominator {f S T : ℕ → ℝ}
     (h : OAI.MicrocellScale.Dominates f S) (hT : ∀ N, 0 < T N)
     (hTS : ∀ᶠ N in atTop, T N ≤ S N) (hf : ∀ᶠ N in atTop, 0 ≤ f N) :
     OAI.MicrocellScale.Dominates f T := by
@@ -435,7 +435,7 @@ theorem calibration_product_error_tendsto {K sl : ℕ} {As : Finset ℚ}
     exact hReal
   have hHdominates : OAI.MicrocellScale.Dominates
       (fun N => (A.H N B.1 : ℝ)) target := by
-    apply dominates_of_eventually_le_denominator
+    apply pkgH2_dominates_of_eventually_le_denominator
       (MS.gapStage.gap_dominates_pool_and_bound B.1) hTargetPositive ?_
       (Filter.Eventually.of_forall hHnonneg)
     filter_upwards [hTargetLeMaster] with N hN
@@ -514,7 +514,7 @@ theorem calibration_from_testing_helper {K sl r : ℕ} {As : Finset ℚ}
     exact hXA N (prin u)
   have hmapLaw (N : ℕ) : Measure.map extract (A.law N (hXA N)) =
       A'.law N (hXA' N) := by
-    exact parameterLaw_map_injective A A' N prin hprin.injective
+    exact pkgH2_parameterLaw_map_injective A A' N prin hprin.injective
       (hXeq N) (hXA N) (hXA' N)
   have hset : OAI.SourceBlocks.Block.set BM =
       (OAI.SourceBlocks.Block.set B').map e := by

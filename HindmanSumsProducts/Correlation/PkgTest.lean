@@ -1396,7 +1396,7 @@ theorem harmonicLaw_nonzero_support {X W : ℕ} {z : ℤ}
     0 ≤ z ∧ (X : ℤ) ≤ z ∧ z < (X ^ 2 : ℤ) :=
   harmonicLaw_support hz
 
-theorem harmonicLaw_nonneg_of_normalizer_pos {X W : ℕ}
+theorem pkgTest_harmonicLaw_nonneg_of_normalizer_pos {X W : ℕ}
     (hXpos : 0 < X) (hZ : 0 < harmonicNormalizer X W) (z : ℤ) :
     0 ≤ harmonicLaw X W z := by
   unfold harmonicLaw
@@ -2050,7 +2050,7 @@ theorem correlationRoot_expected_test_bound
             intro zj hzj
             by_cases hm : μj (zj : ℤ) = 0
             · simp [hm]
-            · have hnonneg := harmonicLaw_nonneg_of_normalizer_pos hXjPos hZj (zj : ℤ)
+            · have hnonneg := pkgTest_harmonicLaw_nonneg_of_normalizer_pos hXjPos hZj (zj : ℤ)
               calc
                 |μj (zj : ℤ) * (E (zj : ℤ) - P (zj : ℤ))| =
                     μj (zj : ℤ) * |E (zj : ℤ) - P (zj : ℤ)| := by
@@ -2077,8 +2077,8 @@ theorem correlationRoot_expected_test_bound
   have hMixPointwise (y : ℤ) : |Q y - μa y| ≤ μa y * Eres := by
     have hmix := harmonicProgression_mixture_bound Xa Xj W k b h y hk hbk
       hcop
-      hXj2 hlogJ SampJ (harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y)
-    have hμnonneg := harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y
+      hXj2 hlogJ SampJ (pkgTest_harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y)
+    have hμnonneg := pkgTest_harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y
     calc
       |Q y - μa y| =
           |(∑' zj : ℤ, μj zj *
@@ -2138,7 +2138,7 @@ theorem correlationRoot_expected_test_bound
     calc
       arithmeticL1 Q μa = ∑' y : ℤ, |Q y - μa y| := rfl
       _ ≤ ∑' y : ℤ, μa y * Eres := hdiff.tsum_le_tsum (fun y => by
-          have hnonneg := harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y
+          have hnonneg := pkgTest_harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y
           exact hMixPointwise y) hμweight
       _ = Eres := by
           rw [tsum_mul_right, harmonicLaw_tsum_one hXaPos hZa]
@@ -2217,7 +2217,7 @@ theorem correlationRoot_expected_test_bound
           intro zj hzj
           by_cases hzj0 : μj (zj : ℤ) = 0
           · simp [hzj0]
-          · have hnonneg := harmonicLaw_nonneg_of_normalizer_pos hXjPos hZj (zj : ℤ)
+          · have hnonneg := pkgTest_harmonicLaw_nonneg_of_normalizer_pos hXjPos hZj (zj : ℤ)
             rw [abs_mul, abs_of_nonneg hnonneg]
             exact mul_le_mul_of_nonneg_left (hRootPer (zj : ℤ) hzj0) hnonneg
       _ = M * Eroot := by rw [← Finset.sum_mul, hMassJ]; ring

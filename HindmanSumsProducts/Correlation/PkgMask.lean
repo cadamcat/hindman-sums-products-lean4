@@ -1333,9 +1333,9 @@ theorem harmonicNatLaw_nonneg_of_normalizer_pos (X W n : ℕ)
 theorem parameterTailProductLaw_nonneg {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (T : Finset (Fin n))
     (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1))) :
-    ∀ σ, 0 ≤ parameterTailProductLaw A N T σ := by
+    ∀ σ, 0 ≤ FromArithmetic.parameterTailProductLaw A N T σ := by
   intro σ
-  unfold parameterTailProductLaw
+  unfold FromArithmetic.parameterTailProductLaw
   apply tsum_nonneg
   intro t
   apply mul_nonneg
@@ -1345,7 +1345,7 @@ theorem parameterTailProductLaw_nonneg {n : ℕ} (A : OAI.SourceAdmissible.Param
 
 theorem parameterTailProductLaw_summable {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (T : Finset (Fin n)) :
-    Summable (parameterTailProductLaw A N T) := by
+    Summable (FromArithmetic.parameterTailProductLaw A N T) := by
   classical
   let Q := ∏ j ∈ T, (A.X N j) ^ 2
   apply summable_of_ne_finset_zero (s := Finset.range (Q + 1))
@@ -1361,7 +1361,7 @@ theorem parameterTailProductLaw_tsum_one {n : ℕ} (A : OAI.SourceAdmissible.Par
     (N : ℕ) (T : Finset (Fin n))
     (hX : ∀ j, 0 < A.X N j)
     (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1))) :
-    ∑' σ : ℕ, parameterTailProductLaw A N T σ = 1 := by
+    ∑' σ : ℕ, FromArithmetic.parameterTailProductLaw A N T σ = 1 := by
   classical
   let D : Finset (Fin n → ℕ) :=
     Fintype.piFinset fun j => Finset.range ((A.X N j) ^ 2)
@@ -1410,7 +1410,7 @@ theorem parameterTailProductLaw_tsum_one {n : ℕ} (A : OAI.SourceAdmissible.Par
           _ = 1 := hnorm
       _ = 1 := by simp
   have htailZero (σ : ℕ) (hσ : σ ∉ Finset.range (Q + 1)) :
-      parameterTailProductLaw A N T σ = 0 := by
+      FromArithmetic.parameterTailProductLaw A N T σ = 0 := by
     have hQlt : Q < σ := by
       have hnot : ¬ σ < Q + 1 := by
         simpa only [Finset.mem_range, not_lt] using hσ
@@ -1418,17 +1418,17 @@ theorem parameterTailProductLaw_tsum_one {n : ℕ} (A : OAI.SourceAdmissible.Par
     by_contra hne
     have hbound := parameterTailProductLaw_support_le A N T σ hne
     exact (not_le_of_gt hQlt) (by simpa [Q] using hbound)
-  have hinner (σ : ℕ) : parameterTailProductLaw A N T σ =
+  have hinner (σ : ℕ) : FromArithmetic.parameterTailProductLaw A N T σ =
       ∑ t ∈ D,
         (if (∏ j ∈ T, t j) = σ then 1 else 0) *
           ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by
-    unfold parameterTailProductLaw
+    unfold FromArithmetic.parameterTailProductLaw
     apply tsum_eq_sum (s := D)
     intro t ht
     simp [hrawZero t ht]
   calc
-    (∑' σ : ℕ, parameterTailProductLaw A N T σ) =
-        ∑ σ ∈ Finset.range (Q + 1), parameterTailProductLaw A N T σ :=
+    (∑' σ : ℕ, FromArithmetic.parameterTailProductLaw A N T σ) =
+        ∑ σ ∈ Finset.range (Q + 1), FromArithmetic.parameterTailProductLaw A N T σ :=
       tsum_eq_sum (s := Finset.range (Q + 1)) htailZero
     _ = ∑ σ ∈ Finset.range (Q + 1),
         ∑ t ∈ D,
@@ -1480,7 +1480,7 @@ theorem parameterTailProductLaw_tsum_one {n : ℕ} (A : OAI.SourceAdmissible.Par
     _ = 1 := hrawSum
 
 noncomputable def divisorTemplateOfFinset {n b : ℕ} (T : Finset (Fin n))
-    (hT : T.card ≤ b) : DivisorTemplate n b where
+    (hT : T.card ≤ b) : FromArithmetic.DivisorTemplate n b where
   arity := T.card
   arity_le := hT
   cutoff i := (T.orderIsoOfFin rfl i).val
@@ -1492,7 +1492,7 @@ theorem divisorTemplateOfFinset_cutoff_mem {n b : ℕ} (T : Finset (Fin n))
 theorem parameterTailProductLaw_support_pos {n : ℕ} (A : OAI.SourceAdmissible.Parameters n)
     (N : ℕ) (T : Finset (Fin n)) (σ : ℕ)
     (hX : ∀ j, 0 < A.X N j)
-    (hσ : parameterTailProductLaw A N T σ ≠ 0) : 1 ≤ σ := by
+    (hσ : FromArithmetic.parameterTailProductLaw A N T σ ≠ 0) : 1 ≤ σ := by
   by_contra hnot
   have hσzero : σ = 0 := by omega
   have hterm (t : Fin n → ℕ) :
@@ -1518,7 +1518,7 @@ theorem parameterTailProductLaw_support_pos {n : ℕ} (A : OAI.SourceAdmissible.
           (Finset.mem_univ j) hfactor
       simp [hσzero, hmass]
   apply hσ
-  unfold parameterTailProductLaw
+  unfold FromArithmetic.parameterTailProductLaw
   simp_rw [hterm]
   simp
 
@@ -1526,11 +1526,11 @@ theorem chainWeight_le_masterScaleV_of_normalizers {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (N : ℕ) (C : MasterChain n m) (d : Fin m)
     (hX : ∀ j, 0 < A.X N j)
     (hNorm : ∀ j, 0 < harmonicNormalizer (A.X N j) (primorial (N + 1))) (y : ℤ) :
-    nuB (parameterTailProductLaw A N (C.block d).2.val) y ≤
-      (masterScaleV A N C.gap : ℝ) := by
+    nuB (FromArithmetic.parameterTailProductLaw A N (C.block d).2.val) y ≤
+      (FromArithmetic.masterScaleV A N C.gap : ℝ) := by
   apply nuB_le_of_probability_support
-    (tailLaw := parameterTailProductLaw A N (C.block d).2.val)
-    (V := masterScaleV A N C.gap) (y := y)
+    (tailLaw := FromArithmetic.parameterTailProductLaw A N (C.block d).2.val)
+    (V := FromArithmetic.masterScaleV A N C.gap) (y := y)
   · exact parameterTailProductLaw_nonneg A N (C.block d).2.val hNorm
   · exact parameterTailProductLaw_summable A N (C.block d).2.val
   · exact parameterTailProductLaw_tsum_one A N (C.block d).2.val hX hNorm
@@ -1539,10 +1539,10 @@ theorem chainWeight_le_masterScaleV_of_normalizers {n m : ℕ}
     exact_mod_cast hσbound
 
 theorem chainWeight_le_masterScaleV {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (y : ℤ) :
     chainWeight S.core.parameters C N d y ≤
-      (masterScaleV S.core.parameters N C.gap : ℝ) := by
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
   apply chainWeight_le_masterScaleV_of_normalizers S.core.parameters N C d
   · exact S.core.parameters.Xpos N
   · intro j
@@ -1550,10 +1550,10 @@ theorem chainWeight_le_masterScaleV {K s m : ℕ} {Aset : Finset ℚ}
       (S.gapStage.valid_raw_cutoffs N j)
 
 theorem chainWeight_nonneg {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (y : ℤ) :
     0 ≤ chainWeight S.core.parameters C N d y := by
-  change 0 ≤ nuB (parameterTailProductLaw S.core.parameters N (C.block d).2.val) y
+  change 0 ≤ nuB (FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block d).2.val) y
   unfold nuB
   apply tsum_nonneg
   intro σ
@@ -1566,10 +1566,10 @@ theorem chainWeight_nonneg {K s m : ℕ} {Aset : Finset ℚ}
   · split_ifs <;> norm_num
 
 theorem chainWeight_support {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (σ : ℕ)
-    (hσ : parameterTailProductLaw S.core.parameters N (C.block d).2.val σ ≠ 0) :
-    1 ≤ σ ∧ σ ≤ masterScaleV S.core.parameters N C.gap := by
+    (hσ : FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block d).2.val σ ≠ 0) :
+    1 ≤ σ ∧ σ ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
   constructor
   · exact parameterTailProductLaw_support_pos S.core.parameters N (C.block d).2.val σ
       (fun j => S.core.parameters.Xpos N j) hσ
@@ -1656,7 +1656,7 @@ theorem primePoolLaw_secondMoment (lo hi : ℕ) (hMass : 0 < primePoolMass lo hi
       field_simp [hMass.ne']
 
 theorem primePoolMass_tendsto_atTop {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
     Tendsto (fun N => primePoolMass (S.primeStage.pool N l).lower
       (S.primeStage.pool N l).upper) atTop atTop := by
   rw [tendsto_atTop]
@@ -1664,26 +1664,26 @@ theorem primePoolMass_tendsto_atTop {K s : ℕ} {Aset : Finset ℚ}
   have hdom := S.primeStage.pool_harmonic_mass_dominates l 1 (by norm_num)
   have hratio : ∀ᶠ N in atTop,
       max b 0 + 1 < primePoolMass (S.primeStage.pool N l).lower
-        (S.primeStage.pool N l).upper / (masterScaleV S.core.parameters N l : ℝ) := by
+        (S.primeStage.pool N l).upper / (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
     simpa using hdom.eventually_gt_atTop (max b 0 + 1)
   filter_upwards [hratio] with N hN
-  have hV : 1 ≤ (masterScaleV S.core.parameters N l : ℝ) := by
-    have hNat : 2 ≤ masterScaleV S.core.parameters N l := by
-      unfold masterScaleV
+  have hV : 1 ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+    have hNat : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N l := by
+      unfold FromArithmetic.masterScaleV
       omega
-    have hNatReal : (2 : ℝ) ≤ (masterScaleV S.core.parameters N l : ℝ) := by
+    have hNatReal : (2 : ℝ) ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
       exact_mod_cast hNat
     linarith
-  have hVpos : (0 : ℝ) < (masterScaleV S.core.parameters N l : ℝ) := by
+  have hVpos : (0 : ℝ) < (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
     linarith
-  have hmul : (max b 0 + 1) * (masterScaleV S.core.parameters N l : ℝ) <
+  have hmul : (max b 0 + 1) * (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) <
       primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper :=
     (lt_div_iff₀ hVpos).mp hN
-  have hb : b < (max b 0 + 1) * (masterScaleV S.core.parameters N l : ℝ) := by
+  have hb : b < (max b 0 + 1) * (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
     have hbmax : b ≤ max b 0 := le_max_left _ _
     have hA : 0 ≤ max b 0 + 1 := by positivity
     have hAprod : max b 0 + 1 ≤
-        (max b 0 + 1) * (masterScaleV S.core.parameters N l : ℝ) := by
+        (max b 0 + 1) * (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
       calc
         max b 0 + 1 = (max b 0 + 1) * 1 := by ring
         _ ≤ _ := mul_le_mul_of_nonneg_left hV hA
@@ -1697,18 +1697,18 @@ theorem primePoolMass_nonneg (lo hi : ℕ) : 0 ≤ primePoolMass lo hi := by
   exact one_div_nonneg.mpr (Nat.cast_nonneg p)
 
 theorem primePoolMass_inverse_superpolynomial {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
     SuperPolynomialSmall
       (fun N => (primePoolMass (S.primeStage.pool N l).lower
         (S.primeStage.pool N l).upper)⁻¹)
-      (fun N => (masterScaleV S.core.parameters N l : ℝ)) := by
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
   intro A hA
-  have hVge : ∀ N, 1 ≤ (masterScaleV S.core.parameters N l : ℝ) := by
+  have hVge : ∀ N, 1 ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
     intro N
-    have hNat : 2 ≤ masterScaleV S.core.parameters N l := by
-      unfold masterScaleV
+    have hNat : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N l := by
+      unfold FromArithmetic.masterScaleV
       omega
-    have hNatReal : (2 : ℝ) ≤ (masterScaleV S.core.parameters N l : ℝ) := by
+    have hNatReal : (2 : ℝ) ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
       exact_mod_cast hNat
     linarith
   have hMassTop := primePoolMass_tendsto_atTop S l
@@ -1719,12 +1719,12 @@ theorem primePoolMass_inverse_superpolynomial {K s : ℕ} {Aset : Finset ℚ}
   have hInv : Tendsto
       ((fun r : ℝ => r⁻¹) ∘ fun N =>
         primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper /
-          (masterScaleV S.core.parameters N l : ℝ) ^ (A + 1))
+          (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ (A + 1))
       atTop (nhds 0) := tendsto_inv_atTop_zero.comp hDom
   have hnonneg : ∀ N, 0 ≤
       (primePoolMass (S.primeStage.pool N l).lower
         (S.primeStage.pool N l).upper)⁻¹ *
-        (masterScaleV S.core.parameters N l : ℝ) ^ A := by
+        (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A := by
     intro N
     apply mul_nonneg
     · exact inv_nonneg.mpr (primePoolMass_nonneg _ _)
@@ -1732,12 +1732,12 @@ theorem primePoolMass_inverse_superpolynomial {K s : ℕ} {Aset : Finset ℚ}
   have hle : ∀ᶠ N in atTop,
       (primePoolMass (S.primeStage.pool N l).lower
         (S.primeStage.pool N l).upper)⁻¹ *
-        (masterScaleV S.core.parameters N l : ℝ) ^ A ≤
+        (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ A ≤
       (fun r : ℝ => r⁻¹)
         (primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper /
-          (masterScaleV S.core.parameters N l : ℝ) ^ (A + 1)) := by
+          (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ^ (A + 1)) := by
     filter_upwards [hMassPos] with N hM
-    let V : ℝ := masterScaleV S.core.parameters N l
+    let V : ℝ := FromArithmetic.masterScaleV S.core.parameters N l
     let M : ℝ := primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper
     have hV1 : 1 ≤ V := hVge N
     have hVp : 0 < V := lt_of_lt_of_le (by norm_num : (0 : ℝ) < 1) hV1
@@ -1933,25 +1933,25 @@ theorem independentPrimePoolBadAverage_tendsto_zero {q : ℕ}
   exact squeeze_zero' (Filter.Eventually.of_forall habs) hbound hsmallPow
 
 theorem primePoolMass_pos_eventually {K s : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
     ∀ᶠ N in atTop, 0 < primePoolMass (S.primeStage.pool N l).lower
       (S.primeStage.pool N l).upper := by
   have hdom := S.primeStage.pool_harmonic_mass_dominates l 1 (by norm_num)
   have hlarge : ∀ᶠ N in atTop,
       1 < primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper /
-        (masterScaleV S.core.parameters N l : ℝ) := by
+        (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
     simpa using hdom.eventually_gt_atTop 1
   filter_upwards [hlarge] with N hN
-  have hV : 0 < (masterScaleV S.core.parameters N l : ℝ) := by
-    dsimp [masterScaleV]
+  have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+    dsimp [FromArithmetic.masterScaleV]
     positivity
-  have hlt : (masterScaleV S.core.parameters N l : ℝ) <
+  have hlt : (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) <
       primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper :=
     by simpa using (lt_div_iff₀ hV).mp hN
   exact hV.trans hlt
 
 theorem gapSlotMass_summable {K s q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (l : Fin K) (N : ℕ) :
     Summable (gapSlotMass S l N : (Fin q → ℕ) → ℝ) := by
   classical
@@ -1961,7 +1961,7 @@ theorem gapSlotMass_summable {K s q : ℕ} {Aset : Finset ℚ}
     (fun _ : Fin q => (S.primeStage.pool N l).upper)
 
 theorem gapSlotMass_tsum_one {K s q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (l : Fin K) (N : ℕ)
     (hMass : 0 < primePoolMass (S.primeStage.pool N l).lower
       (S.primeStage.pool N l).upper) :
@@ -1973,36 +1973,36 @@ theorem gapSlotMass_tsum_one {K s q : ℕ} {Aset : Finset ℚ}
     (fun _ : Fin q => (S.primeStage.pool N l).upper) (fun _ => hMass)
 
 theorem chainWeight_mul_eq_of_prime_gt {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (p : ℕ)
-    (hp : p.Prime) (hV : masterScaleV S.core.parameters N C.gap < p) (y : ℤ) :
+    (hp : p.Prime) (hV : FromArithmetic.masterScaleV S.core.parameters N C.gap < p) (y : ℤ) :
     chainWeight S.core.parameters C N d ((p : ℤ) * y) =
       chainWeight S.core.parameters C N d y := by
-  change nuB (parameterTailProductLaw S.core.parameters N (C.block d).2.val) ((p : ℤ) * y) =
-    nuB (parameterTailProductLaw S.core.parameters N (C.block d).2.val) y
-  apply nuB_mul_eq_of_prime_gt_support _ p (masterScaleV S.core.parameters N C.gap)
+  change nuB (FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block d).2.val) ((p : ℤ) * y) =
+    nuB (FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block d).2.val) y
+  apply nuB_mul_eq_of_prime_gt_support _ p (FromArithmetic.masterScaleV S.core.parameters N C.gap)
     hp hV
   intro σ hσ
   exact chainWeight_support S C N d σ hσ
 
 theorem chainWeight_div_eq_of_prime_gt {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (p : ℕ)
-    (hp : p.Prime) (hV : masterScaleV S.core.parameters N C.gap < p) (y : ℤ)
+    (hp : p.Prime) (hV : FromArithmetic.masterScaleV S.core.parameters N C.gap < p) (y : ℤ)
     (hdiv : (p : ℤ) ∣ y) :
     chainWeight S.core.parameters C N d (y / (p : ℤ)) =
       chainWeight S.core.parameters C N d y := by
-  change nuB (parameterTailProductLaw S.core.parameters N (C.block d).2.val)
+  change nuB (FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block d).2.val)
       (y / (p : ℤ)) =
-    nuB (parameterTailProductLaw S.core.parameters N (C.block d).2.val) y
-  apply nuB_div_eq_of_prime_gt_support _ p (masterScaleV S.core.parameters N C.gap)
+    nuB (FromArithmetic.parameterTailProductLaw S.core.parameters N (C.block d).2.val) y
+  apply nuB_div_eq_of_prime_gt_support _ p (FromArithmetic.masterScaleV S.core.parameters N C.gap)
     hp hV
   · intro σ hσ
     exact chainWeight_support S C N d σ hσ
   · exact hdiv
 
 theorem chainScale_ratio_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
     ∀ᶠ N in atTop, ∀ J : Finset (Fin m), ∀ (hJ : J.Nonempty) k, k ∈ J →
       (chainScale S.core.parameters C a N k /
@@ -2042,7 +2042,7 @@ theorem RowTemplate.value_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
   cases h : T.entry k <;> simp [RowTemplate.value, RowTemplate.valueNat, h]
 
 theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
     ∀ᶠ N in atTop, ∀ T : RowTemplate m q, ∀ p : Fin q → ℕ, ∀ z : Fin m → ℤ,
       (rowForm (chainScale S.core.parameters C a N) T p
@@ -2084,27 +2084,27 @@ theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
   exact Rat.den_intCast _
 
 theorem rowProduct_integrand_bound_eventually {K s m q r : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (a : Fin m → ℚ)
     (Sh : RowShape m q r) :
     ∀ N, ∀ f : Fin r → (Fin q → ℕ) → ℤ → ℝ,
       (∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y) →
       ∀ (p : Fin q → ℕ) (z : Fin m → ℤ), |∏ R, atQ (f R p)
         (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
-          (fun k => (z k : ℚ)))| ≤ (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+          (fun k => (z k : ℚ)))| ≤ (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
   intro N
   intro f hf p z
-  have hVnat : 2 ≤ masterScaleV S.core.parameters N C.gap := by
-    unfold masterScaleV
+  have hVnat : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+    unfold FromArithmetic.masterScaleV
     omega
-  have hV : (2 : ℝ) ≤ (masterScaleV S.core.parameters N C.gap : ℝ) := by
+  have hV : (2 : ℝ) ≤ (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
     exact_mod_cast hVnat
-  have hOne : 1 + (masterScaleV S.core.parameters N C.gap : ℝ) ≤
-      (masterScaleV S.core.parameters N C.gap : ℝ) ^ 2 := by
+  have hOne : 1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ≤
+      (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ 2 := by
     nlinarith
   have hrow (R : Fin r) :
       |atQ (f R p) (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
-        (fun k => (z k : ℚ)))| ≤ 1 + (masterScaleV S.core.parameters N C.gap : ℝ) := by
+        (fun k => (z k : ℚ)))| ≤ 1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
     let x := rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
       (fun k => (z k : ℚ))
     by_cases hx : x.den = 1
@@ -2112,7 +2112,7 @@ theorem rowProduct_integrand_bound_eventually {K s m q r : ℕ} {Aset : Finset �
       calc
         |f R p x.num| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor x.num :=
           hf R p x.num
-        _ ≤ 1 + (masterScaleV S.core.parameters N C.gap : ℝ) := by
+        _ ≤ 1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
           have hweight := chainWeight_le_masterScaleV S C N (Sh.row R).anchor x.num
           simpa [add_comm] using add_le_add_left hweight 1
     · simp [atQ, x, hx]
@@ -2124,20 +2124,20 @@ theorem rowProduct_integrand_bound_eventually {K s m q r : ℕ} {Aset : Finset �
         ∏ R : Fin r, |atQ (f R p)
           (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p
             (fun k => (z k : ℚ)))| := Finset.abs_prod Finset.univ _
-    _ ≤ ∏ R : Fin r, (1 + (masterScaleV S.core.parameters N C.gap : ℝ)) := by
+    _ ≤ ∏ R : Fin r, (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) := by
       apply Finset.prod_le_prod₀
       · intro R hR
         positivity
       · intro R hR
         exact hrow R
-    _ ≤ ∏ R : Fin r, (masterScaleV S.core.parameters N C.gap : ℝ) ^ 2 := by
+    _ ≤ ∏ R : Fin r, (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ 2 := by
       apply Finset.prod_le_prod₀
       · intro R hR
         positivity
       · intro R hR
         exact hOne
-    _ = ((masterScaleV S.core.parameters N C.gap : ℝ) ^ 2) ^ r := by simp
-    _ = (masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
+    _ = ((FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ 2) ^ r := by simp
+    _ = (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) ^ (2 * r) := by
       rw [pow_mul]
 
 theorem harmonicLaw_nonneg_of_normalizer_pos (X W : ℕ)
@@ -2148,7 +2148,7 @@ theorem harmonicLaw_nonneg_of_normalizer_pos (X W : ℕ)
   · simp [harmonicLaw, h]
 
 theorem pivotMass_nonneg {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (z : Fin m → ℤ) :
     0 ≤ pivotMass S.core.parameters C N z := by
   unfold pivotMass
@@ -2178,13 +2178,13 @@ private theorem harmonicLaw_zero_of_not_mem_support (X W : ℕ) (z : ℤ)
   exact hmem
 
 noncomputable def pivotMassSupport {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) : Finset (Fin m → ℤ) :=
   Fintype.piFinset fun k =>
     harmonicLawSupport (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
 
 private theorem pivotMass_zero_of_not_mem_support {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (z : Fin m → ℤ)
     (hz : z ∉ pivotMassSupport S C N) : pivotMass S.core.parameters C N z = 0 := by
   have hnot : ¬ ∀ k, z k ∈
@@ -2202,7 +2202,7 @@ private theorem pivotMass_zero_of_not_mem_support {K s m : ℕ} {Aset : Finset �
     (harmonicLaw_zero_of_not_mem_support _ _ _ hk)
 
 theorem pivotMass_summable {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) :
     Summable (pivotMass S.core.parameters C N) := by
   classical
@@ -2211,7 +2211,7 @@ theorem pivotMass_summable {K s m : ℕ} {Aset : Finset ℚ}
   exact pivotMass_zero_of_not_mem_support S C N z hz
 
 theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) :
     ∑' z : Fin m → ℤ, pivotMass S.core.parameters C N z = 1 := by
   classical
@@ -2266,12 +2266,12 @@ theorem pivotMass_tsum_one {K s m : ℕ} {Aset : Finset ℚ}
     _ = 1 := hfinite
 
 noncomputable def gapPivotMass {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
   gapSlotMass S C.gap N p * pivotMass S.core.parameters C N z
 
 noncomputable def gapPivotSupport {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) :
     Finset ((Fin q → ℕ) × (Fin m → ℤ)) :=
   independentPrimePoolSupport (fun _ : Fin q => (S.primeStage.pool N C.gap).lower)
@@ -2279,7 +2279,7 @@ noncomputable def gapPivotSupport {K s m q : ℕ} {Aset : Finset ℚ}
 
 private theorem gapPivotMass_zero_of_not_mem_support {K s m q : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
     (x : (Fin q → ℕ) × (Fin m → ℤ)) (hx : x ∉ gapPivotSupport S C N) :
     gapPivotMass S C N x.1 x.2 = 0 := by
   by_cases hp : x.1 ∈ independentPrimePoolSupport
@@ -2296,7 +2296,7 @@ private theorem gapPivotMass_zero_of_not_mem_support {K s m q : ℕ}
     simp [gapPivotMass, gapSlotMass, hzero]
 
 theorem gapPivotMass_nonneg {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ)
     (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
       (S.primeStage.pool N C.gap).upper) (p : Fin q → ℕ) (z : Fin m → ℤ) :
@@ -2307,7 +2307,7 @@ theorem gapPivotMass_nonneg {K s m q : ℕ} {Aset : Finset ℚ}
   · exact pivotMass_nonneg S C N z
 
 theorem gapPivotMass_summable {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) :
     Summable (fun x : (Fin q → ℕ) × (Fin m → ℤ) =>
       gapPivotMass S C N x.1 x.2) := by
@@ -2317,7 +2317,7 @@ theorem gapPivotMass_summable {K s m q : ℕ} {Aset : Finset ℚ}
   exact gapPivotMass_zero_of_not_mem_support S C N x hx
 
 theorem gapPivotMass_mul_summable {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (F : (Fin q → ℕ) × (Fin m → ℤ) → ℝ) :
     Summable (fun x => gapPivotMass S C N x.1 x.2 * F x) := by
   classical
@@ -2326,7 +2326,7 @@ theorem gapPivotMass_mul_summable {K s m q : ℕ} {Aset : Finset ℚ}
   simp [gapPivotMass_zero_of_not_mem_support S C N x hx]
 
 theorem gapPivotMass_tsum_one {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ)
     (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
       (S.primeStage.pool N C.gap).upper) :
@@ -2777,7 +2777,7 @@ theorem abs_mul_div_le_of_abs_le {W f g : ℝ} (hW : 1 ≤ W)
   exact (div_le_iff₀ hWpos).2 hprod
 
 theorem gapPivot_weighted_cauchy_schwarz {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ)
     (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
       (S.primeStage.pool N C.gap).upper)

@@ -109,7 +109,7 @@ theorem harmonicNatLaw_sum_units {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
       by_cases hc : Nat.Coprime n W <;> simp [harmonicNatLaw, hn, hc]
     _ = 1 := hnat
 
-theorem harmonicLaw_tsum_one {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
+theorem pkgElim_harmonicLaw_tsum_one {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
     ∑' z : ℤ, harmonicLaw X W z = 1 := by
   classical
   let s : Finset ℤ := (Finset.Ico X (X ^ 2)).image fun n : ℕ => (n : ℤ)
@@ -162,7 +162,7 @@ theorem harmonicLaw_sum_support {X W : ℕ} (hW : 0 < W) (hX : 4 * W ≤ X) :
   change (∑ z ∈ s, harmonicLaw X W z) = 1
   rw [← tsum_eq_sum (L := SummationFilter.unconditional ℤ)
     (f := harmonicLaw X W) (s := s) hsupp]
-  exact harmonicLaw_tsum_one hW hX
+  exact pkgElim_harmonicLaw_tsum_one hW hX
 
 theorem harmonicNatProduct_tsum_one {ι : Type*} [Fintype ι] [DecidableEq ι]
     {W : ℕ} (X : ι → ℕ) (hW : 0 < W) (hX : ∀ i, 4 * W ≤ X i) :
@@ -1161,7 +1161,7 @@ theorem productBaseResidueLaw_finiteL1_le {d K : ℕ} (hK : 0 < K)
       intro i hi
       exact hcoord_error i
 
-theorem pivotMass_tsum_one {n m : ℕ}
+theorem pkgElim_pivotMass_tsum_one {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
     (hW : 0 < primorial (N + 1))
     (hX : ∀ k, 4 * primorial (N + 1) ≤ A.X N (C.block k).1) :
@@ -1295,7 +1295,7 @@ theorem shiftAverage_eq_uniformIntervalSum {ι : Type*} [Fintype ι] [DecidableE
   intro u hu
   rw [hweight u hu]
 
-theorem primePoolLaw_tsum_one {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) :
+theorem pkgElim_primePoolLaw_tsum_one {lo hi : ℕ} (hmass : 0 < primePoolMass lo hi) :
     ∑' p : ℕ, primePoolLaw lo hi p = 1 := by
   classical
   let s : Finset ℕ := (Finset.Ico lo hi).filter Nat.Prime
@@ -1673,7 +1673,7 @@ theorem primePoolCRTLaw_projection_tv {w V Q lo hi : ℕ}
   rw [hactual, hUniform]
   exact finiteL1_pushforward_le f (primePoolResidueLaw lo hi Q) (uniformUnitResidueLaw Q)
 
-theorem independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
+theorem pkgElim_independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
     (hmass : ∀ i, 0 < primePoolMass (lo i) (hi i)) :
     ∑' p : Fin m → ℕ, independentPrimePoolMass lo hi p = 1 := by
   classical
@@ -1682,7 +1682,7 @@ theorem independentPrimePoolMass_tsum_one {m : ℕ} (lo hi : Fin m → ℕ)
   have hcoord (i : Fin m) : ∑ p ∈ I i, primePoolLaw (lo i) (hi i) p = 1 := by
     rw [← tsum_eq_sum (L := SummationFilter.unconditional ℕ)
       (f := primePoolLaw (lo i) (hi i)) (s := I i)]
-    · exact primePoolLaw_tsum_one (hmass i)
+    · exact pkgElim_primePoolLaw_tsum_one (hmass i)
     · intro p hp
       unfold primePoolLaw
       rw [if_neg]
@@ -1739,7 +1739,7 @@ theorem independentPrimePoolProbability_compl {m : ℕ} (lo hi : Fin m → ℕ)
       simp [hz]
     change (∏ j, primePoolLaw (lo j) (hi j) (p j)) = 0
     exact Finset.prod_eq_zero (Finset.mem_univ i) hzi
-  have htotal := independentPrimePoolMass_tsum_one lo hi hmass
+  have htotal := pkgElim_independentPrimePoolMass_tsum_one lo hi hmass
   have hsumE : independentPrimePoolProbability lo hi E =
       ∑ p ∈ S, independentPrimePoolMass lo hi p * (if E p then 1 else 0) := by
     unfold independentPrimePoolProbability

@@ -30,7 +30,7 @@ private lemma independentPrimePoolMass_zero_of_not_mem_support {m : ℕ}
   · exact (hi (Finset.mem_Ico.mpr ⟨h.1, h.2.1⟩)).elim
   · rfl
 
-private lemma independentPrimePoolMass_summable {m : ℕ}
+private lemma pkgA_independentPrimePoolMass_summable {m : ℕ}
     (lo hi : Fin m → ℕ) : Summable (independentPrimePoolMass lo hi) := by
   apply summable_of_ne_finset_zero (s := primeTupleSupport lo hi)
   intro p hp
