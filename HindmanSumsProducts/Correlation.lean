@@ -158,7 +158,7 @@ theorem opus_corr_mask_step_balanced {m q r : ℕ} (Jstar : Finset (Fin m))
           ∃ st' : MaskRemovalState m (q + 2) r',
             st'.shape = Sh' ∧ st'.masks = masks.erase U ∧ st'.Valid S C a N Jstar gstar ∧
             |st.correlation S C a N| ^ 2 ≤ C₁ * |st'.correlation S C a N| + ε := by
-  sorry
+  exact opus_corr_mask_step_balanced_proof Jstar hJ Sh hStar masks U hU hJU u v huJ hvJ huv
 
 /-- One mask-removal step (04:173–297): the outside substitution when `J_*` has a coordinate
 outside `U`, the balanced one otherwise. -/

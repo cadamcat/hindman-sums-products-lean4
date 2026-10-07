@@ -1964,5 +1964,254 @@ theorem opus_corr_invariantRowWeight_average_le_eventually
   exact hsumle.trans (hsumConst ▸ hpower)
 
 
+
+/-! ## Assembly of the balanced step -/
+
+section BalancedAssembly
+
+variable {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+/-- The absorbed second factor is exactly the correlation of the next state. -/
+theorem opus_corr_balanced_second_factor_eq {r' : ℕ}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u v : Fin m) (huv : u ≠ v)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBalancedP u v).Parallel
+        ((st.shape.row i).scaleBalancedQ u v)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBalancedP u v)
+      (fun i => (st.shape.row i).scaleBalancedQ u v) x.val.1 x.val.2)
+    (hcu : chainScale S.core.parameters C a N u ≠ 0)
+    (hcv : chainScale S.core.parameters C a N v ≠ 0)
+    (hpoolLower : FromArithmetic.masterScaleV S.core.parameters N C.gap <
+      (S.primeStage.pool N C.gap).lower)
+    (hdenOld : ∀ (T : RowTemplate m q) (p : Fin q → ℕ) (z : Fin m → ℤ),
+      (rowForm (chainScale S.core.parameters C a N) T p fun k => (z k : ℚ)).den = 1)
+    (hdenNew : ∀ (T : RowTemplate m (q + 2)) (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ),
+      (rowForm (chainScale S.core.parameters C a N) T p fun k => (z k : ℚ)).den = 1) :
+    ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        ∑' kk : ℕ × ℕ, (primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper kk.1 *
+          primePoolLaw (S.primeStage.pool N C.gap).lower
+            (S.primeStage.pool N C.gap).upper kk.2) *
+          (opus_corr_balancedOmega st S C a N u v
+              (x.1, Function.update x.2 u ((kk.1 : ℤ) * kk.2 * x.2 u)) *
+            opus_corr_balancedResidual st S C a N U u v
+              (x.1, Function.update x.2 u ((kk.1 : ℤ) * kk.2 * x.2 u)) kk.1 *
+            opus_corr_balancedResidual st S C a N U u v
+              (x.1, Function.update x.2 u ((kk.1 : ℤ) * kk.2 * x.2 u)) kk.2) =
+      (pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation S C a N := by
+  classical
+  set st' := pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e with hst'
+  set lo := (S.primeStage.pool N C.gap).lower
+  set hi := (S.primeStage.pool N C.gap).upper
+  have hre := pkgMask_gapPivot_freshPair_reindex S C N (fun w =>
+    MaskRemovalState.pkgMask_stateIntegrand st' S C a N
+      (pkgMask_oldFreshPairEquiv w).1 (pkgMask_oldFreshPairEquiv w).2)
+  simp only [Equiv.apply_symm_apply] at hre
+  rw [MaskRemovalState.pkgMask_stateCorrelation_joint st' S C a N]
+  calc
+    _ = ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+          ∑' kk : ℕ × ℕ, (primePoolLaw lo hi kk.1 * primePoolLaw lo hi kk.2) *
+            MaskRemovalState.pkgMask_stateIntegrand st' S C a N
+              (pkgMask_oldFreshPairEquiv (x, kk)).1 (pkgMask_oldFreshPairEquiv (x, kk)).2 := by
+      apply tsum_congr
+      intro x
+      by_cases hx : x.1 ∈ independentPrimePoolSupport (fun _ : Fin q => lo) (fun _ : Fin q => hi)
+      · congr 1
+        apply tsum_congr
+        intro kk
+        by_cases hk : kk.1 ∈ primePoolSupport lo hi ∧ kk.2 ∈ primePoolSupport lo hi
+        · congr 1
+          exact opus_corr_balanced_pointwise S C a N st U u v huv Sh' e hrow x.1 kk.1 kk.2 x.2
+            (opus_corr_extend_mem_support lo hi x.1 kk.1 kk.2 hx hk.1 hk.2) hcu hcv hpoolLower
+            (fun T z => hdenOld T x.1 z) (fun T => hdenNew T _ x.2)
+        · rcases not_and_or.mp hk with h | h
+          · rw [opus_corr_primePoolLaw_eq_zero lo hi _ h]; ring
+          · rw [opus_corr_primePoolLaw_eq_zero lo hi _ h]; ring
+      · rw [opus_corr_gapPivotMass_eq_zero S C N x
+          (fun hmem => hx (Finset.mem_product.mp hmem).1)]
+        ring
+    _ = _ := hre
+
+/-- The balanced step of Lemma `lem:mask-removal` (04:176–297): the full statement of
+`opus_corr_mask_step_balanced`. -/
+theorem opus_corr_mask_step_balanced_proof {m q r : ℕ} (Jstar : Finset (Fin m))
+    (hJ : 2 ≤ Jstar.card) (Sh : RowShape m q r) (hStar : (Sh.row Sh.star).support = Jstar)
+    (masks : Finset (Finset (Fin m))) (U : Finset (Fin m)) (hU : U ∈ masks)
+    (hJU : Jstar ⊆ U) (u v : Fin m) (huJ : u ∈ Jstar) (hvJ : v ∈ Jstar) (huv : u ≠ v) :
+    ∃ (r' : ℕ) (Sh' : RowShape m (q + 2) r') (tests : Finset (IntegerPolynomial (q + 2)))
+      (C₁ : ℝ),
+      r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧ (∀ P ∈ tests, P ≠ 0) ∧ 0 < C₁ ∧
+      ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+        (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin (q + 2) ↪ Fin s),
+        TestsListed Dm ι tests →
+      ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+      ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop,
+        ∀ (st : MaskRemovalState m q r) (gstar : ℤ → ℝ),
+          st.shape = Sh → st.masks = masks → st.Valid S C a N Jstar gstar →
+          ∃ st' : MaskRemovalState m (q + 2) r',
+            st'.shape = Sh' ∧ st'.masks = masks.erase U ∧ st'.Valid S C a N Jstar gstar ∧
+            |st.correlation S C a N| ^ 2 ≤ C₁ * |st'.correlation S C a N| + ε := by
+  classical
+  have huS : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
+  have hvS : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
+  obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
+    exists_scaleBalanced_row_shape Sh Jstar hStar u v huS hvS huv
+  let emb : Fin q → Fin (q + 2) := Fin.castAdd 2
+  have hemb : Function.Injective emb := Fin.castAdd_injective q 2
+  refine ⟨r', Sh', (templateMinors Sh).image (MvPolynomial.rename emb), (2 : ℝ) ^ (r + 2),
+    hr', hstar', ?_, by positivity, ?_⟩
+  · intro P hP
+    obtain ⟨P₀, hP₀, rfl⟩ := Finset.mem_image.mp hP
+    intro hzero
+    apply (Finset.mem_filter.mp hP₀).2
+    apply MvPolynomial.rename_injective emb hemb
+    simpa using hzero
+  intro K s Aset Dm S ι hlisted C a ha ε hε
+  let ιold : Fin q ↪ Fin s := ⟨fun i => ι (emb i), fun i j h => hemb (ι.injective h)⟩
+  have hlistedOld : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ιold P ∈ Dm := by
+    intro P hP
+    have h := hlisted _ (Finset.mem_image_of_mem (MvPolynomial.rename emb) hP)
+    rw [MvPolynomial.rename_rename] at h
+    exact h
+  let δ₁ : ℝ := min 1 (ε / 4)
+  have hδ₁ : 0 < δ₁ := lt_min one_pos (by positivity)
+  let δ₂ : ℝ := ε / (2 * (2 : ℝ) ^ (r + 2))
+  have hδ₂ : 0 < δ₂ := by positivity
+  filter_upwards [opus_corr_balanced_insertion_estimate S C u v huv (2 * r) δ₁ hδ₁,
+    opus_corr_absorption_estimate S C u (4 * r) δ₂ hδ₂,
+    opus_corr_invariantRowWeight_average_le_eventually S C a ha Sh ιold hlistedOld
+      (fun i => ((Sh.row i).scaleBalancedP u v).Parallel ((Sh.row i).scaleBalancedQ u v)),
+    primePoolMass_pos_eventually S C.gap, pool_lower_gt_masterScaleV_eventually S C.gap,
+    chainScale_pos_eventually S C a ha, rowForm_den_one_eventually (q := q) S C a ha,
+    rowForm_den_one_eventually (q := q + 2) S C a ha]
+    with N hIns hAbs hFirst hMass hpoolLower hcpos hdenOld hdenNew
+  intro st gstar hsh hmasks hvalid
+  subst hsh
+  have hU' : U ∈ st.masks := by rw [hmasks]; exact hU
+  have hu : u ∈ U := hJU huJ
+  have hv : v ∈ U := hJU hvJ
+  have hstarNot := RowTemplate.scaleBalanced_not_parallel (st.shape.row st.shape.star) u v huv
+    huS hvS
+  refine ⟨pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e, rfl, ?_,
+    pkgMask_balancedBranchMaskRemovalState_valid S C a N st U u v huv Jstar gstar hvalid Sh' e
+      hrow hstarIndex hstarNot hpoolLower, ?_⟩
+  · show st.masks.erase U = masks.erase U
+    rw [hmasks]
+  set V : ℝ := (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) with hVdef
+  -- the insertion
+  have hΦ : ∀ x : (Fin q → ℕ) × (Fin m → ℤ),
+      |MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1 x.2| ≤ V ^ (2 * r) :=
+    fun x => MaskRemovalState.pkgMask_stateIntegrand_abs_le st S C a N Jstar gstar hvalid x.1 x.2
+  have h1 := hIns q (fun x => MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1 x.2) hΦ
+  dsimp only at h1
+  have hcorr : st.correlation S C a N = ∑' x : (Fin q → ℕ) × (Fin m → ℤ),
+      gapPivotMass S C N x.1 x.2 * MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1 x.2 :=
+    MaskRemovalState.pkgMask_stateCorrelation_joint st S C a N
+  set I₂ := ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+    poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+      MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1
+        (opus_corr_balancedVec u v k x.2)) with hI₂
+  -- Cauchy–Schwarz
+  have h2 := opus_corr_balanced_cs st S C a N Jstar gstar hvalid hMass U u v huv hU' hu hv
+  set EΩ := ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+    opus_corr_balancedOmega st S C a N u v x with hEΩ
+  set SF := ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+    (opus_corr_balancedOmega st S C a N u v x *
+      (poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+        opus_corr_balancedResidual st S C a N U u v x k)) ^ 2) with hSF
+  have hΩnn : ∀ x, 0 ≤ opus_corr_balancedOmega st S C a N u v x := fun x =>
+    le_trans zero_le_one (opus_corr_balancedOmega_ge_one st S C a N u v x)
+  have hEΩnn : 0 ≤ EΩ := tsum_nonneg fun x =>
+    mul_nonneg (gapPivotMass_nonneg S C N hMass x.1 x.2) (hΩnn x)
+  have hSFnn : 0 ≤ SF := tsum_nonneg fun x =>
+    mul_nonneg (gapPivotMass_nonneg S C N hMass x.1 x.2)
+      (mul_nonneg (hΩnn x) (sq_nonneg _))
+  have h3 : EΩ ≤ (2 : ℝ) ^ (r + 1) := hFirst
+  -- the second factor
+  have hG : ∀ (k₁ k₀ : ℕ) (x : (Fin q → ℕ) × (Fin m → ℤ)),
+      |opus_corr_balancedOmega st S C a N u v x *
+          opus_corr_balancedResidual st S C a N U u v x k₁ *
+          opus_corr_balancedResidual st S C a N U u v x k₀| ≤ V ^ (4 * r) := by
+    intro k₁ k₀ x
+    have hval := opus_corr_eraseMask_valid st S C a N Jstar gstar U hvalid
+    have hA₁ := MaskRemovalState.pkgMask_stateIntegrand_abs_le (opus_corr_eraseMask st U)
+      S C a N Jstar gstar hval x.1 (opus_corr_balancedVec u v k₁ x.2)
+    have hA₀ := MaskRemovalState.pkgMask_stateIntegrand_abs_le (opus_corr_eraseMask st U)
+      S C a N Jstar gstar hval x.1 (opus_corr_balancedVec u v k₀ x.2)
+    have hΩ1 := opus_corr_balancedOmega_ge_one st S C a N u v x
+    have hΩpos : 0 < opus_corr_balancedOmega st S C a N u v x := lt_of_lt_of_le one_pos hΩ1
+    unfold opus_corr_balancedResidual
+    set Ω := opus_corr_balancedOmega st S C a N u v x
+    set A₁ := MaskRemovalState.pkgMask_stateIntegrand (opus_corr_eraseMask st U) S C a N x.1
+      (opus_corr_balancedVec u v k₁ x.2)
+    set A₀ := MaskRemovalState.pkgMask_stateIntegrand (opus_corr_eraseMask st U) S C a N x.1
+      (opus_corr_balancedVec u v k₀ x.2)
+    have heq : Ω * (A₁ / Ω) * (A₀ / Ω) = (A₁ * A₀) / Ω := by
+      field_simp
+    rw [heq, abs_div, abs_of_pos hΩpos, abs_mul, div_le_iff₀ hΩpos]
+    have hV0 : 0 ≤ V ^ (2 * r) := le_trans (abs_nonneg _) hA₁
+    calc
+      |A₁| * |A₀| ≤ V ^ (2 * r) * V ^ (2 * r) :=
+        mul_le_mul hA₁ hA₀ (abs_nonneg _) hV0
+      _ = V ^ (4 * r) * 1 := by ring
+      _ ≤ V ^ (4 * r) * Ω := mul_le_mul_of_nonneg_left hΩ1 (by positivity)
+  have h4 := opus_corr_balanced_square_expand st S C a N U u v
+  have h5 := hAbs q (fun k₁ k₀ x => opus_corr_balancedOmega st S C a N u v x *
+      opus_corr_balancedResidual st S C a N U u v x k₁ *
+      opus_corr_balancedResidual st S C a N U u v x k₀) hG
+  have h6 := opus_corr_balanced_second_factor_eq S C a N st U u v huv Sh' e hrow
+    (hcpos u).ne' (hcpos v).ne' hpoolLower hdenOld hdenNew
+  have h5' : |SF - (pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation
+      S C a N| ≤ δ₂ := by
+    rw [hSF, h4, ← h6]
+    exact h5
+  have hSFle : SF ≤ |(pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation
+      S C a N| + δ₂ := by
+    have := (abs_le.mp h5').2
+    have := le_abs_self ((pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation
+      S C a N)
+    linarith
+  -- combine
+  have hI₂sq : |I₂| ^ 2 ≤ (2 : ℝ) ^ (r + 1) * (|(pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation S C a N| + δ₂) := by
+    calc
+      |I₂| ^ 2 ≤ EΩ * SF := h2
+      _ ≤ (2 : ℝ) ^ (r + 1) * SF := mul_le_mul_of_nonneg_right h3 hSFnn
+      _ ≤ (2 : ℝ) ^ (r + 1) * (|(pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation S C a N| + δ₂) :=
+        mul_le_mul_of_nonneg_left hSFle (by positivity)
+  have hcorrle : |st.correlation S C a N| ≤ |I₂| + δ₁ := by
+    rw [hcorr]
+    have := abs_sub_abs_le_abs_sub
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1 x.2) I₂
+    linarith
+  have hsq : |st.correlation S C a N| ^ 2 ≤ (|I₂| + δ₁) ^ 2 :=
+    pow_le_pow_left₀ (abs_nonneg _) hcorrle 2
+  have hδ₁le : δ₁ ≤ 1 := min_le_left _ _
+  have hδ₁le' : δ₁ ≤ ε / 4 := min_le_right _ _
+  have hδ₂eq : (2 : ℝ) ^ (r + 2) * δ₂ = ε / 2 := by
+    show (2 : ℝ) ^ (r + 2) * (ε / (2 * (2 : ℝ) ^ (r + 2))) = ε / 2
+    rw [mul_div_assoc', div_eq_div_iff (by positivity) (by positivity)]
+    ring
+  have hpow : (2 : ℝ) ^ (r + 2) = 2 * (2 : ℝ) ^ (r + 1) := by ring
+  have hδ₁sq : δ₁ ^ 2 ≤ ε / 4 := by nlinarith
+  have e1 := opus_corr_sq_add_le |I₂| δ₁
+  have e2 : 2 * |I₂| ^ 2 ≤ (2 : ℝ) ^ (r + 2) *
+      |(pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation S C a N| +
+        ε / 2 := by
+    calc
+      2 * |I₂| ^ 2 ≤ 2 * ((2 : ℝ) ^ (r + 1) *
+          (|(pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation
+            S C a N| + δ₂)) := by linarith
+      _ = (2 : ℝ) ^ (r + 2) *
+          |(pkgMask_balancedBranchMaskRemovalState S C N st U u v huv Sh' e).correlation
+            S C a N| + (2 : ℝ) ^ (r + 2) * δ₂ := by rw [hpow]; ring
+      _ = _ := by rw [hδ₂eq]
+  linarith
+
+end BalancedAssembly
+
 end
 end HindmanSumsProducts
