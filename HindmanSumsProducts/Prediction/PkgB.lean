@@ -5776,6 +5776,106 @@ private theorem pkgB_momentActiveBaseIntegral {K sl : ℕ} {As : Finset ℚ}
           (T.length (corrScales MS) l J0 N p), F (momentBaseEncode y u))
   simpa [F, L] using h
 
+private theorem pkgB_independentPrimePoolProbability_embedding {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (lo hi : ℕ) (hMass : 0 < primePoolMass lo hi)
+    (Good : (Fin q → ℕ) → Prop) [DecidablePred Good] :
+    independentPrimePoolProbability (fun _ : Fin m => lo) (fun _ => hi)
+      (fun p => Good (fun i => p (ι i))) =
+    independentPrimePoolProbability (fun _ : Fin q => lo) (fun _ => hi) Good := by
+  simpa [independentPrimePoolProbability] using
+    (pkgB_primePoolAverage_embedding ι lo hi hMass
+      (fun p => if Good p then 1 else 0))
+
+private theorem pkgB_momentWeightedLinearFormsAverage_eq_goodActiveShiftTerm
+    {K sl : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (hT : Allowed Dm T)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hb : 0 < b) (N : ℕ)
+    [DecidablePred (fun p : Fin T.q → ℕ => T.Good (corrScales MS) l N p)]
+    (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+    (hMass : 0 < primePoolMass (MS.primeStage.pool N l).lower
+      (MS.primeStage.pool N l).upper)
+    (hreg : ∀ p : Fin T.q → ℕ, T.Good (corrScales MS) l N p →
+      momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p)) :
+    weightedLinearFormsAverage
+        (pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b active)
+        N (fun p => T.Good (corrScales MS) l N
+          (fun j => p (momentMasterEmbedding hT j))) =
+      ∑' p : Fin T.q → ℕ,
+        independentPrimePoolMass (fun _ => (MS.primeStage.pool N l).lower)
+          (fun _ => (MS.primeStage.pool N l).upper) p *
+          (if T.Good (corrScales MS) l N p then
+            Emu MS.core.parameters N B.1
+              (pkgB_momentActiveShiftTerm MS B T l J0 N b p active)
+          else 0) := by
+  classical
+  let ι := momentMasterEmbedding hT
+  let D := pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b active
+  let GoodQ := fun p : Fin T.q → ℕ => T.Good (corrScales MS) l N p
+  let GoodFull := fun p : Fin sl → ℕ => GoodQ (fun j => p (ι j))
+  let Ffull (p : Fin sl → ℕ) : ℝ :=
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      D.baseMass N p x *
+        ∏ r : Fin (Fintype.card (MomentRowIndex b T.d)),
+          nuB (divisorTemplateLaw MS.core.parameters N (D.divisor r))
+            (linearRowValue D.rowCoeff N p r x).num
+  let Fq (p : Fin T.q → ℕ) : ℝ :=
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p) x *
+        ∏ r ∈ active, nu MS.core.parameters N B
+          (linearRowValue (momentRowCoeff MS b T l) N
+            (pkgB_momentPrimeRepeat (b := b) p) r x).num
+  have hdiag (p : Fin sl → ℕ) :
+      momentPrimeDiagonal hT p =
+        pkgB_momentPrimeRepeat (b := b) (fun j => p (ι j)) := by
+    funext i
+    rfl
+  have hFfull (p : Fin sl → ℕ) : Ffull p = Fq (fun j => p (ι j)) := by
+    unfold Ffull Fq
+    dsimp [D, pkgB_momentWeightedLinearFormsData, linearRowValue]
+    rw [hdiag p]
+    apply tsum_congr
+    intro x
+    simp [momentDivisorFamilyNu_eq, Finset.prod_ite_mem]
+  have hinnerGood (p : Fin T.q → ℕ) (hp : GoodQ p) :
+      Fq p = Emu MS.core.parameters N B.1
+        (pkgB_momentActiveShiftTerm MS B T l J0 N b p active) := by
+    unfold Fq
+    exact pkgB_momentActiveBaseIntegral MS B T l J0 N b hb p active (hreg p hp)
+  let lo : ℕ := (MS.primeStage.pool N l).lower
+  let hi : ℕ := (MS.primeStage.pool N l).upper
+  have hWLF :
+      weightedLinearFormsAverage D N GoodFull =
+        ∑' p : Fin sl → ℕ,
+          independentPrimePoolMass (fun _ : Fin sl => lo) (fun _ => hi) p *
+          (if GoodFull p then Ffull p else 0) := by
+    unfold weightedLinearFormsAverage
+    dsimp [D, pkgB_momentWeightedLinearFormsData, lo, hi]
+    apply tsum_congr
+    intro p
+    by_cases hp : GoodFull p
+    · simp [Ffull, GoodFull, D, pkgB_momentWeightedLinearFormsData, lo, hi, hp] <;> ring
+    · simp [Ffull, GoodFull, D, pkgB_momentWeightedLinearFormsData, lo, hi, hp]
+  calc
+    weightedLinearFormsAverage D N GoodFull = _ := hWLF
+    _ = ∑' p : Fin sl → ℕ,
+          independentPrimePoolMass (fun _ : Fin sl => lo) (fun _ => hi) p *
+            (if GoodFull p then Fq (fun j => p (ι j)) else 0) := by
+      apply tsum_congr
+      intro p
+      by_cases hp : GoodFull p <;> simp [GoodFull, hp, hFfull]
+    _ = ∑' p : Fin T.q → ℕ,
+          independentPrimePoolMass (fun _ : Fin T.q => lo) (fun _ => hi) p *
+            (if GoodQ p then Fq p else 0) := by
+      exact pkgB_primePoolAverage_embedding ι lo hi hMass
+        (fun p => if GoodQ p then Fq p else 0)
+    _ = _ := by
+      apply tsum_congr
+      intro p
+      by_cases hp : GoodQ p
+      · simp [GoodQ, lo, hi, hp, hinnerGood p hp]
+      · simp [GoodQ, lo, hi, hp]
+
 end Prediction
 
 end HindmanSumsProducts
