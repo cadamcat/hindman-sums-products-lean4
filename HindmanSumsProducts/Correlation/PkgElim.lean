@@ -1631,6 +1631,37 @@ theorem masterCRTModulus_optionPiFinEquiv_some {w e V : ℕ} (he : 0 < e)
     simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using hval
   simpa [crtOptionZModFinEquiv, masterCRTOptionFactor] using congrArg Fin.val hfin
 
+theorem natCoprime_masterCRTModulus_factorization {w e V x : ℕ} :
+    Nat.Coprime x (FromArithmetic.masterCRTModulus w e V) ↔
+      Nat.Coprime x (primorial w ^ e) ∧
+        ∀ p : FromArithmetic.CRTPrimeRange w V,
+          Nat.Coprime (x % p.val) p.val := by
+  rw [masterCRTModulus_eq_optionFactorProduct, Nat.coprime_fintype_prod_right_iff]
+  constructor
+  · intro h
+    refine ⟨?_, ?_⟩
+    · simpa [masterCRTOptionFactor] using h none
+    · intro p
+      have hp := h (some p)
+      exact (ZMod.coprime_mod_iff_coprime x p.val).mpr
+        (by simpa [masterCRTOptionFactor] using hp)
+  · rintro ⟨hbase, hprime⟩ i
+    cases i with
+    | none => simpa [masterCRTOptionFactor] using hbase
+    | some p =>
+      exact (ZMod.coprime_mod_iff_coprime x p.val).mp (hprime p)
+
+theorem masterCRTModulus_coprime_iff_projection {w e V : ℕ}
+    (a : Fin (FromArithmetic.masterCRTModulus w e V)) :
+    Nat.Coprime a.val (FromArithmetic.masterCRTModulus w e V) ↔
+      Nat.Coprime a.val (primorial w ^ e) ∧
+        ∀ p : FromArithmetic.CRTPrimeRange w V,
+          Nat.Coprime (crtResidueProjection (w := w) (V := V)
+            (Q := FromArithmetic.masterCRTModulus w e V) a p).val p.val := by
+  simpa [crtResidueProjection] using
+    (natCoprime_masterCRTModulus_factorization (w := w) (e := e) (V := V)
+      (x := a.val))
+
 theorem primeTupleCRTLaw_eq_prod_marginals {m w V : ℕ}
     (lo hi : Fin m → ℕ) (r : Fin m → FromArithmetic.CRTResidues w V) :
     FromArithmetic.primeTupleCRTLaw lo hi w V r =
