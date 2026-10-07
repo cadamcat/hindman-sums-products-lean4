@@ -662,6 +662,20 @@ lemma real_inner_le_starProjection_norm {E : Type*} [NormedAddCommGroup E]
   rw [hinner]
   exact real_inner_le_norm_of_norm_le_one (S.starProjection x) y hyn
 
+lemma starProjection_norm_le {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] (S : Submodule ℝ E) [S.HasOrthogonalProjection] (x : E) :
+    ‖S.starProjection x‖ ≤ ‖x‖ := by
+  let p := S.starProjection x
+  have horth := S.starProjection_inner_eq_zero x p (S.starProjection_apply_mem x)
+  have horth' : inner ℝ p (x - p) = 0 := by
+    rw [real_inner_comm]
+    exact horth
+  have hdecomp : x = p + (x - p) := by abel
+  have hsq : ‖x‖ ^ 2 = ‖p‖ ^ 2 + ‖x - p‖ ^ 2 := by
+    rw [hdecomp]
+    simpa [pow_two] using norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero p (x-p) horth'
+  nlinarith [norm_nonneg p, norm_nonneg x, sq_nonneg ‖x-p‖]
+
 def clip01 (x : ℝ) : ℝ := min 1 (max 0 x)
 
 lemma clip01_lipschitz : LipschitzWith 1 clip01 := by
@@ -848,6 +862,30 @@ lemma ulim_le_of_forall (U : Ultrafilter ℕ) (f g : ℕ → ℝ) (Cf Cg : ℝ)
   rw [hdiff] at hpos
   linarith
 
+lemma familyToHilbert_norm_le_one_of_unitValued {K : ℕ} (A : Parameters K)
+    (U : Ultrafilter ℕ) (i : Fin K) (f : FamilySpace A U i)
+    (hf : ∀ N z, f.1 N z ∈ Set.Icc (0 : ℝ) 1) :
+    ‖familyToHilbert A U i f‖ ≤ 1 := by
+  have hseq : ∀ N, |Emu A N i (fun z => f.1 N z * f.1 N z)| ≤ 1 := by
+    intro N
+    apply emu_abs_le A N i (fun z => f.1 N z * f.1 N z) 1 (by norm_num)
+    intro z
+    have hz := hf N z
+    rw [abs_of_nonneg (mul_nonneg hz.1 hz.1)]
+    calc
+      f.1 N z * f.1 N z ≤ 1 * f.1 N z :=
+        mul_le_mul_of_nonneg_right hz.2 hz.1
+      _ ≤ 1 * 1 := mul_le_mul_of_nonneg_left hz.2 (by norm_num)
+      _ = 1 := by ring
+  have hlim : ulim U (fun N => Emu A N i (fun z => f.1 N z * f.1 N z)) ≤ 1 := by
+    have h := ulim_le_of_forall U
+      (fun N => Emu A N i (fun z => f.1 N z * f.1 N z)) (fun _ => 1) 1 1
+      hseq (fun _ => by norm_num) (fun N => (abs_le.mp (hseq N)).2)
+    simpa only [ulim_const] using h
+  have hinner : boundedFamilyInner A U i f f ≤ 1 := hlim
+  rw [← familyToHilbert_norm_sq] at hinner
+  nlinarith [norm_nonneg (familyToHilbert A U i f)]
+
 private lemma emu_mono {K : ℕ} (A : Parameters K) (N : ℕ) (i : Fin K)
     (f g : ℤ → ℝ) (hfg : ∀ z, f z ≤ g z) : Emu A N i f ≤ Emu A N i g := by
   rw [emu_eq_translationEval A i N f, emu_eq_translationEval A i N g]
@@ -957,6 +995,19 @@ lemma boundedSubmodule_unit_sup_eq_projection_norm {K : ℕ} (A : Parameters K)
     _ = ‖R.topologicalClosure.starProjection x‖ :=
       submodule_inner_unit_sup_eq_projection_norm R x
 
+lemma boundedSubmodule_range_mono {K : ℕ} (A : Parameters K) (U : Ultrafilter ℕ)
+    (i : Fin K) (S T : Submodule ℝ (ℕ → ℤ → ℝ)) (hST : S ≤ T)
+    (hS : S ≤ BoundedFamilies) (hT : T ≤ BoundedFamilies) :
+    (boundedSubmoduleToHilbertLinear A U i S hS).range ≤
+      (boundedSubmoduleToHilbertLinear A U i T hT).range := by
+  intro y hy
+  obtain ⟨u, rfl⟩ := LinearMap.mem_range.mp hy
+  let v : T := ⟨u.1, hST u.2⟩
+  refine ⟨v, ?_⟩
+  change familyToHilbert A U i ⟨u.1, hS u.2⟩ =
+    familyToHilbert A U i ⟨u.1, hT (hST u.2)⟩
+  congr 1
+
 lemma exists_finite_repFamily_combination {K s : ℕ} {A : Parameters K} {l : Fin K}
     {g : ℕ → ℤ → ℝ}
     (hg : g ∈ Submodule.span ℝ
@@ -1036,6 +1087,325 @@ lemma exists_lipschitz_clip_linearCombination {k : ℕ} (c : Fin k → ℝ) :
     rfl
   rw [← heq]
   simpa only [one_mul] using hcomp
+
+def realEnergyBin (m : ℕ) (x : ℝ) : Fin (m + 1) :=
+  ⟨min m (⌊max 0 x * (m : ℝ)⌋₊), by omega⟩
+
+lemma realEnergyBin_eq_close {m : ℕ} (hm : 0 < m) {x y : ℝ}
+    (hx : x ∈ Set.Icc (0 : ℝ) 1) (hy : y ∈ Set.Icc (0 : ℝ) 1)
+    (hbin : realEnergyBin m x = realEnergyBin m y) :
+    |x - y| ≤ 1 / (m : ℝ) := by
+  have hxm0 : 0 ≤ x * (m : ℝ) := mul_nonneg hx.1 (by positivity)
+  have hym0 : 0 ≤ y * (m : ℝ) := mul_nonneg hy.1 (by positivity)
+  have hxfloorle : ⌊x * (m : ℝ)⌋₊ ≤ m := by
+    have h := Nat.floor_mono (mul_le_mul_of_nonneg_right hx.2 (by positivity : 0 ≤ (m : ℝ)))
+    simpa using h
+  have hyfloorle : ⌊y * (m : ℝ)⌋₊ ≤ m := by
+    have h := Nat.floor_mono (mul_le_mul_of_nonneg_right hy.2 (by positivity : 0 ≤ (m : ℝ)))
+    simpa using h
+  have hfloor : ⌊x * (m : ℝ)⌋₊ = ⌊y * (m : ℝ)⌋₊ := by
+    have hval := congrArg Fin.val hbin
+    simpa [realEnergyBin, max_eq_right hx.1, max_eq_right hy.1,
+      Nat.min_eq_right hxfloorle, Nat.min_eq_right hyfloorle] using hval
+  have hxfloor : (⌊x * (m : ℝ)⌋₊ : ℝ) ≤ x * (m : ℝ) := Nat.floor_le hxm0
+  have hyfloor : (⌊y * (m : ℝ)⌋₊ : ℝ) ≤ y * (m : ℝ) := Nat.floor_le hym0
+  have hxlt : x * (m : ℝ) < (⌊x * (m : ℝ)⌋₊ : ℝ) + 1 := Nat.lt_floor_add_one _
+  have hylt : y * (m : ℝ) < (⌊y * (m : ℝ)⌋₊ : ℝ) + 1 := Nat.lt_floor_add_one _
+  have hxy : x - y < 1 / (m : ℝ) := by
+    rw [lt_div_iff₀ (by exact_mod_cast hm)]
+    rw [hfloor] at hxlt
+    nlinarith
+  have hyx : y - x < 1 / (m : ℝ) := by
+    rw [lt_div_iff₀ (by exact_mod_cast hm)]
+    rw [← hfloor] at hylt
+    nlinarith
+  exact abs_le.mpr ⟨by linarith, by linarith⟩
+
+lemma exists_finset_split_max_two {α : Type*} [LinearOrder α] [DecidableEq α]
+    (S : Finset α) (hS : 3 ≤ S.card) :
+    ∃ (T : Finset α) (l i : α), S = insert l (insert i T) ∧ T.Nonempty ∧
+      (∀ t ∈ T, t < l) ∧ l < i := by
+  classical
+  have hSne : S.Nonempty := Finset.card_pos.mp (by omega)
+  let i := S.max' hSne
+  have hi : i ∈ S := Finset.max'_mem S hSne
+  let S₁ := S.erase i
+  have hS₁card : S₁.card = S.card - 1 := Finset.card_erase_of_mem hi
+  have hS₁ne : S₁.Nonempty := Finset.card_pos.mp (by omega)
+  let l := S₁.max' hS₁ne
+  have hlS₁ : l ∈ S₁ := Finset.max'_mem S₁ hS₁ne
+  let T := S₁.erase l
+  have hTcard : T.card = S.card - 2 := by
+    dsimp [T, S₁]
+    rw [Finset.card_erase_of_mem hlS₁, hS₁card]
+    omega
+  have hTne : T.Nonempty := Finset.card_pos.mp (by rw [hTcard]; omega)
+  have hTl : ∀ t ∈ T, t < l := by
+    intro t ht
+    exact S₁.lt_max'_of_mem_erase_max' hS₁ne (by simpa [T, l] using ht)
+  have hlErase : l ∈ S.erase i := by simpa [S₁] using hlS₁
+  have hli : l < i := S.lt_max'_of_mem_erase_max' hSne hlErase
+  have hdecomp : S = insert l (insert i T) := by
+    have h1 : insert i S₁ = S := Finset.insert_erase hi
+    have h2 : insert l T = S₁ := Finset.insert_erase hlS₁
+    calc
+      S = insert i S₁ := h1.symm
+      _ = insert i (insert l T) := by rw [h2]
+      _ = insert l (insert i T) := Finset.insert_comm i l T
+  exact ⟨T, l, i, hdecomp, hTne, hTl, hli⟩
+
+noncomputable def finsetSplitMaxTwo {α : Type*} [LinearOrder α] [DecidableEq α]
+    (S : Finset α) (hS : 3 ≤ S.card) : Finset α × α × α := by
+  classical
+  let hne : S.Nonempty := Finset.card_pos.mp (by omega)
+  let i := S.max' hne
+  have hi : i ∈ S := Finset.max'_mem S hne
+  let hne' : (S.erase i).Nonempty := by
+    apply Finset.card_pos.mp
+    rw [Finset.card_erase_of_mem hi]
+    omega
+  let l := (S.erase i).max' hne'
+  exact ((S.erase i).erase l, l, i)
+
+lemma finsetSplitMaxTwo_spec {α : Type*} [LinearOrder α] [DecidableEq α]
+    (S : Finset α) (hS : 3 ≤ S.card) :
+    let p := finsetSplitMaxTwo S hS
+    S = insert p.2.1 (insert p.2.2 p.1) ∧ p.1.Nonempty ∧
+      (∀ t ∈ p.1, t < p.2.1) ∧ p.2.1 < p.2.2 :=
+  by
+    classical
+    let hne : S.Nonempty := Finset.card_pos.mp (by omega)
+    let i := S.max' hne
+    have hi : i ∈ S := Finset.max'_mem S hne
+    let hne' : (S.erase i).Nonempty := by
+      apply Finset.card_pos.mp
+      rw [Finset.card_erase_of_mem hi]
+      omega
+    let l := (S.erase i).max' hne'
+    let T := (S.erase i).erase l
+    have hl : l ∈ S.erase i := Finset.max'_mem _ hne'
+    have hTne : T.Nonempty := by
+      apply Finset.card_pos.mp
+      dsimp [T]
+      rw [Finset.card_erase_of_mem hl, Finset.card_erase_of_mem hi]
+      omega
+    have hdecomp : S = insert l (insert i T) := by
+      have h1 : insert i (S.erase i) = S := Finset.insert_erase hi
+      have h2 : insert l T = S.erase i := Finset.insert_erase hl
+      calc
+        S = insert i (S.erase i) := h1.symm
+        _ = insert i (insert l T) := by rw [h2]
+        _ = insert l (insert i T) := Finset.insert_comm i l T
+    have hTl : ∀ t ∈ T, t < l := by
+      intro t ht
+      exact (S.erase i).lt_max'_of_mem_erase_max' hne' (by simpa [T, l] using ht)
+    have hli : l < i := by
+      have hlS : l ∈ S.erase i := hl
+      exact S.lt_max'_of_mem_erase_max' hne hlS
+    change S = insert l (insert i T) ∧ T.Nonempty ∧
+      (∀ t ∈ T, t < l) ∧ l < i
+    exact ⟨hdecomp, hTne, hTl, hli⟩
+
+lemma finsetSplitMaxTwo_eq_insert {α : Type*} [LinearOrder α] [DecidableEq α]
+    (T : Finset α) (l i : α) (hT : T.Nonempty)
+    (hTl : ∀ t ∈ T, t < l) (hli : l < i) :
+    finsetSplitMaxTwo (insert l (insert i T)) (by
+      have hlnT : l ∉ T := by
+        intro hlT
+        exact (lt_irrefl l) (hTl l hlT)
+      have hne : l ≠ i := ne_of_lt hli
+      have hin : l ∉ insert i T := by simp [hlnT, hne]
+      rw [Finset.card_insert_of_notMem hin,
+        Finset.card_insert_of_notMem (by
+          intro hiT
+          exact (lt_irrefl i) ((hTl i hiT).trans hli))]
+      have : 1 ≤ T.card := Finset.card_pos.mpr hT
+      omega) = (T, l, i) := by
+  classical
+  have hlnT : l ∉ T := by
+    intro hlT
+    exact (lt_irrefl l) (hTl l hlT)
+  have hne : l ≠ i := ne_of_lt hli
+  have hin : l ∉ insert i T := by simp [hlnT, hne]
+  have hiT : i ∉ T := by
+    intro hiT
+    exact (lt_irrefl i) ((hTl _ hiT).trans hli)
+  have hneS : (insert l (insert i T)).Nonempty := by simp
+  have hmaxI : (insert l (insert i T)).max' hneS = i := by
+    apply le_antisymm
+    · apply Finset.max'_le
+      intro x hx
+      simp only [Finset.mem_insert] at hx
+      rcases hx with rfl | hx
+      · exact le_of_lt hli
+      · rcases hx with rfl | hx
+        · exact le_rfl
+        · exact le_of_lt ((hTl x hx).trans hli)
+    · exact (insert l (insert i T)).le_max' i (by simp)
+  have herase : (insert l (insert i T)).erase i = insert l T := by
+    rw [Finset.erase_insert_of_ne hne]
+    simp [hiT]
+  have hneMid : (insert l T).Nonempty := by simp
+  have hmaxL : (insert l T).max' hneMid = l := by
+    apply le_antisymm
+    · apply Finset.max'_le
+      intro x hx
+      simp only [Finset.mem_insert] at hx
+      rcases hx with rfl | hx
+      · exact le_rfl
+      · exact le_of_lt (hTl x hx)
+    · exact (insert l T).le_max' l (by simp)
+  have hcardS : 3 ≤ (insert l (insert i T)).card := by
+    rw [Finset.card_insert_of_notMem hin, Finset.card_insert_of_notMem hiT]
+    have hTcard : 1 ≤ T.card := Finset.card_pos.mpr hT
+    omega
+  unfold finsetSplitMaxTwo
+  simp only [hmaxI, herase, hmaxL]
+  rw [Finset.erase_insert hlnT]
+
+lemma nested_starProjection_energy_difference {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] (Qlarge Qsmall : Submodule ℝ E)
+    [Qlarge.HasOrthogonalProjection] [Qsmall.HasOrthogonalProjection]
+    (hQS : Qlarge ≤ Qsmall) (x : E) :
+    ‖Qsmall.starProjection x - Qlarge.starProjection x‖ ^ 2 =
+      ‖Qsmall.starProjection x‖ ^ 2 - ‖Qlarge.starProjection x‖ ^ 2 := by
+  let ps := Qsmall.starProjection x
+  let pl := Qlarge.starProjection x
+  have hps : ps ∈ Qsmall := Qsmall.starProjection_apply_mem x
+  have hplSmall : pl ∈ Qsmall := hQS (Qlarge.starProjection_apply_mem x)
+  have hpl : pl ∈ Qlarge := Qlarge.starProjection_apply_mem x
+  have horthResidual : inner ℝ (x - ps) (ps - pl) = 0 := by
+    exact Qsmall.starProjection_inner_eq_zero x (ps - pl) (Qsmall.sub_mem hps hplSmall)
+  have horthLarge : inner ℝ pl (x - pl) = 0 := by
+    rw [real_inner_comm]
+    exact Qlarge.starProjection_inner_eq_zero x pl hpl
+  have horthDiff : inner ℝ (x - ps) (ps - pl) = 0 := horthResidual
+  have hresSq : ‖x - pl‖ ^ 2 = ‖x - ps‖ ^ 2 + ‖ps - pl‖ ^ 2 := by
+    rw [show x - pl = (x - ps) + (ps - pl) by abel]
+    simpa [pow_two] using
+      norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero (x - ps) (ps - pl) horthDiff
+  have hpsSq : ‖x‖ ^ 2 = ‖ps‖ ^ 2 + ‖x - ps‖ ^ 2 := by
+    rw [show x = ps + (x - ps) by abel]
+    have horth : inner ℝ ps (x - ps) = 0 := by
+      rw [real_inner_comm]
+      exact Qsmall.starProjection_inner_eq_zero x ps hps
+    simpa [pow_two] using norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero ps (x-ps) horth
+  have hplSq : ‖x‖ ^ 2 = ‖pl‖ ^ 2 + ‖x - pl‖ ^ 2 := by
+    rw [show x = pl + (x - pl) by abel]
+    simpa [pow_two] using norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero pl (x-pl) horthLarge
+  nlinarith [hresSq, hpsSq, hplSq]
+
+abbrev menuProductGroup {s : ℕ} (F : Menu s) : Group F.productG := by
+  letI : ∀ j, Group (F.G j) := fun j => F.group j
+  infer_instance
+
+abbrev menuProductTopology {s : ℕ} (F : Menu s) : TopologicalSpace F.productG := by
+  letI : ∀ j, TopologicalSpace (F.G j) := fun j => F.topology j
+  infer_instance
+
+abbrev menuProductTopGroup {s : ℕ} (F : Menu s) : IsTopologicalGroup F.productG := by
+  letI : ∀ j, Group (F.G j) := fun j => F.group j
+  letI : ∀ j, TopologicalSpace (F.G j) := fun j => F.topology j
+  letI : ∀ j, IsTopologicalGroup (F.G j) := fun j => F.topGroup j
+  infer_instance
+
+set_option maxHeartbeats 10000000 in
+set_option maxRecDepth 10000 in
+@[reducible]
+def productMenuFamily {s n : ℕ} (Fm : Fin n → Menu s) : Menu s where
+  size := n
+  G u := (Fm u).productG
+  group u := menuProductGroup (Fm u)
+  topology u := menuProductTopology (Fm u)
+  topGroup u := menuProductTopGroup (Fm u)
+  Γ u := (Fm u).productΓ
+  chart u := (Fm u).productChart
+  metric u := (Fm u).productMetric
+  compatible u := (Fm u).productCompatible
+
+@[simp] lemma productMenuFamily_G {s n : ℕ} (Fm : Fin n → Menu s) (u : Fin n) :
+    (productMenuFamily Fm).G u = (Fm u).productG := rfl
+
+@[simp] lemma productMenuFamily_Gamma {s n : ℕ} (Fm : Fin n → Menu s) (u : Fin n) :
+    (productMenuFamily Fm).Γ u = (Fm u).productΓ := rfl
+
+@[simp] lemma productMenuFamily_metric {s n : ℕ} (Fm : Fin n → Menu s) (u : Fin n) :
+    (productMenuFamily Fm).metric u = (Fm u).productMetric := rfl
+
+@[simp] lemma productMenuFamily_compatible {s n : ℕ} (Fm : Fin n → Menu s) (u : Fin n) :
+    (productMenuFamily Fm).compatible u = (Fm u).productCompatible := rfl
+
+def CosetPiece.toProductMenu {s n : ℕ} {Fm : Fin n → Menu s} {u : Fin n}
+    {K : ℝ≥0} (P : CosetPiece (Fm u) K) : CosetPiece (productMenuFamily Fm) K := by
+  letI : Group ((Fm u).productG) := menuProductGroup (Fm u)
+  letI : TopologicalSpace ((Fm u).productG) := menuProductTopology (Fm u)
+  letI : IsTopologicalGroup ((Fm u).productG) := menuProductTopGroup (Fm u)
+  letI : MetricSpace ((Fm u).productG ⧸ (Fm u).productΓ) :=
+    (Fm u).productMetric.replaceTopology (Fm u).productCompatible
+  letI : Group ((productMenuFamily Fm).G u) := menuProductGroup (Fm u)
+  letI : TopologicalSpace ((productMenuFamily Fm).G u) := menuProductTopology (Fm u)
+  letI : IsTopologicalGroup ((productMenuFamily Fm).G u) := menuProductTopGroup (Fm u)
+  letI : MetricSpace ((productMenuFamily Fm).G u ⧸ (productMenuFamily Fm).Γ u) := by
+    change MetricSpace ((Fm u).productG ⧸ (Fm u).productΓ)
+    exact (Fm u).productMetric.replaceTopology (Fm u).productCompatible
+  exact
+    { index := u
+      g := P.lift.padG
+      x := QuotientGroup.mk P.lift.padX
+      obs := P.lift.padObs
+      lip := P.lift.pad_lip
+      range := P.lift.pad_range }
+
+lemma CosetPiece.toProductMenu_eval {s n : ℕ} {Fm : Fin n → Menu s} {u : Fin n}
+    {K : ℝ≥0} (P : CosetPiece (Fm u) K) (k : ℤ) :
+    (P.toProductMenu).eval k = P.eval k := by
+  letI : Group ((Fm u).productG) := menuProductGroup (Fm u)
+  letI : TopologicalSpace ((Fm u).productG) := menuProductTopology (Fm u)
+  letI : IsTopologicalGroup ((Fm u).productG) := menuProductTopGroup (Fm u)
+  letI : MetricSpace ((Fm u).productG ⧸ (Fm u).productΓ) :=
+    (Fm u).productMetric.replaceTopology (Fm u).productCompatible
+  letI : Group ((productMenuFamily Fm).G u) := menuProductGroup (Fm u)
+  letI : TopologicalSpace ((productMenuFamily Fm).G u) := menuProductTopology (Fm u)
+  letI : IsTopologicalGroup ((productMenuFamily Fm).G u) := menuProductTopGroup (Fm u)
+  letI : MetricSpace ((productMenuFamily Fm).G u ⧸ (productMenuFamily Fm).Γ u) :=
+    (productMenuFamily Fm).metric u |>.replaceTopology ((productMenuFamily Fm).compatible u)
+  let Q := P.lift
+  dsimp [CosetPiece.toProductMenu]
+  change Q.padObs (Q.padG ^ k • QuotientGroup.mk Q.padX) = P.eval k
+  rw [show Q.padG ^ k • QuotientGroup.mk Q.padX =
+      QuotientGroup.mk (Q.padG ^ k * Q.padX) by rfl]
+  rw [Q.pad_orbit]
+  exact P.lift_eval k
+
+def RepFamily.toProductMenu {K n s : ℕ} {A : Parameters K} {l : Fin K}
+    {Fm : Fin n → Menu s} {u : Fin n} {Km : ℝ≥0}
+    (Φ : RepFamily A l (Fm u) Km) : RepFamily A l (productMenuFamily Fm) Km where
+  piece N j r := (Φ.piece N j r).toProductMenu
+
+lemma RepFamily.toProductMenu_eval {K n s : ℕ} {A : Parameters K} {l : Fin K}
+    {Fm : Fin n → Menu s} {u : Fin n} {Km : ℝ≥0}
+    (Φ : RepFamily A l (Fm u) Km) (N : ℕ) (y : ℤ) :
+    Φ.toProductMenu.eval N y = Φ.eval N y := by
+  unfold RepFamily.eval
+  exact CosetPiece.toProductMenu_eval (Φ.piece N (y / (A.H N l : ℤ))
+    (y % (A.M N : ℤ))) ((y - y % (A.M N : ℤ)) / (A.M N : ℤ))
+
+def CosetPiece.raiseLip {s : ℕ} {Fm : Menu s} {K K' : ℝ≥0}
+    (P : CosetPiece Fm K) (h : K ≤ K') : CosetPiece Fm K' where
+  index := P.index
+  g := P.g
+  x := P.x
+  obs := P.obs
+  lip := by
+    letI : MetricSpace (Fm.G P.index ⧸ Fm.Γ P.index) :=
+      (Fm.metric P.index).replaceTopology (Fm.compatible P.index)
+    exact P.lip.weaken h
+  range := P.range
+
+def RepFamily.raiseLip {K s : ℕ} {A : Parameters K} {l : Fin K} {Fm : Menu s}
+    {Km Km' : ℝ≥0} (Φ : RepFamily A l Fm Km) (h : Km ≤ Km') :
+    RepFamily A l Fm Km' where
+  piece N j r := (Φ.piece N j r).raiseLip h
 
 end
 
