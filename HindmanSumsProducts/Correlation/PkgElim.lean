@@ -4674,6 +4674,18 @@ theorem pkgElim_independentPrimePoolAverage_cylinder {q s : ℕ}
       rw [tsum_eq_sum (L := SummationFilter.unconditional (Fin q → ℕ))
         (f := fun p => locMass p * f p) (s := Sloc) hlocSupport]
 
+theorem pkgElim_independentPrimePoolProbability_cylinder {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (lo hi : ℕ)
+    (hmass : 0 < primePoolMass lo hi) (E : (Fin q → ℕ) → Prop) :
+    independentPrimePoolProbability (fun _ : Fin s => lo) (fun _ => hi)
+        (fun p' => E (fun i => p' (ι i))) =
+      independentPrimePoolProbability (fun _ : Fin q => lo) (fun _ => hi) E := by
+  classical
+  unfold independentPrimePoolProbability
+  simpa [independentPrimePoolMass] using
+    (pkgElim_independentPrimePoolAverage_cylinder ι lo hi hmass
+      (fun p => if E p then 1 else 0))
+
 theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
