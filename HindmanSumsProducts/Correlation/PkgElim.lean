@@ -1662,6 +1662,36 @@ theorem masterCRTModulus_coprime_iff_projection {w e V : ℕ}
     (natCoprime_masterCRTModulus_factorization (w := w) (e := e) (V := V)
       (x := a.val))
 
+noncomputable def unitsEquivIsUnitSubtype {M : Type*} [Monoid M] :
+    Mˣ ≃ {x : M // IsUnit x} where
+  toFun u := ⟨u, u.isUnit⟩
+  invFun x := x.2.unit
+  left_inv u := Units.ext (by simp)
+  right_inv x := Subtype.ext x.2.unit_spec
+
+theorem sum_isUnit_eq_card_units {M : Type*} [Monoid M] [Fintype M]
+    [Fintype Mˣ] [DecidablePred (fun x : M => IsUnit x)] :
+    (∑ x : M, if IsUnit x then (1 : ℝ) else 0) = (Fintype.card Mˣ : ℝ) := by
+  classical
+  calc
+    _ = ∑ x ∈ Finset.univ.filter (fun x : M => IsUnit x), (1 : ℝ) := by
+      rw [← Finset.sum_filter]
+    _ = ((Finset.univ.filter (fun x : M => IsUnit x)).card : ℝ) := by
+      simp
+    _ = (Fintype.card {x : M // IsUnit x} : ℝ) := by
+      exact_mod_cast (Fintype.card_subtype (fun x : M => IsUnit x)).symm
+    _ = _ := by
+      exact_mod_cast (Fintype.card_congr
+        (unitsEquivIsUnitSubtype (M := M)).symm)
+
+theorem masterCRTModulus_totient {w e V : ℕ} (he : 0 < e) :
+    Nat.totient (FromArithmetic.masterCRTModulus w e V) =
+      Nat.totient (primorial w ^ e) *
+        ∏ p : FromArithmetic.CRTPrimeRange w V, (p.val - 1) := by
+  rw [masterCRTModulus_eq_base_mul_crtPrimeProduct,
+    Nat.totient_mul (primorialPow_coprime_crtPrimeProduct he),
+    crtPrimeProduct_totient]
+
 theorem primeTupleCRTLaw_eq_prod_marginals {m w V : ℕ}
     (lo hi : Fin m → ℕ) (r : Fin m → FromArithmetic.CRTResidues w V) :
     FromArithmetic.primeTupleCRTLaw lo hi w V r =
