@@ -2195,6 +2195,208 @@ theorem opus_dpo_integrand_zero {K sl b : ℕ} {As : Finset ℚ}
     exact (Finset.mem_erase.mp hω).1
   rw [dif_pos hne]
 
+
+theorem opus_dpo_unif_zero (L : ℕ) (z : ℤ) (hz : z ∉ Finset.Ico (0 : ℤ) L) :
+    FromArithmetic.uniformIntegerIntervalLaw 0 L z = 0 := by
+  unfold FromArithmetic.uniformIntegerIntervalLaw
+  rw [if_neg]
+  intro h
+  apply hz
+  rw [Finset.mem_Ico]
+  constructor <;> linarith [h.1, h.2]
+
+theorem opus_dpo_unif_sum (L : ℕ) (hL : 0 < L) :
+    ∑ z ∈ Finset.Ico (0 : ℤ) L, FromArithmetic.uniformIntegerIntervalLaw 0 L z = 1 := by
+  have hterm : ∀ z ∈ Finset.Ico (0 : ℤ) L,
+      FromArithmetic.uniformIntegerIntervalLaw 0 L z = 1 / (L : ℝ) := by
+    intro z hz
+    rw [Finset.mem_Ico] at hz
+    unfold FromArithmetic.uniformIntegerIntervalLaw
+    rw [if_pos]
+    constructor <;> linarith [hz.1, hz.2]
+  rw [Finset.sum_congr rfl hterm, Finset.sum_const, Int.card_Ico, sub_zero, Int.toNat_natCast,
+    nsmul_eq_mul]
+  have hLR : (L : ℝ) ≠ 0 := by exact_mod_cast hL.ne'
+  field_simp
+
+/-- A uniform shift box on `ℤ` is the natural-number shift average. -/
+theorem opus_dpo_shiftSum (d L : ℕ) (G : (Fin d → Fin 2 → ℤ) → ℝ) :
+    ∑ u ∈ Fintype.piFinset (fun _ : Fin d => Fintype.piFinset
+        (fun _ : Fin 2 => Finset.Ico (0 : ℤ) L)),
+      (∏ j, ∏ s, FromArithmetic.uniformIntegerIntervalLaw 0 L (u j s)) * G u =
+      shiftAverage (Fin d) L (fun u => G (fun j s => (u j s : ℤ))) := by
+  classical
+  rw [shiftAverage_eq_uniformIntervalSum]
+  symm
+  apply Finset.sum_nbij' (fun u j s => ((u j s : ℕ) : ℤ)) (fun u j s => (u j s).toNat)
+  · intro u hu
+    simp only [Finset.mem_coe, Fintype.mem_piFinset, Finset.mem_range, Finset.mem_Ico] at hu ⊢
+    intro j s
+    have := hu j s
+    omega
+  · intro u hu
+    simp only [Finset.mem_coe, Fintype.mem_piFinset, Finset.mem_range, Finset.mem_Ico] at hu ⊢
+    intro j s
+    have := hu j s
+    omega
+  · intro u _
+    funext j s
+    simp
+  · intro u hu
+    simp only [Finset.mem_coe, Fintype.mem_piFinset, Finset.mem_Ico] at hu
+    funext j s
+    exact Int.toNat_of_nonneg (hu j s).1
+  · intro u _
+    rfl
+
+/-- The untranslated stage-`∅` inner integral at a regular prime tuple, in the form of the dual
+tests: pivot average of `(ν − 1)` times the product over replicas of `e` and the shift average. -/
+theorem opus_dpo_inner_replica {K sl b : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (J0 : Fin b → ℕ)
+    (direction : ∀ r : pkgB2_Nonroot T, Fin ((T r.1).d + 1) → ℤ) (N : ℕ)
+    (I : ∀ k, DualInput MS B (T k) N) (p : Fin (b * sl) → ℕ)
+    (hreg : pkgB2_baseRegular MS B T J0 gap hT N p) :
+    (∑' x, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+          (opus_dpo_zeroTranslations T x)) =
+      ∑' y : ℤ, harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+        ((nu MS.core.parameters N B y - 1) *
+          ∏ k, ((I k).e (pkgB2_repPrimeProject hT p k) *
+            shiftAverage (Fin (T k).d) (pkgB2_shiftLength MS T J0 gap hT N p k) (fun u =>
+              opus_dpo_block MS B (T k) N (I k) (pkgB2_repPrimeProject hT p k) y
+                (fun j s => (u j s : ℤ))))) := by
+  classical
+  let law := pkgB2_baseCoordinateLaw MS B T J0 gap hT N p
+  let harm := harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1))
+  let L : Fin b → ℕ := pkgB2_shiftLength MS T J0 gap hT N p
+  let A : Fin b → ℕ := fun k => pkgB2_translationLength MS T J0 gap k N
+  let unif := FromArithmetic.uniformIntegerIntervalLaw 0
+  let eP : ℝ := ∏ k, (I k).e (pkgB2_repPrimeProject hT p k)
+  let Bk : (k : Fin b) → ℤ → (Fin (T k).d → Fin 2 → ℤ) → ℝ := fun k y u =>
+    opus_dpo_block MS B (T k) N (I k) (pkgB2_repPrimeProject hT p k) y u
+  let Ulaw : ((k : Fin b) → Fin (T k).d → Fin 2 → ℤ) → ℝ := fun u =>
+    ∏ k, ∏ j, ∏ s, unif (L k) (u k j s)
+  let Vlaw : (pkgB2_Nonroot T × Fin 2 → ℤ) → ℝ := fun v =>
+    ∏ tr, unif (A tr.1.1) (v tr)
+  let Wy : Finset ℤ := pkgB2_baseWindow MS B T J0 gap hT N p
+  let Ufin : Finset ((k : Fin b) → Fin (T k).d → Fin 2 → ℤ) :=
+    Fintype.piFinset fun k => Fintype.piFinset fun _ : Fin (T k).d =>
+      Fintype.piFinset fun _ : Fin 2 => Finset.Ico (0 : ℤ) (L k)
+  let Vfin : Finset (pkgB2_Nonroot T × Fin 2 → ℤ) :=
+    Fintype.piFinset fun tr => Finset.Ico (0 : ℤ) (A tr.1.1)
+  let Sfin : Finset (opus_dpo_Y T) := Wy ×ˢ (Ufin ×ˢ Vfin)
+  let Ψ : opus_dpo_Y T → ℝ := fun w =>
+    eP * ((nu MS.core.parameters N B w.1 - 1) * ∏ k, Bk k w.1 (w.2.1 k))
+  have hharm (y : ℤ) : law (.inl (.inl ())) y = harm y := rfl
+  have hbaseY (w : opus_dpo_Y T) :
+      pkgB2_baseMass MS B T J0 gap hT N p ((opus_dpo_coordE T).symm w) =
+        harm w.1 * Ulaw w.2.1 * Vlaw w.2.2 := by
+    simp only [pkgB2_baseMass, dif_pos hreg]
+    have h1 : (∏ i, pkgB2_baseCoordinateLaw MS B T J0 gap hT N p (pkgB2_coordEnum T i)
+        ((opus_dpo_coordE T).symm w i)) =
+        ∏ c, law c ((opus_dpo_coordY T).symm w c) := by
+      rw [← (pkgB2_coordEnum T).prod_comp (fun c => law c ((opus_dpo_coordY T).symm w c))]
+      apply Finset.prod_congr rfl
+      intro i _
+      rw [opus_dpo_coordE_symm_apply]
+    rw [h1, opus_dpo_prod_coord]
+    congr 1
+  have hint (w : opus_dpo_Y T) :
+      pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+        (opus_dpo_zeroTranslations T ((opus_dpo_coordE T).symm w)) = Ψ w :=
+    opus_dpo_integrand_zero MS B gap T hT J0 direction N I p w
+  have hstep1 : (∑' x, pkgB2_baseMass MS B T J0 gap hT N p x *
+        pkgB2_stateIntegrand MS B gap T hT J0 direction ∅ N I p
+          (opus_dpo_zeroTranslations T x)) =
+      ∑' w : opus_dpo_Y T, harm w.1 * Ulaw w.2.1 * Vlaw w.2.2 * Ψ w := by
+    rw [← (opus_dpo_coordE T).symm.tsum_eq]
+    apply tsum_congr
+    intro w
+    rw [hbaseY, hint]
+  have hzeroY : ∀ w ∉ Sfin, harm w.1 * Ulaw w.2.1 * Vlaw w.2.2 * Ψ w = 0 := by
+    intro w hw
+    rcases w with ⟨y, u, v⟩
+    simp only [Sfin, Finset.mem_product, not_and_or] at hw
+    rcases hw with hy | hu | hv
+    · have : harm y = 0 := by
+        rw [← hharm]
+        exact pkgB2_baseCoordinateLaw_zero_outside MS B T J0 gap hT N p _ y hy
+      simp [this]
+    · have : Ulaw u = 0 := by
+        simp only [Ufin, Fintype.mem_piFinset, not_forall] at hu
+        obtain ⟨k, j, s, hks⟩ := hu
+        exact Finset.prod_eq_zero (Finset.mem_univ k) (Finset.prod_eq_zero (Finset.mem_univ j)
+          (Finset.prod_eq_zero (Finset.mem_univ s) (opus_dpo_unif_zero _ _ hks)))
+      simp [this]
+    · have : Vlaw v = 0 := by
+        simp only [Vfin, Fintype.mem_piFinset, not_forall] at hv
+        obtain ⟨tr, htr⟩ := hv
+        exact Finset.prod_eq_zero (Finset.mem_univ tr) (opus_dpo_unif_zero _ _ htr)
+      simp [this]
+  have hVsum : ∑ v ∈ Vfin, Vlaw v = 1 := by
+    simp only [Vfin, Vlaw]
+    rw [← Finset.prod_univ_sum]
+    exact Finset.prod_eq_one fun tr _ => opus_dpo_unif_sum _ (hreg.2.2 tr.1.1)
+  have hUsum (y : ℤ) : ∑ u ∈ Ufin, Ulaw u * ∏ k, Bk k y (u k) =
+      ∏ k, shiftAverage (Fin (T k).d) (L k) (fun u => Bk k y (fun j s => (u j s : ℤ))) := by
+    have h := (Finset.prod_univ_sum (fun k => Fintype.piFinset fun _ : Fin (T k).d =>
+      Fintype.piFinset fun _ : Fin 2 => Finset.Ico (0 : ℤ) (L k))
+      (fun k uk => (∏ j, ∏ s, unif (L k) (uk j s)) * Bk k y uk))
+    simp only [Ufin, Ulaw]
+    calc
+      _ = ∑ u ∈ Fintype.piFinset (fun k => Fintype.piFinset fun _ : Fin (T k).d =>
+            Fintype.piFinset fun _ : Fin 2 => Finset.Ico (0 : ℤ) (L k)),
+          ∏ k, ((∏ j, ∏ s, unif (L k) (u k j s)) * Bk k y (u k)) := by
+        apply Finset.sum_congr rfl
+        intro u _
+        rw [Finset.prod_mul_distrib]
+      _ = ∏ k, ∑ uk ∈ Fintype.piFinset (fun _ : Fin (T k).d =>
+            Fintype.piFinset fun _ : Fin 2 => Finset.Ico (0 : ℤ) (L k)),
+          (∏ j, ∏ s, unif (L k) (uk j s)) * Bk k y uk := h.symm
+      _ = _ := by
+        apply Finset.prod_congr rfl
+        intro k _
+        exact opus_dpo_shiftSum (T k).d (L k) (Bk k y)
+  rw [hstep1, tsum_eq_sum (s := Sfin) hzeroY]
+  rw [tsum_eq_sum (s := Wy) (fun y hy => by
+    have : harm y = 0 := by
+      rw [← hharm]
+      exact pkgB2_baseCoordinateLaw_zero_outside MS B T J0 gap hT N p _ y hy
+    change harm y * _ = 0
+    rw [this, zero_mul])]
+  simp only [Sfin, Finset.sum_product]
+  apply Finset.sum_congr rfl
+  intro y _
+  have hinner : ∀ u, ∑ v ∈ Vfin, harm y * Ulaw u * Vlaw v * Ψ (y, u, v) =
+      harm y * Ulaw u * Ψ (y, u, (fun _ => 0)) := by
+    intro u
+    calc
+      _ = ∑ v ∈ Vfin, (harm y * Ulaw u * Ψ (y, u, v)) * Vlaw v := by
+        apply Finset.sum_congr rfl
+        intro v _
+        ring
+      _ = ∑ v ∈ Vfin, (harm y * Ulaw u * Ψ (y, u, (fun _ => 0))) * Vlaw v := by
+        apply Finset.sum_congr rfl
+        intro v _
+        rfl
+      _ = harm y * Ulaw u * Ψ (y, u, (fun _ => 0)) := by
+        rw [← Finset.mul_sum, hVsum, mul_one]
+  simp only [hinner]
+  calc
+    _ = harm y * (eP * (nu MS.core.parameters N B y - 1)) *
+        ∑ u ∈ Ufin, Ulaw u * ∏ k, Bk k y (u k) := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro u _
+      simp only [Ψ]
+      ring
+    _ = _ := by
+      rw [hUsum y, Finset.prod_mul_distrib]
+      simp only [eP, Bk]
+      ring
+
 end
 
 end Prediction
