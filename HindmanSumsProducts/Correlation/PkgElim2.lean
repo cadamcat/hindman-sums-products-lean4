@@ -4058,6 +4058,76 @@ theorem c_elim2_eliminationAverage_eq_jointStateAverage_of_shift
             c_elim2_shiftStateAverage E (L (p, z)) (G (p, z)) := hshiftSum
     _ = c_elim2_jointStateAverage E μ L G := hjoint.symm
 
+theorem c_elim2_jointStateAverage_eq_goodPivotStateSum
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (N : ℕ) (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (E : Finset (NonTarget Sh))
+    (L : c_elim2_GoodPivotPair S C N Sh dirs tests → ℕ)
+    (G : ∀ b : c_elim2_GoodPivotPair S C N Sh dirs tests,
+      (c_elim2_ShiftCoord E → Fin (L b)) → ℝ) :
+    c_elim2_jointStateAverage E
+        (fun b => (gapSlotProbability S C.gap N
+          (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
+          gapSlotMass S C.gap N b.1.1 * pivotMass S.core.parameters C N b.2.val)
+        L G =
+      (gapSlotProbability S C.gap N
+        (GoodTuple S C.gap N tests dirs.poly))⁻¹ *
+      ∑ p : {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests},
+        ∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+          ∑ u : c_elim2_ShiftCoord E → Fin (L (p, z)),
+            gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+              (Fintype.card (c_elim2_ShiftCoord E → Fin (L (p, z))) : ℝ)⁻¹ *
+                G (p, z) u := by
+  classical
+  let PGood := {p : Fin q → ℕ // p ∈ c_elim2_goodPrimeSupport S C N Sh dirs tests}
+  let ZSub := {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N}
+  let prob := gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly)
+  let μ : c_elim2_GoodPivotPair S C N Sh dirs tests → ℝ := fun b =>
+    prob⁻¹ * gapSlotMass S C.gap N b.1.1 * pivotMass S.core.parameters C N b.2.val
+  unfold c_elim2_jointStateAverage
+  rw [Fintype.sum_prod_type]
+  calc
+    _ = ∑ p : PGood, ∑ z : ZSub,
+        prob⁻¹ * (gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1) *
+          ((Fintype.card (c_elim2_ShiftCoord E → Fin (L (p, z))) : ℝ)⁻¹ *
+            ∑ u : c_elim2_ShiftCoord E → Fin (L (p, z)), G (p, z) u) := by
+              apply Finset.sum_congr rfl
+              intro p hp
+              apply Finset.sum_congr rfl
+              intro z hz
+              simp [μ, prob, c_elim2_shiftStateAverage,
+                c_elim2_uniformFintypeAverage, mul_assoc, mul_left_comm, mul_comm]
+    _ = ∑ p : PGood, ∑ z : ZSub, prob⁻¹ *
+        ∑ u : c_elim2_ShiftCoord E → Fin (L (p, z)),
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            (Fintype.card (c_elim2_ShiftCoord E → Fin (L (p, z))) : ℝ)⁻¹ *
+              G (p, z) u := by
+                apply Finset.sum_congr rfl
+                intro p hp
+                apply Finset.sum_congr rfl
+                intro z hz
+                calc
+                  _ = prob⁻¹ *
+                      ((gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1) *
+                        (Fintype.card (c_elim2_ShiftCoord E → Fin (L (p, z))) : ℝ)⁻¹ *
+                          ∑ u : c_elim2_ShiftCoord E → Fin (L (p, z)), G (p, z) u) := by ring
+                  _ = _ := by rw [← Finset.mul_sum]
+    _ = ∑ p : PGood, prob⁻¹ * ∑ z : ZSub,
+        ∑ u : c_elim2_ShiftCoord E → Fin (L (p, z)),
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            (Fintype.card (c_elim2_ShiftCoord E → Fin (L (p, z))) : ℝ)⁻¹ *
+              G (p, z) u := by
+                apply Finset.sum_congr rfl
+                intro p hp
+                rw [← Finset.mul_sum]
+    _ = prob⁻¹ * ∑ p : PGood, ∑ z : ZSub,
+        ∑ u : c_elim2_ShiftCoord E → Fin (L (p, z)),
+          gapSlotMass S C.gap N p.1 * pivotMass S.core.parameters C N z.1 *
+            (Fintype.card (c_elim2_ShiftCoord E → Fin (L (p, z))) : ℝ)⁻¹ *
+              G (p, z) u := by rw [← Finset.mul_sum]
+    _ = _ := rfl
+
 noncomputable def c_elim2_univSubtypeEquiv {α : Type u} [Fintype α] [DecidableEq α] :
     {i : α // i ∈ (Finset.univ : Finset α)} ≃ α :=
   { toFun := Subtype.val
