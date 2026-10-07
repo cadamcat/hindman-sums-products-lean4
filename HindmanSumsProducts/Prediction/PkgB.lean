@@ -2870,6 +2870,43 @@ private theorem momentShiftResidueError_superPolynomial {K sl : ℕ} {As : Finse
     positivity
   exact squeeze_zero' (Eventually.of_forall hErrNonneg) hSmallBound hTop
 
+private theorem momentBaseEpsilonBase_superPolynomial {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (J0 b : ℕ) (hJ0 : 0 < J0) :
+    SuperPolynomialSmall
+      (fun N => momentBaseEpsilonBase MS B l T J0 b N)
+      (fun N => (masterScaleV MS.core.parameters N l : ℝ)) := by
+  intro C hC
+  let rows := Fintype.card (MomentRowIndex b T.d)
+  let base := Fintype.card (MomentBaseIndex b T.d)
+  let V : ℕ → ℕ := fun N => masterScaleV MS.core.parameters N l
+  let pivotErr : ℕ → ℝ := fun N =>
+    harmonicResidueError (MS.core.parameters.X N B.1) (primorial (N + 1)) (V N ^ rows)
+  let shiftErr : ℕ → ℝ := fun N =>
+    2 * (V N ^ rows : ℝ) / (max 1 (momentShiftLengthLower MS l T J0 N) : ℝ)
+  have hPivot : Tendsto (fun N => pivotErr N * (V N : ℝ) ^ C) atTop (𝓝 0) :=
+    (momentPivotResidueError_superPolynomial MS B l hgap T b) C hC
+  have hShift : Tendsto (fun N => shiftErr N * (V N : ℝ) ^ C) atTop (𝓝 0) :=
+    (momentShiftResidueError_superPolynomial MS l T J0 hJ0 b) C hC
+  have hSum := hPivot.add hShift
+  have hScaled : Tendsto
+      (fun N => (base : ℝ) *
+        (pivotErr N * (V N : ℝ) ^ C + shiftErr N * (V N : ℝ) ^ C))
+      atTop (𝓝 0) := by
+    simpa using tendsto_const_nhds.mul hSum
+  have hEq (N : ℕ) :
+      momentBaseEpsilonBase MS B l T J0 b N * (V N : ℝ) ^ C =
+        (base : ℝ) *
+          (pivotErr N * (V N : ℝ) ^ C + shiftErr N * (V N : ℝ) ^ C) := by
+    dsimp [momentBaseEpsilonBase, pivotErr, shiftErr, base, V]
+    push_cast
+    simp only [rows]
+    ring
+  apply hScaled.congr'
+  filter_upwards with N
+  exact (hEq N).symm
+
 theorem parameterTailProductLaw_nonneg {n : ℕ} (A : Parameters n) (N : ℕ)
     (T : Finset (Fin n)) (σ : ℕ) :
     0 ≤ parameterTailProductLaw A N T σ := by
