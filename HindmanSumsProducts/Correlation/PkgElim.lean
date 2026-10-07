@@ -1225,6 +1225,54 @@ theorem rowForm_eq_linearRowValue {m q r : ℕ} (c : Fin m → ℚ)
         (fun _ p' _ k => rowTemplateCoefficient c T p' k) N p u x := by
   simp [rowForm, FromArithmetic.linearRowValue, rowTemplateCoefficient]
 
+theorem pkgElim_rowTemplateValue_integer {m q : ℕ}
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) :
+    ∃ z : ℤ, T.value p k = (z : ℚ) := by
+  classical
+  cases he : T.entry k with
+  | none => exact ⟨0, by simp [RowTemplate.value, he]⟩
+  | some e =>
+    refine ⟨∏ i : Fin q, (p i : ℤ) ^ e i, ?_⟩
+    simp [RowTemplate.value, he]
+
+theorem pkgElim_rowTemplateCoefficient_integer {m q : ℕ}
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m)
+    (c : Fin m → ℚ) (cZ : Fin m → ℤ) (hc : ∀ j, c j = (cZ j : ℚ))
+    (hcpos : ∀ j, 0 < cZ j) (W : ℕ)
+    (hratio : ∀ u d, u < d → ∃ n : ℕ,
+      cZ u = (W : ℤ) * (n : ℤ) * cZ d) :
+    ∃ z : ℤ, rowTemplateCoefficient c T p k = (z : ℚ) := by
+  classical
+  have hanchorPos : 0 < cZ T.anchor := hcpos T.anchor
+  have hanchorNe : (cZ T.anchor : ℚ) ≠ 0 := by
+    exact_mod_cast (ne_of_gt hanchorPos)
+  have hcAnchorNe : c T.anchor ≠ 0 := by
+    rw [hc T.anchor]
+    exact hanchorNe
+  obtain ⟨v, hv⟩ := pkgElim_rowTemplateValue_integer T p k
+  cases he : T.entry k with
+  | none => exact ⟨0, by simp [rowTemplateCoefficient, RowTemplate.value, he]⟩
+  | some e =>
+    have hmem : k ∈ T.support := by simp [RowTemplate.support, he]
+    have hkle : k ≤ T.anchor := Finset.le_max' T.support k hmem
+    by_cases heq : k = T.anchor
+    · subst k
+      refine ⟨v, ?_⟩
+      unfold rowTemplateCoefficient
+      rw [div_self hcAnchorNe, one_mul]
+      exact hv
+    · have hlt : k < T.anchor := lt_of_le_of_ne hkle heq
+      obtain ⟨n, hn⟩ := hratio k T.anchor hlt
+      have hscale : c k / c T.anchor = (W : ℚ) * n := by
+        rw [hc k, hc T.anchor, hn]
+        push_cast
+        field_simp [hanchorNe]
+      refine ⟨W * n * v, ?_⟩
+      unfold rowTemplateCoefficient
+      rw [hscale, hv]
+      push_cast
+      ring
+
 theorem uniformIntegerIntervalLaw_tsum_one {L : ℕ} (hL : 0 < L) :
     ∑' z : ℤ, FromArithmetic.uniformIntegerIntervalLaw 0 L z = 1 := by
   classical
