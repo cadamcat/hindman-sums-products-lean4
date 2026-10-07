@@ -830,16 +830,6 @@ theorem p_adic_polynomial_unit_zero_set {m : ℕ} (p : ℕ) (hp : p.Prime)
     · split_ifs <;> norm_num
   exact squeeze_zero' (Eventually.of_forall hnonneg) hbound hscaled
 
-/-- Finite union bound choosing one common exponent for all prescribed small-prime tests
-(§3 lines 276–280). The polynomials must be nonzero (§3 line 200); for `D={0}` the event
-always holds. -/
-theorem choose_small_prime_exception_exponent {m : ℕ}
-    (w : ℕ) (hw : 1 ≤ w) (D : Finset (IntegerPolynomial m)) (hD : ∀ P ∈ D, P ≠ 0) :
-    ∃ e : ℕ, 1 ≤ e ∧
-      uniformUnitTupleProbability ((primorial w) ^ e) m
-        (uniformSmallPrimeException D w e) ≤ 1 / (w : ℝ) := by
-  sorry
-
 /-! ### Item (3): prime pools (§3 lines 220–238, 283–294, 304–315) -/
 
 private lemma probability_law_summable (μ : ℕ → ℝ)
@@ -2176,6 +2166,226 @@ private theorem primeSmallDivisibilityEvent_residue {m w e Q : ℕ}
   · rintro ⟨q, hq, hqle, P, hP, hdivP⟩
     refine ⟨q, hq, hqle, P, hP, ?_⟩
     exact (hEval q hq hqle P).mpr hdivP
+
+/-- Finite union bound choosing one common exponent for all prescribed small-prime tests
+(§3 lines 276–280). The polynomials must be nonzero (§3 line 200); for `D={0}` the event
+always holds. -/
+private theorem uniformUnitTupleProbability_finset_union_bound {Q m : ℕ} {β : Type*}
+    (T : Finset β) (E : β → (Fin m → Fin Q) → Prop) :
+    uniformUnitTupleProbability Q m (fun x => ∃ t ∈ T, E t x) ≤
+      ∑ t ∈ T, uniformUnitTupleProbability Q m (E t) := by
+  classical
+  letI : DecidablePred (fun x : Fin m → Fin Q => ∃ t ∈ T, E t x) :=
+    fun x => Classical.propDecidable _
+  have hmass (x : Fin m → Fin Q) : 0 ≤ uniformUnitTupleMass Q m x := by
+    unfold uniformUnitTupleMass
+    split_ifs <;> positivity
+  have hindicator (x : Fin m → Fin Q) :
+      (if ∃ t ∈ T, E t x then (1 : ℝ) else 0) ≤
+        ∑ t ∈ T, if E t x then (1 : ℝ) else 0 := by
+    by_cases hx : ∃ t ∈ T, E t x
+    · obtain ⟨t, ht, hEt⟩ := hx
+      let S := T.filter fun a => E a x
+      have hS : S.Nonempty := ⟨t, Finset.mem_filter.mpr ⟨ht, hEt⟩⟩
+      have hcard : 1 ≤ S.card := Nat.one_le_iff_ne_zero.mpr (Finset.card_ne_zero.mpr hS)
+      have hsum :
+          (∑ t ∈ T, if E t x then (1 : ℝ) else 0) = (S.card : ℝ) := by
+        rw [← Finset.sum_filter]
+        simp [S]
+      have hs : 1 ≤ ∑ t ∈ T, if E t x then (1 : ℝ) else 0 := by
+        calc
+          (1 : ℝ) ≤ (S.card : ℝ) := by exact_mod_cast hcard
+          _ = _ := hsum.symm
+      rw [if_pos ⟨t, ht, hEt⟩]
+      exact hs
+    · rw [if_neg hx]
+      exact Finset.sum_nonneg (by intro t ht; split_ifs <;> positivity)
+  calc
+    uniformUnitTupleProbability Q m (fun x => ∃ t ∈ T, E t x) ≤
+        ∑ x : Fin m → Fin Q,
+          uniformUnitTupleMass Q m x *
+            (∑ t ∈ T, if E t x then (1 : ℝ) else 0) := by
+              unfold uniformUnitTupleProbability
+              apply Finset.sum_le_sum
+              intro x hx
+              exact mul_le_mul_of_nonneg_left (hindicator x) (hmass x)
+    _ = ∑ t ∈ T, ∑ x : Fin m → Fin Q,
+          uniformUnitTupleMass Q m x * if E t x then (1 : ℝ) else 0 := by
+            calc
+              _ = ∑ x : Fin m → Fin Q, ∑ t ∈ T,
+                  uniformUnitTupleMass Q m x * (if E t x then (1 : ℝ) else 0) := by
+                    apply Finset.sum_congr rfl
+                    intro x hx
+                    rw [Finset.mul_sum]
+              _ = _ := by rw [Finset.sum_comm]
+    _ = ∑ t ∈ T, uniformUnitTupleProbability Q m (E t) := by
+          rfl
+
+theorem choose_small_prime_exception_exponent {m : ℕ}
+    (w : ℕ) (hw : 1 ≤ w) (D : Finset (IntegerPolynomial m)) (hD : ∀ P ∈ D, P ≠ 0) :
+    ∃ e : ℕ, 1 ≤ e ∧
+      uniformUnitTupleProbability ((primorial w) ^ e) m
+        (uniformSmallPrimeException D w e) ≤ 1 / (w : ℝ) := by
+  classical
+  let W := primorial w
+  let Q := (Finset.Icc 2 w).filter Nat.Prime
+  let T : Finset (ℕ × IntegerPolynomial m) := Q.product D
+  let E (e : ℕ) (t : ℕ × IntegerPolynomial m) (x : Fin m → Fin (W ^ e)) : Prop :=
+    ((t.1 ^ e : ℕ) : ℤ) ∣ evalIntegerPolynomial t.2 (fun i => ((x i).val : ℤ))
+  let E₀ (e : ℕ) (t : ℕ × IntegerPolynomial m)
+      (x : Fin m → Fin (t.1 ^ e)) : Prop :=
+    ((t.1 ^ e : ℕ) : ℤ) ∣ evalIntegerPolynomial t.2 (fun i => ((x i).val : ℤ))
+  have hunion (e : ℕ) (x : Fin m → Fin (W ^ e)) :
+      uniformSmallPrimeException D w e x ↔ ∃ t ∈ T, E e t x := by
+    constructor
+    · rintro ⟨q, hq, hqle, P, hP, hdiv⟩
+      have hqmem : q ∈ Q := by
+        dsimp [Q]
+        apply Finset.mem_filter.mpr
+        exact ⟨Finset.mem_Icc.mpr ⟨hq.two_le, hqle⟩, hq⟩
+      refine ⟨(q, P), Finset.mem_product.mpr ⟨hqmem, hP⟩, ?_⟩
+      exact hdiv
+    · rintro ⟨⟨q, P⟩, ht, hdiv⟩
+      rcases Finset.mem_product.mp ht with ⟨hqmem, hP⟩
+      have hqmem' : q ∈ Q := hqmem
+      dsimp [Q] at hqmem'
+      have ⟨hqIcc, hq⟩ := Finset.mem_filter.mp hqmem'
+      have ⟨_, hqle⟩ := Finset.mem_Icc.mp hqIcc
+      exact ⟨q, hq, hqle, P, hP, hdiv⟩
+  have hunionProb (e : ℕ) :
+      uniformUnitTupleProbability (W ^ e) m (uniformSmallPrimeException D w e) ≤
+        ∑ t ∈ T, uniformUnitTupleProbability (W ^ e) m (E e t) := by
+    calc
+      uniformUnitTupleProbability (W ^ e) m (uniformSmallPrimeException D w e) =
+          uniformUnitTupleProbability (W ^ e) m (fun x => ∃ t ∈ T, E e t x) := by
+            unfold uniformUnitTupleProbability
+            apply Finset.sum_congr rfl
+            intro x hx
+            have h := hunion e x
+            by_cases he : uniformSmallPrimeException D w e x
+            · have h' := h.mp he
+              simp [he, h']
+            · have h' : ¬ ∃ t ∈ T, E e t x := fun h' => he (h.mpr h')
+              simp [he, h']
+      _ ≤ _ := uniformUnitTupleProbability_finset_union_bound T (E e)
+  have hpush (e : ℕ) (t : ℕ × IntegerPolynomial m) (ht : t ∈ T) :
+    uniformUnitTupleProbability (W ^ e) m (E e t) =
+        uniformUnitTupleProbability (t.1 ^ e) m (E₀ e t) := by
+    let K := t.1 ^ e
+    rcases Finset.mem_filter.mp (Finset.mem_product.mp ht).1 with ⟨hIcc, htPrime⟩
+    have htle : t.1 ≤ w := (Finset.mem_Icc.mp hIcc).2
+    have hPD : t.2 ∈ D := (Finset.mem_product.mp ht).2
+    have hK : 0 < K := by dsimp [K]; exact pow_pos htPrime.pos e
+    have hW : 0 < W ^ e := pow_pos (primorial_pos w) e
+    letI : NeZero K := ⟨hK.ne'⟩
+    letI : NeZero (W ^ e) := ⟨hW.ne'⟩
+    have hprimeW : t.1 ∣ W := by
+      dsimp [W]
+      exact htPrime.dvd_primorial_iff.mpr (by omega)
+    have hdiv : K ∣ W ^ e := by
+      dsimp [K, W]
+      exact pow_dvd_pow_of_dvd hprimeW e
+    have hred (x : Fin m → Fin (W ^ e)) :
+        E e t x ↔ E₀ e t (masterResidueTupleReduce hK x) := by
+      dsimp [E, E₀, K]
+      apply evalIntegerPolynomial_dvd_iff_zmod
+      intro i
+      dsimp [masterResidueTupleReduce, masterResidueReduce]
+      norm_cast
+      simpa only [ZMod.val_natCast] using
+        (ZMod.natCast_zmod_val ((x i).val : ZMod K)).symm
+    calc
+      uniformUnitTupleProbability (W ^ e) m (E e t) =
+          uniformUnitTupleProbability (W ^ e) m
+            (fun x => E₀ e t (masterResidueTupleReduce hK x)) := by
+              unfold uniformUnitTupleProbability
+              apply Finset.sum_congr rfl
+              intro x hx
+              have h := hred x
+              by_cases he : E e t x
+              · have h' := h.mp he
+                simp [he, h']
+              · have h' : ¬ E₀ e t (masterResidueTupleReduce hK x) :=
+                  fun h' => he (h.mpr h')
+                simp [he, h']
+      _ = uniformUnitTupleProbability K m (E₀ e t) :=
+        uniformUnitTupleProbability_reduce hK hW hdiv (E₀ e t)
+  have hsumLimit : Tendsto
+      (fun e => ∑ u ∈ T, uniformUnitTupleProbability (u.1 ^ e) m (E₀ e u))
+      atTop (𝓝 0) := by
+    have haux : ∀ S : Finset (ℕ × IntegerPolynomial m), S ⊆ T →
+        Tendsto (fun e => ∑ u ∈ S, uniformUnitTupleProbability (u.1 ^ e) m (E₀ e u))
+          atTop (𝓝 0) := by
+      intro S
+      induction S using Finset.induction_on with
+      | empty =>
+          intro hS
+          simp
+      | @insert t S hnot ih =>
+          intro hS
+          have ht0 : t ∈ T := hS (Finset.mem_insert_self _ _)
+          have hSsub : S ⊆ T := by
+            intro a ha
+            exact hS (Finset.mem_insert_of_mem ha)
+          rcases Finset.mem_product.mp ht0 with ⟨hqmem, hPmem⟩
+          dsimp [Q] at hqmem
+          rcases Finset.mem_filter.mp hqmem with ⟨hIcc, hq⟩
+          have hP : t.2 ≠ 0 := hD t.2 hPmem
+          have hterm := p_adic_polynomial_unit_zero_set t.1 hq t.2 hP
+          have hsumInsert (e : ℕ) :
+              (∑ u ∈ insert t S,
+                uniformUnitTupleProbability (u.1 ^ e) m (E₀ e u)) =
+                uniformUnitTupleProbability (t.1 ^ e) m (E₀ e t) +
+                  ∑ u ∈ S, uniformUnitTupleProbability (u.1 ^ e) m (E₀ e u) := by
+            exact Finset.sum_insert hnot
+          have hfun :
+              (fun e => ∑ u ∈ insert t S,
+                uniformUnitTupleProbability (u.1 ^ e) m (E₀ e u)) =
+              fun e => uniformUnitTupleProbability (t.1 ^ e) m (E₀ e t) +
+                ∑ u ∈ S, uniformUnitTupleProbability (u.1 ^ e) m (E₀ e u) := by
+            funext e
+            exact hsumInsert e
+          rw [hfun]
+          simpa [E₀] using hterm.add (ih hSsub)
+    exact haux T (fun _ ht => ht)
+  have hnonneg (e : ℕ) : 0 ≤ uniformUnitTupleProbability (W ^ e) m
+      (uniformSmallPrimeException D w e) := by
+    unfold uniformUnitTupleProbability
+    apply Finset.sum_nonneg
+    intro x hx
+    apply mul_nonneg
+    · unfold uniformUnitTupleMass
+      split_ifs <;> positivity
+    · split_ifs <;> norm_num
+  have hsmall : Tendsto
+      (fun e => uniformUnitTupleProbability (W ^ e) m
+        (uniformSmallPrimeException D w e)) atTop (𝓝 0) := by
+    apply squeeze_zero' (Eventually.of_forall hnonneg)
+    · filter_upwards with e
+      calc
+        uniformUnitTupleProbability (W ^ e) m (uniformSmallPrimeException D w e) ≤
+          ∑ t ∈ T, uniformUnitTupleProbability (W ^ e) m (E e t) := hunionProb e
+        _ = ∑ t ∈ T, uniformUnitTupleProbability (t.1 ^ e) m (E₀ e t) := by
+          apply Finset.sum_congr rfl
+          intro t ht
+          exact hpush e t ht
+    · exact hsumLimit
+  have hε : 0 < 1 / (w : ℝ) := by positivity
+  have hbound : ∀ᶠ e : ℕ in atTop,
+      uniformUnitTupleProbability (W ^ e) m (uniformSmallPrimeException D w e) ≤
+        1 / (w : ℝ) := by
+    filter_upwards [hsmall.eventually (Metric.ball_mem_nhds 0 hε)] with e he
+    change dist (uniformUnitTupleProbability (W ^ e) m
+      (uniformSmallPrimeException D w e)) 0 < 1 / (w : ℝ) at he
+    have habs : |uniformUnitTupleProbability (W ^ e) m
+      (uniformSmallPrimeException D w e)| < 1 / (w : ℝ) := by
+        simpa [Real.dist_eq] using he
+    exact le_of_lt (abs_lt.mp habs).2
+  obtain ⟨E₀, hE₀⟩ := eventually_atTop.mp hbound
+  let e := max E₀ 1
+  refine ⟨e, Nat.le_max_right _ _, ?_⟩
+  exact hE₀ e (Nat.le_max_left _ _)
+
 
 theorem pool_small_prime_exception_transfer {m : ℕ} (D : Finset (IntegerPolynomial m))
     (w e Q lo hi : ℕ) (hQ : 0 < Q) (hdiv : (primorial w) ^ e ∣ Q) :
