@@ -1780,6 +1780,235 @@ private theorem harmonicUnitMultiples_sum_le (X W k : ℕ) (hX : 0 < X)
       mul_le_mul_of_nonneg_left hsumSubset (by positivity)
     _ = _ := by rw [hUeq]
 
+private theorem harmonicNatDivisibilityMass_le (X W k : ℕ)
+    (hW : 0 < W) (hX : 4 * W ≤ X)
+    (hlogLarge : 4 * (W : ℝ) ≤ Real.log (X : ℝ))
+    (hk : 0 < k) (hcop : Nat.Coprime k W) :
+    (∑' n : ℕ, harmonicNatLaw X W n * if k ∣ n then 1 else 0) ≤
+      6 / (k : ℝ) := by
+  classical
+  let H := harmonicNormalizer X W
+  let θ : ℝ := (Nat.totient W : ℝ) / W
+  have hWone : 1 ≤ W := Nat.one_le_iff_ne_zero.mpr (Nat.ne_of_gt hW)
+  have hXpos : 0 < X := by omega
+  have hXtwo : 2 ≤ X := by omega
+  have hXreal : 0 < (X : ℝ) := by exact_mod_cast hXpos
+  have hWreal : 0 < (W : ℝ) := by exact_mod_cast hW
+  have hWrealone : 1 ≤ (W : ℝ) := by exact_mod_cast hWone
+  have hfourWleX : 4 * (W : ℝ) ≤ (X : ℝ) := by exact_mod_cast hX
+  have hWX : (W : ℝ) / X ≤ 1 / 4 := by
+    rw [div_le_iff₀ hXreal]
+    nlinarith
+  have hlogLower : 4 ≤ Real.log (X : ℝ) := by nlinarith [hlogLarge]
+  have hlog : Real.log (X : ℝ) > (W : ℝ) / X := by linarith
+  have hnormPos : 0 < H := by
+    dsimp [H]
+    exact harmonicNormalizer_pos_of_cutoff X W hW hX
+  have hsample := sampling_pointwise_claim X W hW hXtwo hlog
+  have hnormError := hsample.normalizer hXtwo hlog
+  have hphiPos : 0 < (Nat.totient W : ℝ) := by
+    exact_mod_cast Nat.totient_pos.mpr hW
+  have hθpos : 0 < θ := by
+    dsimp [θ]
+    exact div_pos hphiPos hWreal
+  have hφ : (Nat.totient W : ℝ) = θ * (W : ℝ) := by
+    dsimp [θ]
+    field_simp [ne_of_gt hWreal]
+  have hφX : (Nat.totient W : ℝ) / X = θ * ((W : ℝ) / X) := by
+    rw [hφ]
+    field_simp [ne_of_gt hXreal]
+  have hnormLower : θ * (Real.log (X : ℝ) - (W : ℝ) / X) ≤ H := by
+    have hdev := (abs_le.mp hnormError).1
+    dsimp [H, θ] at hdev ⊢
+    rw [hφX] at hdev
+    nlinarith
+  have hprefix := harmonicUnitPrefix_bound X W hW hXtwo hlog
+  have hprefixUpper :
+      (∑ n ∈ Finset.Ico 1 (X ^ 2),
+        if Nat.Coprime n W then 1 / (n : ℝ) else 0) ≤
+        θ * (2 * Real.log (X : ℝ) + (W : ℝ)) := by
+    calc
+      _ ≤ (Nat.totient W : ℝ) / W * (2 * Real.log (X : ℝ)) + Nat.totient W := hprefix
+      _ = θ * (2 * Real.log (X : ℝ) + (W : ℝ)) := by
+        rw [hφ]
+        dsimp [θ]
+        field_simp [ne_of_gt hWreal]
+  have hratio :
+      2 * Real.log (X : ℝ) + (W : ℝ) ≤
+        6 * (Real.log (X : ℝ) - (W : ℝ) / X) := by
+    nlinarith [hlogLarge, hWX, hWrealone]
+  have hprefix6 :
+      (∑ n ∈ Finset.Ico 1 (X ^ 2),
+        if Nat.Coprime n W then 1 / (n : ℝ) else 0) ≤ 6 * H := by
+    calc
+      _ ≤ θ * (2 * Real.log (X : ℝ) + (W : ℝ)) := hprefixUpper
+      _ ≤ θ * (6 * (Real.log (X : ℝ) - (W : ℝ) / X)) :=
+        mul_le_mul_of_nonneg_left hratio hθpos.le
+      _ = 6 * (θ * (Real.log (X : ℝ) - (W : ℝ) / X)) := by ring
+      _ ≤ 6 * H := mul_le_mul_of_nonneg_left hnormLower (by norm_num)
+  have hprefixDiv :
+      (∑ n ∈ Finset.Ico 1 (X ^ 2),
+        if Nat.Coprime n W then 1 / (n : ℝ) else 0) / H ≤ 6 :=
+    (div_le_iff₀ hnormPos).2 (by nlinarith [hprefix6])
+  have hdivMass := harmonicUnitMultiples_sum_le X W k hXpos hk hcop
+  let S := harmonicNatSupport X W
+  let T := S.filter (fun n => k ∣ n)
+  have hzero (n : ℕ) (hn : n ∉ S) :
+      harmonicNatLaw X W n * (if k ∣ n then 1 else 0) = 0 := by
+    rw [harmonicNatLaw_zero_of_not_mem X W n (by simpa [S] using hn)]
+    simp
+  have hmassEq :
+      (∑' n : ℕ, harmonicNatLaw X W n * (if k ∣ n then 1 else 0)) =
+        ∑ n ∈ S, harmonicNatLaw X W n * (if k ∣ n then 1 else 0) := by
+    rw [tsum_eq_sum (s := S) hzero]
+  have hfilter :
+      (∑ n ∈ S, harmonicNatLaw X W n * (if k ∣ n then 1 else 0)) =
+        ∑ n ∈ T, harmonicNatLaw X W n := by
+    dsimp [T]
+    rw [Finset.sum_filter]
+    apply Finset.sum_congr rfl
+    intro n hn
+    by_cases hd : k ∣ n <;> simp [hd]
+  have hTlaw :
+      (∑ n ∈ T, harmonicNatLaw X W n) =
+        (1 / H) * ∑ n ∈ T, 1 / (n : ℝ) := by
+    calc
+      (∑ n ∈ T, harmonicNatLaw X W n) =
+          ∑ n ∈ T, (1 / H) * (1 / (n : ℝ)) := by
+        apply Finset.sum_congr rfl
+        intro n hn
+        have hnS : n ∈ S := (Finset.mem_filter.mp hn).1
+        have hnrange := Finset.mem_Ico.mp (Finset.mem_filter.mp hnS).1
+        have hcopn := (Finset.mem_filter.mp hnS).2
+        have hnpos : 0 < n := lt_of_lt_of_le hXpos hnrange.1
+        have hpoint : harmonicNatLaw X W n = 1 / ((n : ℝ) * H) := by
+          simp [harmonicNatLaw, H, hnrange.1, hnrange.2, hcopn]
+        rw [hpoint]
+        field_simp [ne_of_gt hnormPos, ne_of_gt (Nat.cast_pos.mpr hnpos)]
+      _ = (1 / H) * ∑ n ∈ T, 1 / (n : ℝ) := by rw [← Finset.mul_sum]
+  calc
+    (∑' n : ℕ, harmonicNatLaw X W n * if k ∣ n then 1 else 0) =
+        ∑ n ∈ S, harmonicNatLaw X W n * (if k ∣ n then 1 else 0) := hmassEq
+    _ = ∑ n ∈ T, harmonicNatLaw X W n := hfilter
+    _ = (1 / H) * ∑ n ∈ T, 1 / (n : ℝ) := hTlaw
+    _ ≤ (1 / H) * ((1 / (k : ℝ)) *
+          (∑ n ∈ Finset.Ico 1 (X ^ 2),
+            if Nat.Coprime n W then 1 / (n : ℝ) else 0)) :=
+      mul_le_mul_of_nonneg_left hdivMass (by positivity)
+    _ = (1 / (k : ℝ)) *
+          ((∑ n ∈ Finset.Ico 1 (X ^ 2),
+            if Nat.Coprime n W then 1 / (n : ℝ) else 0) / H) := by ring
+    _ ≤ (1 / (k : ℝ)) * 6 := mul_le_mul_of_nonneg_left hprefixDiv (by positivity)
+    _ = 6 / (k : ℝ) := by ring
+
+private theorem primePowerProduct_dvd_of_factorization {n : ℕ} (hn : n ≠ 0)
+    (P : Finset ℕ) (hprime : ∀ p ∈ P, p.Prime) (a : ℕ → ℕ)
+    (hval : ∀ p ∈ P, Nat.factorization n p = a p) :
+    (∏ p ∈ P, p ^ a p) ∣ n := by
+  classical
+  induction P using Finset.induction_on with
+  | empty => simp
+  | @insert p P hpnot ih =>
+    have hpPow : p ^ a p ∣ n := by
+      apply (hprime p (Finset.mem_insert_self p P)).pow_dvd_iff_le_factorization hn |>.2
+      rw [hval p (Finset.mem_insert_self p P)]
+    have hqVal : ∀ q (hq : q ∈ P),
+        Nat.factorization n q = a q := by
+      intro q hq
+      exact hval q (Finset.mem_insert_of_mem hq)
+    have hprimeP : ∀ q ∈ P, q.Prime := by
+      intro q hq
+      exact hprime q (Finset.mem_insert_of_mem hq)
+    have hPdiv : (∏ q ∈ P, q ^ a q) ∣ n := ih hprimeP hqVal
+    have hcop :
+        Nat.Coprime (p ^ a p) (∏ q ∈ P, q ^ a q) := by
+      rw [Nat.coprime_prod_right_iff]
+      intro q hq
+      apply Nat.coprime_pow_primes (a p) (a q)
+        (hprime p (Finset.mem_insert_self p P))
+        (hprime q (Finset.mem_insert_of_mem hq))
+      intro heq
+      subst q
+      exact hpnot hq
+    rw [Finset.prod_insert hpnot]
+    exact hcop.mul_dvd_of_dvd_of_dvd hpPow hPdiv
+
+private theorem harmonicNatPrimeVectorMass_le (X W : ℕ) (P : Finset ℕ)
+    (hprime : ∀ p ∈ P, p.Prime) (hcop : ∀ p ∈ P, Nat.Coprime p W)
+    (hW : 0 < W) (hX : 4 * W ≤ X)
+    (hlogLarge : 4 * (W : ℝ) ≤ Real.log (X : ℝ))
+    (a : ℕ → ℕ) :
+    (∑' n : ℕ, harmonicNatLaw X W n *
+      (if ∀ p ∈ P, Nat.factorization n p = a p then 1 else 0)) ≤
+      6 / ∏ p ∈ P, (p : ℝ) ^ (a p) := by
+  classical
+  let K : ℕ := ∏ p ∈ P, p ^ a p
+  have hKpos : 0 < K := by
+    dsimp [K]
+    apply Finset.prod_pos
+    intro p hp
+    exact Nat.pow_pos (hprime p hp).pos
+  have hKcop : Nat.Coprime K W := by
+    dsimp [K]
+    apply Nat.coprime_prod_left_iff.mpr
+    intro p hp
+    exact (hcop p hp).pow_left _
+  have hpoint (n : ℕ) :
+      harmonicNatLaw X W n *
+          (if ∀ p ∈ P, Nat.factorization n p = a p then 1 else 0) ≤
+        harmonicNatLaw X W n * (if K ∣ n then 1 else 0) := by
+    by_cases hval : ∀ p ∈ P, Nat.factorization n p = a p
+    · have hdiv : K ∣ n := by
+        by_cases hn : n = 0
+        · simp [hn]
+        · simpa [K] using primePowerProduct_dvd_of_factorization hn P hprime a hval
+      simp only [if_pos hval, if_pos hdiv, mul_one]
+      exact le_rfl
+    · have hnonneg : 0 ≤ harmonicNatLaw X W n := by
+        unfold harmonicNatLaw
+        split_ifs with h
+        · have hnpos : 0 < n := lt_of_lt_of_le (by omega : 0 < X) h.1
+          positivity [harmonicNormalizer_pos_of_cutoff X W hW hX]
+        · simp
+      by_cases hdiv : K ∣ n
+      · simp [hval, hdiv, hnonneg]
+      · simp [hval, hdiv]
+  have hLawSummable : Summable (fun n : ℕ => harmonicNatLaw X W n) := by
+    apply summable_of_ne_finset_zero (s := harmonicNatSupport X W)
+    intro n hn
+    exact harmonicNatLaw_zero_of_not_mem X W n hn
+  have hLawNonneg (n : ℕ) : 0 ≤ harmonicNatLaw X W n := by
+    unfold harmonicNatLaw
+    split_ifs with h
+    · have hnpos : 0 < n := lt_of_lt_of_le (by omega : 0 < X) h.1
+      positivity [harmonicNormalizer_pos_of_cutoff X W hW hX]
+    · simp
+  have hLhsSummable : Summable (fun n : ℕ => harmonicNatLaw X W n *
+      (if ∀ p ∈ P, Nat.factorization n p = a p then 1 else 0)) := by
+    apply hLawSummable.of_nonneg_of_le
+    · intro n
+      exact mul_nonneg (hLawNonneg n) (by split_ifs <;> norm_num)
+    · intro n
+      by_cases hval : ∀ p ∈ P, Nat.factorization n p = a p
+      · simp only [if_pos hval, mul_one, le_rfl]
+      · simp [hval, hLawNonneg n]
+  have hRhsSummable : Summable (fun n : ℕ =>
+      harmonicNatLaw X W n * (if K ∣ n then 1 else 0)) := by
+    apply hLawSummable.of_nonneg_of_le
+    · intro n
+      exact mul_nonneg (hLawNonneg n) (by split_ifs <;> norm_num)
+    · intro n
+      by_cases hdiv : K ∣ n <;> simp [hdiv, hLawNonneg n]
+  have hmassLE := Summable.tsum_le_tsum hpoint hLhsSummable hRhsSummable
+  calc
+    (∑' n : ℕ, harmonicNatLaw X W n *
+      (if ∀ p ∈ P, Nat.factorization n p = a p then 1 else 0)) ≤
+        (6 : ℝ) / (K : ℝ) := by
+          have hdiv := harmonicNatDivisibilityMass_le X W K hW hX hlogLarge hKpos hKcop
+          exact hmassLE.trans hdiv
+    _ = 6 / ∏ p ∈ P, (p : ℝ) ^ (a p) := by
+      simp [K, Nat.cast_prod, Nat.cast_pow]
+
 private theorem harmonicNatValuationMass_le (X W p a : ℕ)
     (hW : 0 < W) (hX : 4 * W ≤ X)
     (hlogLarge : 4 * (W : ℝ) ≤ Real.log (X : ℝ))
