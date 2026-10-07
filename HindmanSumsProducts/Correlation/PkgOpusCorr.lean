@@ -957,5 +957,163 @@ theorem opus_corr_absorption_estimate (S : FromArithmetic.MasterScales K Aset s 
 
 end BalancedAbsorption3
 
+
+/-! ## The balanced step on mask-removal states -/
+
+section BalancedState
+
+variable {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+/-- A row is invariant at the balanced step when its two branches are parallel. -/
+def opus_corr_balancedInv (st : MaskRemovalState m q r) (u v : Fin m) (i : Fin r) : Prop :=
+  ((st.shape.row i).scaleBalancedP u v).Parallel ((st.shape.row i).scaleBalancedQ u v)
+
+/-- The weight `Ω` of the invariant rows. -/
+noncomputable def opus_corr_balancedOmega (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (u v : Fin m) (x : (Fin q → ℕ) × (Fin m → ℤ)) : ℝ :=
+  pkgMask_invariantRowWeight st S C a N (opus_corr_balancedInv st u v) x.1 x.2
+
+/-- The integrand without the removed mask `U` (a valid state with one mask fewer). -/
+def opus_corr_eraseMask (st : MaskRemovalState m q r) (U : Finset (Fin m)) :
+    MaskRemovalState m q r :=
+  ⟨st.shape, st.masks.erase U, st.maskFunction, st.rowFunction⟩
+
+/-- The residual `H_p` of the balanced step (04:205–212) without its multiplier `η_p`. -/
+noncomputable def opus_corr_balancedResidual (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (U : Finset (Fin m)) (u v : Fin m) (x : (Fin q → ℕ) × (Fin m → ℤ)) (k : ℕ) : ℝ :=
+  MaskRemovalState.pkgMask_stateIntegrand (opus_corr_eraseMask st U) S C a N x.1
+      (opus_corr_balancedVec u v k x.2) /
+    opus_corr_balancedOmega st S C a N u v x
+
+theorem opus_corr_balancedOmega_ge_one (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (u v : Fin m) (x : (Fin q → ℕ) × (Fin m → ℤ)) :
+    1 ≤ opus_corr_balancedOmega st S C a N u v x := by
+  classical
+  unfold opus_corr_balancedOmega pkgMask_invariantRowWeight
+  calc
+    (1 : ℝ) = ∏ _i : Fin r, (1 : ℝ) := by simp
+    _ ≤ _ := by
+      apply Finset.prod_le_prod₀ (fun _ _ => zero_le_one)
+      intro i _
+      by_cases hI : opus_corr_balancedInv st u v i
+      · rw [dif_pos hI]
+        have := chainWeight_nonneg S C N (st.shape.row i).anchor
+          (rowForm (chainScale S.core.parameters C a N) (st.shape.row i) x.1
+            (fun k => (x.2 k : ℚ))).num
+        linarith
+      · rw [dif_neg hI]
+
+theorem opus_corr_eraseMask_valid (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ) (U : Finset (Fin m))
+    (hvalid : st.Valid S C a N Jstar gstar) :
+    (opus_corr_eraseMask st U).Valid S C a N Jstar gstar := by
+  obtain ⟨h1, h2, h3, h4⟩ := hvalid
+  exact ⟨h1, fun V hV => h2 V (Finset.mem_of_mem_erase hV), h3, h4⟩
+
+/-- `η_kΦ(D_kz) = (b_U(z_U)Ω(z))·(η_kH_k(z))`: the removed mask is unchanged by the balanced
+substitution on the support of `η_k` (04:186–205). -/
+theorem opus_corr_balanced_factor (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (U : Finset (Fin m)) (u v : Fin m) (huv : u ≠ v) (hU : U ∈ st.masks)
+    (hu : u ∈ U) (hv : v ∈ U) (x : (Fin q → ℕ) × (Fin m → ℤ)) (k : ℕ) :
+    opus_corr_eta k (x.2 u) *
+        MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1 (opus_corr_balancedVec u v k x.2) =
+      (st.maskFunction U x.1 (∏ j ∈ U, x.2 j) * opus_corr_balancedOmega st S C a N u v x) *
+        (opus_corr_eta k (x.2 u) * opus_corr_balancedResidual st S C a N U u v x k) := by
+  classical
+  by_cases hd : (k : ℤ) ∣ x.2 u
+  · have hprod : ∏ j ∈ U, opus_corr_balancedVec u v k x.2 j = ∏ j ∈ U, x.2 j := by
+      unfold opus_corr_balancedVec
+      rw [Function.update_comm (Ne.symm huv)]
+      exact mask_product_balanced_update U u v hu hv huv x.2 k hd
+    have hΩ : opus_corr_balancedOmega st S C a N u v x ≠ 0 :=
+      ne_of_gt (lt_of_lt_of_le one_pos (opus_corr_balancedOmega_ge_one st S C a N u v x))
+    unfold opus_corr_balancedResidual
+    unfold MaskRemovalState.pkgMask_stateIntegrand
+    simp only [opus_corr_eraseMask]
+    rw [← Finset.mul_prod_erase st.masks _ hU, hprod]
+    field_simp
+  · simp [opus_corr_eta, hd]
+
+/-- `|E(b_UΩ)·E_pη_pH_p|² ≤ (EΩ)·E[Ω(E_pη_pH_p)²]` (equation `eq:mask-weighted-cs`). -/
+theorem opus_corr_balanced_cs (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (hMass : 0 < primePoolMass (S.primeStage.pool N C.gap).lower
+      (S.primeStage.pool N C.gap).upper)
+    (U : Finset (Fin m)) (u v : Fin m) (huv : u ≠ v) (hU : U ∈ st.masks)
+    (hu : u ∈ U) (hv : v ∈ U) :
+    |∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+          MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1
+            (opus_corr_balancedVec u v k x.2))| ^ 2 ≤
+      (∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+          opus_corr_balancedOmega st S C a N u v x) *
+        ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+          (opus_corr_balancedOmega st S C a N u v x *
+            (poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+              opus_corr_balancedResidual st S C a N U u v x k)) ^ 2) := by
+  let Ω := opus_corr_balancedOmega st S C a N u v
+  let H₀ : (Fin q → ℕ) × (Fin m → ℤ) → ℝ := fun x =>
+    st.maskFunction U x.1 (∏ j ∈ U, x.2 j) * Ω x
+  let H₁ : (Fin q → ℕ) × (Fin m → ℤ) → ℝ := fun x =>
+    poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+      opus_corr_balancedResidual st S C a N U u v x k)
+  have hΩ : ∀ x, 0 ≤ Ω x := fun x =>
+    le_trans zero_le_one (opus_corr_balancedOmega_ge_one st S C a N u v x)
+  have h0 : ∀ x, |H₀ x| ≤ Ω x := by
+    intro x
+    simp only [H₀]
+    rw [abs_mul, abs_of_nonneg (hΩ x)]
+    have hb := hvalid.2.1 U hU x.1 (∏ j ∈ U, x.2 j)
+    calc
+      |st.maskFunction U x.1 (∏ j ∈ U, x.2 j)| * Ω x ≤ 1 * Ω x :=
+        mul_le_mul_of_nonneg_right hb (hΩ x)
+      _ = Ω x := one_mul _
+  have hrewrite : ∀ x : (Fin q → ℕ) × (Fin m → ℤ),
+      poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+          MaskRemovalState.pkgMask_stateIntegrand st S C a N x.1
+            (opus_corr_balancedVec u v k x.2)) = H₀ x * H₁ x := by
+    intro x
+    simp only [H₀, H₁]
+    rw [← pkgMask_poolAverage_const_mul]
+    congr 1
+    funext k
+    exact opus_corr_balanced_factor st S C a N U u v huv hU hu hv x k
+  simp_rw [hrewrite]
+  exact gapPivot_weighted_cauchy_schwarz S C N hMass Ω H₀ H₁ hΩ h0
+
+/-- The square of the residual average, expanded over two independent fresh primes. -/
+theorem opus_corr_balanced_square_expand (st : MaskRemovalState m q r)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (U : Finset (Fin m)) (u v : Fin m) :
+    ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        (opus_corr_balancedOmega st S C a N u v x *
+          (poolAverage S C.gap N (fun k => opus_corr_eta k (x.2 u) *
+            opus_corr_balancedResidual st S C a N U u v x k)) ^ 2) =
+      ∑' x : (Fin q → ℕ) × (Fin m → ℤ), gapPivotMass S C N x.1 x.2 *
+        ∑' kk : ℕ × ℕ, (primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper kk.1 *
+          primePoolLaw (S.primeStage.pool N C.gap).lower
+            (S.primeStage.pool N C.gap).upper kk.2) *
+          (opus_corr_eta kk.1 (x.2 u) * opus_corr_eta kk.2 (x.2 u) *
+            (opus_corr_balancedOmega st S C a N u v x *
+              opus_corr_balancedResidual st S C a N U u v x kk.1 *
+              opus_corr_balancedResidual st S C a N U u v x kk.2)) := by
+  apply tsum_congr
+  intro x
+  congr 1
+  rw [sq, pkgMask_poolAverage_mul, ← tsum_mul_left]
+  apply tsum_congr
+  intro kk
+  ring
+
+end BalancedState
+
 end
 end HindmanSumsProducts
