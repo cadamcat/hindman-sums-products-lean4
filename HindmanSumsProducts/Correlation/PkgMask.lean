@@ -3584,6 +3584,97 @@ theorem harmonicResidueLaw_sum_one (X W modulus : ℕ) (hmodulus : 0 < modulus)
       exact harmonicLaw_zero_of_not_mem_support X W z hz
     _ = 1 := harmonicLaw_tsum_one_of_normalizer_pos X W hX hNorm
 
+theorem pivotBaseResidueLaw_finiteL1_le_sum_sampling_errors
+    {K s m : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N modulus : ℕ)
+    (hmodulus : 0 < modulus) (hcop : Nat.Coprime modulus (primorial (N + 1)))
+    (hX : ∀ i, 2 ≤ S.core.parameters.X N (C.block i).1)
+    (hlog : ∀ i, Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
+      (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) :
+    finiteL1 (FromArithmetic.baseResidueLaw modulus hmodulus
+      (pivotMass S.core.parameters C N)) (uniformBaseResidueLaw modulus m) ≤
+      ∑ i : Fin m,
+        harmonicResidueError (S.core.parameters.X N (C.block i).1)
+          (primorial (N + 1)) modulus := by
+  classical
+  let W := primorial (N + 1)
+  let μ : Fin m → Fin modulus → ℝ := fun i a =>
+    harmonicResidueLaw
+      (harmonicLaw (S.core.parameters.X N (C.block i).1) W) modulus a
+  let ν : Fin m → Fin modulus → ℝ := fun _ a => uniformResidueLaw modulus a
+  have hbase (r : Fin m → Fin modulus) :
+      FromArithmetic.baseResidueLaw modulus hmodulus
+        (pivotMass S.core.parameters C N) r = ∏ i, μ i (r i) := by
+    rw [pivotBaseResidueLaw_eq_prod_harmonicResidueLaw]
+  have huniform (r : Fin m → Fin modulus) :
+      uniformBaseResidueLaw modulus m r = ∏ i, ν i (r i) := by
+    simp [uniformBaseResidueLaw, uniformResidueLaw, ν, Finset.prod_const]
+  have hnorm (i : Fin m) :
+      0 < harmonicNormalizer (S.core.parameters.X N (C.block i).1) W :=
+    harmonicNormalizer_pos_of_cutoff _ _ (primorial_pos (N + 1))
+      (S.gapStage.valid_raw_cutoffs N (C.block i).1)
+  have hmassAbs (i : Fin m) : ∑ a : Fin modulus, |μ i a| = 1 := by
+    have hnonneg (a : Fin modulus) : 0 ≤ μ i a := by
+      exact harmonicResidueLaw_nonneg _ _ _ (hnorm i) a
+    calc
+      (∑ a : Fin modulus, |μ i a|) = ∑ a : Fin modulus, μ i a := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [abs_of_nonneg (hnonneg a)]
+      _ = 1 := harmonicResidueLaw_sum_one _ _ _ hmodulus
+        (S.core.parameters.Xpos N (C.block i).1) (hnorm i)
+  have hnuAbs : ∑ a : Fin modulus, |uniformResidueLaw modulus a| = 1 := by
+    have hmodR : (0 : ℝ) < modulus := by exact_mod_cast hmodulus
+    calc
+      (∑ a : Fin modulus, |uniformResidueLaw modulus a|) =
+          ∑ a : Fin modulus, 1 / (modulus : ℝ) := by
+        apply Finset.sum_congr rfl
+        intro a ha
+        rw [uniformResidueLaw, abs_of_pos (one_div_pos.mpr hmodR)]
+      _ = 1 := by simp [Finset.sum_const, div_eq_mul_inv, hmodR.ne']
+  have herr (i : Fin m) :
+      finiteL1 (μ i) (ν i) ≤
+        harmonicResidueError (S.core.parameters.X N (C.block i).1) W modulus := by
+    have hsample := FromArithmetic.sampling_pointwise_claim
+      (S.core.parameters.X N (C.block i).1) W (primorial_pos (N + 1))
+      (hX i) (hlog i)
+    exact hsample.residue_total_mass (hX i) (hlog i) modulus hcop hmodulus
+  have htensor := FromArithmetic.finite_product_l1_telescoping μ ν
+  have hfactor (i : Fin m) :
+      ∏ j ∈ Finset.univ.erase i,
+        max (∑ a : Fin modulus, |μ j a|) (∑ a : Fin modulus, |ν j a|) = 1 := by
+    apply Finset.prod_eq_one
+    intro j hj
+    rw [hmassAbs j, hnuAbs]
+    simp
+  have hL1eq :
+      finiteL1 (FromArithmetic.baseResidueLaw modulus hmodulus
+        (pivotMass S.core.parameters C N)) (uniformBaseResidueLaw modulus m) =
+        finiteL1 (fun r : Fin m → Fin modulus => ∏ i, μ i (r i))
+          (fun r => ∏ i, ν i (r i)) := by
+    unfold finiteL1
+    apply Finset.sum_congr rfl
+    intro r hr
+    rw [hbase r, huniform r]
+  calc
+    finiteL1 (FromArithmetic.baseResidueLaw modulus hmodulus
+      (pivotMass S.core.parameters C N)) (uniformBaseResidueLaw modulus m) =
+        finiteL1 (fun r : Fin m → Fin modulus => ∏ i, μ i (r i))
+          (fun r => ∏ i, ν i (r i)) := hL1eq
+    _ ≤ ∑ i, finiteL1 (μ i) (ν i) := by
+      calc
+        _ ≤ ∑ i, finiteL1 (μ i) (ν i) *
+            ∏ j ∈ Finset.univ.erase i,
+              max (∑ a : Fin modulus, |μ j a|) (∑ a : Fin modulus, |ν j a|) := htensor
+        _ = ∑ i, finiteL1 (μ i) (ν i) := by
+          apply Finset.sum_congr rfl
+          intro i hi
+          rw [hfactor i]
+          ring
+    _ ≤ ∑ i : Fin m,
+        harmonicResidueError (S.core.parameters.X N (C.block i).1) W modulus :=
+      Finset.sum_le_sum fun i hi => herr i
+
 noncomputable def gapPivotMass {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (z : Fin m → ℤ) : ℝ :=
