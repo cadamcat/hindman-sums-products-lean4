@@ -2222,6 +2222,88 @@ private noncomputable def momentReplicaShiftSupportEquiv {b d : ℕ} (L : ℕ) :
     exact Int.toNat_of_nonneg
       ((Finset.mem_Ico.mp (hcoords k j side)).1)
 
+private theorem momentReplicaShiftMassInt_eq_const_of_mem {b d L : ℕ} (hL : 0 < L)
+    (u : MomentShiftIntegerTuple b d)
+    (hu : u ∈ momentReplicaShiftSupportInt b d L) :
+    momentReplicaShiftMassInt L u = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ := by
+  classical
+  have hcoord (k : Fin b) (j : Fin d) (side : Fin 2) :
+      uniformIntegerIntervalLaw 0 L (u k j side) = 1 / (L : ℝ) := by
+    have hfields : ∀ k j,
+        (u k j 0 ∈ Finset.Ico (0 : ℤ) (L : ℤ)) ∧
+          (u k j 1 ∈ Finset.Ico (0 : ℤ) (L : ℤ)) := by
+      simpa [momentReplicaShiftSupportInt, Fintype.mem_piFinset] using hu
+    have hmem : u k j side ∈ Finset.Ico (0 : ℤ) (L : ℤ) := by
+      fin_cases side
+      · exact (hfields k j).1
+      · exact (hfields k j).2
+    simp [uniformIntegerIntervalLaw, Finset.mem_Ico.mp hmem]
+  have hpow (x : ℝ) : ((x ^ 2) ^ Fintype.card (Fin d)) ^ b =
+      x ^ (2 * Fintype.card (Fin d) * b) := by
+    calc
+      ((x ^ 2) ^ Fintype.card (Fin d)) ^ b = x ^ (2 * (Fintype.card (Fin d) * b)) := by
+        rw [pow_mul, pow_mul]
+      _ = x ^ (2 * Fintype.card (Fin d) * b) := by congr 1 <;> ring
+  unfold momentReplicaShiftMassInt
+  simp_rw [hcoord]
+  calc
+    (∏ k : Fin b, ∏ j : Fin d, ∏ side : Fin 2, (1 / (L : ℝ))) =
+        (((1 / (L : ℝ)) ^ 2) ^ Fintype.card (Fin d)) ^ b := by
+      simp [Finset.prod_const, Fintype.card_fin]
+    _ = (1 / (L : ℝ)) ^ (2 * Fintype.card (Fin d) * b) := by
+      exact hpow (1 / (L : ℝ))
+    _ = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ := by
+      simp [one_div_pow]
+
+private theorem momentReplicaShiftAverageInt_eq_nat {b d L : ℕ} (hL : 0 < L)
+    (F : (Fin b → Fin d → Fin 2 → ℕ) → ℝ) :
+    momentReplicaShiftAverageInt L (fun u => F (fun k j side => (u k j side).toNat)) =
+      ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        ∑ u ∈ momentReplicaShiftSupportNat b d L, F u := by
+  classical
+  let SN := momentReplicaShiftSupportNat b d L
+  let SZ := momentReplicaShiftSupportInt b d L
+  let e := momentReplicaShiftSupportEquiv (b := b) (d := d) L
+  have hzero (u : MomentShiftIntegerTuple b d) (hu : u ∉ SZ) :
+      momentReplicaShiftMassInt L u * F (fun k j side => (u k j side).toNat) = 0 := by
+    simp [momentReplicaShiftMassInt_zero_of_not_mem (L := L) u (by simpa [SZ] using hu)]
+  have hsum :
+      (∑ u ∈ SZ, momentReplicaShiftMassInt L u * F (fun k j side => (u k j side).toNat)) =
+      ∑ u ∈ SN, ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ * F u := by
+    calc
+      _ = ∑ u ∈ SZ.attach,
+            momentReplicaShiftMassInt L u.1 * F (fun k j side => (u.1 k j side).toNat) :=
+        (Finset.sum_attach SZ
+          (fun u => momentReplicaShiftMassInt L u * F (fun k j side => (u k j side).toNat))).symm
+      _ = ∑ u : {u : MomentShiftIntegerTuple b d // u ∈ SZ},
+            momentReplicaShiftMassInt L u.1 * F (fun k j side => (u.1 k j side).toNat) := by
+        rw [← Finset.univ_eq_attach SZ]
+      _ = ∑ u : {u : Fin b → Fin d → Fin 2 → ℕ // u ∈ SN},
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ * F u.1 := by
+        apply Fintype.sum_equiv e.symm
+        intro u
+        rw [momentReplicaShiftMassInt_eq_const_of_mem (L := L) hL u.1 u.2]
+        simp [e, momentReplicaShiftSupportEquiv]
+      _ = ∑ u ∈ SN.attach,
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ * F u.1 := by
+        rw [← Finset.univ_eq_attach SN]
+      _ = ∑ u ∈ SN,
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ * F u :=
+        by
+          simpa using (Finset.sum_attach SN (fun u =>
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ * F u))
+  have hzero' : ∀ u ∉ SZ,
+      momentReplicaShiftMassInt L u * F (fun k j side => (u k j side).toNat) = 0 := by
+    exact hzero
+  calc
+    momentReplicaShiftAverageInt L (fun u => F (fun k j side => (u k j side).toNat)) =
+        ∑ u ∈ SZ, momentReplicaShiftMassInt L u * F (fun k j side => (u k j side).toNat) := by
+      unfold momentReplicaShiftAverageInt
+      exact tsum_eq_sum (s := SZ) hzero'
+    _ = ∑ u ∈ SN, ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ * F u := hsum
+    _ = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        ∑ u ∈ SN, F u := by rw [← Finset.mul_sum]
+
 private theorem momentBaseMass_tsum_eq_Emu_replicaShift {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
     (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
