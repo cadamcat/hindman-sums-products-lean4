@@ -46,7 +46,7 @@ theorem c_test2_eventually_forall_of_sequences {α : Type*} [Inhabited α]
       exact False.elim (hN ⟨x, hx⟩)
   exact hnot hp
 
-private def c_test2_harmonicIntSupport (X : ℕ) : Finset ℤ :=
+def c_test2_harmonicIntSupport (X : ℕ) : Finset ℤ :=
   Finset.Ico (X : ℤ) (X ^ 2 : ℤ)
 
 theorem c_test2_harmonicLaw_support {X W : ℕ} {z : ℤ}
@@ -333,7 +333,7 @@ theorem c_test2_independentPrimePoolMass_zero_outside {q : ℕ}
   apply Finset.prod_eq_zero (Finset.mem_univ i)
   exact c_test2_primePoolLaw_zero_outside (lo i) (hi i) (p i) hidx
 
-private theorem c_test2_independentMass_nonneg {q : ℕ}
+theorem c_test2_independentPrimePoolMass_nonneg {q : ℕ}
     (lo hi : Fin q → ℕ) (hpos : ∀ i, 0 < primePoolMass (lo i) (hi i))
     (p : Fin q → ℕ) : 0 ≤ independentPrimePoolMass lo hi p := by
   unfold independentPrimePoolMass
@@ -1514,6 +1514,23 @@ theorem c_test2_restPivotMass_nonneg {n m : ℕ}
   intro i _
   exact c_test2_harmonicLaw_nonneg_of_normalizer_pos (hZ i) (r i)
 
+theorem c_test2_restPivotMass_zero_outside {n m : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
+    (a j : Fin m) (r : CTest2OtherPivot a j → ℤ)
+    (hr : r ∉ Fintype.piFinset (fun i : CTest2OtherPivot a j =>
+      c_test2_harmonicIntSupport (A.X N (C.block i.1).1))) :
+    c_test2_restPivotMass A C N a j r = 0 := by
+  classical
+  have hnot : ¬ ∀ i : CTest2OtherPivot a j, r i ∈
+      c_test2_harmonicIntSupport (A.X N (C.block i.1).1) := by
+    intro hall
+    exact hr (Fintype.mem_piFinset.mpr hall)
+  obtain ⟨i, hi⟩ := not_forall.mp hnot
+  have hLaw : harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (r i) = 0 :=
+    c_test2_harmonicLaw_zero_outside hi
+  unfold c_test2_restPivotMass
+  exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+
 theorem c_test2_restPivotMass_summable {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
     (a j : Fin m) (haj : a ≠ j) :
@@ -1523,14 +1540,7 @@ theorem c_test2_restPivotMass_summable {n m : ℕ}
     c_test2_harmonicIntSupport (A.X N (C.block i.1).1)
   apply summable_of_ne_finset_zero (s := Fintype.piFinset support)
   intro r hr
-  have hnot : ¬ ∀ i, r i ∈ support i := by
-    intro hall
-    exact hr (Fintype.mem_piFinset.mpr hall)
-  obtain ⟨i, hi⟩ := not_forall.mp hnot
-  have hLaw : harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (r i) = 0 :=
-    c_test2_harmonicLaw_zero_outside (by simpa [support] using hi)
-  unfold c_test2_restPivotMass
-  exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+  exact c_test2_restPivotMass_zero_outside A C N a j r (by simpa [support] using hr)
 
 theorem c_test2_pivotMass_tsum_split {n m : ℕ}
     (A : OAI.SourceAdmissible.Parameters n) (C : MasterChain n m) (N : ℕ)
@@ -2567,5 +2577,34 @@ theorem c_test2_shiftAverage_error {ι : Type*} [Fintype ι] [DecidableEq ι]
       ((L : ℝ) ^ (2 * Fintype.card ι))⁻¹ * ((U.card : ℝ) * δ) :=
         mul_le_mul_of_nonneg_left hsum (inv_nonneg.mpr hden.le)
     _ = δ := by rw [hcard]; field_simp [ne_of_gt hden]
+
+theorem c_test2_shiftAverage_tsum_commute {ι β : Type*} [Fintype ι] [DecidableEq ι]
+    (L : ℕ) (μ : β → ℝ) (F : (ι → Fin 2 → ℕ) → β → ℝ)
+    (hSummable : ∀ u, Summable (fun b => μ b * F u b)) :
+    shiftAverage ι L (fun u => ∑' b, μ b * F u b) =
+      ∑' b, μ b * shiftAverage ι L (fun u => F u b) := by
+  classical
+  let U := Fintype.piFinset (fun _ : ι => Fintype.piFinset fun _ : Fin 2 => Finset.range L)
+  let D : ℝ := ((L : ℝ) ^ (2 * Fintype.card ι))⁻¹
+  have hswap :
+      (∑' b, μ b * ∑ u ∈ U, F u b) =
+        ∑ u ∈ U, ∑' b, μ b * F u b := by
+    calc
+      _ = ∑' b, ∑ u ∈ U, μ b * F u b := by
+        apply tsum_congr
+        intro b
+        rw [Finset.mul_sum]
+      _ = ∑ u ∈ U, ∑' b, μ b * F u b :=
+        Summable.tsum_finsetSum (fun u hu => hSummable u)
+  change D * (∑ u ∈ U, ∑' b, μ b * F u b) =
+    ∑' b, μ b * (D * ∑ u ∈ U, F u b)
+  calc
+    _ = D * (∑' b, μ b * ∑ u ∈ U, F u b) := by rw [hswap.symm]
+    _ = ∑' b, D * (μ b * ∑ u ∈ U, F u b) := by
+      rw [← tsum_mul_left]
+    _ = _ := by
+      apply tsum_congr
+      intro b
+      ring
 
 end HindmanSumsProducts

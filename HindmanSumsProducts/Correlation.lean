@@ -369,7 +369,17 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
   have hTupper : T.d ≤ maskRowBound m - 1 := by
     rw [hcardNT]
     exact Nat.sub_le_sub_right hrowBound 1
-  refine ⟨T, hTlower, hTupper, 1, by norm_num, B, ?_⟩
+  obtain ⟨CmAdd, hCmAdd, hAddElim⟩ :=
+    weighted_additive_elimination Sh dirs hdirs testList htests htestsSub
+  let maskPow : ℕ := 2 ^ maskCount m
+  let addPow : ℕ := 2 ^ T.d
+  let finalPow : ℕ := maskPow * addPow
+  let corrCoeff : ℝ := (2 : ℝ) ^ addPow * CmMask ^ addPow * CmAdd
+  let finalCm : ℝ := (2 * corrCoeff) ^ (1 / (finalPow : ℝ))
+  have hfinalCm : 0 < finalCm := by
+    dsimp [finalCm, corrCoeff]
+    positivity
+  refine ⟨T, hTlower, hTupper, finalCm, hfinalCm, B, ?_⟩
   intro K s Aset Dm S ι hlistedAll C a ha
   have hlistedMask : TestsListed Dm ι maskTests := by
     intro P hP
@@ -386,6 +396,877 @@ theorem uniform_correlation_test (m : ℕ) (Jstar : Finset (Fin m)) (hJ : Jstar.
     rcases hInt with ⟨_, _, hMp, _, _, _, _, _⟩
     change directionModulus S N dirs.poly p ≤ _
     exact hMp
+  have hJne : Jstar.Nonempty := hJ
+  let aStar : Fin m := Jstar.max' hJne
+  have hAnchor : (Sh.row Sh.star).anchor = aStar := by
+    unfold RowTemplate.anchor
+    apply (Finset.max'_eq_iff (s := (Sh.row Sh.star).support)
+      (H := (Sh.row Sh.star).support_nonempty) aStar).2
+    constructor
+    · rw [hstar]
+      exact Finset.max'_mem Jstar hJne
+    · intro k hk
+      rw [hstar] at hk
+      exact Finset.le_max' Jstar k hk
+  have hjExists : ∃ j ∈ Jstar, j ≠ aStar := by
+    by_contra h
+    push_neg at h
+    have hsub : Jstar ⊆ {aStar} := by
+      intro k hk
+      simp [h k hk]
+    have hcard := Finset.card_le_card hsub
+    simp at hcard
+    omega
+  obtain ⟨j, hj, hjNe⟩ := hjExists
+  have hja : j < aStar := lt_of_le_of_ne (Finset.le_max' Jstar j hj) hjNe
+  have hjaT : j < (Sh.row Sh.star).anchor := by
+    rw [hAnchor]
+    exact hja
+  let E : ℕ := c_test2_rowExponent (Sh.row Sh.star)
+  let Xa : ℕ → ℕ := fun N => S.core.parameters.X N (C.block aStar).1
+  let Xj : ℕ → ℕ := fun N => S.core.parameters.X N (C.block j).1
+  let V : ℕ → ℕ := fun N => FromArithmetic.masterScaleV S.core.parameters N C.gap
+  let Hroot : ℕ → ℕ := fun N => c_test2_rootOffsetScale S C aStar j E N
+  let rootPair := fun N p =>
+    c_test2_rootPairAt S C a (Sh.row Sh.star) Jstar hstar j hj hjaT testList dirs.poly N p
+  let samplePred : ℝ → ℕ → (Fin q → ℕ) → Prop := fun δ N p =>
+    ∀ h : ℤ, 0 ≤ h → h ≤ Hroot N → (primorial (N + 1) : ℤ) ∣ h →
+      ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ (V N : ℝ) ^ (2 * 2 ^ T.d : ℕ)) →
+        (V N : ℝ) *
+          |(∑' za : ℤ, ∑' zj : ℤ,
+              harmonicLaw (Xa N) (primorial (N + 1)) za *
+                harmonicLaw (Xj N) (primorial (N + 1)) zj *
+                  F (((rootPair N p).k : ℤ) * za + ((rootPair N p).b : ℤ) * zj + h)) -
+            ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y * F y| ≤ δ
+  have hRootSamplerAlong (pseq : ℕ → Fin q → ℕ) (δ : ℝ) (hδ : 0 < δ) :
+      ∀ᶠ N in atTop, samplePred δ N (pseq N) := by
+    let kseq : ℕ → ℕ := fun N => (rootPair N (pseq N)).k
+    let bseq : ℕ → ℕ := fun N => (rootPair N (pseq N)).b
+    have hpairProps (N : ℕ) :=
+      c_test2_rootPairAt_properties S C a (Sh.row Sh.star) Jstar hstar j hj hjaT
+        testList dirs.poly N (pseq N)
+    have hk : ∀ N, 0 < kseq N := fun N => (hpairProps N).1
+    have hWk : ∀ N, Nat.Coprime (kseq N) (primorial (N + 1)) :=
+      fun N => (hpairProps N).2.2.2.1
+    have hbk : ∀ N, Nat.Coprime (bseq N) (kseq N) :=
+      fun N => (hpairProps N).2.2.2.2.1
+    have hWb : ∀ N, primorial (N + 1) ∣ bseq N :=
+      fun N => (hpairProps N).2.2.1
+    have hkBound : ∀ N, kseq N ≤
+        ((S.primeStage.pool N C.gap).upper + V N) ^ E :=
+      fun N => (hpairProps N).2.2.2.2.2.1
+    have hbBound : ∀ N, bseq N ≤
+        ((S.primeStage.pool N C.gap).upper + V N) ^ (E + 1) :=
+      fun N => (hpairProps N).2.2.2.2.2.2
+    have hScale := c_test2_rootSamplerScaleFacts S C aStar j hja E kseq bseq
+      hkBound hbBound
+    have hbH : ∀ N, bseq N * Xj N ^ 2 ≤ Hroot N := hScale.1
+    have hV : ∀ N, 1 ≤ V N := by
+      intro N
+      unfold V FromArithmetic.masterScaleV
+      omega
+    have hXa := hScale.2.1
+    have hXj := hScale.2.2
+    have hSampler := correlation_cube_root_sampling Xa Xj kseq bseq Hroot V
+      hk hWk hbk hWb hbH hV hXa hXj (2 * (2 : ℝ) ^ T.d) 1 (by norm_num) δ hδ
+    filter_upwards [hSampler] with N hN
+    intro h h0 hH hdiv F hF
+    have hFreal : ∀ y : ℤ, |F y| ≤
+        (V N : ℝ) ^ ((2 : ℝ) * (2 : ℝ) ^ T.d) := by
+      intro y
+      have hexp : (2 : ℝ) * (2 : ℝ) ^ T.d =
+          ((2 * 2 ^ T.d : ℕ) : ℝ) := by norm_cast
+      rw [hexp, Real.rpow_natCast]
+      exact hF y
+    simpa [samplePred, Real.rpow_one] using hN h h0 hH hdiv F hFreal
+  have hSampleUniform (δ : ℝ) (hδ : 0 < δ) :
+      ∀ᶠ N in atTop, ∀ p, samplePred δ N p :=
+    c_test2_eventually_forall_of_sequences (fun N p => samplePred δ N p)
+      (fun pseq => hRootSamplerAlong pseq δ hδ)
+  have hScaleEventually := c_test2_chainCoefficientData_eventually S C a ha
+  have hPoolEventually := c_test2_poolLower_ge_twiceMasterV_eventually S C.gap
+  have hGoodProbabilityEventually :=
+    c_test2_goodSlotProbability_pos_eventually S C.gap testList dirs.poly hrowFacts.1
+  let A := S.core.parameters
+  have hsizeAnchor := c_test2_masterSize_le_pivotGap_eventually S C aStar
+    (C.pivots_after_gap aStar)
+  have hpreviousAnchor := c_test2_previous_le_gap_eventually A (C.block aStar).1
+  have hotherCutoffEventually : ∀ᶠ N in atTop,
+      ∀ i : CTest2OtherPivot aStar j, i.1 < aStar →
+        A.X N (C.block i.1).1 ≤ A.H N (C.block aStar).1 := by
+    filter_upwards [hpreviousAnchor] with N hprevious
+    intro i hi
+    exact (c_test2_pivot_cutoff_le_previous A C i.1 aStar hi N).trans hprevious
+  have hgapLeAnchor (N : ℕ) :
+      A.H N C.gap ≤ A.H N (C.block aStar).1 := by
+    exact Nat.le_of_dvd (A.Hpos N (C.block aStar).1)
+      (S.gapStage.earlier_gaps_divide N C.gap (C.block aStar).1
+        (C.pivots_after_gap aStar))
+  have hCubeBaseBound (N : ℕ) (p : Fin q → ℕ) (g : ℤ → ℝ)
+      (hGbound : ∀ y, |g y| ≤
+        1 + chainWeight S.core.parameters C N aStar y)
+      (u : NonTarget Sh → Fin 2 → ℕ) :
+      ∀ y : ℤ,
+        |∏ v : NonTarget Sh → Fin 2,
+          (fun J y => if J = Jstar then g y else 0) Jstar
+            (y + (T.modulus S N p : ℤ) *
+              ∑ R : NonTarget Sh,
+                if v R = 1 then (u R 1 : ℤ) - u R 0 else 0)| ≤
+          (V N : ℝ) ^ (2 * 2 ^ T.d : ℕ) := by
+    intro y
+    have hV2 : 2 ≤ V N := by
+      unfold V FromArithmetic.masterScaleV
+      omega
+    have hVreal : (2 : ℝ) ≤ (V N : ℝ) := by exact_mod_cast hV2
+    have hfactor (v : NonTarget Sh → Fin 2) :
+        |(fun J y => if J = Jstar then g y else 0) Jstar
+          (y + (T.modulus S N p : ℤ) *
+            ∑ R : NonTarget Sh,
+              if v R = 1 then (u R 1 : ℤ) - u R 0 else 0)| ≤ (V N : ℝ) ^ 2 := by
+      let x := y + (T.modulus S N p : ℤ) *
+        ∑ R : NonTarget Sh, if v R = 1 then (u R 1 : ℤ) - u R 0 else 0
+      have hvalidG := hGbound x
+      have hweight := c_test2_chainWeight_le_masterScaleV S C N aStar x
+      have hle : |g x| ≤ 1 + (V N : ℝ) := by
+        nlinarith [hvalidG, hweight]
+      have hsq : 1 + (V N : ℝ) ≤ (V N : ℝ) ^ 2 := by nlinarith
+      simpa [x] using hle.trans hsq
+    have hcard : Fintype.card (NonTarget Sh → Fin 2) = 2 ^ T.d := by
+      simp [Fintype.card_fun, T]
+    calc
+      |∏ v : NonTarget Sh → Fin 2,
+          (fun J y => if J = Jstar then g y else 0) Jstar
+            (y + (T.modulus S N p : ℤ) *
+              ∑ R : NonTarget Sh,
+                if v R = 1 then (u R 1 : ℤ) - u R 0 else 0)| =
+          ∏ v : NonTarget Sh → Fin 2,
+            |(fun J y => if J = Jstar then g y else 0) Jstar
+              (y + (T.modulus S N p : ℤ) *
+                ∑ R : NonTarget Sh,
+                  if v R = 1 then (u R 1 : ℤ) - u R 0 else 0)| := by
+            simpa using Finset.abs_prod (Finset.univ : Finset (NonTarget Sh → Fin 2))
+              (fun v : NonTarget Sh → Fin 2 =>
+                (fun J y => if J = Jstar then g y else 0) Jstar
+                  (y + (T.modulus S N p : ℤ) *
+                    ∑ R : NonTarget Sh,
+                      if v R = 1 then (u R 1 : ℤ) - u R 0 else 0))
+      _ ≤ ∏ _ : NonTarget Sh → Fin 2, (V N : ℝ) ^ 2 := by
+            apply Finset.prod_le_prod₀
+            · intro v hv
+              exact abs_nonneg _
+            · intro v hv
+              exact hfactor v
+      _ = (V N : ℝ) ^ (2 * 2 ^ T.d : ℕ) := by
+            simp [hcard, pow_mul]
+  have hAtQInt (g : ℤ → ℝ) (y : ℤ) : atQ g (y : ℚ) = g y := by
+    simp [atQ]
+  have hCubePivotAverage
+      (δ : ℝ) (hδ : 0 < δ) (N : ℕ)
+      (hscaleN : c_test2_ScaleData S C a N)
+      (hpoolN : 2 * V N ≤ (S.primeStage.pool N C.gap).lower)
+      (hSampleN : ∀ p, samplePred δ N p)
+      (hsizeN : (S.primeStage.pool N C.gap).upper + V N ≤ A.H N (C.block aStar).1)
+      (hprevN : OAI.SourceAdmissible.previous (A.X N) (C.block aStar).1 ≤
+        A.H N (C.block aStar).1)
+      (hotherN : ∀ i : CTest2OtherPivot aStar j, i.1 < aStar →
+        A.X N (C.block i.1).1 ≤ A.H N (C.block aStar).1)
+      (J0 : ℕ) (hJ0 : 0 < J0) (p : Fin q → ℕ)
+      (hp : GoodTuple S C.gap N testList dirs.poly p)
+      (g : ℤ → ℝ) (hGbound : ∀ y, |g y| ≤
+        1 + chainWeight S.core.parameters C N aStar y)
+      (u : NonTarget Sh → Fin 2 → ℕ)
+      (hu : u ∈ Fintype.piFinset (fun _ : NonTarget Sh =>
+        Fintype.piFinset fun _ : Fin 2 => Finset.range
+          (T.length S C.gap J0 N p))) :
+      |(∑' z : Fin m → ℤ, pivotMass A C N z *
+          (∏ ω : NonTarget Sh → Fin 2,
+            atQ g (targetVertex (chainScale A C a N) Sh p
+              (T.modulus S N p) (fun k => (z k : ℚ)) u ω))) -
+        ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y *
+          ∏ v : NonTarget Sh → Fin 2,
+            g (y + (T.modulus S N p : ℤ) *
+              ∑ R : NonTarget Sh,
+                if v R = 1 then (u R 1 : ℤ) - u R 0 else 0)| ≤ δ := by
+    let W := primorial (N + 1)
+    let Mp := T.modulus S N p
+    let Other := CTest2OtherPivot aStar j
+    let alpha := c_test2_alphaFromGoodTuple S C a N (Sh.row Sh.star) Jstar hstar
+      j hj hjaT p testList dirs.poly hp hpoolN hscaleN
+    let cInt := Classical.choose hscaleN
+    let c := chainScale A C a N
+    have hcchain : ∀ i, (cInt i : ℚ) = c i := (Classical.choose_spec hscaleN).1
+    have hAlphaData := c_test2_alphaFromGoodTuple_coefficients S C a N
+      (Sh.row Sh.star) Jstar hstar j hj hjaT p testList dirs.poly hp hpoolN hscaleN
+    have hcoeff : ∀ i, c i / c (Sh.row Sh.star).anchor *
+        (Sh.row Sh.star).value p i = (alpha i : ℚ) := by
+      intro i
+      calc
+        c i / c (Sh.row Sh.star).anchor * (Sh.row Sh.star).value p i =
+            (cInt i : ℚ) / (cInt (Sh.row Sh.star).anchor : ℚ) *
+              (Sh.row Sh.star).value p i := by rw [hcchain i, hcchain]
+        _ = (alpha i : ℚ) := hAlphaData.2.2 i
+    have hpair := c_test2_rootPairAt_matches_good_alpha S C a (Sh.row Sh.star)
+      Jstar hstar j hj hjaT testList dirs.poly N p hp hscaleN hpoolN
+    have hkEq : (rootPair N p).k = alpha aStar := by
+      simpa [hAnchor] using hpair.1
+    have hbEq : (rootPair N p).b = alpha j := hpair.2
+    let offset : (Other → ℤ) → ℤ := fun r =>
+      (∑ i : Other, (alpha i.1 : ℤ) * r i) +
+        (Mp : ℤ) * ∑ R : NonTarget Sh, (u R 0 : ℤ)
+    let Fbase : ℤ → ℝ := fun y =>
+      ∏ v : NonTarget Sh → Fin 2,
+        g (y + (Mp : ℤ) *
+          ∑ R : NonTarget Sh,
+            if v R = 1 then (u R 1 : ℤ) - u R 0 else 0)
+    let Fwhole : (Fin m → ℤ) → ℝ := fun z =>
+      ∏ ω : NonTarget Sh → Fin 2,
+        atQ g (targetVertex c Sh p Mp (fun i => (z i : ℚ)) u ω)
+    let shiftLengthN := T.length S C.gap J0 N p
+    let shiftDomain := Fintype.piFinset (fun _ : NonTarget Sh =>
+      Fintype.piFinset fun _ : Fin 2 => Finset.range shiftLengthN)
+    let pivotSupport : Finset (Fin m → ℤ) := Fintype.piFinset fun i : Fin m =>
+      Finset.Ico (A.X N (C.block i).1 : ℤ) ((A.X N (C.block i).1) ^ 2 : ℤ)
+    have hPivotMassZero (z : Fin m → ℤ) (hz : z ∉ pivotSupport) :
+        pivotMass A C N z = 0 := by
+      have hnot : ¬ ∀ i : Fin m, z i ∈
+          Finset.Ico (A.X N (C.block i).1 : ℤ) ((A.X N (C.block i).1) ^ 2 : ℤ) := by
+        intro hall
+        exact hz (Fintype.mem_piFinset.mpr hall)
+      obtain ⟨i, hi⟩ := not_forall.mp hnot
+      have hLaw : harmonicLaw (A.X N (C.block i).1) (primorial (N + 1)) (z i) = 0 := by
+        by_contra hne
+        have hs := c_test2_harmonicLaw_support hne
+        have hmem : z i ∈
+            Finset.Ico (A.X N (C.block i).1 : ℤ) ((A.X N (C.block i).1) ^ 2 : ℤ) := by
+          simp [Finset.mem_Ico]
+          exact ⟨hs.2.1, hs.2.2⟩
+        exact hi hmem
+      unfold pivotMass
+      exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+    have hPivotShiftCommute (F : (Fin m → ℤ) →
+        (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
+        (∑' z : Fin m → ℤ, pivotMass A C N z *
+          shiftAverage (NonTarget Sh) shiftLengthN (F z)) =
+          shiftAverage (NonTarget Sh) shiftLengthN (fun u =>
+            ∑' z : Fin m → ℤ, pivotMass A C N z * F z u) := by
+      have hinterchange :
+          (∑' z : Fin m → ℤ, pivotMass A C N z * ∑ u ∈ shiftDomain, F z u) =
+            ∑ u ∈ shiftDomain, ∑' z : Fin m → ℤ, pivotMass A C N z * F z u := by
+        have hzeroOuter (z : Fin m → ℤ) (hz : z ∉ pivotSupport) :
+            pivotMass A C N z * ∑ u ∈ shiftDomain, F z u = 0 := by
+          rw [hPivotMassZero z hz]
+          simp
+        have hzeroPoint (u : NonTarget Sh → Fin 2 → ℕ) (z : Fin m → ℤ)
+            (hz : z ∉ pivotSupport) : pivotMass A C N z * F z u = 0 := by
+          rw [hPivotMassZero z hz]
+          simp
+        calc
+          _ = ∑ z ∈ pivotSupport, pivotMass A C N z * ∑ u ∈ shiftDomain, F z u :=
+            tsum_eq_sum (s := pivotSupport) hzeroOuter
+          _ = ∑ z ∈ pivotSupport, ∑ u ∈ shiftDomain, pivotMass A C N z * F z u := by
+            apply Finset.sum_congr rfl
+            intro z hz
+            simp_rw [Finset.mul_sum]
+          _ = ∑ u ∈ shiftDomain, ∑ z ∈ pivotSupport, pivotMass A C N z * F z u := by
+            exact Finset.sum_comm
+          _ = ∑ u ∈ shiftDomain, ∑' z : Fin m → ℤ, pivotMass A C N z * F z u := by
+            apply Finset.sum_congr rfl
+            intro u hu
+            symm
+            exact tsum_eq_sum (s := pivotSupport) (hzeroPoint u)
+      unfold shiftAverage
+      calc
+        _ = ((shiftLengthN : ℝ) ^ (2 * Fintype.card (NonTarget Sh)))⁻¹ *
+            ∑' z : Fin m → ℤ,
+              pivotMass A C N z * ∑ u ∈ shiftDomain, F z u := by
+          calc
+            _ = ∑' z : Fin m → ℤ,
+                ((shiftLengthN : ℝ) ^ (2 * Fintype.card (NonTarget Sh)))⁻¹ *
+                  (pivotMass A C N z * ∑ u ∈ shiftDomain, F z u) := by
+              apply tsum_congr
+              intro z
+              ring
+            _ = _ := by rw [← tsum_mul_left]
+        _ = ((shiftLengthN : ℝ) ^ (2 * Fintype.card (NonTarget Sh)))⁻¹ *
+            ∑ u ∈ shiftDomain, ∑' z : Fin m → ℤ, pivotMass A C N z * F z u := by
+          rw [hinterchange]
+        _ = shiftAverage (NonTarget Sh) shiftLengthN (fun u =>
+            ∑' z : Fin m → ℤ, pivotMass A C N z * F z u) := by
+          rfl
+    have hFbound : ∀ y, |Fbase y| ≤ (V N : ℝ) ^ (2 * 2 ^ T.d : ℕ) :=
+      by simpa [Fbase] using hCubeBaseBound N p g hGbound u
+    have hdecomp : ∀ r : Other → ℤ, ∀ za zj : ℤ,
+        Fwhole ((c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe)).symm ((za, zj), r)) =
+          Fbase ((rootPair N p).k * za + (rootPair N p).b * zj + offset r) := by
+      intro r za zj
+      let z := (c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe)).symm ((za, zj), r)
+      have hcoords : c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe) z = ((za, zj), r) :=
+        (c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe)).apply_symm_apply _
+      have hza : z aStar = za := by
+        calc
+          z aStar = (c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe) z).1.1 :=
+            (c_test2_pivotPairRestEquiv_apply_anchor aStar j (Ne.symm hjNe) z).symm
+          _ = za := by rw [hcoords]
+      have hzj : z j = zj := by
+        calc
+          z j = (c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe) z).1.2 :=
+            (c_test2_pivotPairRestEquiv_apply_j aStar j (Ne.symm hjNe) z).symm
+          _ = zj := by rw [hcoords]
+      have hrest (i : Other) : z i.1 = r i := by
+        calc
+          z i.1 = (c_test2_pivotPairRestEquiv aStar j (Ne.symm hjNe) z).2 i :=
+            (c_test2_pivotPairRestEquiv_apply_other aStar j (Ne.symm hjNe) z i).symm
+          _ = r i := by rw [hcoords]
+      have hvertex (ω : NonTarget Sh → Fin 2) :
+          targetVertex c Sh p Mp (fun i => (z i : ℚ)) u ω =
+            (((rootPair N p).k : ℤ) * za + ((rootPair N p).b : ℤ) * zj +
+              offset r + (Mp : ℤ) *
+                ∑ R : NonTarget Sh,
+                  (if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0) : ℤ) := by
+        rw [c_test2_targetVertex_decomposition c Sh p Mp z u ω alpha aStar j
+          (Ne.symm hjNe) hcoeff (rootPair N p).k (rootPair N p).b hkEq hbEq]
+        simp [offset, z, hza, hzj, hrest]
+        ring
+      unfold Fwhole Fbase
+      apply Finset.prod_congr rfl
+      intro ω hω
+      rw [hvertex ω]
+      rw [hAtQInt]
+    have hWpos : 0 < W := primorial_pos (N + 1)
+    have hWdvdM : W ∣ A.M N := by
+      obtain ⟨e, he⟩ := S.core.modulus_power N
+      by_cases hWone : W = 1
+      · simp [hWone]
+      · have hWgt : 1 < W := by omega
+        have hWM : W ≤ W ^ e := by
+          have hle := A.Wle N
+          rw [he] at hle
+          exact hle
+        have hepos : e ≠ 0 := by
+          intro he0
+          subst e
+          simp at hWM
+          omega
+        rw [he]
+        exact dvd_pow_self W hepos
+    have hroughPos : 0 < roughPart (N + 1)
+        (evalIntegerPolynomial dirs.poly (fun i => (p i : ℤ))) := by
+      unfold roughPart
+      apply Finset.prod_pos
+      intro π hπ
+      exact pow_pos
+        (Nat.Prime.pos ((Finset.mem_filter.mp hπ).2.1)) _
+    have hWdvdMp : W ∣ Mp := by
+      change W ∣ directionModulus S N dirs.poly p
+      unfold directionModulus
+      exact dvd_mul_of_dvd_left hWdvdM _
+    have hMpPos : 0 < Mp := by
+      change 0 < directionModulus S N dirs.poly p
+      unfold directionModulus
+      exact Nat.mul_pos (A.Mpos N) hroughPos
+    have hWalpha (i : Other) : W ∣ alpha i.1 := by
+      by_cases hi : i.1 < aStar
+      · have hi' : i.1 < (Sh.row Sh.star).anchor := by simpa [hAnchor] using hi
+        exact hAlphaData.2.1 i.1 hi'
+      · have hgt : (Sh.row Sh.star).anchor < i.1 := by
+          have hne := i.2.1
+          rw [hAnchor]
+          omega
+        have hz := c_test2_targetAlpha_zero_after_anchor (Sh.row Sh.star) p c alpha
+          hcoeff i.1 hgt
+        rw [hz]
+        exact dvd_zero W
+    have hdivOffset (r : Other → ℤ) : (W : ℤ) ∣ offset r := by
+      unfold offset
+      apply dvd_add
+      · apply Finset.dvd_sum
+        intro i hi
+        exact dvd_mul_of_dvd_left
+          (Int.natCast_dvd_natCast.mpr (hWalpha i)) _
+      · have hWdvdMpInt : (W : ℤ) ∣ (Mp : ℤ) := by exact_mod_cast hWdvdMp
+        exact dvd_mul_of_dvd_left hWdvdMpInt _
+    have hL : T.length S C.gap J0 N p =
+        A.H N C.gap / (J0 * Mp) := by
+      rfl
+    have hdenMul : (T.length S C.gap J0 N p) * (J0 * Mp) ≤ A.H N C.gap := by
+      rw [hL]
+      exact Nat.div_mul_le_self _ _
+    have hMpL : Mp * T.length S C.gap J0 N p ≤ A.H N C.gap := by
+      calc
+        _ ≤ J0 * (Mp * T.length S C.gap J0 N p) :=
+          Nat.le_mul_of_pos_left _ hJ0
+        _ = T.length S C.gap J0 N p * (J0 * Mp) := by ring
+        _ ≤ A.H N C.gap := hdenMul
+    have hshiftRange (R : NonTarget Sh) (b : Fin 2) :
+        u R b < T.length S C.gap J0 N p := by
+      have hu' := Fintype.mem_piFinset.mp hu
+      have huR := Fintype.mem_piFinset.mp (hu' R)
+      exact Finset.mem_range.mp (huR b)
+    have hsumU :
+        (∑ R : NonTarget Sh, u R 0) ≤
+          Fintype.card (NonTarget Sh) * T.length S C.gap J0 N p := by
+      calc
+        _ ≤ ∑ R : NonTarget Sh, T.length S C.gap J0 N p :=
+          Finset.sum_le_sum fun R hR => Nat.le_of_lt (hshiftRange R 0)
+        _ = _ := by simp
+    have hcardNT : Fintype.card (NonTarget Sh) = T.d := by rfl
+    have hshiftBound :
+        Mp * (∑ R : NonTarget Sh, u R 0) ≤ T.d * A.H N (C.block aStar).1 := by
+      calc
+        _ ≤ Mp * (Fintype.card (NonTarget Sh) * T.length S C.gap J0 N p) :=
+          Nat.mul_le_mul_left _ hsumU
+        _ = T.d * (Mp * T.length S C.gap J0 N p) := by rw [hcardNT]; ring
+        _ ≤ T.d * A.H N C.gap := Nat.mul_le_mul_left _ hMpL
+        _ ≤ T.d * A.H N (C.block aStar).1 :=
+          Nat.mul_le_mul_left _ (hgapLeAnchor N)
+    have hHaOne : 1 ≤ A.H N (C.block aStar).1 := by
+      have h := A.Hpos N (C.block aStar).1
+      omega
+    let HaPow : ℕ := (A.H N (C.block aStar).1) ^ (E + 3)
+    have hHaLePow : A.H N (C.block aStar).1 ≤ HaPow := by
+      dsimp [HaPow]
+      calc
+        A.H N (C.block aStar).1 = (A.H N (C.block aStar).1) ^ 1 := by simp
+        _ ≤ (A.H N (C.block aStar).1) ^ (E + 3) :=
+          Nat.pow_le_pow_right hHaOne (by omega : 1 ≤ E + 3)
+    have hcardOther : Fintype.card Other ≤ m := by
+      simpa using (Fintype.card_le_of_injective
+        (fun i : Other => i.1) Subtype.val_injective)
+    have hrestTerm (r : Other → ℤ) (hrestNZ : c_test2_restPivotMass A C N aStar j r ≠ 0)
+        (i : Other) :
+        (alpha i.1 : ℤ) * r i ≤ (HaPow : ℤ) := by
+      have hprodNZ : (∏ i : Other,
+          harmonicLaw (A.X N (C.block i.1).1) W (r i)) ≠ 0 := by
+        simpa [c_test2_restPivotMass] using hrestNZ
+      have hLawNZ : harmonicLaw (A.X N (C.block i.1).1) W (r i) ≠ 0 :=
+        (Finset.prod_ne_zero_iff.mp hprodNZ) i (Finset.mem_univ i)
+      have hsupp := c_test2_harmonicLaw_support hLawNZ
+      by_cases hi : i.1 < aStar
+      · have hXi : A.X N (C.block i.1).1 ≤ A.H N (C.block aStar).1 := hotherN i hi
+        have hAlphaSmall : alpha i.1 ≤ (A.H N (C.block aStar).1) ^ (E + 1) := by
+          calc
+            alpha i.1 ≤
+                ((S.primeStage.pool N C.gap).upper + V N) ^ (E + 1) := hAlphaData.1 i.1
+            _ ≤ (A.H N (C.block aStar).1) ^ (E + 1) :=
+              Nat.pow_le_pow_left hsizeN (E + 1)
+        have hAlpha : alpha i.1 ≤ HaPow := by
+          dsimp [HaPow]
+          calc
+            alpha i.1 ≤ (A.H N (C.block aStar).1) ^ (E + 1) := hAlphaSmall
+            _ ≤ (A.H N (C.block aStar).1) ^ (E + 3) :=
+              Nat.pow_le_pow_right hHaOne (by omega : E + 1 ≤ E + 3)
+        have hcastZ : ((r i).toNat : ℤ) = r i := Int.toNat_of_nonneg hsupp.1
+        have hZlt : (r i).toNat < (A.X N (C.block i.1).1) ^ 2 := by
+          have h := hsupp.2.2
+          rw [← hcastZ] at h
+          exact_mod_cast h
+        have hZ : (r i).toNat ≤ (A.H N (C.block aStar).1) ^ 2 := by
+          exact (Nat.le_of_lt hZlt).trans (Nat.pow_le_pow_left hXi 2)
+        have hmul : alpha i.1 * (r i).toNat ≤ HaPow := by
+          dsimp [HaPow] at hAlpha ⊢
+          calc
+            _ ≤ (A.H N (C.block aStar).1) ^ (E + 1) *
+                (A.H N (C.block aStar).1) ^ 2 := Nat.mul_le_mul hAlphaSmall hZ
+            _ = _ := by rw [← Nat.pow_add]
+        rw [← hcastZ]
+        exact_mod_cast hmul
+      · have hgt : (Sh.row Sh.star).anchor < i.1 := by
+          have hne := i.2.1
+          rw [hAnchor]
+          omega
+        have hzeroAlpha := c_test2_targetAlpha_zero_after_anchor
+          (Sh.row Sh.star) p c alpha hcoeff i.1 hgt
+        simp [hzeroAlpha]
+    have hrestSumBound (r : Other → ℤ)
+        (hrestNZ : c_test2_restPivotMass A C N aStar j r ≠ 0) :
+        (∑ i : Other, (alpha i.1 : ℤ) * r i) ≤
+          (m : ℤ) * (HaPow : ℤ) := by
+      calc
+        _ ≤ ∑ i : Other, (HaPow : ℤ) :=
+          Finset.sum_le_sum fun i hi => hrestTerm r hrestNZ i
+        _ = (Fintype.card Other : ℤ) * (HaPow : ℤ) := by simp
+        _ ≤ (m : ℤ) * (HaPow : ℤ) := by
+          apply mul_le_mul_of_nonneg_right
+          · exact_mod_cast hcardOther
+          · positivity
+    have hshiftCast (r : Other → ℤ) :
+        (Mp : ℤ) * ∑ R : NonTarget Sh, (u R 0 : ℤ) ≤
+          (T.d : ℤ) * (A.H N (C.block aStar).1 : ℤ) := by
+      exact_mod_cast hshiftBound
+    have hshiftPow (r : Other → ℤ) :
+        (Mp : ℤ) * ∑ R : NonTarget Sh, (u R 0 : ℤ) ≤
+          (T.d : ℤ) * (HaPow : ℤ) := by
+      exact le_trans (hshiftCast r)
+        (mul_le_mul_of_nonneg_left (by exact_mod_cast hHaLePow)
+          (by exact_mod_cast Nat.zero_le T.d))
+    have hOffUpper (r : Other → ℤ)
+        (hrestNZ : c_test2_restPivotMass A C N aStar j r ≠ 0) :
+        offset r ≤ ((m + maskRowBound m) * HaPow : ℤ) := by
+      dsimp [offset]
+      have hTle : T.d ≤ maskRowBound m := by omega
+      have hshiftBound' :
+          (T.d : ℤ) * (HaPow : ℤ) ≤ (maskRowBound m : ℤ) * (HaPow : ℤ) := by
+        exact mul_le_mul_of_nonneg_right (by exact_mod_cast hTle) (by positivity)
+      have hRest := hrestSumBound r hrestNZ
+      have hShift := hshiftPow r
+      calc
+        _ ≤ (m : ℤ) * (HaPow : ℤ) +
+            (maskRowBound m : ℤ) * (HaPow : ℤ) := add_le_add hRest (hShift.trans hshiftBound')
+        _ = ((m + maskRowBound m) * HaPow : ℤ) := by push_cast; ring
+    have hOffRoot (r : Other → ℤ)
+        (hrestNZ : c_test2_restPivotMass A C N aStar j r ≠ 0) :
+        offset r ≤ (Hroot N : ℤ) := by
+      have hrootNat : (m + maskRowBound m) * HaPow ≤ c_test2_rootOffsetScale S C aStar j E N := by
+        dsimp [c_test2_rootOffsetScale, HaPow]
+        calc
+          _ ≤ (m + maskRowBound m + 2) *
+              (A.H N (C.block aStar).1) ^ (E + 3) := by
+                apply Nat.mul_le_mul_right
+                omega
+          _ ≤ (m + maskRowBound m + 2) *
+                (A.H N (C.block aStar).1) ^ (E + 3) + _ := Nat.le_add_right _ _
+      exact le_trans (hOffUpper r hrestNZ) (by exact_mod_cast hrootNat)
+    have hOffNonneg (r : Other → ℤ)
+        (hrestNZ : c_test2_restPivotMass A C N aStar j r ≠ 0) : 0 ≤ offset r := by
+      unfold offset
+      apply add_nonneg
+      · apply Finset.sum_nonneg
+        intro i hi
+        have hprodNZ : (∏ i : Other,
+            harmonicLaw (A.X N (C.block i.1).1) W (r i)) ≠ 0 := by
+          simpa [c_test2_restPivotMass] using hrestNZ
+        have hLawNZ : harmonicLaw (A.X N (C.block i.1).1) W (r i) ≠ 0 :=
+          (Finset.prod_ne_zero_iff.mp hprodNZ) i (Finset.mem_univ i)
+        exact mul_nonneg (by positivity) (c_test2_harmonicLaw_support hLawNZ).1
+      · exact mul_nonneg (by positivity) (Finset.sum_nonneg fun R hR => Int.natCast_nonneg _)
+    have hdivOffset (r : Other → ℤ) : (W : ℤ) ∣ offset r := by
+      apply dvd_add
+      · apply Finset.dvd_sum
+        intro i hi
+        have hWalpha : W ∣ alpha i.1 := by
+          by_cases hlt : i.1 < aStar
+          · have hlt' : i.1 < (Sh.row Sh.star).anchor := by simpa [hAnchor] using hlt
+            exact hAlphaData.2.1 i.1 hlt'
+          · have hgt : (Sh.row Sh.star).anchor < i.1 := by
+              have hne := i.2.1
+              rw [hAnchor]
+              omega
+            rw [c_test2_targetAlpha_zero_after_anchor (Sh.row Sh.star) p c alpha hcoeff i.1 hgt]
+            exact dvd_zero W
+        exact dvd_mul_of_dvd_left (Int.natCast_dvd_natCast.mpr hWalpha) _
+      · have hWdvdM : W ∣ A.M N := by
+          obtain ⟨e, he⟩ := S.core.modulus_power N
+          by_cases hWone : W = 1
+          · simp [hWone]
+          · have hWM : W ≤ W ^ e := by
+              have hle := A.Wle N
+              rw [he] at hle
+              exact hle
+            have hepos : e ≠ 0 := by
+              intro he0
+              subst e
+              simp at hWM
+              omega
+            rw [he]
+            exact dvd_pow_self W hepos
+        have hWdvdMp : W ∣ Mp := by
+          change W ∣ directionModulus S N dirs.poly p
+          unfold directionModulus
+          exact dvd_mul_of_dvd_left hWdvdM _
+        exact dvd_mul_of_dvd_left (Int.natCast_dvd_natCast.mpr hWdvdMp) _
+    have hNormRest : ∀ i : Other,
+        0 < harmonicNormalizer (A.X N (C.block i.1).1) W := by
+      intro i
+      exact c_test2_harmonicNormalizer_pos_of_cutoff _ _ hWpos
+        (S.gapStage.valid_raw_cutoffs N (C.block i.1).1)
+    have hRestOne := c_test2_restPivotMass_tsum_one A C N aStar j
+      (Ne.symm hjNe) hNormRest
+    have hRestNonneg := c_test2_restPivotMass_nonneg A C N aStar j
+      (Ne.symm hjNe) hNormRest
+    have hRestSummable := c_test2_restPivotMass_summable A C N aStar j (Ne.symm hjNe)
+    let restSupport : Finset (Other → ℤ) := Fintype.piFinset fun i : Other =>
+      Finset.Ico (A.X N (C.block i.1).1 : ℤ) ((A.X N (C.block i.1).1) ^ 2 : ℤ)
+    have hRestZero (r : Other → ℤ) (hr : r ∉ restSupport) :
+        c_test2_restPivotMass A C N aStar j r = 0 := by
+      have hnot : ¬ ∀ i : Other, r i ∈
+          Finset.Ico (A.X N (C.block i.1).1 : ℤ) ((A.X N (C.block i.1).1) ^ 2 : ℤ) := by
+        intro hall
+        exact hr (Fintype.mem_piFinset.mpr hall)
+      obtain ⟨i, hi⟩ := not_forall.mp hnot
+      have hLaw : harmonicLaw (A.X N (C.block i.1).1) (primorial (N + 1)) (r i) = 0 := by
+        by_contra hne
+        have hs := c_test2_harmonicLaw_support hne
+        have hmem : r i ∈
+            Finset.Ico (A.X N (C.block i.1).1 : ℤ) ((A.X N (C.block i.1).1) ^ 2 : ℤ) := by
+          simp [Finset.mem_Ico]
+          exact ⟨hs.2.1, hs.2.2⟩
+        exact hi hmem
+      unfold c_test2_restPivotMass
+      exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+    let ref : ℝ := ∑' y : ℤ, harmonicLaw (Xa N) W y * Fbase y
+    let pairAvg : (Other → ℤ) → ℝ := fun r =>
+      ∑' za : ℤ, ∑' zj : ℤ,
+        harmonicLaw (Xa N) W za * harmonicLaw (Xj N) W zj *
+          Fbase (((rootPair N p).k : ℤ) * za + ((rootPair N p).b : ℤ) * zj + offset r)
+    have hAvgSummable : Summable (fun r =>
+        c_test2_restPivotMass A C N aStar j r * pairAvg r) := by
+      apply summable_of_ne_finset_zero (s := restSupport)
+      intro r hr
+      rw [hRestZero r hr]
+      simp
+    have hsample : ∀ r : Other → ℤ,
+        c_test2_restPivotMass A C N aStar j r = 0 ∨ |pairAvg r - ref| ≤ δ := by
+      intro r
+      by_cases hr : c_test2_restPivotMass A C N aStar j r = 0
+      · exact Or.inl hr
+      · right
+        have hroot0 := hOffNonneg r hr
+        have hrootH := hOffRoot r hr
+        have hrootW := hdivOffset r
+        have hVnat : 1 ≤ V N := by
+          unfold V FromArithmetic.masterScaleV
+          omega
+        have hVreal : (1 : ℝ) ≤ (V N : ℝ) := by exact_mod_cast hVnat
+        have hsamp := hSampleN p (offset r) hroot0 hrootH hrootW Fbase hFbound
+        have herr :
+            |(∑' za : ℤ, ∑' zj : ℤ,
+                harmonicLaw (Xa N) W za * harmonicLaw (Xj N) W zj *
+                  Fbase (((rootPair N p).k : ℤ) * za +
+                    ((rootPair N p).b : ℤ) * zj + offset r)) - ref| ≤ δ := by
+          have hle : |(∑' za : ℤ, ∑' zj : ℤ,
+              harmonicLaw (Xa N) W za * harmonicLaw (Xj N) W zj *
+                Fbase (((rootPair N p).k : ℤ) * za +
+                  ((rootPair N p).b : ℤ) * zj + offset r)) - ref| ≤
+              (V N : ℝ) * |(∑' za : ℤ, ∑' zj : ℤ,
+                harmonicLaw (Xa N) W za * harmonicLaw (Xj N) W zj *
+                  Fbase (((rootPair N p).k : ℤ) * za +
+                    ((rootPair N p).b : ℤ) * zj + offset r)) - ref| := by
+            calc
+              _ = 1 * _ := by ring
+              _ ≤ _ := mul_le_mul_of_nonneg_right hVreal (abs_nonneg _)
+          exact le_trans hle (by simpa [ref] using hsamp)
+        simpa [pairAvg, ref] using herr
+    exact c_test2_pivotSampling_expectation_error A C N aStar j (Ne.symm hjNe)
+      (Xa N) (Xj N) (rootPair N p).k (rootPair N p).b rfl rfl Fbase Fwhole offset δ
+      (le_of_lt hδ) hdecomp hsample hRestNonneg hRestSummable hRestOne hAvgSummable
+  have hCubePerGoodTuple
+      (δ : ℝ) (hδ : 0 < δ) (N : ℕ)
+      (hscaleN : c_test2_ScaleData S C a N)
+      (hpoolN : 2 * V N ≤ (S.primeStage.pool N C.gap).lower)
+      (hSampleN : ∀ p, samplePred δ N p)
+      (hsizeN : (S.primeStage.pool N C.gap).upper + V N ≤ A.H N (C.block aStar).1)
+      (hpreviousN : OAI.SourceAdmissible.previous (A.X N) (C.block aStar).1 ≤
+        A.H N (C.block aStar).1)
+      (hotherN : ∀ i : CTest2OtherPivot aStar j, i.1 < aStar →
+        A.X N (C.block i.1).1 ≤ A.H N (C.block aStar).1)
+      (J0 : ℕ) (hJ0 : 0 < J0) (p : Fin q → ℕ)
+      (hp : GoodTuple S C.gap N testList dirs.poly p)
+      (g : ℤ → ℝ) (hGbound : ∀ y, |g y| ≤
+        1 + chainWeight S.core.parameters C N aStar y) :
+      |(∑' z : Fin m → ℤ, pivotMass A C N z *
+          shiftAverage (NonTarget Sh) (T.length S C.gap J0 N p) (fun u =>
+            ∏ ω : NonTarget Sh → Fin 2,
+              atQ g (targetVertex (chainScale A C a N) Sh p
+                (T.modulus S N p) (fun k => (z k : ℚ)) u ω))) -
+        ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y *
+          shiftAverage (Fin T.d) (T.length S C.gap J0 N p) (fun u =>
+            ∏ s : Finset (Fin T.d),
+              g (y + (T.modulus S N p : ℤ) *
+                ∑ k ∈ s, ((u k 1 : ℤ) - u k 0)))| ≤ δ := by
+    classical
+    let L := T.length S C.gap J0 N p
+    let U := Fintype.piFinset (fun _ : NonTarget Sh =>
+      Fintype.piFinset fun _ : Fin 2 => Finset.range L)
+    let Fshift : (Fin m → ℤ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun z u =>
+      ∏ ω : NonTarget Sh → Fin 2,
+        atQ g (targetVertex (chainScale A C a N) Sh p
+          (T.modulus S N p) (fun k => (z k : ℚ)) u ω)
+    let PivotAvg : (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun u =>
+      ∑' z : Fin m → ℤ, pivotMass A C N z * Fshift z u
+    let RefShift : (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun u =>
+      ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y *
+        ∏ ω : NonTarget Sh → Fin 2,
+          g (y + (T.modulus S N p : ℤ) *
+            ∑ R : NonTarget Sh,
+              if ω R = 1 then (u R 1 : ℤ) - u R 0 else 0)
+    let PivotClamp : (NonTarget Sh → Fin 2 → ℕ) → ℝ := fun u =>
+      if u ∈ U then PivotAvg u else RefShift u
+    have hpoint : ∀ u, |PivotClamp u - RefShift u| ≤ δ := by
+      intro u
+      by_cases hu : u ∈ U
+      · simpa [PivotClamp, hu] using
+          hCubePivotAverage δ hδ N hscaleN hpoolN hSampleN hsizeN hpreviousN hotherN
+            J0 hJ0 p hp g hGbound u hu
+      · simpa [PivotClamp, hu] using (le_of_lt hδ)
+    have hshiftClampEq :
+        shiftAverage (NonTarget Sh) L PivotAvg = shiftAverage (NonTarget Sh) L PivotClamp := by
+      unfold shiftAverage
+      have hsum : (∑ u ∈ U, PivotAvg u) = ∑ u ∈ U, PivotClamp u := by
+        apply Finset.sum_congr rfl
+        intro u hu
+        simp [PivotClamp, hu]
+      rw [hsum]
+    have hcardNT : Fintype.card (NonTarget Sh) = T.d := by rfl
+    let pivotSupport : Finset (Fin m → ℤ) := Fintype.piFinset fun i : Fin m =>
+      Finset.Ico (A.X N (C.block i).1 : ℤ) ((A.X N (C.block i).1) ^ 2 : ℤ)
+    have hPivotMassZero (z : Fin m → ℤ) (hz : z ∉ pivotSupport) :
+        pivotMass A C N z = 0 := by
+      have hnot : ¬ ∀ i : Fin m, z i ∈
+          Finset.Ico (A.X N (C.block i).1 : ℤ) ((A.X N (C.block i).1) ^ 2 : ℤ) := by
+        intro hall
+        exact hz (Fintype.mem_piFinset.mpr hall)
+      obtain ⟨i, hi⟩ := not_forall.mp hnot
+      have hLaw : harmonicLaw (A.X N (C.block i).1) (primorial (N + 1)) (z i) = 0 := by
+        by_contra hne
+        have hs := c_test2_harmonicLaw_support hne
+        have hmem : z i ∈
+            Finset.Ico (A.X N (C.block i).1 : ℤ) ((A.X N (C.block i).1) ^ 2 : ℤ) := by
+          simp [Finset.mem_Ico]
+          exact ⟨hs.2.1, hs.2.2⟩
+        exact hi hmem
+      unfold pivotMass
+      exact Finset.prod_eq_zero (Finset.mem_univ i) hLaw
+    have hPivotShiftCommute (F : (Fin m → ℤ) →
+        (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
+        (∑' z : Fin m → ℤ, pivotMass A C N z *
+          shiftAverage (NonTarget Sh) L (F z)) =
+          shiftAverage (NonTarget Sh) L (fun u =>
+            ∑' z : Fin m → ℤ, pivotMass A C N z * F z u) := by
+      have hinterchange :
+          (∑' z : Fin m → ℤ, pivotMass A C N z * ∑ u ∈ U, F z u) =
+            ∑ u ∈ U, ∑' z : Fin m → ℤ, pivotMass A C N z * F z u := by
+        have hzeroOuter (z : Fin m → ℤ) (hz : z ∉ pivotSupport) :
+            pivotMass A C N z * ∑ u ∈ U, F z u = 0 := by
+          rw [hPivotMassZero z hz]
+          simp
+        have hzeroPoint (u : NonTarget Sh → Fin 2 → ℕ) (z : Fin m → ℤ)
+            (hz : z ∉ pivotSupport) : pivotMass A C N z * F z u = 0 := by
+          rw [hPivotMassZero z hz]
+          simp
+        calc
+          _ = ∑ z ∈ pivotSupport, pivotMass A C N z * ∑ u ∈ U, F z u :=
+            tsum_eq_sum (s := pivotSupport) hzeroOuter
+          _ = ∑ z ∈ pivotSupport, ∑ u ∈ U, pivotMass A C N z * F z u := by
+            apply Finset.sum_congr rfl
+            intro z hz
+            simp_rw [Finset.mul_sum]
+          _ = ∑ u ∈ U, ∑ z ∈ pivotSupport, pivotMass A C N z * F z u := by
+            exact Finset.sum_comm
+          _ = ∑ u ∈ U, ∑' z : Fin m → ℤ, pivotMass A C N z * F z u := by
+            apply Finset.sum_congr rfl
+            intro u hu
+            symm
+            exact tsum_eq_sum (s := pivotSupport) (hzeroPoint u)
+      unfold shiftAverage
+      calc
+        _ = ((L : ℝ) ^ (2 * Fintype.card (NonTarget Sh)))⁻¹ *
+            ∑' z : Fin m → ℤ, pivotMass A C N z * ∑ u ∈ U, F z u := by
+          calc
+            _ = ∑' z : Fin m → ℤ,
+                ((L : ℝ) ^ (2 * Fintype.card (NonTarget Sh)))⁻¹ *
+                  (pivotMass A C N z * ∑ u ∈ U, F z u) := by
+              apply tsum_congr
+              intro z
+              ring
+            _ = _ := by rw [← tsum_mul_left]
+        _ = ((L : ℝ) ^ (2 * Fintype.card (NonTarget Sh)))⁻¹ *
+            ∑ u ∈ U, ∑' z : Fin m → ℤ, pivotMass A C N z * F z u := by
+          rw [hinterchange]
+        _ = shiftAverage (NonTarget Sh) L (fun u =>
+            ∑' z : Fin m → ℤ, pivotMass A C N z * F z u) := by
+          rfl
+    have hshiftErr :
+        |shiftAverage (NonTarget Sh) L PivotClamp -
+          shiftAverage (NonTarget Sh) L RefShift| ≤ δ := by
+      by_cases hL : 0 < L
+      · exact c_test2_shiftAverage_error L PivotClamp RefShift δ hL hpoint
+      · have hL0 : L = 0 := by omega
+        have hcardPos : 0 < Fintype.card (NonTarget Sh) := by
+          rw [hcardNT]
+          omega
+        have hpow : (0 : ℝ) ^ (2 * Fintype.card (NonTarget Sh)) = 0 :=
+          zero_pow (by omega)
+        letI : Nonempty (NonTarget Sh) := Fintype.card_pos_iff.mp hcardPos
+        have hU : U = ∅ := by
+          apply Finset.eq_empty_iff_forall_notMem.mpr
+          intro u hu
+          obtain ⟨i⟩ : Nonempty (NonTarget Sh) := Fintype.card_pos_iff.mp hcardPos
+          have hi := Fintype.mem_piFinset.mp hu i
+          have h0 := Fintype.mem_piFinset.mp hi 0
+          have hlt := Finset.mem_range.mp h0
+          rw [hL0] at hlt
+          omega
+        have hzero (F : (NonTarget Sh → Fin 2 → ℕ) → ℝ) :
+            shiftAverage (NonTarget Sh) L F = 0 := by
+          simp [shiftAverage, hL0, hpow, hU, U]
+        rw [hzero PivotClamp, hzero RefShift]
+        simpa using (le_of_lt hδ)
+    have hPivotErr :
+        |(∑' z : Fin m → ℤ, pivotMass A C N z * shiftAverage (NonTarget Sh) L
+              (fun u => Fshift z u)) - shiftAverage (NonTarget Sh) L RefShift| ≤ δ := by
+      have hcommute := hPivotShiftCommute Fshift
+      calc
+        _ = |shiftAverage (NonTarget Sh) L PivotAvg -
+              shiftAverage (NonTarget Sh) L RefShift| := by rw [hcommute]
+        _ = |shiftAverage (NonTarget Sh) L PivotClamp -
+              shiftAverage (NonTarget Sh) L RefShift| := by rw [hshiftClampEq]
+        _ ≤ δ := hshiftErr
+    let e : NonTarget Sh ≃ Fin T.d := Fintype.equivFin (NonTarget Sh)
+    have hsubsetCube (u : Fin T.d → Fin 2 → ℕ) (y : ℤ) :
+        (∏ ω : NonTarget Sh → Fin 2,
+          g (y + (T.modulus S N p : ℤ) *
+            ∑ R : NonTarget Sh,
+              if ω R = 1 then ((u (e R) 1 : ℤ) - u (e R) 0) else 0)) =
+        ∏ s : Finset (Fin T.d),
+          g (y + (T.modulus S N p : ℤ) *
+            ∑ k ∈ s, ((u k 1 : ℤ) - u k 0)) := by
+      simpa using c_test2_cubeProduct_reindex_equiv e g y
+        (T.modulus S N p : ℤ) (fun R b => u (e R) b)
+    have hRefShiftReindex :
+        shiftAverage (NonTarget Sh) L RefShift =
+          ∑' y : ℤ, harmonicLaw (Xa N) (primorial (N + 1)) y *
+            shiftAverage (Fin T.d) L (fun u =>
+              ∏ s : Finset (Fin T.d),
+                g (y + (T.modulus S N p : ℤ) *
+                  ∑ k ∈ s, ((u k 1 : ℤ) - u k 0))) := by
+      classical
+      let μ : ℤ → ℝ := harmonicLaw (Xa N) (primorial (N + 1))
+      let cube : (Fin T.d → Fin 2 → ℕ) → ℤ → ℝ := fun u y =>
+        ∏ s : Finset (Fin T.d),
+          g (y + (T.modulus S N p : ℤ) *
+            ∑ k ∈ s, ((u k 1 : ℤ) - u k 0))
+      have hsum (u : Fin T.d → Fin 2 → ℕ) :
+          RefShift (fun R => fun b => u (e R) b) = ∑' y : ℤ, μ y * cube u y := by
+        unfold RefShift μ cube
+        apply tsum_congr
+        intro y
+        rw [hsubsetCube u y]
+      have hzero (y : ℤ) (hy : y ∉ Finset.Ico (Xa N : ℤ) ((Xa N) ^ 2 : ℤ)) : μ y = 0 := by
+        by_contra hne
+        have hsup := c_test2_harmonicLaw_support (by simpa [μ] using hne)
+        have hmem : y ∈ Finset.Ico (Xa N : ℤ) ((Xa N) ^ 2 : ℤ) := by
+          simp [Finset.mem_Ico]
+          exact ⟨hsup.2.1, hsup.2.2⟩
+        exact hy hmem
+      have hFsum : ∀ u, Summable (fun y : ℤ => μ y * cube u y) := by
+        intro u
+        apply summable_of_ne_finset_zero (s := Finset.Ico (Xa N : ℤ) ((Xa N) ^ 2 : ℤ))
+        intro y hy
+        rw [hzero y hy]
+        simp
+      have hswap := c_test2_shiftAverage_tsum_commute L μ cube hFsum
+      calc
+        shiftAverage (NonTarget Sh) L RefShift =
+            shiftAverage (Fin T.d) L (fun u => RefShift (fun R => fun b => u (e R) b)) :=
+              c_test2_shiftAverage_reindex e L RefShift
+        _ = shiftAverage (Fin T.d) L (fun u => ∑' y : ℤ, μ y * cube u y) := by
+              congr 1
+              funext u
+              exact hsum u
+        _ = ∑' y : ℤ, μ y * shiftAverage (Fin T.d) L (fun u => cube u y) := hswap
+        _ = _ := by rfl
+    rw [← hRefShiftReindex]
+    exact hPivotErr
   refine ⟨hrowFacts.2.1, hrowFacts.1, hmodBound, ?_⟩
   intro J0s hJ0s ε hε
   sorry
