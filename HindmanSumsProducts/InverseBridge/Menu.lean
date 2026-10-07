@@ -207,28 +207,9 @@ theorem bridgeMenuData_covers (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) (δ : 
   (Classical.choose_spec (Classical.choose_spec
     (Classical.choose_spec (exists_bridgeMenuData s K₀ hK₀)))).2.2 δ hδ
 
-/-- The finite canonical charted menu represents every bounded observable on every
-degree-s nilmanifold, uniformly over unit phases (IB.b2). -/
-theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
-    ∃ (M : Menu (2 * s)) (K : ℝ≥0), 0 < M.size ∧
-      ∀ {L : Type*} [LieRing L] [LieAlgebra ℚ L]
-        [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
-        [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
-        (D : RationalFilteredNilmanifold L s d)
-        (T : D.Niltest (fun _ : Unit => 1)),
-        T.normBound ≤ 1 → T.ComplexityLE K₀ →
-        ∀ u : ℂ, ‖u‖ = 1 →
-          ∃ P : CosetPiece M K, ∀ n : ℤ,
-            2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
-  sorry
-
-/-- Construct a menu piece from a point, translation, and bounded continuous observable. -/
-def ofObservable {M : Menu s} {K : ℝ≥0} (i : Fin M.size)
-    (g : M.G i) (x : M.G i ⧸ M.Γ i) (obs : (M.G i ⧸ M.Γ i) →ᵇ ℝ)
-    (hlip : letI := (M.metric i).replaceTopology (M.compatible i)
-      LipschitzWith K obs)
-    (hrange : ∀ z, obs z ∈ Set.Icc (0 : ℝ) 1) : CosetPiece M K :=
-  ⟨i, g, x, obs, hlip, hrange⟩
+open OAI OAI.Erdos3 OAI.SourceChartedMenu OAI.SourceMenuLiteral
+open OAI.SourceProductChart
+open scoped NNReal TensorProduct BoundedContinuousFunction
 
 /-- A constant `[0,1]`-valued piece on any nonempty menu. -/
 theorem exists_constPiece {M : Menu s} {K : ℝ≥0} (hM : 0 < M.size)
@@ -255,6 +236,374 @@ theorem exists_constPiece {M : Menu s} {K : ℝ≥0} (hM : 0 < M.size)
   }
   exact ⟨P, by intro k; simp [P, CosetPiece.eval, obs,
     BoundedContinuousFunction.const_apply']⟩
+
+universe u
+
+/-- The unresolved local construction, tagged by the original finite datum. -/
+def DataRepresentation (s : ℕ) (K₀ : ℝ) (δ : BaseData s)
+    (M : Menu (2 * s)) (K : ℝ≥0) : Prop :=
+  ∀ {L : Type u} [LieRing L] [LieAlgebra ℚ L]
+    [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
+    (D : RationalFilteredNilmanifold L s d)
+    (T : D.Niltest (fun _ : Unit => 1)),
+    baseData D = δ → T.normBound ≤ 1 → T.ComplexityLE K₀ →
+    ∀ u : ℂ, ‖u‖ = 1 →
+      ∃ P : CosetPiece M K, ∀ n : ℤ,
+        2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re
+
+/-- The fixed-model geometric obligation; the menu precedes the orbit and H. -/
+def FixedModelRepresentation {V : Type} [LieRing V] [LieAlgebra ℚ V]
+    [TopologicalSpace (ℝ ⊗[ℚ] V)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] V)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] V)] [T2Space (ℝ ⊗[ℚ] V)]
+    {s d : ℕ} (E : RationalFilteredNilmanifold V s d) (M : Menu (2 * s)) : Prop :=
+  ∀ (B : ℝ≥0) (H : E.Space → ℝ), (∀ y, H y ∈ Set.Icc (0 : ℝ) 1) →
+    (letI := E.metricSpace; LipschitzWith B H) →
+    ∀ p : E.filtration.realification.PolynomialOrbit (fun _ : Unit => 1),
+      ∃ P : CosetPiece M (max 1 B), ∀ n : ℤ,
+        P.eval n = H (E.integerOrbitPoint p n)
+
+/-- The integer support side condition of `liftObs_at_integer` is automatic. -/
+theorem liftObs_at_integer_auto {X Y : Type*} (r : X → ℝ) (point : X → ℤ → Y)
+    (H : Y → ℝ) (x : X) (n : ℤ) (hr : r x = n) :
+    liftObs r point H x = H (point x n) := by
+  apply liftObs_at_integer r point H x n hr
+  intro m hmn
+  by_contra hm
+  have hn : bump (r x - n) ≠ 0 := by simp [hr, bump]
+  exact hmn (bump_integer_support_subsingleton (r x) hm hn)
+
+/-- Concrete invariance is the only missing algebraic input to this descent.
+The inherited scaling, bounds, and range are already proved in Observable. -/
+theorem exists_linearized_descent {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+    {s d : ℕ} (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    (Γ : Subgroup (weightFiltration D.filtration hs).realification.Group)
+    (hinv : ∀ H X γ, γ ∈ Γ →
+      linearizedObservableLift D hs H (X * γ) = linearizedObservableLift D hs H X) :
+    ∃ O : ObservableDescent (weightFiltration D.filtration hs).realification.Group Γ D.Space,
+      O.lift = linearizedObservableLift D hs ∧
+      ∀ H : D.Space → ℝ, (∀ y, H y ∈ Set.Icc (0 : ℝ) 1) →
+        ∀ x, O.desc H x ∈ Set.Icc (0 : ℝ) 1 := by
+  let r := fun X : (weightFiltration D.filtration hs).realification.Group =>
+    realTranslationCoordinate D.filtration X.coord
+  let point := fun X m => linearizedObservablePoint D hs m X
+  let O := ObservableDescent.ofLift Γ (linearizedObservableLift D hs) hinv
+    (fun c H X => liftObs_scale r point H c X)
+    (fun H hH X => liftObs_abs_le_one r point H hH X)
+  refine ⟨O, rfl, ?_⟩
+  intro H hH x
+  refine Quotient.inductionOn x ?_
+  intro X
+  rw [O.desc_mk]
+  exact liftObs_mem_Icc r point H hH X
+
+/-- The observable budget supplies a uniform bound after canonical transport. -/
+theorem exists_uniform_rotated_pullback {L V : Type*}
+    [LieRing L] [LieAlgebra ℚ L] [LieRing V] [LieAlgebra ℚ V]
+    [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)]
+    [TopologicalSpace (ℝ ⊗[ℚ] V)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] V)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] V)] [T2Space (ℝ ⊗[ℚ] V)]
+    {s d : ℕ} (D : RationalFilteredNilmanifold L s d)
+    (E : RationalFilteredNilmanifold V s d) (K₀ : ℝ)
+    (φ : V ≃ₗ⁅ℚ⁆ L)
+    (hbasis : ∀ i, φ (E.basis i) = D.basis i)
+    (hlayer : ∀ k a, a ∈ E.filtration.layer k ↔ φ a ∈ D.filtration.layer k)
+    (hlattice : E.lattice ≤ D.lattice.comap
+      (NilpotentLieBCHGroup.mapOfSteps
+        (hL := E.filtration.lowerCentralSeries_eq_bot)
+        (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom))
+    (T : D.Niltest (fun _ : Unit => 1)) (hT : T.normBound ≤ 1)
+    (hTC : T.ComplexityLE K₀) (u : ℂ) (hu : ‖u‖ = 1) :
+    ∃ (p : E.filtration.realification.PolynomialOrbit (fun _ : Unit => 1))
+      (H : E.Space → ℝ),
+      (∀ y, H y ∈ Set.Icc (0 : ℝ) 1) ∧
+      (letI := E.metricSpace;
+        LipschitzWith
+          (⟨Real.exp K₀, (Real.exp_pos K₀).le⟩ * coordinateLipschitzBound d d 1 / 2) H) ∧
+      ∀ n : ℤ, H (E.integerOrbitPoint p n) =
+        (1 + (u * T.eval (fun _ => n)).re) / 2 := by
+  obtain ⟨π, hπ, hlift⟩ := exists_transport_map_uniform D E φ hbasis hlayer hlattice
+  obtain ⟨p, hp⟩ := hlift T.orbit
+  obtain ⟨H, hH, hLH, hOrbit⟩ := transport_to_canonical D E T hT u hu
+    π p (coordinateLipschitzBound d d 1) hπ hp
+  have hbudget : T.lipBound ≤ (⟨Real.exp K₀, (Real.exp_pos K₀).le⟩ : ℝ≥0) := by
+    have hb := RationalFilteredNilmanifold.Niltest.observable_budget hTC
+    have hn := T.normBound.coe_nonneg
+    change (T.lipBound : ℝ) ≤ Real.exp K₀
+    linarith
+  refine ⟨p, H, hH, ?_, hOrbit⟩
+  letI := E.metricSpace
+  exact hLH.weaken (by
+    gcongr
+    exact mul_le_mul_of_nonneg_right hbudget (by positivity))
+
+/-- A fixed covering model with fixed-model representation gives the local
+datum certificate, uniformly across carrier universes and compatible lattices. -/
+theorem dataRepresentation_of_cover {V : Type} [LieRing V] [LieAlgebra ℚ V]
+    [TopologicalSpace (ℝ ⊗[ℚ] V)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] V)]
+    [ContinuousSMul ℝ (ℝ ⊗[ℚ] V)] [T2Space (ℝ ⊗[ℚ] V)]
+    {s : ℕ} (K₀ : ℝ) (δ : BaseData s)
+    (E : RationalFilteredNilmanifold V s δ.d)
+    (hcover : ∀ (L : Type u) [LieRing L] [LieAlgebra ℚ L]
+      (D : RationalFilteredNilmanifold L s δ.d), baseData D = δ →
+      ∃ φ : V ≃ₗ⁅ℚ⁆ L,
+        (∀ i, φ (E.basis i) = D.basis i) ∧
+        (∀ k a, a ∈ E.filtration.layer k ↔ φ a ∈ D.filtration.layer k) ∧
+        E.lattice ≤ D.lattice.comap (NilpotentLieBCHGroup.mapOfSteps
+          (hL := E.filtration.lowerCentralSeries_eq_bot)
+          (hM := D.filtration.lowerCentralSeries_eq_bot) φ.toLieHom))
+    (M : Menu (2 * s)) (hfixed : FixedModelRepresentation E M) :
+    ∃ K : ℝ≥0, DataRepresentation.{u} s K₀ δ M K := by
+  let B : ℝ≥0 := ⟨Real.exp K₀, (Real.exp_pos K₀).le⟩ *
+    coordinateLipschitzBound δ.d δ.d 1 / 2
+  refine ⟨max 1 B, ?_⟩
+  intro L _ _ _ _ _ _ d D T hδ hT hTC u hu
+  have hd : d = δ.d := congrArg BaseData.d hδ
+  subst d
+  obtain ⟨φ, hbasis, hlayer, hlattice⟩ := hcover L D hδ
+  obtain ⟨p, H, hH, hLH, hOrbit⟩ := exists_uniform_rotated_pullback
+    D E K₀ φ hbasis hlayer hlattice T hT hTC u hu
+  obtain ⟨P, hP⟩ := hfixed B H hH hLH p
+  refine ⟨P, fun n => ?_⟩
+  rw [hP n, hOrbit n]
+  ring
+
+/-- A finite family of menus admits one menu and one common Lipschitz bound. -/
+theorem exists_combinedMenu {s : ℕ} {J : Type} [Fintype J]
+    (F : J → Menu s) (B : J → ℝ≥0)
+    (hpos : ∃ j, 0 < (F j).size) :
+    ∃ (M : Menu s) (K : ℝ≥0), 0 < M.size ∧
+      ∀ j (P : CosetPiece (F j) (B j)),
+        ∃ Q : CosetPiece M K, ∀ n : ℤ, Q.eval n = P.eval n := by
+  classical
+  let A := (j : J) × Fin (F j).size
+  let e : A ≃ Fin (Fintype.card A) := Fintype.equivFin A
+  let M : Menu s := {
+    size := Fintype.card A
+    G := fun i => (F (e.symm i).1).G (e.symm i).2
+    group := fun i => (F (e.symm i).1).group (e.symm i).2
+    topology := fun i => (F (e.symm i).1).topology (e.symm i).2
+    topGroup := fun i => (F (e.symm i).1).topGroup (e.symm i).2
+    Γ := fun i => (F (e.symm i).1).Γ (e.symm i).2
+    chart := fun i => (F (e.symm i).1).chart (e.symm i).2
+    metric := fun i => (F (e.symm i).1).metric (e.symm i).2
+    compatible := fun i => (F (e.symm i).1).compatible (e.symm i).2
+  }
+  let K : ℝ≥0 := Finset.univ.sup B
+  have hB (j : J) : B j ≤ K := Finset.le_sup (Finset.mem_univ j)
+  have hM : 0 < M.size := by
+    obtain ⟨j, hj⟩ := hpos
+    have : Nonempty A := ⟨⟨j, ⟨0, hj⟩⟩⟩
+    exact Fintype.card_pos_iff.mpr this
+  have transfer (a : A) (i : Fin M.size) (hi : e.symm i = a)
+      (g : (F a.1).G a.2) (x : (F a.1).G a.2 ⧸ (F a.1).Γ a.2)
+      (obs : ((F a.1).G a.2 ⧸ (F a.1).Γ a.2) →ᵇ ℝ)
+      (hlip : letI := ((F a.1).metric a.2).replaceTopology ((F a.1).compatible a.2)
+        LipschitzWith (B a.1) obs)
+      (hrange : ∀ z, obs z ∈ Set.Icc (0 : ℝ) 1) :
+      ∃ Q : CosetPiece M K, ∀ n : ℤ, Q.eval n = obs (g ^ n • x) := by
+    subst a
+    let Q : CosetPiece M K := {
+      index := i
+      g := g
+      x := x
+      obs := obs
+      lip := by
+        letI := ((F (e.symm i).1).metric (e.symm i).2).replaceTopology
+          ((F (e.symm i).1).compatible (e.symm i).2)
+        exact hlip.weaken (hB (e.symm i).1)
+      range := hrange
+    }
+    exact ⟨Q, fun _ => rfl⟩
+  refine ⟨M, K, hM, ?_⟩
+  intro j P
+  exact transfer ⟨j, P.index⟩ (e ⟨j, P.index⟩) (e.symm_apply_apply _)
+    P.g P.x P.obs P.lip P.range
+
+/-- Once concrete descent and equicontinuity are supplied, the generic metric
+theorem constructs an actual charted menu and its observable pieces. -/
+theorem exists_menu_of_descent {s : ℕ} {G : Type} [Group G] [TopologicalSpace G]
+    [IsTopologicalGroup G] (Γ : Subgroup G) [MetricSpace (G ⧸ Γ)]
+    [CompactSpace (G ⧸ Γ)] [T2Space (G ⧸ Γ)] {Y : Type*} [MetricSpace Y]
+    (chart : Chart s G Γ) (O : ObservableDescent G Γ Y)
+    (hmetric : QuotientGroup.instTopologicalSpace Γ =
+      (inferInstance : MetricSpace (G ⧸ Γ)).toUniformSpace.toTopologicalSpace)
+    (heq : ∀ x ε, 0 < ε →
+      ∃ δ, 0 < δ ∧ ∀ y, dist y x < δ → ∀ H : LipOne Y,
+        |O.desc H.1 y - O.desc H.1 x| < ε)
+    (hrange : ∀ H : Y → ℝ, (∀ y, H y ∈ Set.Icc (0 : ℝ) 1) →
+      ∀ x, O.desc H x ∈ Set.Icc (0 : ℝ) 1) :
+    ∃ M : Menu s, 0 < M.size ∧
+      ∀ (B : ℝ≥0) (H : Y → ℝ), (∀ y, H y ∈ Set.Icc (0 : ℝ) 1) →
+        LipschitzWith B H → ∀ (g : G) (x : G ⧸ Γ),
+        ∃ P : CosetPiece M (max 1 B),
+          ∀ n : ℤ, P.eval n = O.desc H (g ^ n • x) := by
+  classical
+  obtain ⟨d, hd, hLip⟩ := exists_observable_menuMetric O hmetric heq
+  let M : Menu s := {
+    size := 1
+    G := fun _ => G
+    group := fun _ => inferInstance
+    topology := fun _ => inferInstance
+    topGroup := fun _ => inferInstance
+    Γ := fun _ => Γ
+    chart := fun _ => chart
+    metric := fun _ => d
+    compatible := fun _ => hd
+  }
+  refine ⟨M, by norm_num [M], ?_⟩
+  intro B H hH hLH g x
+  have hHabs : ∀ y, |H y| ≤ 1 := by
+    intro y
+    rw [abs_of_nonneg (hH y).1]
+    exact (hH y).2
+  have hcontinuous : @Continuous (G ⧸ Γ) ℝ (QuotientGroup.instTopologicalSpace Γ)
+      inferInstance (O.desc H) := by
+    letI := d
+    have hc := (hLip H hHabs B hLH).continuous
+    rw [← hd] at hc
+    exact hc
+  let obs : @BoundedContinuousFunction (G ⧸ Γ) ℝ
+      (QuotientGroup.instTopologicalSpace Γ) inferInstance :=
+    BoundedContinuousFunction.mkOfCompact ⟨O.desc H, hcontinuous⟩
+  let P : CosetPiece M (max 1 B) := {
+    index := ⟨0, by norm_num [M]⟩
+    g := g
+    x := x
+    obs := obs
+    lip := by
+      letI := d.replaceTopology hd
+      have hh := hLip H hHabs B hLH
+      rwa [← MetricSpace.replaceTopology_eq d hd] at hh
+    range := hrange H hH
+  }
+  exact ⟨P, fun _ => rfl⟩
+
+/-- Finiteness reduces the frozen theorem to one model menu per original datum.
+The local hypothesis is an explicit open obligation, not an axiom. -/
+theorem exists_bridgeMenu_of_datawise (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀)
+    (hlocal : ∀ δ : BaseData s,
+      (∃ (L : Type u) (hL : LieRing L) (hA : LieAlgebra ℚ L),
+        letI : LieRing L := hL
+        letI : LieAlgebra ℚ L := hA
+        ∃ D : RationalFilteredNilmanifold L s δ.d,
+          D.GeometryComplexityLE K₀ ∧ baseData D = δ) →
+      ∃ (M : Menu (2 * s)) (K : ℝ≥0),
+        0 < M.size ∧ DataRepresentation.{u} s K₀ δ M K) :
+    ∃ (M : Menu (2 * s)) (K : ℝ≥0), 0 < M.size ∧
+      ∀ {L : Type u} [LieRing L] [LieAlgebra ℚ L]
+        [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+        [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
+        (D : RationalFilteredNilmanifold L s d)
+        (T : D.Niltest (fun _ : Unit => 1)),
+        T.normBound ≤ 1 → T.ComplexityLE K₀ →
+        ∀ u : ℂ, ‖u‖ = 1 →
+          ∃ P : CosetPiece M K, ∀ n : ℤ,
+            2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
+  classical
+  let S : Set (BaseData s) := {δ |
+    ∃ (L : Type u) (hL : LieRing L) (hA : LieAlgebra ℚ L),
+      letI : LieRing L := hL
+      letI : LieAlgebra ℚ L := hA
+      ∃ D : RationalFilteredNilmanifold L s δ.d,
+        D.GeometryComplexityLE K₀ ∧ baseData D = δ}
+  have hfinite : S.Finite := baseData_finite s K₀
+  let J := {δ : BaseData s // δ ∈ S}
+  letI : Fintype J := hfinite.fintype
+  have hchoice : ∀ a : J, ∃ (M : Menu (2 * s)) (K : ℝ≥0),
+      0 < M.size ∧ DataRepresentation.{u} s K₀ a.val M K :=
+    fun a => hlocal a.val a.property
+  choose F B hF using hchoice
+  obtain ⟨M₀, B₀, data, hM₀, _⟩ := exists_bridgeMenuData s K₀ hK₀
+  let F' : Option J → Menu (2 * s) := fun a => a.elim M₀ F
+  let B' : Option J → ℝ≥0 := fun a => a.elim B₀ B
+  obtain ⟨M, K, hM, hcombine⟩ := exists_combinedMenu F' B' ⟨none, hM₀⟩
+  refine ⟨M, K, hM, ?_⟩
+  intro L hL hA _ _ _ _ d D T hT hTC u hu
+  have hδ : baseData D ∈ S := ⟨L, hL, hA, D, hTC.1, rfl⟩
+  let a : J := ⟨baseData D, hδ⟩
+  obtain ⟨P, hP⟩ := (hF a).2 D T rfl hT hTC u hu
+  obtain ⟨Q, hQ⟩ := hcombine (some a) P
+  exact ⟨Q, fun n => by rw [hQ n]; exact hP n⟩
+
+/-- The step-zero instance of the frozen statement is unconditional. -/
+theorem exists_bridgeMenu_zero (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
+    ∃ (M : Menu (2 * 0)) (K : ℝ≥0), 0 < M.size ∧
+      ∀ {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+        [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+        [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
+        (D : RationalFilteredNilmanifold L 0 d)
+        (T : D.Niltest (fun _ : Unit => 1)),
+        T.normBound ≤ 1 → T.ComplexityLE K₀ →
+        ∀ u : ℂ, ‖u‖ = 1 →
+          ∃ P : CosetPiece M K, ∀ n : ℤ,
+            2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
+  obtain ⟨M, K, data, hM, _⟩ := exists_bridgeMenuData 0 K₀ hK₀
+  refine ⟨M, K, hM, ?_⟩
+  intro L _ _ _ _ _ _ d D T hT _ u hu
+  let c : ℂ := T.observable (QuotientGroup.mk (1 : D.RealGroup))
+  have hnorm : ‖u * c‖ ≤ 1 := by
+    calc
+      ‖u * c‖ = ‖c‖ := by rw [norm_mul, hu, one_mul]
+      _ ≤ (T.normBound : ℝ) := T.norm_le _
+      _ ≤ 1 := by exact_mod_cast hT
+  have hre : |(u * c).re| ≤ 1 := (Complex.abs_re_le_norm _).trans hnorm
+  have hrange : (1 + (u * c).re) / 2 ∈ Set.Icc (0 : ℝ) 1 := by
+    constructor <;> linarith [(abs_le.mp hre).1, (abs_le.mp hre).2]
+  obtain ⟨P, hP⟩ := exists_constPiece (K := K) hM _ hrange
+  refine ⟨P, ?_⟩
+  intro n
+  rw [hP n, RationalFilteredNilmanifold.Niltest.eval_step_zero]
+  dsimp [c]
+  ring
+
+/-- No niltest fits a zero complexity budget, so this instance is vacuous. -/
+theorem exists_bridgeMenu_budget_zero (s : ℕ) :
+    ∃ (M : Menu (2 * s)) (K : ℝ≥0), 0 < M.size ∧
+      ∀ {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+        [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+        [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
+        (D : RationalFilteredNilmanifold L s d)
+        (T : D.Niltest (fun _ : Unit => 1)),
+        T.normBound ≤ 1 → T.ComplexityLE 0 →
+        ∀ u : ℂ, ‖u‖ = 1 →
+          ∃ P : CosetPiece M K, ∀ n : ℤ,
+            2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
+  obtain ⟨M, K, data, hM, _⟩ := exists_bridgeMenuData s 0 le_rfl
+  refine ⟨M, K, hM, ?_⟩
+  intro L _ _ _ _ _ _ d D T _ hT u _
+  have h := RationalFilteredNilmanifold.Niltest.observable_budget hT
+  simp only [Real.exp_zero] at h
+  have hn := T.normBound.coe_nonneg
+  have hl := T.lipBound.coe_nonneg
+  exfalso
+  linarith
+
+
+/-- The finite canonical charted menu represents every bounded observable on every
+degree-s nilmanifold, uniformly over unit phases (IB.b2). -/
+theorem exists_bridgeMenu (s : ℕ) (K₀ : ℝ) (hK₀ : 0 ≤ K₀) :
+    ∃ (M : Menu (2 * s)) (K : ℝ≥0), 0 < M.size ∧
+      ∀ {L : Type*} [LieRing L] [LieAlgebra ℚ L]
+        [TopologicalSpace (ℝ ⊗[ℚ] L)] [IsTopologicalAddGroup (ℝ ⊗[ℚ] L)]
+        [ContinuousSMul ℝ (ℝ ⊗[ℚ] L)] [T2Space (ℝ ⊗[ℚ] L)] {d : ℕ}
+        (D : RationalFilteredNilmanifold L s d)
+        (T : D.Niltest (fun _ : Unit => 1)),
+        T.normBound ≤ 1 → T.ComplexityLE K₀ →
+        ∀ u : ℂ, ‖u‖ = 1 →
+          ∃ P : CosetPiece M K, ∀ n : ℤ,
+            2 * P.eval n - 1 = (u * T.eval (fun _ => n)).re := by
+  sorry
+
+/-- Construct a menu piece from a point, translation, and bounded continuous observable. -/
+def ofObservable {M : Menu s} {K : ℝ≥0} (i : Fin M.size)
+    (g : M.G i) (x : M.G i ⧸ M.Γ i) (obs : (M.G i ⧸ M.Γ i) →ᵇ ℝ)
+    (hlip : letI := (M.metric i).replaceTopology (M.compatible i)
+      LipschitzWith K obs)
+    (hrange : ∀ z, obs z ∈ Set.Icc (0 : ℝ) 1) : CosetPiece M K :=
+  ⟨i, g, x, obs, hlip, hrange⟩
+
 
 end HindmanSumsProducts.InverseBridge
 
