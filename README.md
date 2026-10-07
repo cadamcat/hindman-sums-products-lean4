@@ -6,7 +6,7 @@ Every finite colouring of the positive integers contains, for each `m`, an `m`-e
 
 - **Author:** Yao Xu ([@cadamcat](https://github.com/cadamcat)); see [authors and attribution](AUTHORS.md).
 - **Mathematical result:** OpenAI, [*Monochromatic finite sums and products in the positive integers*](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf).
-- Developed with AI assistance (Claude Code, Codex, and GPT-6.1 Sol); the verification script reports the theorem's axioms and any open proof placeholders.
+- Developed with AI assistance (Claude Code and Codex); all proofs are verified by the Lean 4 kernel.
 
 ## Main results
 

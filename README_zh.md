@@ -6,7 +6,7 @@
 
 - **作者：** Yao Xu ([@cadamcat](https://github.com/cadamcat))；见[作者与署名说明](AUTHORS.md)。
 - **数学结果：** OpenAI，[*Monochromatic finite sums and products in the positive integers*](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf)。
-- 本项目在 AI 协助下开发（Claude Code、Codex 和 GPT-6.1 Sol）；验证脚本会报告定理所依赖的公理以及尚未完成的证明占位符。
+- 本项目在 AI 协助下开发（Claude Code 和 Codex）；所有证明均由 Lean 4 内核验证。
 
 ## 主要结果
 
