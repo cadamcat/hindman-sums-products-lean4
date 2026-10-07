@@ -3420,7 +3420,7 @@ theorem dropPrimeTuple2_extend {q : ℕ} (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
   simp [dropPrimeTuple2, extendPrimeTuple]
 
 theorem pkgMask_gapSlotMass_extend2 {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
     gapSlotMass S C.gap N (extendPrimeTuple (extendPrimeTuple p p₁) p₀) =
       gapSlotMass S C.gap N p *
@@ -3555,12 +3555,12 @@ theorem rowForm_update_mul_singleton {m q : ℕ}
   ring
 
 theorem pkgMask_chainWeight_rowUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
     (T : RowTemplate m q) (p : Fin q → ℕ) (u : Fin m) (p₀ : ℕ)
     (z : Fin m → ℤ) (hcase : u ∉ T.support ∨ T.support = {u})
     (hc : c u ≠ 0) (hp₀ : p₀.Prime)
-    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
+    (hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p₀)
     (hdenOld : (rowForm c T p (fun k => (z k : ℚ))).den = 1)
     (hdenNew : (rowForm c T p
       (Function.update (fun k => (z k : ℚ)) u ((p₀ : ℚ) * (z u : ℚ)))).den = 1) :
@@ -3603,15 +3603,15 @@ theorem pkgMask_chainWeight_rowUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
     exact chainWeight_mul_eq_of_prime_gt S C N d p₀ hp₀ hV₀ oldValue.num
 
 theorem pkgMask_chainWeight_balancedUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
     (T : RowTemplate m q) (p : Fin q → ℕ) (u v : Fin m) (huv : u ≠ v)
     (p₀ p₁ : ℕ) (z : Fin m → ℤ)
     (hcase : (u ∉ T.support ∧ v ∉ T.support) ∨ T.support = {u} ∨ T.support = {v})
     (hcu : c u ≠ 0) (hcv : c v ≠ 0)
     (hp₀ : p₀.Prime) (hp₁ : p₁.Prime)
-    (hV₀ : masterScaleV S.core.parameters N C.gap < p₀)
-    (hV₁ : masterScaleV S.core.parameters N C.gap < p₁)
+    (hV₀ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p₀)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p₁)
     (hdenOld : (rowForm c T p (fun k => (z k : ℚ))).den = 1)
     (hdenNew : (rowForm c T p
       (Function.update (Function.update (fun k => (z k : ℚ)) u
@@ -3639,7 +3639,7 @@ theorem pkgMask_chainWeight_balancedUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ
     have hnum : newValue.num = oldValue.num := by exact_mod_cast hnumQ
     rw [hnum]
   have hweightOfMul (p' : ℕ) (hp' : p'.Prime)
-      (hV' : masterScaleV S.core.parameters N C.gap < p')
+      (hV' : FromArithmetic.masterScaleV S.core.parameters N C.gap < p')
       (hEq : newValue = (p' : ℚ) * oldValue) :
       chainWeight S.core.parameters C N d newValue.num =
         chainWeight S.core.parameters C N d oldValue.num := by
@@ -3692,13 +3692,13 @@ theorem pkgMask_chainWeight_balancedUpdate_eq {K s m q : ℕ} {Aset : Finset ℚ
     exact hweightOfMul p₁ hp₁ hV₁ hEq
 
 theorem pkgMask_chainWeight_scaleBranchP_eq {K s m q : ℕ} {Aset : Finset ℚ}
-    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
     (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
     (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
     (z : Fin m → ℤ)
     (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u))
     (hc : c u ≠ 0) (hp₁ : (p 1).Prime)
-    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 1)
     (hdenBranch :
       (rowForm c (T.scaleBranchP u) p fun k => (z k : ℚ)).den = 1)
     (hdenOld :
@@ -3746,12 +3746,12 @@ theorem pkgMask_chainWeight_scaleBranchP_eq {K s m q : ℕ} {Aset : Finset ℚ}
 
 theorem pkgMask_invariantBranchWeightProduct_eq_old {K s m q r : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
     (a : Fin m → ℚ) (T : Fin r → RowTemplate m q) (u : Fin m)
     (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) (I : Fin r → Prop)
     (hI : ∀ i, I i ↔ ((T i).scaleBranchP u).Parallel ((T i).scaleBranchQ u))
     (hc : chainScale S.core.parameters C a N u ≠ 0) (hp₁ : (p 1).Prime)
-    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hV₁ : FromArithmetic.masterScaleV S.core.parameters N C.gap < p 1)
     (hdenBranch : ∀ i,
       (rowForm (chainScale S.core.parameters C a N) ((T i).scaleBranchP u) p
         fun k => (z k : ℚ)).den = 1)
@@ -8221,7 +8221,7 @@ noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
 
 theorem pkgMask_outsideBranchStateIntegrand_identity {K s m q r r' : ℕ}
     {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
-    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
     (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
     (Sh' : RowShape m (q + 2) r')
     (e : RowBranchIndex (fun i =>
