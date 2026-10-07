@@ -3832,6 +3832,75 @@ theorem pkgElim_momentGlobalData_eventually {K m q r s : ℕ} {Aset : Finset ℚ
   refine ⟨hcoeffN, hfactsN, hmassN, hlowerN, ?_⟩
   simpa [T] using hDminN
 
+theorem pkgElim_responseUnit_integer {N V q : ℕ}
+    {tests : Finset (IntegerPolynomial q)} {p : Fin q → ℕ} {x : ℚ}
+    (h : ResponseUnit N V tests p x) : ∃ z : ℤ, x = (z : ℚ) := by
+  refine ⟨x.num, ?_⟩
+  exact (Rat.den_eq_one_iff x).mp h.2.1 |>.symm
+
+theorem pkgElim_occurrenceCoeff_integer {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (N : ℕ) (p : Fin q → ℕ) (o : Occurrence Sh) (v : Coordinate Sh)
+    (J0 B : ℕ) (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly p) :
+    ∃ z : ℤ, occurrenceCoeff S C a Sh dirs N p o v = (z : ℚ) := by
+  classical
+  rcases hGlobal with ⟨⟨c, hcVal, hcPos, hcRatio, hcDiv⟩, hFacts, hMass, hLower, hLength⟩
+  have hscale : ∀ d, chainScale S.core.parameters C a N d = (c d : ℚ) := by
+    intro d
+    exact (hcVal d).symm
+  have hfacts := hFacts p hGood
+  cases o with
+  | inl ω =>
+    cases v with
+    | inl k =>
+      obtain ⟨z, hz⟩ := pkgElim_rowTemplateCoefficient_integer
+        (T := Sh.row Sh.star) p k (chainScale S.core.parameters C a N) c
+        hscale hcPos (primorial (N + 1)) hcRatio
+      exact ⟨z, by simpa [occurrenceCoeff, occurrenceRow] using hz⟩
+    | inr v =>
+      cases v with
+      | inl re =>
+        rcases re with ⟨R, e⟩
+        by_cases he : e = ω R
+        · refine ⟨(directionModulus S N dirs.poly p : ℤ), ?_⟩
+          simp [occurrenceCoeff, he]
+        · exact ⟨0, by simp [occurrenceCoeff, he]⟩
+      | inr j => exact ⟨0, by simp [occurrenceCoeff]⟩
+  | inr pair =>
+    rcases pair with ⟨j, ⟨I, η⟩⟩
+    cases v with
+    | inl k =>
+      obtain ⟨z, hz⟩ := pkgElim_rowTemplateCoefficient_integer
+        (T := Sh.row I.1) p k (chainScale S.core.parameters C a N) c
+        hscale hcPos (primorial (N + 1)) hcRatio
+      exact ⟨z, by simpa [occurrenceCoeff, occurrenceRow] using hz⟩
+    | inr v =>
+      cases v with
+      | inl re =>
+        rcases re with ⟨R, e⟩
+        by_cases hRI : R ≠ I
+        · by_cases he : e = η ⟨R, hRI⟩
+          · rcases hfacts with ⟨_, _, _, _, _, _, hResponse, _⟩
+            have hIR : I.1 ≠ R.1 := by
+              intro hval
+              apply hRI
+              exact Subtype.ext hval.symm
+            obtain ⟨z, hz⟩ := pkgElim_responseUnit_integer
+              (hResponse R.1 I.1 R.property hIR)
+            exact ⟨z, by simpa [occurrenceCoeff, occurrenceRow, hRI, he] using hz⟩
+          · exact ⟨0, by simp [occurrenceCoeff, hRI, he]⟩
+        · exact ⟨0, by simp [occurrenceCoeff, hRI]⟩
+      | inr j' =>
+        by_cases hj : j' = j
+        · rcases hfacts with ⟨_, _, _, _, _, _, _, hRootResponse⟩
+          obtain ⟨z, hz⟩ := pkgElim_responseUnit_integer
+            (hRootResponse I.1 I.property)
+          exact ⟨z, by simpa [occurrenceCoeff, occurrenceRow, hj] using hz⟩
+        · exact ⟨0, by simp [occurrenceCoeff, hj]⟩
+
 noncomputable def pkgElim_momentOldResidueError {K m q r s : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (C : MasterChain K m)
