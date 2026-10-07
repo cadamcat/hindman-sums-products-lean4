@@ -1,6 +1,7 @@
 import HindmanSumsProducts.Prediction.Subgroup
 import HindmanSumsProducts.Prediction.PkgH
 import HindmanSumsProducts.Prediction.PkgH2
+import HindmanSumsProducts.Prediction.PkgH3
 
 /-!
 # Completion of the Prediction Principle (§5.4, `05_prediction.tex` 685–783)
@@ -227,7 +228,348 @@ theorem prediction_principle_charted (m : ℕ) (hm : 2 ≤ m) :
                 ∀ᶠ N in (U : Filter ℕ),
                   |weightedCountUnder A (μ N) N χ c b B -
                       modelIntegrandMeanUnder S (μ N) N χ c b B| ≤ η+ε) := by
-  sorry
+  intro U hU n r χ bs vs hbs hvs hclosed τ η hτ hτ4 hη
+  classical
+  obtain ⟨Cd, hsub⟩ := subgroup_inverse
+  let κ : ℕ → ℕ → ℝ → ℝ := fun d J0 γ =>
+    if hd : 1 ≤ d then
+      if hJ0 : 0 < J0 then
+        if hγ : 0 < γ then Classical.choose (hsub d J0 hd hJ0 γ hγ) else 1
+      else 1
+    else 1
+  have hκ : ∀ d J0 γ, 0 < J0 → 0 < γ → 0 < κ d J0 γ := by
+    intro d J0 γ hJ0 hγ
+    by_cases hd : 1 ≤ d
+    · simp [κ, hd, hJ0, hγ]
+      exact (Classical.choose_spec (hsub d J0 hd hJ0 γ hγ)).1
+    · simp [κ, hd]
+  obtain ⟨ζ, hζ, hζcorr, J0, hJ0, hperiod, ε₀, hε₀, hε₀η, hκall⟩ :=
+    parameter_choice m hm η hη Cd κ hκ
+  obtain ⟨sl, Dm, hD, hOne, hlist⟩ := p_h3_master_test_data m
+  obtain ⟨K, hK⟩ := energy_selection n r vs.card ε₀ hε₀
+  obtain ⟨MS⟩ := HindmanSumsProducts.lem_master_scales K vs hvs sl Dm hD
+  obtain ⟨F, hF⟩ := bounded_dense_models MS χ
+  have hgapDiv : ∀ N (l l' : Fin K), l ≤ l' → MS.core.parameters.H N l ∣
+      MS.core.parameters.H N l' := by
+    intro N l l' hll
+    rcases eq_or_lt_of_le hll with rfl | hlt
+    · exact dvd_rfl
+    · exact MS.gapStage.earlier_gaps_divide N l l' hlt
+  let E : EnergySelection n (stepOf m) vs MS.core.parameters U F ε₀ :=
+    Classical.choice (hK (stepOf m) vs (Nat.le_refl vs.card) MS.core.parameters hgapDiv U F hF.1)
+  obtain ⟨A', R, hPad, hPrinEq⟩ :=
+    restrict_parameters MS E.pad E.prin E.pad_lt_prin E.prin_lt_pad
+  let Φ : (u : Fin n) → Block K → ℚ → Fin r →
+      RepFamily MS.core.parameters (R.pad u) E.menu E.lip :=
+    fun u B v c => { piece := (E.model u B v c).piece }
+  have hΦeval (u : Fin n) (B : Block K) (v : ℚ) (c : Fin r) (N : ℕ) (y : ℤ) :
+      (Φ u B v c).eval N y = (E.model u B v c).eval N y := by
+    simp [Φ, RepFamily.eval, hPad]
+  obtain ⟨S, hSys⟩ := models_system_of_selection (R := R) (vs := vs)
+    (Fm := E.menu) (Km := E.lip) Φ
+  have hUtop : (U : Filter ℕ) ≤ atTop := by
+    rw [← Nat.cofinite_eq_atTop]
+    exact hU
+  have hEval01 {l : Fin K} {s : ℕ} {Fm : Menu s} {Km : ℝ≥0}
+      (Ψ : RepFamily MS.core.parameters l Fm Km) (N : ℕ) (y : ℤ) :
+      Ψ.eval N y ∈ Set.Icc (0 : ℝ) 1 := by
+    simp only [RepFamily.eval]
+    let P := Ψ.piece N (y / (MS.core.parameters.H N l : ℤ))
+      (y % (MS.core.parameters.M N : ℤ))
+    have hrange := P.range (P.g ^ ((y - y % (MS.core.parameters.M N : ℤ)) /
+      (MS.core.parameters.M N : ℤ)) • P.x)
+    change P.eval ((y - y % (MS.core.parameters.M N : ℤ)) /
+      (MS.core.parameters.M N : ℤ)) ∈ Set.Icc (0 : ℝ) 1
+    simpa [OAI.SourceMenuLiteral.CosetPiece.eval] using hrange
+  have hPrincipalDiag (B' : Block n) :
+      PrincipalBlock R.prin B'.1 B'.1 (mapBlock R.prin R.prin_strictMono B') := by
+    change (mapBlock R.prin R.prin_strictMono B').1 = R.prin B'.1 ∧
+      ∀ j ∈ (mapBlock R.prin R.prin_strictMono B').2.val,
+        ∃ v, v < B'.1 ∧ j = R.prin v
+    constructor
+    · rfl
+    · intro j hj
+      dsimp [mapBlock] at hj
+      rcases Finset.mem_map.mp hj with ⟨v, hv, hjv⟩
+      exact ⟨v, B'.2.property.2 v hv, hjv.symm⟩
+  refine ⟨A', E.menu, S, ?_⟩
+  intro μ hμ
+  constructor
+  · intro B a ha c δ hδ
+    have hproj : projNorm MS.core.parameters U (R.prin B.1) (R.pad B.1) (stepOf m)
+        (fun N y => F N (mapBlock R.prin R.prin_strictMono B) a c y -
+          (Φ B.1 (mapBlock R.prin R.prin_strictMono B) a c).eval N y) ≤ ε₀ := by
+      simpa [Φ, hPad, hPrinEq, RepFamily.eval, hΦeval] using E.coarse B.1
+        (mapBlock R.prin R.prin_strictMono B)
+        (by simpa [hPrinEq] using hPrincipalDiag B) a ha c
+    have hcal := calibration_from_testing MS hOne χ F hF U hU R vs
+      (Finset.Subset.refl vs) S Φ hSys B a ha c τ ε₀ hτ hproj μ hμ
+    have hslack : 0 < η - ε₀ + δ := by linarith [hε₀η, hδ]
+    have hcal' := hcal (η - ε₀ + δ) hslack
+    filter_upwards [hcal'] with N hN
+    linarith
+  · intro B' hB' b hb c δ hδ
+    have hmpos : 0 < m := by omega
+    let d₀ : Fin m := ⟨0, hmpos⟩
+    have hd₀le (d : Fin m) : d₀ ≤ d := by
+      apply Fin.le_iff_val_le_val.mpr
+      simp [d₀]
+    obtain ⟨C, hCgap, hC⟩ := masterChain_of_restricted R B' hB' (by omega)
+    let a : Fin m → ℚ := fun d => blockScale b (B' d)
+    have ha : ∀ d, a d ∈ vs := fun d => hclosed b hb (B' d)
+    let u₀ : Fin n := (B' d₀).1
+    let idx (B : Block K) : Fin n :=
+      if h : ∃ u, R.prin u = B.1 then Classical.choose h else u₀
+    let Sm : BlockFamily K r := fun N B v c y => (E.model (idx B) B v c).eval N y
+    have hidx (B : Block n) : idx (mapBlock R.prin R.prin_strictMono B) = B.1 := by
+      dsimp [idx, mapBlock]
+      split_ifs with h
+      · apply R.prin_strictMono.injective
+        exact Classical.choose_spec h
+      · exact False.elim (h ⟨B.1, rfl⟩)
+    have hSmap (N : ℕ) (B : Block n) (v : ℚ) (hv : v ∈ vs)
+        (c : Fin r) (y : ℤ) :
+        S.model N B v c y = Sm N (mapBlock R.prin R.prin_strictMono B) v c y := by
+      rw [hSys N B v hv c y]
+      rw [hΦeval]
+      exact congrArg (fun u => (E.model u (mapBlock R.prin R.prin_strictMono B) v c).eval N y)
+        (hidx B).symm
+    have hSm : UnitValued Sm := by
+      intro N B v c y
+      exact hEval01 (E.model (idx B) B v c) N y
+    have hG₁ : ∀ N B v c y, |F N B v c y| ≤ 1 + nu MS.core.parameters N B y := by
+      intro N B v c y
+      have hFv := hF.1 N B v c y
+      have hν := nu_nonneg MS.core.parameters N B y
+      have habs : |F N B v c y| ≤ 1 := abs_le.mpr ⟨by linarith [hFv.1], hFv.2⟩
+      linarith
+    have hG₂ : ∀ N B v c y, |Sm N B v c y| ≤ 1 + nu MS.core.parameters N B y := by
+      intro N B v c y
+      have hSv := hSm N B v c y
+      have hν := nu_nonneg MS.core.parameters N B y
+      have habs : |Sm N B v c y| ≤ 1 := abs_le.mpr ⟨by linarith [hSv.1], hSv.2⟩
+      linarith
+    have hG : ∀ N B v c y, |F N B v c y - Sm N B v c y| ≤
+        1 + nu MS.core.parameters N B y := by
+      intro N B v c y
+      have hFv := hF.1 N B v c y
+      have hSv := hSm N B v c y
+      have hν := nu_nonneg MS.core.parameters N B y
+      rw [abs_le]
+      constructor <;> linarith [hFv.1, hFv.2, hSv.1, hSv.2, hν]
+    let 𝒥 := {J : Finset (Fin m) // 2 ≤ J.card}
+    have hcard𝒥 : Fintype.card 𝒥 = nonsingletonCount m := by
+      simpa [nonsingletonCount] using (p_h3_support_card m)
+    have hqpos : 0 < nonsingletonCount m := by
+      have hpair : (Finset.univ.filter fun J : Finset (Fin m) => 2 ≤ J.card).Nonempty := by
+        let i₀ : Fin m := ⟨0, hmpos⟩
+        let i₁ : Fin m := ⟨1, by omega⟩
+        have hi : i₀ ≠ i₁ := by
+          intro heq
+          have hv := congrArg Fin.val heq
+          norm_num at hv
+        refine ⟨{i₀, i₁}, ?_⟩
+        simp [hi]
+      have hpos := Finset.card_pos.mpr hpair
+      rw [p_h3_nonsingleton_card m] at hpos
+      simpa [nonsingletonCount] using hpos
+    let Tsum : ℝ := ∑ J : 𝒥,
+      corrConst m J.1 J.2 * (max (2 * ζ) 0) ^ corrExponent m J.1 J.2
+    have hTsum : Tsum ≤ η / 2 := by
+      have hterm (J : 𝒥) : corrConst m J.1 J.2 * (2 * ζ) ^ corrExponent m J.1 J.2 ≤
+          η / (2 * nonsingletonCount m) :=
+        (hζcorr J.1 J.2).le
+      dsimp [Tsum]
+      calc
+        (∑ J : 𝒥, corrConst m J.1 J.2 * (max (2 * ζ) 0) ^ corrExponent m J.1 J.2)
+            ≤ ∑ _J : 𝒥, η / (2 * nonsingletonCount m) := by
+              apply Finset.sum_le_sum
+              intro J hJ
+              simpa [max_eq_left (show 0 ≤ 2 * ζ by positivity)] using hterm J
+        _ = (Fintype.card 𝒥 : ℝ) * (η / (2 * nonsingletonCount m)) := by simp
+        _ = η / 2 := by
+          rw [hcard𝒥]
+          have hq : (nonsingletonCount m : ℝ) ≠ 0 := by exact_mod_cast (ne_of_gt hqpos)
+          field_simp [hq] <;> ring
+    have hchainTop : Tendsto
+        (fun N => chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+          chainCount MS.core.parameters χ C a N c
+            (fun B v colour y => F N B v colour y)) atTop (𝓝 0) :=
+      count_rho_to_dense m MS hlist χ F hF C a ha c
+    have hchainU : Tendsto
+        (fun N => chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+          chainCount MS.core.parameters χ C a N c
+            (fun B v colour y => F N B v colour y))
+        (U : Filter ℕ) (𝓝 0) := hchainTop.mono_left hUtop
+    have hmodelTop : Tendsto
+        (fun N => modelIntegrandMeanUnder S (μ N) N χ c b B' -
+          chainCount MS.core.parameters χ C a N c (Sm N)) atTop (𝓝 0) := by
+      apply modelMean_sub_chainCount R vs S Sm hSm hSmap χ c b
+        (fun B => hclosed b hb B) B' hB' C hC μ hμ
+    have hmodelU : Tendsto
+        (fun N => chainCount MS.core.parameters χ C a N c (Sm N) -
+          modelIntegrandMeanUnder S (μ N) N χ c b B') (U : Filter ℕ) (𝓝 0) := by
+      have hneg := hmodelTop.neg
+      simpa using hneg.mono_left hUtop
+    have hcountEqTop : ∀ᶠ N in atTop,
+        weightedCountUnder A' (μ N) N χ c b B' =
+          chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) :=
+      weightedCount_eq_chainCount R χ c b B' hB' C hC μ hμ
+    have hcountEqU := Filter.Eventually.filter_mono hUtop hcountEqTop
+    have hcube : ∀ (J : Finset (Fin m)) (hJ : 2 ≤ J.card),
+        FilterUpperBound (U : Filter ℕ)
+          (fun N => |cubeAverage MS (corrTemplate m J hJ) C.gap
+            (C.block (anchor J hJ)).1 J0 N (fun y =>
+              F N (C.block (anchor J hJ)) (a (anchor J hJ)) c y -
+                Sm N (C.block (anchor J hJ)) (a (anchor J hJ)) c y)|) (2 * ζ) := by
+      intro J hJ
+      let T := corrTemplate m J hJ
+      have hd := corrTemplate_d m J hJ
+      have hdstep := (stepOf_spec m T.d hd.2).2
+      have hu₀ := C.gap
+      let i : Fin K := (C.block (anchor J hJ)).1
+      have hPivotLe : (B' d₀).1 ≤ (B' (anchor J hJ)).1 :=
+        hB'.2.2.2.monotone (hd₀le (anchor J hJ))
+      have hgap : C.gap < i := by
+        dsimp [i]
+        rw [hCgap, hC (anchor J hJ)]
+        change R.pad (B' d₀).1 < R.prin (B' (anchor J hJ)).1
+        exact lt_of_lt_of_le (R.pad_lt_prin (B' d₀).1)
+          (R.prin_strictMono.monotone hPivotLe)
+      have hPrincipalFine : PrincipalBlock R.prin (B' d₀).1
+          (B' (anchor J hJ)).1 (mapBlock R.prin R.prin_strictMono (B' (anchor J hJ))) := by
+        change (mapBlock R.prin R.prin_strictMono (B' (anchor J hJ))).1 =
+            R.prin (B' (anchor J hJ)).1 ∧
+          ∀ j ∈ (mapBlock R.prin R.prin_strictMono (B' (anchor J hJ))).2.val,
+            ∃ v, v < (B' d₀).1 ∧ j = R.prin v
+        constructor
+        · rfl
+        · intro j hj
+          dsimp [mapBlock] at hj
+          rcases Finset.mem_map.mp hj with ⟨v, hv, hjv⟩
+          exact ⟨v, hB'.2.2.1 (anchor J hJ) d₀ v hv, hjv.symm⟩
+      have hprojE : projNorm MS.core.parameters U (E.prin (B' (anchor J hJ)).1)
+          (E.pad (B' d₀).1) (stepOf m)
+          (fun N y => F N (mapBlock R.prin R.prin_strictMono (B' (anchor J hJ)))
+              (a (anchor J hJ)) c y -
+            (E.model (B' (anchor J hJ)).1
+              (mapBlock R.prin R.prin_strictMono (B' (anchor J hJ)))
+              (a (anchor J hJ)) c).eval N y) ≤ 2 * ε₀ := by
+        simpa [hPrinEq] using
+          E.fine (B' d₀).1 (B' (anchor J hJ)).1
+            (mapBlock R.prin R.prin_strictMono (B' (anchor J hJ)))
+            (hB'.2.2.2.monotone (hd₀le (anchor J hJ)))
+            (by simpa [hPrinEq] using hPrincipalFine)
+            (a (anchor J hJ)) (ha (anchor J hJ)) c
+      have hindex : i = E.prin (B' (anchor J hJ)).1 := by
+        dsimp [i]
+        rw [hC (anchor J hJ)]
+        simp [mapBlock, hPrinEq]
+      have hgapEq : C.gap = E.pad (B' d₀).1 := by
+        rw [hCgap, hPad]
+      have hproj : projNorm MS.core.parameters U i C.gap (stepOf m)
+          (fun N y => F N (C.block (anchor J hJ)) (a (anchor J hJ)) c y -
+            Sm N (C.block (anchor J hJ)) (a (anchor J hJ)) c y) ≤ 2 * ε₀ := by
+        rw [hindex, hgapEq, hC (anchor J hJ)]
+        simp only [Sm]
+        rw [hidx (B' (anchor J hJ))]
+        exact hprojE
+      have hκsmall : 2 * ε₀ < κ T.d J0 ζ := hκall T.d hd.2
+      have hprojκ : projNorm MS.core.parameters U i C.gap (stepOf m)
+          (fun N y => F N (C.block (anchor J hJ)) (a (anchor J hJ)) c y -
+            Sm N (C.block (anchor J hJ)) (a (anchor J hJ)) c y) < κ T.d J0 ζ :=
+        lt_of_le_of_lt hproj hκsmall
+      let hsubT := hsub T.d J0 hd.1 hJ0 ζ hζ
+      have hκval : κ T.d J0 ζ = Classical.choose hsubT := by
+        simp [κ, T, hd.1, hJ0, hζ]
+      have hinv := (Classical.choose_spec hsubT).2
+        (stepOf m) hdstep MS T (hlist J hJ) rfl i C.gap hgap U hU
+        (fun N y => F N (C.block (anchor J hJ)) (a (anchor J hJ)) c y -
+          Sm N (C.block (anchor J hJ)) (a (anchor J hJ)) c y)
+        (by
+          intro N y
+          have hFv := hF.1 N (C.block (anchor J hJ)) (a (anchor J hJ)) c y
+          have hSv := hSm N (C.block (anchor J hJ)) (a (anchor J hJ)) c y
+          rw [abs_le]
+          constructor <;> linarith [hFv.1, hFv.2, hSv.1, hSv.2])
+        (by simpa [hκval] using hprojκ)
+      have hperiodJ := hperiod T.d hd.2
+      intro δ' hδ'
+      have hevent := hinv δ' hδ'
+      filter_upwards [hevent] with N hN
+      calc
+        _ ≤ ζ + Cd T.d / J0 + δ' := by simpa [T, i] using hN
+        _ ≤ 2 * ζ + δ' := by linarith [hperiodJ]
+    have htel := chainCount_telescope m MS hlist χ C a ha c (U : Filter ℕ) hUtop
+      J0 hJ0 F Sm hG₁ hG₂ hG (fun _ => 2 * ζ) hcube
+    have htel' : FilterUpperBound (U : Filter ℕ)
+        (fun N => |chainCount MS.core.parameters χ C a N c
+          (fun B v colour y => F N B v colour y) -
+          chainCount MS.core.parameters χ C a N c (Sm N)|) Tsum := by
+      simpa [Tsum, max_eq_left (show 0 ≤ 2 * ζ by positivity)] using htel
+    have hTelδ := htel' (δ / 2) (by positivity)
+    have hRFsmall : ∀ᶠ N in (U : Filter ℕ),
+        |chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+          chainCount MS.core.parameters χ C a N c
+            (fun B v colour y => F N B v colour y)| ≤ δ / 4 := by
+      filter_upwards [hchainU.eventually (Metric.ball_mem_nhds 0 (by positivity : 0 < δ / 4))]
+        with N hN
+      have hh : |(chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+          chainCount MS.core.parameters χ C a N c
+            (fun B v colour y => F N B v colour y))| < δ / 4 := by
+        simpa [Real.dist_eq] using hN
+      exact hh.le
+    have hSMsmall : ∀ᶠ N in (U : Filter ℕ),
+        |chainCount MS.core.parameters χ C a N c (Sm N) -
+          modelIntegrandMeanUnder S (μ N) N χ c b B'| ≤ δ / 4 := by
+      filter_upwards [hmodelU.eventually (Metric.ball_mem_nhds 0 (by positivity : 0 < δ / 4))]
+        with N hN
+      have hh : |(chainCount MS.core.parameters χ C a N c (Sm N) -
+          modelIntegrandMeanUnder S (μ N) N χ c b B')| < δ / 4 := by
+        simpa [Real.dist_eq] using hN
+      exact hh.le
+    filter_upwards [hcountEqU, hTelδ, hRFsmall, hSMsmall] with N hEq hTel hRF hSM
+    have htri : |weightedCountUnder A' (μ N) N χ c b B' -
+        modelIntegrandMeanUnder S (μ N) N χ c b B'| ≤
+        |chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+          chainCount MS.core.parameters χ C a N c
+            (fun B v colour y => F N B v colour y)| +
+        |chainCount MS.core.parameters χ C a N c
+          (fun B v colour y => F N B v colour y) -
+          chainCount MS.core.parameters χ C a N c (Sm N)| +
+        |chainCount MS.core.parameters χ C a N c (Sm N) -
+          modelIntegrandMeanUnder S (μ N) N χ c b B'| := by
+      rw [hEq]
+      calc
+        |chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+            modelIntegrandMeanUnder S (μ N) N χ c b B'| =
+          |(chainCount MS.core.parameters χ C a N c (rho MS.core.parameters χ N) -
+              chainCount MS.core.parameters χ C a N c
+                (fun B v colour y => F N B v colour y)) +
+            (chainCount MS.core.parameters χ C a N c
+              (fun B v colour y => F N B v colour y) -
+              chainCount MS.core.parameters χ C a N c (Sm N)) +
+            (chainCount MS.core.parameters χ C a N c (Sm N) -
+              modelIntegrandMeanUnder S (μ N) N χ c b B')| := by congr 1 <;> ring
+        _ ≤ _ := by
+          calc
+            _ ≤ |(chainCount MS.core.parameters χ C a N c
+                  (rho MS.core.parameters χ N) -
+                  chainCount MS.core.parameters χ C a N c
+                    (fun B v colour y => F N B v colour y)) +
+                (chainCount MS.core.parameters χ C a N c
+                  (fun B v colour y => F N B v colour y) -
+                  chainCount MS.core.parameters χ C a N c (Sm N))| +
+                |chainCount MS.core.parameters χ C a N c (Sm N) -
+                  modelIntegrandMeanUnder S (μ N) N χ c b B'| := abs_add_le _ _
+            _ ≤ _ := by
+              gcongr
+              exact abs_add_le _ _
+    calc
+      |weightedCountUnder A' (μ N) N χ c b B' -
+          modelIntegrandMeanUnder S (μ N) N χ c b B'| ≤ _ := htri
+      _ ≤ δ / 4 + (Tsum + δ / 2) + δ / 4 := by linarith [hTel, hRF, hSM]
+      _ ≤ η + δ := by linarith [hTsum, hδ]
 
 /-- The Prediction Principle `pr:prediction` (`HindmanSumsProducts.PredictionPrinciple`). -/
 theorem prediction_principle : PredictionPrinciple := by
