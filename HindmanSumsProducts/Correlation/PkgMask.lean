@@ -5748,7 +5748,7 @@ noncomputable def maskWeightedLinearFormsData
       (chainScale S.core.parameters C a N) N p R j
   let divT : Fin r → FromArithmetic.DivisorTemplate K K := fun R =>
     if R ∈ I then maskRowDivisorTemplate C Sh R else maskEmptyDivisorTemplate
-  let epsBase : ℕ → ℝ := fun N => pivotBaseResidueErrorSum (r := r) S C N
+  let epsBase : ℕ → ℝ := fun N => max 0 (pivotBaseResidueErrorSum (r := r) S C N)
   let epsCRT : ℕ → ℝ := fun N =>
     (s : ℝ) * finiteL1
       (primePoolResidueLaw (S.primeStage.pool N C.gap).lower
@@ -5861,8 +5861,9 @@ noncomputable def maskWeightedLinearFormsData
                 (S.core.parameters.X N (C.block i).1) (primorial (N + 1))
                 (∏ u : Fin r, σ u) (Vseq N ^ r)
                 (S.core.parameters.Xpos N (C.block i).1) (hlog i) hmodle
-        _ = epsBase N := by
-              simp [epsBase, Vseq, pivotBaseResidueErrorSum,
+        _ ≤ epsBase N := by
+              refine le_max_of_le_right (le_of_eq ?_)
+              simp [Vseq, pivotBaseResidueErrorSum,
                 FromArithmetic.harmonicResidueUniformError]
     row_integer_on_support := by
       intro N p x hGood hx R
@@ -5995,9 +5996,18 @@ noncomputable def maskWeightedLinearFormsData
                 Finset.sum_le_sum (fun i hi => herr i)
           _ = (s : ℝ) * Err := by simp [Err]
       simpa [epsCRT, Vseq, lo, hi, w, eN, Vn, Q, Err] using htuple
+    epsilonBase_nonnegative := fun N => le_max_left _ _
     epsilonBase_superpolynomial := by
-      simpa [epsBase] using
-        pivotBaseResidueErrorSum_superPolynomialSmall (r := r) S C
+      intro A hA
+      have h := pivotBaseResidueErrorSum_superPolynomialSmall (r := r) S C A hA
+      have h2 := (tendsto_const_nhds (x := (0 : ℝ))).max h
+      rw [max_self] at h2
+      refine h2.congr fun n => ?_
+      have hV : 0 ≤ ((Vseq n : ℕ) : ℝ) ^ A := by positivity
+      show max 0 (pivotBaseResidueErrorSum (r := r) S C n *
+          ((FromArithmetic.masterScaleV S.core.parameters n C.gap : ℕ) : ℝ) ^ A) =
+        max 0 (pivotBaseResidueErrorSum (r := r) S C n) * ((Vseq n : ℕ) : ℝ) ^ A
+      rw [max_mul_of_nonneg _ _ hV, zero_mul]
     epsilonCRT_superpolynomial := by
       intro A hA
       have herr := S.primeStage.pool_residue_error C.gap A hA
@@ -6211,21 +6221,8 @@ theorem maskRowSubsetAverage_le_two_eventually
       Real.log (S.core.parameters.X N (C.block i).1 : ℝ) >
         (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1 :=
     Filter.eventually_all.2 fun i => pivot_sampling_log_condition_eventually S C i
-  have hbaseNonneg : ∀ᶠ N in atTop, 0 ≤ D.epsilonBase N := by
-    filter_upwards [hlogs] with N hN
-    change 0 ≤ pivotBaseResidueErrorSum (r := r) S C N
-    unfold pivotBaseResidueErrorSum
-    apply Finset.sum_nonneg
-    intro i hi
-    have hXpos : (0 : ℝ) < (S.core.parameters.X N (C.block i).1 : ℝ) := by
-      exact_mod_cast S.core.parameters.Xpos N (C.block i).1
-    have hden : 0 < (S.core.parameters.X N (C.block i).1 : ℝ) *
-        (Real.log (S.core.parameters.X N (C.block i).1 : ℝ) -
-          (primorial (N + 1) : ℝ) / S.core.parameters.X N (C.block i).1) :=
-      mul_pos hXpos (sub_pos.mpr (hN i))
-    unfold FromArithmetic.harmonicResidueUniformError
-      FromArithmetic.harmonicResidueError
-    exact div_nonneg (by positivity) hden.le
+  have hbaseNonneg : ∀ᶠ N in atTop, 0 ≤ D.epsilonBase N :=
+    Filter.Eventually.of_forall fun N => D.epsilonBase_nonnegative N
   have hcrtNonneg (N : ℕ) : 0 ≤ D.epsilonCRT N := by
     change 0 ≤ (s : ℝ) * finiteL1 _ _
     apply mul_nonneg (by positivity)
