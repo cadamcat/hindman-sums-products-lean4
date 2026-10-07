@@ -4073,6 +4073,246 @@ noncomputable def pkgElim_momentCRTError {K m q r s : ℕ} {Aset : Finset ℚ}
       (FromArithmetic.primeTupleCRTLaw (fun _ : Fin s => lo) (fun _ => hi) (N + 1) V)
       (FromArithmetic.uniformPrimeTupleCRTLaw (N + 1) V)
 
+theorem pkgElim_harmonicResidueError_mono {X W k K : ℕ}
+    (hk : k ≤ K) (hW : 0 < W) (hX : 4 * W ≤ X) :
+    FromArithmetic.harmonicResidueUniformError X W k ≤
+      FromArithmetic.harmonicResidueUniformError X W K := by
+  have hXpos : 0 < (X : ℝ) := by
+    have hWpos : 0 < primorial (0 + 1) := by norm_num
+    have : 0 < W := hW
+    have hXnat : 0 < X := by omega
+    exact_mod_cast hXnat
+  have hWpos : 0 < (W : ℝ) := by exact_mod_cast hW
+  have hden : 0 < (X : ℝ) * (Real.log X - (W : ℝ) / X) := by
+    apply mul_pos hXpos
+    exact sub_pos.mpr (harmonic_cutoff_log_condition hW hX)
+  have hkcast : ((k + 1 : ℕ) : ℝ) ≤ ((K + 1 : ℕ) : ℝ) := by
+    exact_mod_cast Nat.add_le_add_right hk 1
+  have hnum : (W : ℝ) * ((k + 1 : ℕ) : ℝ) ≤
+      (W : ℝ) * ((K + 1 : ℕ) : ℝ) :=
+    mul_le_mul_of_nonneg_left hkcast hWpos.le
+  unfold FromArithmetic.harmonicResidueUniformError FromArithmetic.harmonicResidueError
+  exact div_le_div_of_nonneg_right hnum hden.le
+
+theorem pkgElim_coordinateResidueTV {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) (hJ0 : 0 < J0)
+    (p : Fin q → ℕ) (v : Coordinate Sh) (Kdiv : ℕ) (hKdiv : 0 < Kdiv)
+    (hKcop : Nat.Coprime Kdiv (primorial (N + 1)))
+    (hKle : Kdiv ≤
+      masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly p) :
+    finiteL1 (integerResidueLaw Kdiv hKdiv
+      (coordinateLaw S C Sh dirs J0 N p v)) (uniformResidueLaw Kdiv) ≤
+    match v with
+    | .inl k => FromArithmetic.harmonicResidueUniformError
+        (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
+        (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
+    | .inr (.inl _) => pkgElim_momentOldResidueError S C Sh J0 B N
+    | .inr (.inr _) => pkgElim_momentRootResidueError S C Sh N := by
+  classical
+  cases v with
+  | inl k =>
+    have hW : 0 < primorial (N + 1) := primorial_pos _
+    have hX := S.gapStage.valid_raw_cutoffs N (C.block k).1
+    have hX2 : 2 ≤ S.core.parameters.X N (C.block k).1 := by
+      have hWpos : 0 < primorial (N + 1) := primorial_pos _
+      omega
+    have hlog := harmonic_cutoff_log_condition hW hX
+    have htv := harmonicIntegerResidueLaw_tv hW hX2 hlog hKcop hKdiv
+    have hmono := pkgElim_harmonicResidueError_mono hKle hW hX
+    change finiteL1 (integerResidueLaw Kdiv hKdiv
+      (harmonicLaw (S.core.parameters.X N (C.block k).1) (primorial (N + 1))))
+      (uniformResidueLaw Kdiv) ≤
+      FromArithmetic.harmonicResidueUniformError
+        (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
+        (masterScaleV S.core.parameters N C.gap ^ Fintype.card (Occurrence Sh))
+    exact htv.trans hmono
+  | inr v =>
+    cases v with
+    | inl old =>
+      rcases hGlobal with ⟨_, hFacts, _, _, hDmin⟩
+      let V := masterScaleV S.core.parameters N C.gap
+      let T := (S.primeStage.pool N C.gap).upper + V
+      let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
+      let L := shiftLength S C.gap J0 N dirs.poly p
+      let Lmax := max 1 L
+      have hDmin1 : 1 ≤ Dmin := by simpa [Dmin, T, V] using hDmin
+      rcases hFacts p hGood with ⟨_, _, hMpBound, _, _, _, _, _⟩
+      have hMpPos : 0 < directionModulus S N dirs.poly p := by
+        unfold directionModulus
+        exact Nat.mul_pos (S.core.parameters.Mpos N) (roughPart_pos _ _)
+      have hdenLe : J0 * directionModulus S N dirs.poly p ≤ J0 * T ^ B := by
+        dsimp [T, V]
+        exact Nat.mul_le_mul_left J0 hMpBound
+      have hdenPos : 0 < J0 * directionModulus S N dirs.poly p :=
+        Nat.mul_pos hJ0 hMpPos
+      have hDminLeL : Dmin ≤ L := by
+        dsimp [Dmin, L]
+        exact Nat.div_le_div_left hdenLe hdenPos
+      have hLone : 1 ≤ L := le_trans hDmin1 hDminLeL
+      have hLmax : Lmax = L := max_eq_right hLone
+      have hLpos : 0 < Lmax := lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left _ _)
+      have htv := uniformIntegerInterval_residue_tv hKdiv hLpos
+      have hKleR : (Kdiv : ℝ) ≤ (V : ℝ) ^ Fintype.card (Occurrence Sh) := by
+        exact_mod_cast hKle
+      have hnum : 2 * (Kdiv : ℝ) ≤ 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) :=
+        mul_le_mul_of_nonneg_left hKleR (by norm_num)
+      have hDminPos : 0 < (Dmin : ℝ) := by
+        exact_mod_cast (lt_of_lt_of_le Nat.zero_lt_one hDmin1)
+      have hDminLeL : (Dmin : ℝ) ≤ (Lmax : ℝ) := by
+        rw [hLmax]
+        exact_mod_cast hDminLeL
+      have hTV1 : 2 * (Kdiv : ℝ) / (Lmax : ℝ) ≤
+          2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Lmax : ℝ) :=
+        div_le_div_of_nonneg_right hnum (by positivity)
+      have hTV2 : 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Lmax : ℝ) ≤
+          2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) :=
+        div_le_div_of_nonneg_left (by positivity) hDminPos hDminLeL
+      have hbound : 2 * (Kdiv : ℝ) / (Lmax : ℝ) ≤
+          pkgElim_momentOldResidueError S C Sh J0 B N := by
+        calc
+          _ ≤ 2 * (V : ℝ) ^ Fintype.card (Occurrence Sh) / (Dmin : ℝ) := hTV1.trans hTV2
+          _ = pkgElim_momentOldResidueError S C Sh J0 B N := by
+            simp [pkgElim_momentOldResidueError, V, T, Dmin]
+      change finiteL1 (integerResidueLaw Kdiv hKdiv
+        (FromArithmetic.uniformIntegerIntervalLaw 0 (max 1 (shiftLength S C.gap J0 N dirs.poly p))))
+        (uniformResidueLaw Kdiv) ≤ pkgElim_momentOldResidueError S C Sh J0 B N
+      simpa [Lmax, L, hLmax] using htv.trans hbound
+    | inr root =>
+      have hH : 0 < S.core.parameters.H N C.gap := S.core.parameters.Hpos N C.gap
+      have htv := uniformIntegerInterval_residue_tv hKdiv hH
+      have hKleR : (Kdiv : ℝ) ≤
+          (masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) := by
+        exact_mod_cast hKle
+      have hnum : 2 * (Kdiv : ℝ) ≤
+          2 * (masterScaleV S.core.parameters N C.gap : ℝ) ^ Fintype.card (Occurrence Sh) :=
+        mul_le_mul_of_nonneg_left hKleR (by norm_num)
+      have hHpos : 0 < (S.core.parameters.H N C.gap : ℝ) := by exact_mod_cast hH
+      have hbound : 2 * (Kdiv : ℝ) / (S.core.parameters.H N C.gap : ℝ) ≤
+          pkgElim_momentRootResidueError S C Sh N := by
+        simpa [pkgElim_momentRootResidueError] using
+          div_le_div_of_nonneg_right hnum hHpos.le
+      change finiteL1 (integerResidueLaw Kdiv hKdiv
+        (FromArithmetic.uniformIntegerIntervalLaw 0 (S.core.parameters.H N C.gap)))
+        (uniformResidueLaw Kdiv) ≤ pkgElim_momentRootResidueError S C Sh N
+      simpa [pkgElim_momentRootResidueError] using htv.trans hbound
+
+theorem pkgElim_momentBaseResidueUniform {K m q r s d h : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
+    (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 B N : ℕ) (hJ0 : 0 < J0)
+    (eO : Occurrence Sh ≃ Fin h) (eX : Coordinate Sh ≃ Fin d)
+    (F : Finset (Occurrence Sh)) (p' : Fin s → ℕ)
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly (fun i => p' (ι i)))
+    (σ : Fin h → ℕ)
+    (hσ : ∀ u, FromArithmetic.divisorTemplateLaw S.core.parameters N
+      (pkgElim_momentDivisorTemplate C Sh eO F u) (σ u) ≠ 0) :
+    finiteL1
+      (FromArithmetic.baseResidueLaw
+        (∏ u : Fin h, σ u) (by
+          apply Finset.prod_pos
+          intro u hu
+          exact Nat.lt_of_lt_of_le Nat.zero_lt_one
+            ((pkgElim_momentDivisorTemplate_support S C Sh eO F N u (σ u) (hσ u)).1))
+        (fun x => coordinateProductLaw S C Sh dirs J0 N
+          (fun i => p' (ι i)) eX x))
+      (FromArithmetic.uniformBaseResidueLaw (∏ u : Fin h, σ u) d) ≤
+      pkgElim_momentBaseError S C Sh J0 B N := by
+  classical
+  let Kdiv : ℕ := ∏ u : Fin h, σ u
+  have hσFacts (u : Fin h) :=
+    pkgElim_momentDivisorTemplate_support S C Sh eO F N u (σ u) (hσ u)
+  have hKdivPos : 0 < Kdiv := by
+    dsimp [Kdiv]
+    apply Finset.prod_pos
+    intro u hu
+    exact Nat.lt_of_lt_of_le Nat.zero_lt_one (hσFacts u).1
+  have hKdivCop : Nat.Coprime Kdiv (primorial (N + 1)) := by
+    dsimp [Kdiv]
+    rw [Nat.coprime_prod_left_iff]
+    intro u hu
+    exact (hσFacts u).2.2
+  have hKdivLe : Kdiv ≤ masterScaleV S.core.parameters N C.gap ^ h := by
+    dsimp [Kdiv]
+    calc
+      _ ≤ ∏ u : Fin h, masterScaleV S.core.parameters N C.gap := by
+        apply Finset.prod_le_prod
+        intro u hu
+        exact (hσFacts u).2.1
+      _ = masterScaleV S.core.parameters N C.gap ^ h := by simp
+  let μ : Fin d → ℤ → ℝ := fun i =>
+    coordinateLaw S C Sh dirs J0 N (fun j => p' (ι j)) (eX.symm i)
+  let supp : Fin d → Finset ℤ := fun i =>
+    pkgElim_coordinateSupport S C Sh dirs J0 N (fun j => p' (ι j)) (eX.symm i)
+  let errV : Coordinate Sh → ℝ := fun v => match v with
+    | .inl k => FromArithmetic.harmonicResidueUniformError
+        (S.core.parameters.X N (C.block k).1) (primorial (N + 1))
+        (masterScaleV S.core.parameters N C.gap ^ h)
+    | .inr (.inl _) => pkgElim_momentOldResidueError S C Sh J0 B N
+    | .inr (.inr _) => pkgElim_momentRootResidueError S C Sh N
+  let ε : Fin d → ℝ := fun i => errV (eX.symm i)
+  have hCard : Fintype.card (Occurrence Sh) = h := by
+    simpa using Fintype.card_congr eO
+  have hsupp : ∀ i z, z ∉ supp i → μ i z = 0 := by
+    intro i z hz
+    exact pkgElim_coordinateLaw_zero_of_not_mem S C Sh dirs J0 N
+      (fun j => p' (ι j)) (eX.symm i) z hz
+  have hnorm (i : Fin d) : ∑' z : ℤ, μ i z = 1 :=
+    pkgElim_coordinateLaw_tsum_one S C Sh dirs J0 N
+      (fun j => p' (ι j)) (eX.symm i)
+  have hcoordNonneg : ∀ i x, 0 ≤ integerResidueLaw Kdiv hKdivPos (μ i) x := by
+    intro i x
+    exact integerResidueLaw_nonneg hKdivPos (μ i) (supp i) (hsupp i)
+      (fun z => pkgElim_coordinateLaw_nonneg S C Sh dirs J0 N
+        (fun j => p' (ι j)) (eX.symm i) z) x
+  have hcoordNorm : ∀ i, ∑ x : Fin Kdiv, integerResidueLaw Kdiv hKdivPos (μ i) x = 1 := by
+    intro i
+    exact integerResidueLaw_sum_one hKdivPos (μ i) (supp i) (hsupp i) (hnorm i)
+  have hcoordTV : ∀ i : Fin d,
+      finiteL1 (integerResidueLaw Kdiv hKdivPos (μ i)) (uniformResidueLaw Kdiv) ≤ ε i := by
+    intro i
+    have hKdivLe' : Kdiv ≤ masterScaleV S.core.parameters N C.gap ^
+        Fintype.card (Occurrence Sh) := by
+      rw [hCard]
+      exact hKdivLe
+    have h := pkgElim_coordinateResidueTV S C a Sh dirs tests J0 B N hJ0
+      (fun j => p' (ι j)) (eX.symm i) Kdiv hKdivPos hKdivCop hKdivLe'
+      hGlobal hGood
+    simpa [ε, errV, hCard] using h
+  let r : Fin d → Fin Kdiv := fun _ => ⟨0, hKdivPos⟩
+  have hprodTV := productBaseResidueLaw_finiteL1_le hKdivPos μ supp hsupp r
+    hcoordNonneg hcoordNorm ε hcoordTV
+  have hsumReindex :
+      (∑ i : Fin d, ε i) = ∑ v : Coordinate Sh, errV v := by
+    exact (Fintype.sum_equiv eX (fun v => errV v)
+      (fun i => errV (eX.symm i)) (by intro v; simp)).symm
+  have hsumError : (∑ i : Fin d, ε i) =
+      pkgElim_momentBaseError S C Sh J0 B N := by
+    rw [hsumReindex]
+    simp [errV, pkgElim_momentBaseError, pkgElim_momentOldResidueError,
+      pkgElim_momentRootResidueError, Fintype.sum_sum_type, Fintype.sum_prod_type,
+      Finset.sum_const, nsmul_eq_mul, hCard]
+    ring
+  calc
+    finiteL1
+        (FromArithmetic.baseResidueLaw Kdiv hKdivPos
+          (fun x => coordinateProductLaw S C Sh dirs J0 N
+            (fun i => p' (ι i)) eX x))
+        (FromArithmetic.uniformBaseResidueLaw Kdiv d) =
+      finiteL1
+        (FromArithmetic.baseResidueLaw Kdiv hKdivPos (fun x => ∏ i, μ i (x i)))
+        (FromArithmetic.uniformBaseResidueLaw Kdiv d) := by
+          congr 1
+    _ ≤ ∑ i : Fin d, ε i := hprodTV
+    _ = pkgElim_momentBaseError S C Sh J0 B N := hsumError
+
 end AdditiveMoment
 
 end HindmanSumsProducts
