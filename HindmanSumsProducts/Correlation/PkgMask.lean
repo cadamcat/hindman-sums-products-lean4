@@ -1213,6 +1213,70 @@ theorem harmonicNatLaw_tsum_one_of_normalizer_pos (X W : ℕ)
       rw [hsum]
       exact div_self hNorm.ne'
 
+theorem parameterTailProductLaw_eq_finite_sum {n : ℕ}
+    (A : OAI.SourceAdmissible.Parameters n) (N : ℕ)
+    (T : Finset (Fin n)) (σ : ℕ) :
+    FromArithmetic.parameterTailProductLaw A N T σ =
+      ∑ t ∈ Fintype.piFinset
+        (fun j : Fin n => Finset.range ((A.X N j) ^ 2)),
+        (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+          ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) := by
+  classical
+  let D : Finset (Fin n → ℕ) :=
+    Fintype.piFinset fun j => Finset.range ((A.X N j) ^ 2)
+  have hzero (t : Fin n → ℕ) (ht : t ∉ D) :
+      (if (∏ j ∈ T, t j) = σ then 1 else 0) *
+        ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+    have hnot : ¬ ∀ j, t j < (A.X N j) ^ 2 := by
+      intro hall
+      apply ht
+      apply Fintype.mem_piFinset.mpr
+      intro j
+      simpa only [Finset.mem_range] using hall j
+    push_neg at hnot
+    obtain ⟨j, hj⟩ := hnot
+    have hmass : harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 := by
+      have hlt : ¬ t j < (A.X N j) ^ 2 := by omega
+      simp [harmonicNatLaw, hlt]
+    have hprod : ∏ j, harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j) = 0 :=
+      Finset.prod_eq_zero (s := Finset.univ)
+        (f := fun j => harmonicNatLaw (A.X N j) (primorial (N + 1)) (t j))
+        (Finset.mem_univ j) hmass
+    simp [hprod]
+  unfold FromArithmetic.parameterTailProductLaw
+  exact tsum_eq_sum (s := D) hzero
+
+theorem harmonicProductLaw_eq_finite_sum {q : ℕ}
+    (W : ℕ) (X : Fin q → ℕ) (σ : ℕ) :
+    harmonicProductLaw W X σ =
+      ∑ t ∈ Fintype.piFinset (fun i : Fin q => Finset.range ((X i) ^ 2)),
+        (if (∏ i, t i) = σ then 1 else 0) *
+          ∏ i, harmonicNatLaw (X i) W (t i) := by
+  classical
+  let D : Finset (Fin q → ℕ) :=
+    Fintype.piFinset fun i => Finset.range ((X i) ^ 2)
+  have hzero (t : Fin q → ℕ) (ht : t ∉ D) :
+      (if (∏ i, t i) = σ then 1 else 0) *
+        ∏ i, harmonicNatLaw (X i) W (t i) = 0 := by
+    have hnot : ¬ ∀ i, t i < (X i) ^ 2 := by
+      intro hall
+      apply ht
+      apply Fintype.mem_piFinset.mpr
+      intro i
+      simpa only [Finset.mem_range] using hall i
+    push_neg at hnot
+    obtain ⟨i, hi⟩ := hnot
+    have hmass : harmonicNatLaw (X i) W (t i) = 0 := by
+      have hlt : ¬ t i < (X i) ^ 2 := by omega
+      simp [harmonicNatLaw, hlt]
+    have hprod : ∏ i, harmonicNatLaw (X i) W (t i) = 0 :=
+      Finset.prod_eq_zero (s := Finset.univ)
+        (f := fun i => harmonicNatLaw (X i) W (t i))
+        (Finset.mem_univ i) hmass
+    simp [hprod]
+  unfold harmonicProductLaw
+  exact tsum_eq_sum (s := D) hzero
+
 theorem harmonicLaw_summable (X W : ℕ) : Summable (harmonicLaw X W) := by
   classical
   let S : Finset ℕ := (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W)
