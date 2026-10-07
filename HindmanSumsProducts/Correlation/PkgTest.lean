@@ -1391,4 +1391,839 @@ theorem correlationRoot_error_comparison (X W k H : ℕ)
       _ = 10 * (R + (H : ℝ) / X + T) := by ring
   convert hCombined using 1 <;> ring
 
+theorem harmonicLaw_nonzero_support {X W : ℕ} {z : ℤ}
+    (hz : harmonicLaw X W z ≠ 0) :
+    0 ≤ z ∧ (X : ℤ) ≤ z ∧ z < (X ^ 2 : ℤ) :=
+  harmonicLaw_support hz
+
+theorem harmonicLaw_nonneg_of_normalizer_pos {X W : ℕ}
+    (hXpos : 0 < X) (hZ : 0 < harmonicNormalizer X W) (z : ℤ) :
+    0 ≤ harmonicLaw X W z := by
+  unfold harmonicLaw
+  split_ifs with h
+  · rcases h with ⟨hz, hXle, hlt, hcop⟩
+    have hznat : 0 < z.toNat := lt_of_lt_of_le hXpos hXle
+    have hzreal : (0 : ℝ) < (z.toNat : ℝ) := by exact_mod_cast hznat
+    positivity
+  · simp
+
+theorem harmonicLaw_tsum_one {X W : ℕ} (hX : 0 < X)
+    (hZ : 0 < harmonicNormalizer X W) :
+    ∑' z : ℤ, harmonicLaw X W z = 1 := by
+  have hzero : ∀ z, z ∉ Finset.Ico (X : ℤ) (X ^ 2 : ℤ) →
+      harmonicLaw X W z = 0 := by
+    intro z hz
+    by_contra hne
+    have hs := harmonicLaw_support hne
+    have hz' : ¬ ((X : ℤ) ≤ z ∧ z < (X ^ 2 : ℤ)) := by
+      simpa [Finset.mem_Ico] using hz
+    exact hz' ⟨hs.2.1, hs.2.2⟩
+  calc
+    (∑' z : ℤ, harmonicLaw X W z) =
+        ∑ n ∈ Finset.Ico X (X ^ 2), harmonicLaw X W (n : ℤ) :=
+      tsum_intIco_natCast X (X ^ 2) (harmonicLaw X W) hzero
+    _ = ∑ n ∈ (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W),
+          1 / ((n : ℝ) * harmonicNormalizer X W) := by
+      calc
+        _ = ∑ n ∈ Finset.Ico X (X ^ 2),
+              if Nat.Coprime n W then
+                1 / ((n : ℝ) * harmonicNormalizer X W) else 0 := by
+          apply Finset.sum_congr rfl
+          intro n hn
+          rw [harmonicLaw_nat_cast]
+          have hn' := Finset.mem_Ico.mp hn
+          simp [hn'.1, hn'.2]
+        _ = ∑ n ∈ (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W),
+              1 / ((n : ℝ) * harmonicNormalizer X W) := by
+          rw [← Finset.sum_filter]
+    _ = (1 / harmonicNormalizer X W) *
+          ∑ n ∈ (Finset.Ico X (X ^ 2)).filter (fun n => Nat.Coprime n W),
+            1 / (n : ℝ) := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro n hn
+      have hnI : n ∈ Finset.Ico X (X ^ 2) := (Finset.mem_filter.mp hn).1
+      have hnpos : 0 < (n : ℝ) := by
+        exact_mod_cast (lt_of_lt_of_le hX (Finset.mem_Ico.mp hnI).1)
+      field_simp [ne_of_gt hZ, ne_of_gt hnpos]
+    _ = 1 := by
+      change (1 / harmonicNormalizer X W) * harmonicNormalizer X W = 1
+      field_simp [ne_of_gt hZ]
+
+theorem harmonicProgression_mixture_bound (X Y W k b : ℕ) (h y : ℤ)
+    (hk : 0 < k) (hbk : Nat.Coprime b k) (hcop : Nat.Coprime k W)
+    (hY : 2 ≤ Y) (hlogY : Real.log Y > (W : ℝ) / Y)
+    (Samp : FromArithmetic.SamplingPointwiseBounds Y W)
+    (hμnonneg : 0 ≤ harmonicLaw X W y) :
+    |(∑' z : ℤ, harmonicLaw Y W z *
+          progressionReference (harmonicLaw X W) k ((b : ℤ) * z + h) y) -
+        harmonicLaw X W y| ≤
+      harmonicLaw X W y * FromArithmetic.harmonicResidueError Y W k := by
+  letI : NeZero k := ⟨Nat.ne_of_gt hk⟩
+  let u : (ZMod k)ˣ := ZMod.unitOfCoprime b hbk
+  let rZ : ZMod k := (u⁻¹ : (ZMod k)ˣ) * (y - h)
+  let r : Fin k := ⟨rZ.val, rZ.val_lt⟩
+  have hu : (b : ZMod k) = (u : ZMod k) := by simp [u]
+  have hrCast : (r.val : ZMod k) = rZ := by simp [r]
+  have hresidue (z : ℤ) (hz : 0 ≤ z) :
+      (z.toNat : ZMod k) = rZ ↔ z.toNat % k = r.val := by
+    rw [← hrCast, ZMod.natCast_eq_natCast_iff']
+    rw [Nat.mod_eq_of_lt r.isLt]
+  have hdivMod (z : ℤ) :
+      (k : ℤ) ∣ y - ((b : ℤ) * z + h) ↔
+        (((b : ℤ) * z : ℤ) : ZMod k) = ((y - h : ℤ) : ZMod k) := by
+    rw [ZMod.intCast_eq_intCast_iff_dvd_sub]
+    have heq : y - ((b : ℤ) * z + h) = (y - h) - (b : ℤ) * z := by ring
+    rw [heq]
+  have hmul (z : ℤ) (hz : 0 ≤ z) :
+      (((b : ℤ) * z : ℤ) : ZMod k) = (u : ZMod k) * (z.toNat : ZMod k) := by
+    have hzcast : (z.toNat : ℤ) = z := Int.toNat_of_nonneg hz
+    rw [← hzcast]
+    simp [hu]
+  have hdivResidue (z : ℤ) (hz : 0 ≤ z) :
+      (k : ℤ) ∣ y - ((b : ℤ) * z + h) ↔ z.toNat % k = r.val := by
+    rw [hdivMod, hmul z hz]
+    constructor
+    · intro hzEq
+      have hzEqR : (z.toNat : ZMod k) = rZ := by
+        calc
+          (z.toNat : ZMod k) = (u⁻¹ : ZMod k) * ((u : ZMod k) * (z.toNat : ZMod k)) := by simp [mul_assoc]
+          _ = (u⁻¹ : ZMod k) * ((y - h : ℤ) : ZMod k) := by rw [hzEq]
+          _ = rZ := by simpa [rZ]
+      exact (hresidue z hz).mp hzEqR
+    · intro hr
+      have hzEq := (hresidue z hz).mpr hr
+      rw [hzEq]
+      simp [rZ, mul_assoc]
+  have hterm (z : ℤ) :
+      harmonicLaw Y W z *
+          progressionReference (harmonicLaw X W) k ((b : ℤ) * z + h) y =
+        (k : ℝ) * harmonicLaw X W y *
+          (if 0 ≤ z ∧ z.toNat % k = r.val then harmonicLaw Y W z else 0) := by
+    by_cases hzμ : harmonicLaw Y W z = 0
+    · simp [hzμ]
+    · have hz := (harmonicLaw_support hzμ).1
+      have hcond := hdivResidue z hz
+      by_cases hd : (k : ℤ) ∣ y - ((b : ℤ) * z + h)
+      · have hr := hcond.mp hd
+        simp [progressionReference, hd, hr, hz]
+        ring
+      · have hr : z.toNat % k ≠ r.val := by
+          intro hc
+          exact hd (hcond.mpr hc)
+        simp [progressionReference, hd, hr, hz]
+  have hmix :
+      (∑' z : ℤ, harmonicLaw Y W z *
+          progressionReference (harmonicLaw X W) k ((b : ℤ) * z + h) y) =
+        (k : ℝ) * harmonicLaw X W y * harmonicResidueLaw
+          (harmonicLaw Y W) k r := by
+    calc
+      _ = ∑' z : ℤ, (k : ℝ) * harmonicLaw X W y *
+            (if 0 ≤ z ∧ z.toNat % k = r.val then harmonicLaw Y W z else 0) :=
+          tsum_congr hterm
+      _ = (k : ℝ) * harmonicLaw X W y * harmonicResidueLaw
+            (harmonicLaw Y W) k r := by
+          rw [tsum_mul_left]
+          rfl
+  have hres := Samp.residue_pointwise hY hlogY k r.val hcop hk r.isLt
+  have hmulEq :
+      (k : ℝ) * harmonicLaw X W y * harmonicResidueLaw
+          (harmonicLaw Y W) k r - harmonicLaw X W y =
+        harmonicLaw X W y *
+          ((k : ℝ) * harmonicResidueLaw (harmonicLaw Y W) k r - 1) := by ring
+  rw [hmix, hmulEq, abs_mul, abs_of_nonneg hμnonneg]
+  exact mul_le_mul_of_nonneg_left hres hμnonneg
+
+theorem arithmeticL1_test_bound_of_Icc_support {f g : ℤ → ℝ} (B : ℤ)
+    (hf : ∀ z, f z ≠ 0 → 0 ≤ z ∧ z ≤ B)
+    (hg : ∀ z, g z ≠ 0 → 0 ≤ z ∧ z ≤ B)
+    (F : ℤ → ℝ) (M : ℝ) (hM : 0 ≤ M) (hF : ∀ z, |F z| ≤ M) :
+    |(∑' z : ℤ, f z * F z) - (∑' z : ℤ, g z * F z)| ≤
+      M * arithmeticL1 f g := by
+  let s : Finset ℤ := Finset.Icc 0 B
+  have hzeroF (z : ℤ) (hz : z ∉ s) : f z * F z = 0 := by
+    have hnot : ¬ (0 ≤ z ∧ z ≤ B) := by simpa [s, Finset.mem_Icc] using hz
+    by_contra hne
+    have hs := hf z (mul_ne_zero_iff.mp hne).1
+    exact hnot hs
+  have hzeroG (z : ℤ) (hz : z ∉ s) : g z * F z = 0 := by
+    have hnot : ¬ (0 ≤ z ∧ z ≤ B) := by simpa [s, Finset.mem_Icc] using hz
+    by_contra hne
+    have hs := hg z (mul_ne_zero_iff.mp hne).1
+    exact hnot hs
+  have hzeroDiff (z : ℤ) (hz : z ∉ s) : |f z - g z| = 0 := by
+    have hnot : ¬ (0 ≤ z ∧ z ≤ B) := by simpa [s, Finset.mem_Icc] using hz
+    have hfz : f z = 0 := by
+      by_contra hne
+      exact hnot (hf z hne)
+    have hgz : g z = 0 := by
+      by_contra hne
+      exact hnot (hg z hne)
+    simp [hfz, hgz]
+  have hsumEq :
+      (∑ z ∈ s, f z * F z) - ∑ z ∈ s, g z * F z =
+        ∑ z ∈ s, (f z - g z) * F z := by
+    rw [← Finset.sum_sub_distrib]
+    apply Finset.sum_congr rfl
+    intro z hz
+    ring
+  calc
+    |(∑' z : ℤ, f z * F z) - (∑' z : ℤ, g z * F z)| =
+        |∑ z ∈ s, (f z - g z) * F z| := by
+          rw [tsum_eq_sum (s := s) hzeroF, tsum_eq_sum (s := s) hzeroG, hsumEq]
+    _ ≤ ∑ z ∈ s, |(f z - g z) * F z| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ z ∈ s, M * |f z - g z| := by
+      apply Finset.sum_le_sum
+      intro z hz
+      calc
+        |(f z - g z) * F z| = |f z - g z| * |F z| := abs_mul _ _
+        _ ≤ |f z - g z| * M := mul_le_mul_of_nonneg_left (hF z) (abs_nonneg _)
+        _ = M * |f z - g z| := by ring
+    _ = M * ∑ z ∈ s, |f z - g z| := by rw [Finset.mul_sum]
+    _ = M * arithmeticL1 f g := by
+      unfold arithmeticL1
+      rw [tsum_eq_sum (s := s) hzeroDiff]
+
+theorem harmonicLaw_dilation_test_expectation (X W k : ℕ) (hk : 0 < k)
+    (h : ℤ) (F : ℤ → ℝ) :
+    (∑' z : ℤ, harmonicLaw X W z * F ((k : ℤ) * z + h)) =
+      ∑' z : ℤ,
+        translatedLaw (dilatedLaw (harmonicLaw X W) k) h z * F z := by
+  let μ : ℤ → ℝ := harmonicLaw X W
+  let G : ℤ → ℝ := fun z => dilatedLaw μ k z * F (z + h)
+  letI : NeZero k := ⟨Nat.ne_of_gt hk⟩
+  have hsourceZero (z : ℤ) (hz : z ∉ Finset.Ico (X : ℤ) (X ^ 2 : ℤ)) :
+      μ z * F ((k : ℤ) * z + h) = 0 := by
+    have hnot : ¬ ((X : ℤ) ≤ z ∧ z < (X ^ 2 : ℤ)) := by
+      simpa [Finset.mem_Ico] using hz
+    by_cases hμ : μ z = 0
+    · simp [hμ]
+    · have hs := harmonicLaw_support (by simpa [μ] using hμ)
+      exact (hnot ⟨hs.2.1, hs.2.2⟩).elim
+  have hsourceZeroNat (n : ℕ) (hn : n ∉ Finset.Ico X (X ^ 2)) :
+      μ (n : ℤ) * F ((k : ℤ) * n + h) = 0 := by
+    have hnot : ¬ (X ≤ n ∧ n < X ^ 2) := by simpa [Finset.mem_Ico] using hn
+    by_cases hμ : μ (n : ℤ) = 0
+    · simp [hμ]
+    · have hs := harmonicLaw_support (by simpa [μ] using hμ)
+      have hlo : X ≤ n := by exact_mod_cast hs.2.1
+      have hhi : n < X ^ 2 := by exact_mod_cast hs.2.2
+      exact (hnot ⟨hlo, hhi⟩).elim
+  have hsource :
+      (∑' z : ℤ, μ z * F ((k : ℤ) * z + h)) =
+        ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) := by
+    calc
+      _ = ∑ n ∈ Finset.Ico X (X ^ 2), μ (n : ℤ) * F ((k : ℤ) * n + h) := by
+        apply tsum_intIco_natCast X (X ^ 2)
+        exact hsourceZero
+      _ = ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) :=
+        (tsum_eq_sum (s := Finset.Ico X (X ^ 2)) hsourceZeroNat).symm
+  have hGzero (z : ℤ) (hz : z ∉ Finset.Ico (0 : ℤ) ((k * X ^ 2 : ℕ) : ℤ)) :
+      G z = 0 := by
+    have hnot : ¬ (0 ≤ z ∧ z < ((k * X ^ 2 : ℕ) : ℤ)) := by
+      simpa [Finset.mem_Ico] using hz
+    by_cases hG : G z = 0
+    · exact hG
+    · have hd : dilatedLaw μ k z ≠ 0 := by
+        intro hd
+        apply hG
+        simp [G, hd]
+      have hs := dilatedLaw_support hk (by simpa [μ] using hd)
+      exact (hnot ⟨hs.1, hs.2.2⟩).elim
+  have hGzeroNat (n : ℕ) (hn : n ∉ Finset.Ico 0 (k * X ^ 2)) :
+      G (n : ℤ) = 0 := by
+    have hnot : ¬ (0 ≤ n ∧ n < k * X ^ 2) := by
+      simpa [Finset.mem_Ico] using hn
+    by_cases hG : G (n : ℤ) = 0
+    · exact hG
+    · have hd : dilatedLaw μ k (n : ℤ) ≠ 0 := by
+        intro hd
+        apply hG
+        simp [G, hd]
+      have hs := dilatedLaw_support hk (by simpa [μ] using hd)
+      have hlo : 0 ≤ n := by exact_mod_cast hs.1
+      have hhi : n < k * X ^ 2 := by exact_mod_cast hs.2.2
+      exact (hnot ⟨hlo, hhi⟩).elim
+  have hGnat :
+      (∑' z : ℤ, G z) = ∑' n : ℕ, G (n : ℤ) := by
+    calc
+      _ = ∑ n ∈ Finset.Ico 0 (k * X ^ 2), G (n : ℤ) := by
+        apply tsum_intIco_natCast 0 (k * X ^ 2)
+        exact hGzero
+      _ = ∑' n : ℕ, G (n : ℤ) :=
+        (tsum_eq_sum (s := Finset.Ico 0 (k * X ^ 2)) hGzeroNat).symm
+  let e : ℕ ≃ ZMod k × ℕ := Nat.residueClassesEquiv k
+  let P : ZMod k × ℕ → ℝ := fun p => G ((e.symm p : ℕ) : ℤ)
+  have hPzero (p : ZMod k × ℕ)
+      (hp : p ∉ (Finset.univ : Finset (ZMod k)) ×ˢ Finset.Ico 0 (X ^ 2)) :
+      P p = 0 := by
+    have hpq : ¬ p.2 < X ^ 2 := by
+      intro hq
+      apply hp
+      simp [hq]
+    by_cases hP : P p = 0
+    · exact hP
+    · have hd : dilatedLaw μ k ((e.symm p : ℕ) : ℤ) ≠ 0 := by
+        intro hd
+        apply hP
+        simp [P, G, hd]
+      have hs := dilatedLaw_support hk (by simpa [μ] using hd)
+      have hm : (e.symm p : ℕ) < k * X ^ 2 := by exact_mod_cast hs.2.2
+      have he : e.symm p = p.1.val + k * p.2 := rfl
+      have hmul : k * p.2 < k * X ^ 2 := by
+        rw [he] at hm
+        exact lt_of_le_of_lt (by omega) hm
+      have hq : p.2 < X ^ 2 := (Nat.mul_lt_mul_left hk).1 hmul
+      exact (hpq hq).elim
+  have hPsummable : Summable P :=
+    summable_of_ne_finset_zero
+      (s := (Finset.univ : Finset (ZMod k)) ×ˢ Finset.Ico 0 (X ^ 2)) hPzero
+  have houtputPair :
+      (∑' z : ℤ, G z) = ∑' p : ZMod k × ℕ, P p := by
+    rw [hGnat]
+    calc
+      (∑' n : ℕ, G (n : ℤ)) = ∑' n : ℕ, P (e n) := by simp [P]
+      _ = ∑' p : ZMod k × ℕ, P p := e.tsum_eq P
+  have hresidueCollapse :
+      (∑' p : ZMod k × ℕ, P p) =
+        ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) := by
+    have hnotdiv (x : ZMod k) (hx : x ≠ 0) (n : ℕ) :
+        ¬ (k : ℤ) ∣ (x.cast : ℤ) + (k : ℤ) * n := by
+      intro hd
+      have hmod : (((x.cast : ℤ) + (k : ℤ) * n : ℤ) : ZMod k) = 0 :=
+        (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).2 hd
+      have hcast : ((x.cast : ℤ) : ZMod k) = x := by simp
+      rw [Int.cast_add, Int.cast_mul, hcast] at hmod
+      simp only [Int.cast_natCast, ZMod.natCast_self, zero_mul, add_zero] at hmod
+      exact hx hmod
+    have hfiber (x : ZMod k) :
+        (∑' n : ℕ, P (x, n)) =
+          if x = 0 then ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) else 0 := by
+      by_cases hx : x = 0
+      · subst x
+        simp [P, G, e, Nat.residueClassesEquiv, dilatedLaw,
+          Nat.mul_mod_right, Int.natCast_ediv, hk.ne']
+      · have hterm (n : ℕ) : P (x, n) = 0 := by
+          dsimp [P, G]
+          rw [show e.symm (x, n) = x.val + k * n by rfl]
+          have hcast : ((x.val + k * n : ℕ) : ℤ) = (x.cast : ℤ) + (k : ℤ) * n := by
+            simp only [Nat.cast_add, Nat.cast_mul]
+            rw [ZMod.cast_eq_val]
+          rw [hcast]
+          have hnotdivVal : ¬ (k : ℤ) ∣ (x.cast : ℤ) := by
+            have hh := hnotdiv x hx 0
+            simpa using hh
+          simp [dilatedLaw, hnotdivVal]
+        simp [hx, hterm]
+    calc
+      (∑' p : ZMod k × ℕ, P p) =
+          ∑' r : ZMod k, ∑' n : ℕ, P (r, n) := hPsummable.tsum_prod
+      _ = ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) := by
+          rw [tsum_fintype]
+          calc
+            (∑ r : ZMod k, ∑' n : ℕ, P (r, n)) =
+                ∑ r : ZMod k,
+                  (if r = 0 then ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) else 0) := by
+                    apply Finset.sum_congr rfl
+                    intro r hr
+                    exact hfiber r
+            _ = ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) := by simp
+  have hshift :
+      (∑' z : ℤ, translatedLaw (dilatedLaw μ k) h z * F z) = ∑' z : ℤ, G z := by
+    let s : ℤ ≃ ℤ :=
+      { toFun := fun z => z - h
+        invFun := fun z => z + h
+        left_inv := by intro z; dsimp; omega
+        right_inv := by intro z; dsimp; omega }
+    have hpoint (z : ℤ) :
+        translatedLaw (dilatedLaw μ k) h z * F z = G (s z) := by
+      simp [G, s, translatedLaw, Int.sub_add_cancel]
+    calc
+      _ = ∑' z : ℤ, G (s z) := tsum_congr hpoint
+      _ = ∑' z : ℤ, G z := s.tsum_eq G
+  calc
+    (∑' z : ℤ, harmonicLaw X W z * F ((k : ℤ) * z + h)) =
+        ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) := by
+          simpa [μ] using hsource
+    _ = ∑' n : ℕ, G ((k * n : ℕ) : ℤ) := by
+          simp [G, dilatedLaw, Nat.mul_mod_right, Int.natCast_ediv, hk.ne']
+    _ = ∑' n : ℕ, μ (n : ℤ) * F ((k : ℤ) * n + h) := by
+          simp [G, dilatedLaw, Nat.mul_mod_right, Int.natCast_ediv, hk.ne']
+    _ = ∑' p : ZMod k × ℕ, P p := hresidueCollapse.symm
+    _ = ∑' z : ℤ, G z := houtputPair.symm
+    _ = ∑' z : ℤ, translatedLaw (dilatedLaw μ k) h z * F z := hshift.symm
+
+set_option maxHeartbeats 0 in
+theorem correlationRoot_expected_test_bound
+    (Xa Xj W k b H : ℕ) (h : ℤ) (M Eroot Eres : ℝ)
+    (hXaPos : 0 < Xa) (hXjPos : 0 < Xj) (hk : 0 < k)
+    (hWb : W ∣ b) (hbk : Nat.Coprime b k) (hcop : Nat.Coprime k W)
+    (hbH : b * Xj ^ 2 ≤ H) (h0 : 0 ≤ h) (hH : h ≤ H)
+    (hdiv : (W : ℤ) ∣ h)
+    (hZa : 0 < harmonicNormalizer Xa W) (hZj : 0 < harmonicNormalizer Xj W)
+    (hXj2 : 2 ≤ Xj) (hlogJ : Real.log Xj > (W : ℝ) / Xj)
+    (SampJ : FromArithmetic.SamplingPointwiseBounds Xj W)
+    (hM : 0 ≤ M) (hEroot : 0 ≤ Eroot) (hEres : 0 ≤ Eres)
+    (hTV : ∀ (h' : ℤ), 0 ≤ h' → h' ≤ 2 * H → (W : ℤ) ∣ h' →
+      arithmeticL1 (translatedLaw (dilatedLaw (harmonicLaw Xa W) k) h')
+        (progressionReference (harmonicLaw Xa W) k h') ≤ Eroot)
+    (hResidue : FromArithmetic.harmonicResidueError Xj W k ≤ Eres) :
+    ∀ F : ℤ → ℝ, (∀ y, |F y| ≤ M) →
+      |(∑' za : ℤ, ∑' zj : ℤ,
+          harmonicLaw Xa W za * harmonicLaw Xj W zj *
+            F ((k : ℤ) * za + (b : ℤ) * zj + h)) -
+        ∑' y : ℤ, harmonicLaw Xa W y * F y| ≤ M * (Eroot + Eres) := by
+  intro F hF
+  let μa : ℤ → ℝ := harmonicLaw Xa W
+  let μj : ℤ → ℝ := harmonicLaw Xj W
+  let IA : Finset ℕ := Finset.Ico Xa (Xa ^ 2)
+  let IB : Finset ℕ := Finset.Ico Xj (Xj ^ 2)
+  let E : ℤ → ℝ := fun zj =>
+    ∑ za ∈ IA, μa (za : ℤ) * F ((k : ℤ) * za + (b : ℤ) * zj + h)
+  let P : ℤ → ℝ := fun zj =>
+    ∑ y ∈ IA, progressionReference μa k ((b : ℤ) * zj + h) (y : ℤ) * F (y : ℤ)
+  let Q : ℤ → ℝ := fun y =>
+    ∑ zj ∈ IB, μj (zj : ℤ) *
+      progressionReference μa k ((b : ℤ) * zj + h) y
+  have hAzero (z : ℤ) (hz : z ∉ Finset.Ico (Xa : ℤ) (Xa ^ 2 : ℤ)) : μa z = 0 := by
+    by_contra hne
+    have hs := harmonicLaw_support (by simpa [μa] using hne)
+    have hnot : ¬ ((Xa : ℤ) ≤ z ∧ z < (Xa ^ 2 : ℤ)) := by
+      simpa [Finset.mem_Ico] using hz
+    exact hnot ⟨hs.2.1, hs.2.2⟩
+  have hJzero (z : ℤ) (hz : z ∉ Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ)) : μj z = 0 := by
+    by_contra hne
+    have hs := harmonicLaw_support (by simpa [μj] using hne)
+    have hnot : ¬ ((Xj : ℤ) ≤ z ∧ z < (Xj ^ 2 : ℤ)) := by
+      simpa [Finset.mem_Ico] using hz
+    exact hnot ⟨hs.2.1, hs.2.2⟩
+  have hMassA : (∑ n ∈ IA, μa (n : ℤ)) = 1 := by
+    have hmass := harmonicLaw_tsum_one hXaPos hZa
+    have hsum := tsum_intIco_natCast Xa (Xa ^ 2) μa hAzero
+    dsimp [IA, μa] at hsum
+    exact hsum.symm.trans hmass
+  have hMassJ : (∑ n ∈ IB, μj (n : ℤ)) = 1 := by
+    have hmass := harmonicLaw_tsum_one hXjPos hZj
+    have hsum := tsum_intIco_natCast Xj (Xj ^ 2) μj hJzero
+    dsimp [IB, μj] at hsum
+    exact hsum.symm.trans hmass
+  have hAexp :
+      (∑' y : ℤ, μa y * F y) =
+        ∑ y ∈ IA, μa (y : ℤ) * F (y : ℤ) := by
+    apply tsum_intIco_natCast Xa (Xa ^ 2)
+    intro y hy
+    by_cases hzero : μa y = 0
+    · simp [hzero]
+    · have hs := harmonicLaw_support (by simpa [μa] using hzero)
+      have hnot : ¬ ((Xa : ℤ) ≤ y ∧ y < (Xa ^ 2 : ℤ)) := by
+        simpa [Finset.mem_Ico] using hy
+      exact (hnot ⟨hs.2.1, hs.2.2⟩).elim
+  have hinner (za : ℤ) :
+      (∑' zj : ℤ, μa za * μj zj * F ((k : ℤ) * za + (b : ℤ) * zj + h)) =
+        ∑ zj ∈ IB, μa za * μj (zj : ℤ) *
+          F ((k : ℤ) * za + (b : ℤ) * zj + h) := by
+    apply tsum_intIco_natCast Xj (Xj ^ 2)
+    intro zj hz
+    have hjzero : μj zj = 0 := hJzero zj hz
+    simp [hjzero]
+  have houterZero (za : ℤ) (hz : za ∉ Finset.Ico (Xa : ℤ) (Xa ^ 2 : ℤ)) :
+      (∑ zj ∈ IB, μa za * μj (zj : ℤ) *
+        F ((k : ℤ) * za + (b : ℤ) * (zj : ℤ) + h)) = 0 := by
+    have hzero : μa za = 0 := hAzero za hz
+    simp [hzero]
+  have hDoubleFinite :
+      (∑' za : ℤ, ∑' zj : ℤ,
+        μa za * μj zj * F ((k : ℤ) * za + (b : ℤ) * zj + h)) =
+      ∑ za ∈ IA, ∑ zj ∈ IB,
+        μa (za : ℤ) * μj (zj : ℤ) *
+          F ((k : ℤ) * (za : ℤ) + (b : ℤ) * (zj : ℤ) + h) := by
+    calc
+      _ = ∑' za : ℤ, ∑ zj ∈ IB,
+            μa za * μj (zj : ℤ) * F ((k : ℤ) * za + (b : ℤ) * (zj : ℤ) + h) := by
+              apply tsum_congr
+              intro za
+              exact hinner za
+      _ = ∑ za ∈ IA, ∑ zj ∈ IB,
+            μa (za : ℤ) * μj (zj : ℤ) *
+              F ((k : ℤ) * (za : ℤ) + (b : ℤ) * (zj : ℤ) + h) := by
+                apply tsum_intIco_natCast Xa (Xa ^ 2)
+                exact houterZero
+  have hDoubleE :
+      (∑ za ∈ IA, ∑ zj ∈ IB,
+        μa (za : ℤ) * μj (zj : ℤ) *
+          F ((k : ℤ) * (za : ℤ) + (b : ℤ) * (zj : ℤ) + h)) =
+        ∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ) := by
+    calc
+      _ = ∑ zj ∈ IB, ∑ za ∈ IA,
+            μj (zj : ℤ) * (μa (za : ℤ) *
+              F ((k : ℤ) * (za : ℤ) + (b : ℤ) * (zj : ℤ) + h)) := by
+                rw [Finset.sum_comm]
+                apply Finset.sum_congr rfl
+                intro zj hzj
+                apply Finset.sum_congr rfl
+                intro za hza
+                ring
+      _ = ∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ) := by
+                apply Finset.sum_congr rfl
+                intro zj hzj
+                rw [Finset.mul_sum]
+  have hEzero (zj : ℤ) (hz : zj ∉ Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ)) :
+      μj zj * E zj = 0 := by
+    simp [hJzero zj hz]
+  have hPzero (zj : ℤ) (z : ℤ)
+      (hz : z ∉ Finset.Ico (Xa : ℤ) (Xa ^ 2 : ℤ)) :
+      progressionReference μa k ((b : ℤ) * zj + h) z * F z = 0 := by
+    by_contra hne
+    have hp : progressionReference μa k ((b : ℤ) * zj + h) z ≠ 0 := by
+      intro hz0
+      apply hne
+      simp [hz0]
+    have hs := progressionReference_support hp
+    have hnot : ¬ ((Xa : ℤ) ≤ z ∧ z < (Xa ^ 2 : ℤ)) := by
+      simpa [Finset.mem_Ico] using hz
+    exact hnot ⟨hs.2.1, hs.2.2⟩
+  have hEpush (zj : ℤ) : E zj =
+      ∑' z : ℤ, translatedLaw (dilatedLaw μa k) ((b : ℤ) * zj + h) z * F z := by
+    have hsource := tsum_intIco_natCast Xa (Xa ^ 2)
+      (fun z : ℤ => μa z * F ((k : ℤ) * z + ((b : ℤ) * zj + h)))
+      (fun z hz => by
+        by_cases hzero : μa z = 0
+        · simp [hzero]
+        · have hs := harmonicLaw_support (by simpa [μa] using hzero)
+          have hnot : ¬ ((Xa : ℤ) ≤ z ∧ z < (Xa ^ 2 : ℤ)) := by
+            simpa [Finset.mem_Ico] using hz
+          exact (hnot ⟨hs.2.1, hs.2.2⟩).elim)
+    have hpush := harmonicLaw_dilation_test_expectation Xa W k hk
+      ((b : ℤ) * zj + h) F
+    calc
+      E zj = ∑' z : ℤ, μa z * F ((k : ℤ) * z + ((b : ℤ) * zj + h)) := by
+        simpa [E, IA, add_assoc] using hsource.symm
+      _ = _ := by simpa [μa, add_assoc] using hpush
+  have hPpush (zj : ℤ) : P zj =
+      ∑' z : ℤ,
+        progressionReference μa k ((b : ℤ) * zj + h) z * F z := by
+    apply (tsum_intIco_natCast Xa (Xa ^ 2)
+      (fun z : ℤ => progressionReference μa k ((b : ℤ) * zj + h) z * F z)
+      (hPzero zj)).symm
+  have hRootPer (zj : ℤ) (hj : μj zj ≠ 0) : |E zj - P zj| ≤ M * Eroot := by
+    have hs := harmonicLaw_support (by simpa [μj] using hj)
+    have hzcast : (zj.toNat : ℤ) = zj := Int.toNat_of_nonneg hs.1
+    have hzlt : zj.toNat < Xj ^ 2 := by
+      have hs' : (zj.toNat : ℤ) < (Xj ^ 2 : ℤ) := by simpa [hzcast] using hs.2.2
+      exact_mod_cast hs'
+    have hznat : zj.toNat ≤ Xj ^ 2 := hzlt.le
+    have hbN : b * zj.toNat ≤ H :=
+      (Nat.mul_le_mul_left b hznat).trans hbH
+    have hbInt : (b : ℤ) * zj ≤ (H : ℤ) := by
+      calc
+        (b : ℤ) * zj = (b : ℤ) * (zj.toNat : ℤ) := by rw [hzcast]
+        _ = ((b * zj.toNat : ℕ) : ℤ) := by simp
+        _ ≤ (H : ℤ) := by exact_mod_cast hbN
+    let h' : ℤ := (b : ℤ) * zj + h
+    have hbnonneg : 0 ≤ (b : ℤ) * zj := mul_nonneg (by positivity) hs.1
+    have h'nonneg : 0 ≤ h' := by dsimp [h']; exact add_nonneg hbnonneg h0
+    have h'le : h' ≤ (2 * H : ℤ) := by
+      have hh : h ≤ (H : ℤ) := hH
+      dsimp [h']
+      omega
+    have hWbInt : (W : ℤ) ∣ (b : ℤ) := by exact_mod_cast hWb
+    have hdiv' : (W : ℤ) ∣ h' := by
+      dsimp [h']
+      exact dvd_add (dvd_mul_of_dvd_left hWbInt zj) hdiv
+    let Broot : ℤ := ((k * Xa ^ 2 + 2 * H : ℕ) : ℤ)
+    have hK1 : 1 ≤ k := Nat.succ_le_iff.mpr hk
+    have hXaSqLe : Xa ^ 2 ≤ k * Xa ^ 2 := by
+      calc
+        Xa ^ 2 = 1 * Xa ^ 2 := by simp
+        _ ≤ k * Xa ^ 2 := Nat.mul_le_mul_right (Xa ^ 2) hK1
+    have hShiftUpper (A : ℕ) (hA : A ≤ k * Xa ^ 2) :
+        (A : ℤ) + h' ≤ Broot := by
+      have hA' : (A : ℤ) ≤ ((k * Xa ^ 2 : ℕ) : ℤ) := by exact_mod_cast hA
+      calc
+        (A : ℤ) + h' ≤ ((k * Xa ^ 2 : ℕ) : ℤ) + (2 * H : ℤ) :=
+          add_le_add hA' h'le
+        _ = Broot := by
+          change ((k * Xa ^ 2 : ℕ) : ℤ) + (2 * H : ℤ) =
+            ((k * Xa ^ 2 + 2 * H : ℕ) : ℤ)
+          exact (Nat.cast_add _ _).symm
+    have hfSupport : ∀ z, translatedLaw (dilatedLaw μa k) h' z ≠ 0 →
+        0 ≤ z ∧ z ≤ Broot := by
+      intro z hz
+      have hs := translated_support h'nonneg (fun t ht => by
+        have hd := dilatedLaw_support hk ht
+        exact ⟨hd.1, hd.2.2⟩) hz
+      exact ⟨hs.1, le_of_lt (lt_of_lt_of_le hs.2
+        (hShiftUpper (k * Xa ^ 2) le_rfl))⟩
+    have hgSupport : ∀ z, progressionReference μa k h' z ≠ 0 →
+        0 ≤ z ∧ z ≤ Broot := by
+      intro z hz
+      have hs := progressionReference_support hz
+      have hu := hShiftUpper (Xa ^ 2) hXaSqLe
+      have htop : (Xa ^ 2 : ℤ) ≤ Broot := by
+        have hnat : Xa ^ 2 ≤ k * Xa ^ 2 + 2 * H := by
+          calc
+            Xa ^ 2 ≤ k * Xa ^ 2 := hXaSqLe
+            _ ≤ k * Xa ^ 2 + 2 * H := Nat.le_add_right _ _
+        change ((Xa ^ 2 : ℕ) : ℤ) ≤ ((k * Xa ^ 2 + 2 * H : ℕ) : ℤ)
+        exact_mod_cast hnat
+      exact ⟨hs.1, le_of_lt (lt_of_lt_of_le hs.2.2 htop)⟩
+    have htest := arithmeticL1_test_bound_of_Icc_support Broot
+      hfSupport hgSupport F M hM hF
+    have htv := hTV h' h'nonneg h'le hdiv'
+    calc
+      |E zj - P zj| =
+          |(∑' z : ℤ, translatedLaw (dilatedLaw μa k) h' z * F z) -
+            ∑' z : ℤ, progressionReference μa k h' z * F z| := by
+              rw [← hEpush, ← hPpush]
+      _ ≤ M * arithmeticL1 (translatedLaw (dilatedLaw μa k) h')
+            (progressionReference μa k h') := htest
+      _ ≤ M * Eroot := mul_le_mul_of_nonneg_left htv hM
+  have hEouterZero (zj : ℤ) (hz : zj ∉ Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ)) :
+      μj zj * E zj = 0 := by simp [hJzero zj hz]
+  have hPouterZero (zj : ℤ) (hz : zj ∉ Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ)) :
+      μj zj * P zj = 0 := by simp [hJzero zj hz]
+  have hEouter : Summable (fun zj : ℤ => μj zj * E zj) := by
+    apply summable_of_ne_finset_zero (s := Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ))
+    exact hEouterZero
+  have hPouter : Summable (fun zj : ℤ => μj zj * P zj) := by
+    apply summable_of_ne_finset_zero (s := Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ))
+    exact hPouterZero
+  have hEouterSum : (∑' zj : ℤ, μj zj * E zj) =
+      ∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ) := by
+    simpa [IB] using
+      (tsum_intIco_natCast Xj (Xj ^ 2) (fun zj : ℤ => μj zj * E zj) hEouterZero)
+  have hPouterSum : (∑' zj : ℤ, μj zj * P zj) =
+      ∑ zj ∈ IB, μj (zj : ℤ) * P (zj : ℤ) := by
+    simpa [IB] using
+      (tsum_intIco_natCast Xj (Xj ^ 2) (fun zj : ℤ => μj zj * P zj) hPouterZero)
+  let rootGap : ℝ :=
+    ∑' zj : ℤ, μj zj * (E zj - P zj)
+  have hDoubleRootGap :
+      (∑' za : ℤ, ∑' zj : ℤ,
+          μa za * μj zj * F ((k : ℤ) * za + (b : ℤ) * zj + h)) -
+        (∑ zj ∈ IB, μj (zj : ℤ) * P (zj : ℤ)) = rootGap := by
+    calc
+      _ = (∑ za ∈ IA, ∑ zj ∈ IB,
+            μa (za : ℤ) * μj (zj : ℤ) *
+              F ((k : ℤ) * (za : ℤ) + (b : ℤ) * (zj : ℤ) + h)) -
+            (∑ zj ∈ IB, μj (zj : ℤ) * P (zj : ℤ)) := by rw [hDoubleFinite]
+      _ = (∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ)) -
+            (∑ zj ∈ IB, μj (zj : ℤ) * P (zj : ℤ)) := by rw [hDoubleE]
+      _ = (∑' zj : ℤ, μj zj * E zj) -
+            (∑' zj : ℤ, μj zj * P zj) := by
+              rw [← hEouterSum, ← hPouterSum]
+      _ = rootGap := by
+            dsimp [rootGap]
+            rw [← hEouter.tsum_sub hPouter]
+            apply tsum_congr
+            intro zj
+            ring
+  have hMassB : (∑ zj ∈ IB, μj (zj : ℤ)) = 1 := by
+    have hmass := harmonicLaw_tsum_one hXjPos hZj
+    have hsum := tsum_intIco_natCast Xj (Xj ^ 2) μj hJzero
+    dsimp [IB, μj] at hsum
+    exact hsum.symm.trans hmass
+  have hRootGapBound : |rootGap| ≤ M * Eroot := by
+    have hAbsSummable : Summable (fun zj : ℤ => |μj zj * (E zj - P zj)|) := by
+      apply summable_of_ne_finset_zero (s := Finset.Ico (Xj : ℤ) (Xj ^ 2 : ℤ))
+      intro zj hz
+      have hm := hJzero zj hz
+      simp [hm]
+    have hAbsNorm : Summable (fun zj : ℤ => ‖μj zj * (E zj - P zj)‖) := by
+      simpa [Real.norm_eq_abs] using hAbsSummable
+    calc
+      |rootGap| ≤ ∑' zj : ℤ, |μj zj * (E zj - P zj)| := by
+        simpa [rootGap, Real.norm_eq_abs] using
+          (norm_tsum_le_tsum_norm hAbsNorm)
+      _ ≤ ∑ zj ∈ IB, μj (zj : ℤ) * (M * Eroot) := by
+        calc
+          _ = ∑ zj ∈ IB, |μj (zj : ℤ) * (E (zj : ℤ) - P (zj : ℤ))| := by
+            simpa [IB] using
+              (tsum_intIco_natCast Xj (Xj ^ 2)
+                (fun zj : ℤ => |μj zj * (E zj - P zj)|)
+                (by
+                  intro zj hz
+                  have hm := hJzero zj hz
+                  simp [hm]))
+          _ ≤ ∑ zj ∈ IB, μj (zj : ℤ) * (M * Eroot) := by
+            apply Finset.sum_le_sum
+            intro zj hzj
+            by_cases hm : μj (zj : ℤ) = 0
+            · simp [hm]
+            · have hnonneg := harmonicLaw_nonneg_of_normalizer_pos hXjPos hZj (zj : ℤ)
+              calc
+                |μj (zj : ℤ) * (E (zj : ℤ) - P (zj : ℤ))| =
+                    μj (zj : ℤ) * |E (zj : ℤ) - P (zj : ℤ)| := by
+                      rw [abs_mul, abs_of_nonneg hnonneg]
+                _ ≤ μj (zj : ℤ) * (M * Eroot) :=
+                    mul_le_mul_of_nonneg_left (hRootPer (zj : ℤ) hm) hnonneg
+      _ = M * Eroot := by
+        rw [← Finset.sum_mul, hMassB]
+        ring
+  let residueAvg : ℝ := ∑ zj ∈ IB, μj (zj : ℤ) * P (zj : ℤ)
+  let Favg : ℝ := ∑ y ∈ IA, μa (y : ℤ) * F (y : ℤ)
+  have hQeq (y : ℤ) : Q y =
+      ∑' zj : ℤ, μj zj * progressionReference μa k ((b : ℤ) * zj + h) y := by
+    apply (tsum_intIco_natCast Xj (Xj ^ 2)
+      (fun zj : ℤ => μj zj * progressionReference μa k ((b : ℤ) * zj + h) y)
+      (by
+        intro zj hz
+        have hj := hJzero zj hz
+        simp [hj])).symm
+  have hMixPointwise (y : ℤ) : |Q y - μa y| ≤ μa y * Eres := by
+    have hmix := harmonicProgression_mixture_bound Xa Xj W k b h y hk hbk
+      hcop
+      hXj2 hlogJ SampJ (harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y)
+    have hμnonneg := harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y
+    calc
+      |Q y - μa y| =
+          |(∑' zj : ℤ, μj zj *
+            progressionReference μa k ((b : ℤ) * zj + h) y) - μa y| := by rw [hQeq]
+      _ ≤ μa y * FromArithmetic.harmonicResidueError Xj W k := hmix
+      _ ≤ μa y * Eres := mul_le_mul_of_nonneg_left hResidue hμnonneg
+  have hPavgForm : residueAvg = ∑ y ∈ IA, Q (y : ℤ) * F (y : ℤ) := by
+    calc
+      residueAvg =
+          ∑ zj ∈ IB, ∑ y ∈ IA,
+            μj (zj : ℤ) * progressionReference μa k
+              ((b : ℤ) * zj + h) (y : ℤ) * F (y : ℤ) := by
+                dsimp [residueAvg, P]
+                apply Finset.sum_congr rfl
+                intro zj hzj
+                rw [Finset.mul_sum]
+                apply Finset.sum_congr rfl
+                intro y hy
+                ring
+      _ = ∑ y ∈ IA, ∑ zj ∈ IB,
+            μj (zj : ℤ) * progressionReference μa k
+              ((b : ℤ) * zj + h) (y : ℤ) * F (y : ℤ) := by
+                rw [Finset.sum_comm]
+      _ = ∑ y ∈ IA, Q (y : ℤ) * F (y : ℤ) := by
+                apply Finset.sum_congr rfl
+                intro y hy
+                rw [← Finset.sum_mul]
+  have hQsupport : ∀ y, Q y ≠ 0 → 0 ≤ y ∧ y ≤ (Xa ^ 2 : ℤ) := by
+    intro y hy
+    have hμ : μa y ≠ 0 := by
+      by_contra hz
+      have hQzero : Q y = 0 := by
+        unfold Q
+        apply Finset.sum_eq_zero
+        intro zj hzj
+        simp [progressionReference, hz]
+      exact hy hQzero
+    have hs := harmonicLaw_support (by simpa [μa] using hμ)
+    exact ⟨hs.1, le_of_lt hs.2.2⟩
+  have hAsupport : ∀ y, μa y ≠ 0 → 0 ≤ y ∧ y ≤ (Xa ^ 2 : ℤ) := by
+    intro y hy
+    have hs := harmonicLaw_support (by simpa [μa] using hy)
+    exact ⟨hs.1, le_of_lt hs.2.2⟩
+  have hMixL1 : arithmeticL1 Q μa ≤ Eres := by
+    have hdiff : Summable (fun y : ℤ => |Q y - μa y|) :=
+      summable_abs_sub_Icc (Xa ^ 2 : ℤ) hQsupport hAsupport
+    have hμweight : Summable (fun y : ℤ => μa y * Eres) := by
+      apply summable_of_ne_finset_zero (s := Finset.Icc 0 (Xa ^ 2 : ℤ))
+      intro y hy
+      have hnot : ¬ (0 ≤ y ∧ y ≤ (Xa ^ 2 : ℤ)) := by
+        simpa [Finset.mem_Icc] using hy
+      by_contra hz
+      have hs := hAsupport y (by
+        intro hzero
+        exact hz (by simp [hzero]))
+      exact hnot hs
+    calc
+      arithmeticL1 Q μa = ∑' y : ℤ, |Q y - μa y| := rfl
+      _ ≤ ∑' y : ℤ, μa y * Eres := hdiff.tsum_le_tsum (fun y => by
+          have hnonneg := harmonicLaw_nonneg_of_normalizer_pos hXaPos hZa y
+          exact hMixPointwise y) hμweight
+      _ = Eres := by
+          rw [tsum_mul_right, harmonicLaw_tsum_one hXaPos hZa]
+          ring
+  have hMixTest :
+      |residueAvg - Favg| ≤ M * Eres := by
+    let Qfinite : ℝ := ∑ y ∈ IA, Q (y : ℤ) * F (y : ℤ)
+    let Afinite : ℝ := ∑ y ∈ IA, μa (y : ℤ) * F (y : ℤ)
+    have hfinite : residueAvg - Favg =
+        ∑ y ∈ IA, (Q (y : ℤ) - μa (y : ℤ)) * F (y : ℤ) := by
+      rw [hPavgForm]
+      dsimp [Favg]
+      rw [← Finset.sum_sub_distrib]
+      apply Finset.sum_congr rfl
+      intro y hy
+      ring
+    rw [hfinite]
+    calc
+      |∑ y ∈ IA, (Q (y : ℤ) - μa (y : ℤ)) * F (y : ℤ)| ≤
+          ∑ y ∈ IA, |(Q (y : ℤ) - μa (y : ℤ)) * F (y : ℤ)| :=
+            Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ y ∈ IA, M * |Q (y : ℤ) - μa (y : ℤ)| := by
+          apply Finset.sum_le_sum
+          intro y hy
+          calc
+            |(Q (y : ℤ) - μa (y : ℤ)) * F (y : ℤ)| =
+                |Q (y : ℤ) - μa (y : ℤ)| * |F (y : ℤ)| := abs_mul _ _
+            _ ≤ M * |Q (y : ℤ) - μa (y : ℤ)| := by
+                rw [mul_comm]
+                exact mul_le_mul_of_nonneg_right (hF (y : ℤ)) (abs_nonneg _)
+      _ ≤ ∑ y ∈ IA, M * (μa (y : ℤ) * Eres) := by
+          apply Finset.sum_le_sum
+          intro y hy
+          exact mul_le_mul_of_nonneg_left (hMixPointwise (y : ℤ)) hM
+      _ = M * Eres := by
+          calc
+            (∑ y ∈ IA, M * (μa (y : ℤ) * Eres)) =
+                M * ∑ y ∈ IA, μa (y : ℤ) * Eres := by rw [Finset.mul_sum]
+            _ = M * ((∑ y ∈ IA, μa (y : ℤ)) * Eres) := by rw [Finset.sum_mul]
+            _ = M * Eres := by rw [hMassA]; ring
+  have hFsource :
+      (∑' za : ℤ, ∑' zj : ℤ,
+          μa za * μj zj * F ((k : ℤ) * za + (b : ℤ) * zj + h)) =
+        ∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ) := by
+    calc
+      _ = ∑ za ∈ IA, ∑ zj ∈ IB,
+          μa (za : ℤ) * μj (zj : ℤ) *
+            F ((k : ℤ) * (za : ℤ) + (b : ℤ) * (zj : ℤ) + h) := hDoubleFinite
+      _ = ∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ) := hDoubleE
+  have hsumFinal :
+      (∑' za : ℤ, ∑' zj : ℤ,
+          μa za * μj zj * F ((k : ℤ) * za + (b : ℤ) * zj + h)) -
+        (∑' y : ℤ, μa y * F y) =
+      ((∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ)) - residueAvg) +
+        (residueAvg - Favg) := by
+    rw [hFsource, hAexp]
+    ring
+  have hRootGapBound :
+      |(∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ)) - residueAvg| ≤ M * Eroot := by
+    have hsumEq :
+        (∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ)) - residueAvg =
+          ∑ zj ∈ IB, μj (zj : ℤ) * (E (zj : ℤ) - P (zj : ℤ)) := by
+      rw [← Finset.sum_sub_distrib]
+      apply Finset.sum_congr rfl
+      intro zj hzj
+      ring
+    rw [hsumEq]
+    calc
+      |∑ zj ∈ IB, μj (zj : ℤ) * (E (zj : ℤ) - P (zj : ℤ))| ≤
+          ∑ zj ∈ IB, |μj (zj : ℤ) * (E (zj : ℤ) - P (zj : ℤ))| :=
+            Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ zj ∈ IB, μj (zj : ℤ) * (M * Eroot) := by
+          apply Finset.sum_le_sum
+          intro zj hzj
+          by_cases hzj0 : μj (zj : ℤ) = 0
+          · simp [hzj0]
+          · have hnonneg := harmonicLaw_nonneg_of_normalizer_pos hXjPos hZj (zj : ℤ)
+            rw [abs_mul, abs_of_nonneg hnonneg]
+            exact mul_le_mul_of_nonneg_left (hRootPer (zj : ℤ) hzj0) hnonneg
+      _ = M * Eroot := by rw [← Finset.sum_mul, hMassJ]; ring
+  calc
+    |(∑' za : ℤ, ∑' zj : ℤ,
+        μa za * μj zj * F ((k : ℤ) * za + (b : ℤ) * zj + h)) -
+      ∑' y : ℤ, μa y * F y| =
+      |((∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ)) - residueAvg) +
+        (residueAvg - Favg)| := by rw [hsumFinal]
+    _ ≤ |(∑ zj ∈ IB, μj (zj : ℤ) * E (zj : ℤ)) - residueAvg| +
+        |residueAvg - Favg| := abs_add_le _ _
+    _ ≤ M * Eroot + M * Eres := add_le_add hRootGapBound hMixTest
+    _ = M * (Eroot + Eres) := by ring
+
 end HindmanSumsProducts
