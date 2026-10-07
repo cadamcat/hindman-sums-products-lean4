@@ -761,6 +761,104 @@ private theorem linearizedObservableLift_range {L : Type*} [LieRing L]
     (liftObs_mem_Icc (fun X => realTranslationCoordinate D.filtration X.coord)
       (fun X n => linearizedObservablePoint D hs n X) H hH X)
 
+private theorem realTranslationElement_zero {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s) :
+    realTranslationElement F hs 0 = 1 := by
+  apply NilpotentLieBCHGroup.ext
+  simp [realTranslationElement]
+
+private theorem realTranslationElement_zpow {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s : ℕ} (F : NilpotentLieFiltration L s) (hs : 0 < s)
+    (n : ℤ) :
+    (realTranslationElement F hs 1) ^ n = realTranslationElement F hs (n : ℝ) := by
+  induction n using Int.induction_on with
+  | zero => simpa using (realTranslationElement_zero F hs).symm
+  | succ n ih =>
+      rw [zpow_add_one, ih, realTranslationElement_mul]
+      congr 1
+      push_cast
+      ring
+  | pred n ih =>
+      rw [zpow_sub_one, ih]
+      have hmul : realTranslationElement F hs (-1) * realTranslationElement F hs 1 =
+          realTranslationElement F hs 0 := by
+        simpa using realTranslationElement_mul F hs (-1) 1
+      have hmulOne : realTranslationElement F hs (-1) *
+          realTranslationElement F hs 1 = 1 := by
+        rw [hmul, realTranslationElement_zero]
+      have hinv : (realTranslationElement F hs 1)⁻¹ = realTranslationElement F hs (-1) := by
+        exact ((mul_eq_one_iff_eq_inv).mp hmulOne).symm
+      rw [hinv]
+      push_cast
+      rw [realTranslationElement_mul F hs (-(n : ℝ)) (-1)]
+      congr 1
+
+/-- At an integer orbit point the interpolation selects exactly the matching
+evaluation of the adapted polynomial log. -/
+private theorem linearizedObservableLift_orbit_eval {L : Type*} [LieRing L]
+    [LieAlgebra ℚ L] {s d : ℕ}
+    (D : RationalFilteredNilmanifold L s d) (hs : 0 < s)
+    (H : D.Space → ℝ)
+    (xhat : (weightFiltration D.filtration hs).realification.Group)
+    (hxhat : realTranslationCoordinate D.filtration xhat.coord = 0)
+    (P : VectorPolynomial Unit ℚ (ℝ ⊗[ℚ] L))
+    (hEval : ∀ n : ℤ,
+      evLinReal D.filtration n xhat.coord = VectorPolynomial.eval
+        (fun _ : Unit => (n : ℚ)) P)
+    (n : ℤ) :
+    linearizedObservableLift D hs H
+        ((realTranslationElement D.filtration hs 1) ^ n * xhat) =
+      H (QuotientGroup.mk
+        (⟨VectorPolynomial.eval (fun _ : Unit => (n : ℚ)) P⟩ : D.filtration.realification.Group)) := by
+  let F := D.filtration
+  let g := realTranslationElement F hs 1
+  let X := g ^ n * xhat
+  have hpow : g ^ n = realTranslationElement F hs (n : ℝ) :=
+    realTranslationElement_zpow F hs n
+  have hr : realTranslationCoordinate F X.coord = (n : ℝ) := by
+    dsimp [X]
+    change realTranslationCoordinate F (lieBCH (2 * s) (g ^ n).coord xhat.coord) = _
+    rw [realTranslationCoordinate_lieBCH F hs, hpow,
+      realTranslationElement_coord F hs, hxhat]
+    simp
+  have hcancel : realTranslationElement F hs (-n : ℝ) * X = xhat := by
+    dsimp [X]
+    rw [hpow]
+    calc
+      realTranslationElement F hs (-n : ℝ) *
+          (realTranslationElement F hs (n : ℝ) * xhat) =
+          (realTranslationElement F hs (-n : ℝ) *
+            realTranslationElement F hs (n : ℝ)) * xhat := by group
+      _ = realTranslationElement F hs 0 * xhat := by
+            rw [realTranslationElement_mul]
+            congr 1
+            ring
+      _ = xhat := by rw [realTranslationElement_zero, one_mul]
+  have hpoint : linearizedObservablePoint D hs n X =
+      QuotientGroup.mk
+        (⟨VectorPolynomial.eval (fun _ : Unit => (n : ℚ)) P⟩ : D.filtration.realification.Group) := by
+    unfold linearizedObservablePoint
+    change QuotientGroup.mk
+      (⟨evLinReal F n
+        ((⟨-realTranslationCoordinate F X.coord • realDhat F⟩ * X).coord)⟩ :
+          F.realification.Group) = _
+    rw [hr]
+    change QuotientGroup.mk
+      (⟨evLinReal F n (realTranslationElement F hs (-n : ℝ) * X).coord⟩ :
+        F.realification.Group) = _
+    rw [hcancel, hEval n]
+  have hzero (m : ℤ) (hm : m ≠ n) :
+      bump (realTranslationCoordinate F X.coord - m) = 0 := by
+    rw [hr]
+    have hsepInt : (1 : ℤ) ≤ |n - m| := Int.one_le_abs (sub_ne_zero.mpr (Ne.symm hm))
+    have hsep : (1 : ℝ) ≤ |(n : ℝ) - (m : ℝ)| := by exact_mod_cast hsepInt
+    have hlarge : (1 / 3 : ℝ) ≤ |(n : ℝ) - (m : ℝ)| := by linarith
+    have hnonpos : 1 - 3 * |(n : ℝ) - (m : ℝ)| ≤ 0 := by nlinarith [hlarge]
+    unfold bump
+    rw [max_eq_left hnonpos]
+  unfold linearizedObservableLift
+  rw [liftObs_at_integer _ _ H X n hr hzero, hpoint]
+
 /-- The compactness/equicontinuity construction equips the quotient with a
 compatible metric for which every descended Lipschitz observable has a uniform
 Lipschitz constant.  This is IB.a10. -/
