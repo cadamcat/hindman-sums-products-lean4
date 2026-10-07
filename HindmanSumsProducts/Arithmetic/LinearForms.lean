@@ -6555,6 +6555,88 @@ private def linearFormsPrimeSet {n q d b m : ℕ} {Aset : Finset ℚ}
 private def linearFormsValVector {q : ℕ} (σ : Fin q → ℕ) (p : ℕ) : Fin q → ℕ :=
   fun u => Nat.factorization (σ u) p
 
+private theorem linearFormsDivisorTuple_support_facts {n q d b m : ℕ}
+    {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial m)}
+    {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) (N : ℕ) :
+    (∀ σ, 0 ≤ linearFormsDivisorTupleMass D N σ) ∧
+    (∑ σ ∈ linearFormsDivisorTupleSupport D N,
+      linearFormsDivisorTupleMass D N σ) = 1 ∧
+    (∀ σ, σ ∉ linearFormsDivisorTupleSupport D N →
+      linearFormsDivisorTupleMass D N σ = 0) ∧
+    (∀ σ ∈ linearFormsDivisorTupleSupport D N, ∀ u,
+      1 ≤ σ u ∧ σ u ≤ D.V N ∧ Nat.Coprime (σ u) (primorial (N + 1))) := by
+  classical
+  let W : ℕ := primorial (N + 1)
+  let rowSupport : Fin q → Finset ℕ := fun u =>
+    harmonicProductSupport W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j))
+  have hrowNonneg (u : Fin q) (σ : ℕ) :
+      0 ≤ divisorTemplateLaw S.core.parameters N (D.divisor u) σ :=
+    (divisorTemplateLaw_probability D N u).1 σ
+  have hrowZero (u : Fin q) (σ : ℕ) (hσ : σ ∉ rowSupport u) :
+      divisorTemplateLaw S.core.parameters N (D.divisor u) σ = 0 := by
+    change harmonicProductLaw W
+      (fun j => S.core.parameters.X N ((D.divisor u).cutoff j)) σ = 0
+    exact harmonicProductLaw_zero_of_not_mem_support W _ σ (by simpa [rowSupport] using hσ)
+  have hrowSum (u : Fin q) :
+      ∑ σ ∈ rowSupport u, divisorTemplateLaw S.core.parameters N (D.divisor u) σ = 1 := by
+    have htotal := (divisorTemplateLaw_probability D N u).2
+    rw [tsum_eq_sum (s := rowSupport u) (by
+      intro σ hσ
+      exact hrowZero u σ hσ)] at htotal
+    exact htotal
+  have htupleSum :
+      (∑ σ ∈ linearFormsDivisorTupleSupport D N,
+        linearFormsDivisorTupleMass D N σ) = 1 := by
+    calc
+      _ = ∏ u : Fin q, ∑ σ ∈ rowSupport u,
+          divisorTemplateLaw S.core.parameters N (D.divisor u) σ := by
+        simpa [linearFormsDivisorTupleSupport, linearFormsDivisorTupleMass,
+          rowSupport, W] using
+          (Finset.prod_univ_sum rowSupport
+            (fun u σ => divisorTemplateLaw S.core.parameters N (D.divisor u) σ)).symm
+      _ = 1 := by simp [hrowSum]
+  have htupleZero (σ : Fin q → ℕ)
+      (hσ : σ ∉ linearFormsDivisorTupleSupport D N) :
+      linearFormsDivisorTupleMass D N σ = 0 := by
+    have hnot : ¬ ∀ u, σ u ∈ rowSupport u := by
+      intro hall
+      exact hσ (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨u, hu⟩ := not_forall.mp hnot
+    unfold linearFormsDivisorTupleMass
+    apply Finset.prod_eq_zero (Finset.mem_univ u)
+    exact hrowZero u (σ u) (by simpa [rowSupport, W] using hu)
+  have htupleBound (σ : Fin q → ℕ)
+      (hσ : σ ∈ linearFormsDivisorTupleSupport D N) (u : Fin q) :
+      1 ≤ σ u ∧ σ u ≤ D.V N ∧ Nat.Coprime (σ u) W := by
+    have hrow : σ u ∈ rowSupport u := Fintype.mem_piFinset.mp hσ u
+    have hX (j : Fin (D.divisor u).arity) :
+        0 < S.core.parameters.X N ((D.divisor u).cutoff j) :=
+      S.core.parameters.Xpos N ((D.divisor u).cutoff j)
+    have hW : 0 < W := by dsimp [W]; exact primorial_pos _
+    have hH (j : Fin (D.divisor u).arity) :
+        0 < harmonicNormalizer
+          (S.core.parameters.X N ((D.divisor u).cutoff j)) W := by
+      apply harmonicNormalizer_pos_of_cutoff _ W hW
+      exact S.gapStage.valid_raw_cutoffs N ((D.divisor u).cutoff j)
+    have hLaw : divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u) ≠ 0 := by
+      change harmonicProductLaw W
+        (fun j => S.core.parameters.X N ((D.divisor u).cutoff j)) (σ u) ≠ 0
+      exact harmonicProductLaw_ne_zero_of_mem_support W _ hX hH (σ u)
+        (by simpa [rowSupport] using hrow)
+    exact ⟨D.divisor_positive N u (σ u) hLaw,
+      D.divisor_bounded N u (σ u) hLaw,
+      divisorTemplateLaw_coprime_primorial D N u (σ u) hLaw⟩
+  refine ⟨?_, htupleSum, htupleZero, ?_⟩
+  · intro σ
+    unfold linearFormsDivisorTupleMass
+    apply Finset.prod_nonneg
+    intro u hu
+    exact hrowNonneg u (σ u)
+  · intro σ hσ u
+    simpa [W] using htupleBound σ hσ u
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
