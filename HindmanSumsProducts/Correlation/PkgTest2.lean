@@ -4711,4 +4711,101 @@ theorem c_test2_primeTupleCRTLaw_finiteL1_bound {m : ℕ}
       exact c_test2_finiteL1_pushforward_le crt (μ i) (ν i)
     _ = _ := by rfl
 
+theorem c_test2_superPolynomialSmall_of_eventually_le
+    {e f V : ℕ → ℝ} (he : ∀ N, 0 ≤ e N) (hV : ∀ N, 0 ≤ V N)
+    (hle : e ≤ᶠ[atTop] f)
+    (hsmall : SuperPolynomialSmall f V) : SuperPolynomialSmall e V := by
+  intro C hC
+  have hupper := hsmall C hC
+  apply tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds hupper
+  · exact Filter.Eventually.of_forall (fun N => mul_nonneg (he N) (Real.rpow_nonneg (hV N) C))
+  · filter_upwards [hle] with N hN
+    exact mul_le_mul_of_nonneg_right hN (Real.rpow_nonneg (hV N) C)
+
+theorem c_test2_poolMass_positive_eventually {K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
+    ∀ᶠ N in atTop,
+      0 < primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper := by
+  have hlarge :=
+    (S.primeStage.pool_harmonic_mass_dominates l 1 (by norm_num)).eventually_ge_atTop 1
+  filter_upwards [hlarge] with N hN
+  have hV : 0 < (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+    unfold FromArithmetic.masterScaleV
+    positivity
+  have hratio : 1 ≤
+      (primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper : ℝ) /
+        (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by
+    simpa [Real.rpow_one] using hN
+  have hmass := (le_div_iff₀ hV).mp hratio
+  have hmass' : (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) ≤
+      primePoolMass (S.primeStage.pool N l).lower (S.primeStage.pool N l).upper := by
+    simpa using hmass
+  exact_mod_cast lt_of_lt_of_le hV hmass'
+
+theorem c_test2_masterCRT_error_superpoly {K s : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (l : Fin K) :
+    SuperPolynomialSmall
+      (fun N => finiteL1
+        (FromArithmetic.primeTupleCRTLaw
+          (fun _ : Fin s => (S.primeStage.pool N l).lower)
+          (fun _ => (S.primeStage.pool N l).upper) (N + 1)
+          (FromArithmetic.masterScaleV S.core.parameters N l))
+        (FromArithmetic.uniformPrimeTupleCRTLaw (N + 1)
+          (FromArithmetic.masterScaleV S.core.parameters N l)))
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
+  classical
+  let err : ℕ → ℝ := fun N =>
+    finiteL1
+      (primePoolResidueLaw (S.primeStage.pool N l).lower
+        (S.primeStage.pool N l).upper
+        (FromArithmetic.masterCRTModulus (N + 1) (S.primeStage.e0 N)
+          (FromArithmetic.masterScaleV S.core.parameters N l)))
+      (uniformUnitResidueLaw
+        (FromArithmetic.masterCRTModulus (N + 1) (S.primeStage.e0 N)
+          (FromArithmetic.masterScaleV S.core.parameters N l)))
+  have herr : SuperPolynomialSmall err
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) := by
+    simpa [err] using S.primeStage.pool_residue_error l
+  have herrSum : SuperPolynomialSmall
+      (fun N => ∑ _i : Fin s, err N)
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N l : ℝ)) :=
+    c_test2_superPolynomialSmall_finset_sum (fun _ : Fin s => err)
+      (fun N => (FromArithmetic.masterScaleV S.core.parameters N l : ℝ))
+      (fun _ => herr)
+  have hmass := c_test2_poolMass_positive_eventually S l
+  have hbound : ∀ᶠ N in atTop,
+      finiteL1
+        (FromArithmetic.primeTupleCRTLaw
+          (fun _ : Fin s => (S.primeStage.pool N l).lower)
+          (fun _ => (S.primeStage.pool N l).upper) (N + 1)
+          (FromArithmetic.masterScaleV S.core.parameters N l))
+        (FromArithmetic.uniformPrimeTupleCRTLaw (N + 1)
+          (FromArithmetic.masterScaleV S.core.parameters N l)) ≤
+        ∑ _i : Fin s, err N := by
+    filter_upwards [hmass] with N hmassN
+    have htuple := c_test2_primeTupleCRTLaw_finiteL1_bound
+      (fun _ : Fin s => (S.primeStage.pool N l).lower)
+      (fun _ => (S.primeStage.pool N l).upper) (N + 1) (S.primeStage.e0 N)
+      (FromArithmetic.masterScaleV S.core.parameters N l)
+      (fun _ => hmassN)
+    simpa [err] using htuple
+  have hnonneg : ∀ N, 0 ≤
+      finiteL1
+        (FromArithmetic.primeTupleCRTLaw
+          (fun _ : Fin s => (S.primeStage.pool N l).lower)
+          (fun _ => (S.primeStage.pool N l).upper) (N + 1)
+          (FromArithmetic.masterScaleV S.core.parameters N l))
+        (FromArithmetic.uniformPrimeTupleCRTLaw (N + 1)
+          (FromArithmetic.masterScaleV S.core.parameters N l)) := by
+    intro N
+    unfold finiteL1
+    apply Finset.sum_nonneg
+    intro x hx
+    exact abs_nonneg _
+  have hVnonneg (N : ℕ) :
+      0 ≤ (FromArithmetic.masterScaleV S.core.parameters N l : ℝ) := by positivity
+  exact c_test2_superPolynomialSmall_of_eventually_le hnonneg hVnonneg hbound herrSum
+
 end HindmanSumsProducts
