@@ -6341,6 +6341,220 @@ private theorem comparisonPrimeValuation_regularTerm_cube_sum_le
     _ ≤ regularDivisorExcessSeries p q (b + 1) :=
           regularDivisorExcessSeries_range_sum_le hp
 
+private theorem comparisonPrimeValuation_regular_cube_sum_le
+    {p q b M : ℕ} (hp : p.Prime) :
+    (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1)),
+      comparisonPrimeValuationWeight (b := b) p a * regularPrimeLocalExcess p a) ≤
+      (q : ℝ) ^ 2 * regularDivisorExcessSeries p q (b + 1) := by
+  classical
+  let T : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1))
+  have hswap :
+      (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+        regularPrimeLocalExcess p a) =
+      ∑ u : Fin q, ∑ v : Fin q, ∑ a ∈ T,
+        comparisonPrimeValuationWeight (b := b) p a *
+          regularPrimeLocalExcessTerm p a u v := by
+    simp only [regularPrimeLocalExcess, Finset.mul_sum]
+    calc
+      _ = ∑ u : Fin q, ∑ a ∈ T, ∑ v : Fin q,
+          comparisonPrimeValuationWeight (b := b) p a *
+            regularPrimeLocalExcessTerm p a u v := by
+              rw [Finset.sum_comm (s := T) (t := Finset.univ)]
+      _ = _ := by
+            apply Finset.sum_congr rfl
+            intro u hu
+            exact Finset.sum_comm (s := T) (t := Finset.univ)
+  have hseries : 0 ≤ regularDivisorExcessSeries p q (b + 1) := by
+    unfold regularDivisorExcessSeries
+    apply tsum_nonneg
+    intro A
+    apply tsum_nonneg
+    intro B
+    split_ifs <;> positivity
+  calc
+    (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+        regularPrimeLocalExcess p a) =
+      ∑ u : Fin q, ∑ v : Fin q, ∑ a ∈ T,
+        comparisonPrimeValuationWeight (b := b) p a *
+          regularPrimeLocalExcessTerm p a u v := hswap
+    _ ≤ ∑ u : Fin q, ∑ v : Fin q,
+        regularDivisorExcessSeries p q (b + 1) := by
+      apply Finset.sum_le_sum
+      intro u hu
+      apply Finset.sum_le_sum
+      intro v hv
+      by_cases huv : u = v
+      · subst v
+        have hzero :
+            (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+              regularPrimeLocalExcessTerm p a u u) = 0 := by
+          simp [regularPrimeLocalExcessTerm]
+        rw [hzero]
+        exact hseries
+      · exact comparisonPrimeValuation_regularTerm_cube_sum_le hp u v huv
+    _ = (q : ℝ) ^ 2 * regularDivisorExcessSeries p q (b + 1) := by
+      simp [Finset.sum_const, Fintype.card_fin]
+      ring
+
+private theorem comparisonPrimeValuation_exceptional_local_cube_sum_le
+    {p q b M : ℕ} (hp : p.Prime) :
+    (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1)),
+      comparisonPrimeValuationWeight (b := b) p a * exceptionalPrimeLocalExcess p a) ≤
+      (q : ℝ) * exceptionalDivisorExcessSeries p q (b + 1) := by
+  classical
+  let T : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1))
+  have hswap :
+      (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+        exceptionalPrimeLocalExcess p a) =
+      ∑ u : Fin q, ∑ a ∈ T,
+        comparisonPrimeValuationWeight (b := b) p a *
+          exceptionalPrimeLocalExcessTerm p a u := by
+    simp only [exceptionalPrimeLocalExcess, Finset.mul_sum]
+    rw [Finset.sum_comm (s := T) (t := Finset.univ)]
+  calc
+    (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+        exceptionalPrimeLocalExcess p a) =
+      ∑ u : Fin q, ∑ a ∈ T,
+        comparisonPrimeValuationWeight (b := b) p a *
+          exceptionalPrimeLocalExcessTerm p a u := hswap
+    _ ≤ ∑ u : Fin q, exceptionalDivisorExcessSeries p q (b + 1) := by
+      apply Finset.sum_le_sum
+      intro u hu
+      exact comparisonPrimeValuation_exceptional_cube_sum_le hp u
+    _ = (q : ℝ) * exceptionalDivisorExcessSeries p q (b + 1) := by
+      simp [Finset.sum_const, Fintype.card_fin]
+
+private def averagedLocalBeta {q : ℕ} (H : ℝ) (p : ℕ)
+    (a : Fin q → ℕ) : ℝ :=
+  regularPrimeLocalExcess p a + H / (p : ℝ) * exceptionalPrimeLocalExcess p a
+
+private theorem averagedLocalBeta_box {p q b M : ℕ} (hp : p.Prime)
+    (H : ℝ) (hH : 0 ≤ H) :
+    (∑ a ∈ Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1)),
+      comparisonPrimeValuationWeight (b := b) p a * averagedLocalBeta H p a) ≤
+      (q : ℝ) ^ 2 * regularDivisorExcessSeries p q (b + 1) +
+        H * q * (exceptionalDivisorExcessSeries p q (b + 1) / p) := by
+  classical
+  let T : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun _ : Fin q => Finset.range (M + 1))
+  have hreg := comparisonPrimeValuation_regular_cube_sum_le
+    (b := b) (q := q) (M := M) hp
+  have hex := comparisonPrimeValuation_exceptional_local_cube_sum_le
+    (b := b) (q := q) (M := M) hp
+  have hfactor :
+      (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+        (H / (p : ℝ) * exceptionalPrimeLocalExcess p a)) =
+      H / (p : ℝ) *
+        (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+          exceptionalPrimeLocalExcess p a) := by
+    calc
+      _ = ∑ a ∈ T, (H / (p : ℝ)) *
+          (comparisonPrimeValuationWeight (b := b) p a *
+            exceptionalPrimeLocalExcess p a) := by
+              apply Finset.sum_congr rfl
+              intro a ha
+              ring
+      _ = _ := by rw [← Finset.mul_sum]
+  have hexScaled :
+      (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+        (H / (p : ℝ) * exceptionalPrimeLocalExcess p a)) ≤
+      H * q * (exceptionalDivisorExcessSeries p q (b + 1) / p) := by
+    rw [hfactor]
+    have hcoef : 0 ≤ H / (p : ℝ) := div_nonneg hH (by positivity)
+    calc
+      H / (p : ℝ) *
+          (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+            exceptionalPrimeLocalExcess p a) ≤
+        H / (p : ℝ) * ((q : ℝ) * exceptionalDivisorExcessSeries p q (b + 1)) :=
+          mul_le_mul_of_nonneg_left (by simpa [T] using hex) hcoef
+      _ = H * q * (exceptionalDivisorExcessSeries p q (b + 1) / p) := by ring
+  change (∑ a ∈ T, comparisonPrimeValuationWeight (b := b) p a *
+      (regularPrimeLocalExcess p a + H / (p : ℝ) * exceptionalPrimeLocalExcess p a)) ≤ _
+  simp_rw [mul_add]
+  rw [Finset.sum_add_distrib]
+  exact add_le_add (by simpa [T] using hreg) hexScaled
+
+private theorem harmonicProductLaw_ne_zero_of_mem_support {k : ℕ} (W : ℕ)
+    (X : Fin k → ℕ) (hX : ∀ i, 0 < X i)
+    (hH : ∀ i, 0 < harmonicNormalizer (X i) W)
+    (σ : ℕ) (hσ : σ ∈ harmonicProductSupport W X) :
+    harmonicProductLaw W X σ ≠ 0 := by
+  classical
+  let S : Fin k → Finset ℕ := fun i => harmonicNatSupport (X i) W
+  let T : Finset (Fin k → ℕ) := Fintype.piFinset S
+  let f : (Fin k → ℕ) → ℝ := fun t =>
+    (if (∏ i, t i) = σ then 1 else 0) * ∏ i, harmonicNatLaw (X i) W (t i)
+  change σ ∈ (Fintype.piFinset S).image (fun t => ∏ i, t i) at hσ
+  rcases Finset.mem_image.mp hσ with
+    ⟨t, ht, hprod⟩
+  have hrawNonneg (i : Fin k) (n : ℕ) : 0 ≤ harmonicNatLaw (X i) W n := by
+    unfold harmonicNatLaw
+    split_ifs with h
+    · exact div_nonneg (by norm_num) (mul_nonneg (Nat.cast_nonneg n) (hH i).le)
+    · norm_num
+  have hfNonneg (t : Fin k → ℕ) : 0 ≤ f t := by
+    dsimp [f]
+    exact mul_nonneg (by split_ifs <;> norm_num)
+      (Finset.prod_nonneg fun i hi => hrawNonneg i (t i))
+  have htermzero (t : Fin k → ℕ) (ht : t ∉ T) : f t = 0 := by
+    have hnot : ¬ ∀ i, t i ∈ S i := by
+      intro hall
+      exact ht (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    have hzero := harmonicNatLaw_zero_of_not_mem (X i) W (t i) (by simpa [S] using hi)
+    have hweightzero :
+        (∏ j, harmonicNatLaw (X j) W (t j)) = 0 :=
+      Finset.prod_eq_zero (Finset.mem_univ i) hzero
+    dsimp [f]
+    rw [hweightzero]
+    simp
+  have hrawPos (i : Fin k) : 0 < harmonicNatLaw (X i) W (t i) := by
+    have hmem : t i ∈ harmonicNatSupport (X i) W := by
+      simpa [S] using Fintype.mem_piFinset.mp ht i
+    have hmem' := Finset.mem_filter.mp hmem
+    have hrange := Finset.mem_Ico.mp hmem'.1
+    have hcond : X i ≤ t i ∧ t i < (X i) ^ 2 ∧ Nat.Coprime (t i) W :=
+      ⟨hrange.1, hrange.2, hmem'.2⟩
+    unfold harmonicNatLaw
+    rw [if_pos hcond]
+    have hn : 0 < (t i : ℝ) := by exact_mod_cast lt_of_lt_of_le (hX i) hrange.1
+    exact one_div_pos.mpr (mul_pos hn (hH i))
+  have hprodPos : 0 < ∏ i, harmonicNatLaw (X i) W (t i) :=
+    Finset.prod_pos fun i hi => hrawPos i
+  have hft : 0 < f t := by
+    dsimp [f]
+    rw [if_pos hprod]
+    simpa using hprodPos
+  have hsumPos : 0 < ∑ t ∈ T, f t :=
+    lt_of_lt_of_le hft (Finset.single_le_sum (f := f)
+      (fun s hs => hfNonneg s) ht)
+  unfold harmonicProductLaw
+  rw [tsum_eq_sum (s := T) htermzero]
+  exact ne_of_gt hsumPos
+
+private def linearFormsDivisorTupleSupport {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) (N : ℕ) :
+    Finset (Fin q → ℕ) :=
+  Fintype.piFinset (fun u => harmonicProductSupport (primorial (N + 1))
+    (fun j => S.core.parameters.X N ((D.divisor u).cutoff j)))
+
+private def linearFormsDivisorTupleMass {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S)
+    (N : ℕ) (σ : Fin q → ℕ) : ℝ :=
+  ∏ u, divisorTemplateLaw S.core.parameters N (D.divisor u) (σ u)
+
+private def linearFormsPrimeSet {n q d b m : ℕ} {Aset : Finset ℚ}
+    {tests : Finset (IntegerPolynomial m)} {S : MasterScales n Aset m tests}
+    (D : WeightedLinearFormsData (q := q) (d := d) (b := b) S) (N : ℕ) : Finset ℕ :=
+  (Finset.Ioc (N + 1) (D.V N + 1)).filter Nat.Prime
+
+private def linearFormsValVector {q : ℕ} (σ : Fin q → ℕ) (p : ℕ) : Fin q → ℕ :=
+  fun u => Nat.factorization (σ u) p
+
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
