@@ -370,6 +370,526 @@ theorem c_elim2_shiftStateAverage_insert {α : Type*} [Fintype α]
   rw [hsum, hcard]
   exact c_elim2_uniformFintypeAverage_prod (fun p => F (e.symm p))
 
+abbrev c_elim2_ShiftOutside {α : Type u} (E : Finset α) (R : α) (L : ℕ) :=
+  c_elim2_ShiftCoordExcept E R → Fin L
+
+noncomputable def c_elim2_jointStateAverage {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (μ : β → ℝ)
+    (L : β → ℕ) (F : ∀ b, (c_elim2_ShiftCoord E → Fin (L b)) → ℝ) : ℝ :=
+  ∑ b, μ b * c_elim2_shiftStateAverage E (L b) (F b)
+
+theorem c_elim2_sigma_weighted_uniform_sum {β : Type*} [Fintype β]
+    (O : β → Type*) [∀ b, Fintype (O b)] (μ : β → ℝ)
+    (F : ∀ b, O b → ℝ) :
+    ∑' x : Σ b, O b,
+        μ x.1 * (Fintype.card (O x.1) : ℝ)⁻¹ * F x.1 x.2 =
+      ∑ b, μ b * c_elim2_uniformFintypeAverage (F b) := by
+  classical
+  simp only [tsum_fintype, Fintype.sum_sigma]
+  apply Finset.sum_congr rfl
+  intro b hb
+  have hs :
+      (∑ o : O b, μ b * (Fintype.card (O b) : ℝ)⁻¹ * F b o) =
+        μ b * ((Fintype.card (O b) : ℝ)⁻¹ * ∑ o, F b o) := by
+    calc
+      _ = μ b * (Fintype.card (O b) : ℝ)⁻¹ * ∑ o, F b o := by
+        rw [← Finset.mul_sum]
+      _ = μ b * ((Fintype.card (O b) : ℝ)⁻¹ * ∑ o, F b o) := by ring
+  rw [hs]
+  unfold c_elim2_uniformFintypeAverage
+  rfl
+
+noncomputable def c_elim2_csCurrentIntegrand {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (L : β → ℕ)
+    (H₀ : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (L b) → Fin (L b) → ℝ)
+    (b : β) (u : c_elim2_ShiftCoord E → Fin (L b)) : ℝ :=
+  let e := c_elim2_shiftCoordAssignmentSplitEquiv E R (L b)
+  H₀ b (e u).1 * c_elim2_uniformFintypeAverage (H b (e u).1)
+
+noncomputable def c_elim2_csWeightIntegrand {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (L : β → ℕ)
+    (Ω : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (b : β) (u : c_elim2_ShiftCoord E → Fin (L b)) : ℝ :=
+  Ω b ((c_elim2_shiftCoordAssignmentSplitEquiv E R (L b) u).1)
+
+noncomputable def c_elim2_csNextIntegrand {α β : Type*} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
+    (L : β → ℕ) (Ω : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (L b) → Fin (L b) → ℝ)
+    (b : β) (u : c_elim2_ShiftCoord (insert R E) → Fin (L b)) : ℝ := by
+  classical
+  let (v, t₁) := c_elim2_shiftStateInsertEquiv E R hR (L b) u
+  let (o, t₀) := c_elim2_shiftCoordAssignmentSplitEquiv E R (L b) v
+  exact Ω b o * H b o t₀ * H b o t₁
+
+theorem c_elim2_weightedShiftStateStep {α β : Type u} [Fintype α]
+    [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
+    (μ : β → ℝ) (L : β → ℕ) (hL : ∀ b, 0 < L b)
+    (H₀ : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (Ω : ∀ b, c_elim2_ShiftOutside E R (L b) → ℝ)
+    (H : ∀ b, c_elim2_ShiftOutside E R (L b) → Fin (L b) → ℝ)
+    (hμ : ∀ b, 0 ≤ μ b) (hΩ : ∀ b o, 0 ≤ Ω b o)
+    (h₀ : ∀ b o, |H₀ b o| ≤ Ω b o)
+    (hCS : ∀ {γ : Type u} (μ Ω H₀ H₁ : γ → ℝ)
+      (hμ : ∀ x, 0 ≤ μ x) (hΩ : ∀ x, 0 ≤ Ω x)
+      (h₀ : ∀ x, |H₀ x| ≤ Ω x)
+      (hΩs : Summable (fun x => μ x * Ω x))
+      (h₁s : Summable (fun x => μ x * (Ω x * H₁ x ^ 2))),
+      |∑' x, μ x * (H₀ x * H₁ x)| ^ 2 ≤
+        (∑' x, μ x * Ω x) * ∑' x, μ x * (Ω x * H₁ x ^ 2)) :
+    |c_elim2_jointStateAverage E μ L
+        (c_elim2_csCurrentIntegrand E R L H₀ H)| ^ 2 ≤
+      c_elim2_jointStateAverage E μ L (c_elim2_csWeightIntegrand E R L Ω) *
+        c_elim2_jointStateAverage (insert R E) μ L
+          (c_elim2_csNextIntegrand E R hR L Ω H) := by
+  classical
+  let Outside : β → Type _ := fun b => c_elim2_ShiftOutside (α := α) E R (L b)
+  let γ := Σ b, Outside b
+  letI : ∀ b, Fintype (Outside b) := fun b => by
+    dsimp [Outside, c_elim2_ShiftOutside]
+    infer_instance
+  letI : Fintype γ := by
+    dsimp [γ]
+    infer_instance
+  let μ' : γ → ℝ := fun x => μ x.1 * (Fintype.card (Outside x.1) : ℝ)⁻¹
+  let Ω' : γ → ℝ := fun x => Ω x.1 x.2
+  let H₀' : γ → ℝ := fun x => H₀ x.1 x.2
+  let H₁' : γ → ℝ := fun x =>
+    c_elim2_uniformFintypeAverage (H x.1 x.2)
+  have hμ' : ∀ x, 0 ≤ μ' x := by
+    intro x
+    exact mul_nonneg (hμ x.1) (inv_nonneg.mpr (Nat.cast_nonneg _))
+  have hΩ' : ∀ x, 0 ≤ Ω' x := by
+    intro x
+    exact hΩ x.1 x.2
+  have h₀' : ∀ x, |H₀' x| ≤ Ω' x := by
+    intro x
+    exact h₀ x.1 x.2
+  have hΩs : Summable (fun x => μ' x * Ω' x) := by
+    exact Summable.of_finite
+  have h₁s : Summable (fun x => μ' x * (Ω' x * H₁' x ^ 2)) := by
+    exact Summable.of_finite
+  have hcs := hCS (γ := γ) μ' Ω' H₀' H₁' hμ' hΩ' h₀' hΩs h₁s
+  have hcurrent (b : β) :
+      c_elim2_shiftStateAverage E (L b)
+        (c_elim2_csCurrentIntegrand E R L H₀ H b) =
+      c_elim2_uniformFintypeAverage (fun o : Outside b =>
+        H₀ b o * c_elim2_uniformFintypeAverage (H b o)) := by
+    letI : Nonempty (Fin (L b)) := ⟨⟨0, hL b⟩⟩
+    rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L b)]
+    simp only [c_elim2_csCurrentIntegrand, Equiv.apply_symm_apply]
+    apply congrArg (fun f : Outside b → ℝ => c_elim2_uniformFintypeAverage f)
+    funext o
+    exact c_elim2_uniformFintypeAverage_const
+      (H₀ b o * c_elim2_uniformFintypeAverage (H b o))
+  have hweight (b : β) :
+      c_elim2_shiftStateAverage E (L b)
+        (c_elim2_csWeightIntegrand E R L Ω b) =
+      c_elim2_uniformFintypeAverage (Ω b) := by
+    letI : Nonempty (Fin (L b)) := ⟨⟨0, hL b⟩⟩
+    rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L b)]
+    simp only [c_elim2_csWeightIntegrand, Equiv.apply_symm_apply]
+    apply congrArg (fun f : Outside b → ℝ => c_elim2_uniformFintypeAverage f)
+    funext o
+    exact c_elim2_uniformFintypeAverage_const (Ω b o)
+  have hnext (b : β) :
+      c_elim2_shiftStateAverage (insert R E) (L b)
+        (c_elim2_csNextIntegrand E R hR L Ω H b) =
+      c_elim2_uniformFintypeAverage (fun o : Outside b =>
+        c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+          c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+            Ω b o * H b o t₀ * H b o t₁))) := by
+    letI : Nonempty (Fin (L b)) := ⟨⟨0, hL b⟩⟩
+    let eIns := c_elim2_shiftStateInsertEquiv E R hR (L b)
+    let eSplit := c_elim2_shiftCoordAssignmentSplitEquiv E R (L b)
+    have hEval (o : Outside b) (t₀ t₁ : Fin (L b)) :
+        c_elim2_csNextIntegrand E R hR L Ω H b
+          ((c_elim2_shiftStateInsertEquiv E R hR (L b)).symm
+            ((c_elim2_shiftCoordAssignmentSplitEquiv E R (L b)).symm (o, t₀), t₁)) =
+            Ω b o * H b o t₀ * H b o t₁ := by
+      simp [c_elim2_csNextIntegrand]
+    rw [c_elim2_shiftStateAverage_insert (E := E) (R := R) (hR := hR) (L := L b)]
+    rw [c_elim2_shiftStateAverage_split (E := E) (R := R) (L := L b)]
+    change c_elim2_uniformFintypeAverage (fun o : Outside b =>
+      c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+        c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+          c_elim2_csNextIntegrand E R hR L Ω H b
+            (eIns.symm (eSplit.symm (o, t₀), t₁))))) = _
+    apply congrArg (fun f : Outside b → ℝ => c_elim2_uniformFintypeAverage f)
+    funext o
+    apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+    funext t₀
+    apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+    funext t₁
+    exact hEval o t₀ t₁
+  have hleft :
+      (∑' x : γ, μ' x * (H₀' x * H₁' x)) =
+        c_elim2_jointStateAverage E μ L
+          (c_elim2_csCurrentIntegrand E R L H₀ H) := by
+    have hsum := c_elim2_sigma_weighted_uniform_sum (O := Outside) μ
+      (fun b o => H₀ b o * c_elim2_uniformFintypeAverage (H b o))
+    have houter :
+        (∑' x : γ, μ' x * (H₀' x * H₁' x)) =
+          ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            H₀ b o * c_elim2_uniformFintypeAverage (H b o)) := by
+      simpa [μ', H₀', H₁', Outside, mul_assoc] using hsum
+    calc
+      _ = ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            H₀ b o * c_elim2_uniformFintypeAverage (H b o)) := houter
+      _ = _ := by
+        unfold c_elim2_jointStateAverage
+        apply Finset.sum_congr rfl
+        intro b hb
+        rw [← hcurrent b]
+  have hfirst :
+      (∑' x : γ, μ' x * Ω' x) =
+        c_elim2_jointStateAverage E μ L (c_elim2_csWeightIntegrand E R L Ω) := by
+    have hsum := c_elim2_sigma_weighted_uniform_sum (O := Outside) μ
+      (fun b o => Ω b o)
+    have houter : (∑' x : γ, μ' x * Ω' x) =
+        ∑ b, μ b * c_elim2_uniformFintypeAverage (Ω b) := by
+      simpa [μ', Ω', Outside] using hsum
+    calc
+      _ = ∑ b, μ b * c_elim2_uniformFintypeAverage (Ω b) := houter
+      _ = _ := by
+        unfold c_elim2_jointStateAverage
+        apply Finset.sum_congr rfl
+        intro b hb
+        rw [← hweight b]
+  have hpair (b : β) (o : Outside b) :
+      c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+        c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+          Ω b o * H b o t₀ * H b o t₁)) =
+    Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2 := by
+    calc
+      _ = c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+          (Ω b o * H b o t₀) * c_elim2_uniformFintypeAverage (H b o)) := by
+        apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+        funext t₀
+        simpa [mul_assoc] using
+          (c_elim2_uniformFintypeAverage_const_mul
+            (Ω b o * H b o t₀) (H b o))
+      _ = c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+          (Ω b o * c_elim2_uniformFintypeAverage (H b o)) * H b o t₀) := by
+        apply congrArg (fun f : Fin (L b) → ℝ => c_elim2_uniformFintypeAverage f)
+        funext t₀
+        ring
+      _ = (Ω b o * c_elim2_uniformFintypeAverage (H b o)) *
+          c_elim2_uniformFintypeAverage (H b o) :=
+        c_elim2_uniformFintypeAverage_const_mul
+          (Ω b o * c_elim2_uniformFintypeAverage (H b o)) (H b o)
+      _ = _ := by ring
+  have hnextReduce (b : β) :
+      c_elim2_uniformFintypeAverage (fun o : Outside b =>
+        Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2) =
+      c_elim2_shiftStateAverage (insert R E) (L b)
+        (c_elim2_csNextIntegrand E R hR L Ω H b) := by
+    calc
+      _ = c_elim2_uniformFintypeAverage (fun o : Outside b =>
+          c_elim2_uniformFintypeAverage (fun t₀ : Fin (L b) =>
+            c_elim2_uniformFintypeAverage (fun t₁ : Fin (L b) =>
+              Ω b o * H b o t₀ * H b o t₁))) := by
+        congr 1
+        funext o
+        exact (hpair b o).symm
+      _ = _ := (hnext b).symm
+  have hsecond :
+      (∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2)) =
+        c_elim2_jointStateAverage (insert R E) μ L
+          (c_elim2_csNextIntegrand E R hR L Ω H) := by
+    have hsum := c_elim2_sigma_weighted_uniform_sum (O := Outside) μ
+      (fun b o => Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2)
+    have houter :
+        (∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2)) =
+          ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2) := by
+      simpa [μ', Ω', H₁', Outside, mul_assoc] using hsum
+    calc
+      _ = ∑ b, μ b * c_elim2_uniformFintypeAverage (fun o : Outside b =>
+            Ω b o * (c_elim2_uniformFintypeAverage (H b o)) ^ 2) := houter
+      _ = _ := by
+        unfold c_elim2_jointStateAverage
+        apply Finset.sum_congr rfl
+        intro b hb
+        rw [← hnextReduce b]
+  calc
+    |c_elim2_jointStateAverage E μ L
+        (c_elim2_csCurrentIntegrand E R L H₀ H)| ^ 2 =
+        |∑' x : γ, μ' x * (H₀' x * H₁' x)| ^ 2 := by rw [hleft]
+    _ ≤ (∑' x : γ, μ' x * Ω' x) *
+        ∑' x : γ, μ' x * (Ω' x * H₁' x ^ 2) := hcs
+    _ = _ := by rw [hfirst, hsecond]
+
+structure c_elim2_AdditiveBoxData (α β : Type u) [Fintype α] [DecidableEq α] where
+  shiftLength : β → ℕ
+  targetBase : β → ℚ
+  targetCoefficient : β → α → ℤ
+  targetFunction : β → ℚ → ℝ
+  rowBase : α → β → ℚ
+  rowCoefficient : α → α → β → ℤ
+  rowFunction : α → β → ℚ → ℝ
+  rowWeight : α → β → ℚ → ℝ
+
+abbrev c_elim2_BoxBranch {α : Type u} (E : Finset α) :=
+  {i : α // i ∈ E} → Fin 2
+
+abbrev c_elim2_BoxRetainedBranch {α : Type u} [DecidableEq α]
+    (E : Finset α) (I : α) :=
+  c_elim2_BoxBranch (E.erase I)
+
+def c_elim2_boxBranchFull {α : Type u} [DecidableEq α] (E : Finset α)
+    (ω : c_elim2_BoxBranch E) : α → Fin 2 :=
+  fun i => if hi : i ∈ E then ω ⟨i, hi⟩ else 0
+
+def c_elim2_boxRetainedBranchFull {α : Type u} [DecidableEq α]
+    (E : Finset α) (I : α) (η : c_elim2_BoxRetainedBranch E I) : α → Fin 2 :=
+  c_elim2_boxBranchFull (E.erase I) η
+
+def c_elim2_boxShiftValue {α : Type u} [DecidableEq α]
+    (E : Finset α) {L : ℕ} (u : c_elim2_ShiftCoord E → Fin L)
+    (ω : α → Fin 2) (i : α) : ℕ :=
+  if hi : i ∈ E then (u ⟨(i, ω i), Or.inr hi⟩).val
+  else (u ⟨(i, 0), Or.inl rfl⟩).val
+
+def c_elim2_boxTargetArgument {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b))
+    (ω : c_elim2_BoxBranch E) : ℚ :=
+  D.targetBase b + ∑ i, (D.targetCoefficient b i : ℚ) *
+    (c_elim2_boxShiftValue E u (c_elim2_boxBranchFull E ω) i : ℚ)
+
+def c_elim2_boxRowArgument {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β) (I : α)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) (ω : α → Fin 2) : ℚ :=
+  D.rowBase I b + ∑ i ∈ Finset.univ.erase I,
+    (D.rowCoefficient I i b : ℚ) * (c_elim2_boxShiftValue E u ω i : ℚ)
+
+def c_elim2_boxTargetProduct {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ ω : c_elim2_BoxBranch E,
+    D.targetFunction b (c_elim2_boxTargetArgument D E b u ω)
+
+def c_elim2_boxActiveProduct {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ I : {i : α // i ∉ E}, ∏ ω : c_elim2_BoxBranch E,
+    D.rowFunction I.1 b
+      (c_elim2_boxRowArgument D E b I.1 u (c_elim2_boxBranchFull E ω))
+
+def c_elim2_boxRetainedProduct {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ I : {i : α // i ∈ E}, ∏ η : c_elim2_BoxRetainedBranch E I.1,
+    D.rowWeight I.1 b
+      (c_elim2_boxRowArgument D E b I.1 u
+        (c_elim2_boxRetainedBranchFull E I.1 η))
+
+def c_elim2_boxStateIntegrand {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  c_elim2_boxTargetProduct D E b u * c_elim2_boxActiveProduct D E b u *
+    c_elim2_boxRetainedProduct D E b u
+
+def c_elim2_boxActiveRowFactor {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ ω : c_elim2_BoxBranch E,
+    D.rowFunction R b
+      (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))
+
+def c_elim2_boxWeightRowFactor {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+  ∏ ω : c_elim2_BoxBranch E,
+    D.rowWeight R b
+      (c_elim2_boxRowArgument D E b R u (c_elim2_boxBranchFull E ω))
+
+def c_elim2_boxWithoutActiveRow {α β : Type u} [Fintype α] [DecidableEq α]
+    (D : c_elim2_AdditiveBoxData α β) (E : Finset α) (R : α) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) : ℝ :=
+    c_elim2_boxTargetProduct D E b u *
+    (∏ I : {i : α // i ∉ E ∧ i ≠ R}, ∏ ω : c_elim2_BoxBranch E,
+      D.rowFunction I.1 b
+        (c_elim2_boxRowArgument D E b I.1 u (c_elim2_boxBranchFull E ω))) *
+    c_elim2_boxRetainedProduct D E b u
+
+abbrev c_elim2_ActiveRowIndex {α : Type u} (E : Finset α) :=
+  {i : α // i ∉ E}
+
+abbrev c_elim2_ActiveRowIndexExcept {α : Type u} (E : Finset α) (R : α) :=
+  {i : α // i ∉ E ∧ i ≠ R}
+
+noncomputable def c_elim2_activeRowIndexEquiv {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) (hR : R ∉ E) :
+    c_elim2_ActiveRowIndex E ≃ c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1} := by
+  classical
+  let f : c_elim2_ActiveRowIndex E →
+      c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1} := fun x =>
+    if hx : x.val = R then Sum.inr PUnit.unit
+    else Sum.inl ⟨x.val, ⟨x.property, hx⟩⟩
+  let g : c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1} →
+      c_elim2_ActiveRowIndex E := fun y => match y with
+    | Sum.inl x => ⟨x.val, x.property.1⟩
+    | Sum.inr _ => ⟨R, hR⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro x
+    by_cases hx : x.val = R
+    · have hEq : (⟨R, hR⟩ : c_elim2_ActiveRowIndex E) = x :=
+        Subtype.ext hx.symm
+      simpa [f, g, hx] using hEq
+    · simp [f, g, hx]
+  · intro y
+    cases y with
+    | inl x =>
+        have hx : x.val ≠ R := x.property.2
+        simp [f, g, hx]
+    | inr y =>
+        cases y
+        simp [f, g]
+
+theorem c_elim2_boxState_factor_active {α β : Type u} [Fintype α]
+    [DecidableEq α] (D : c_elim2_AdditiveBoxData α β) (E : Finset α)
+    (R : α) (hR : R ∉ E) (b : β)
+    (u : c_elim2_ShiftCoord E → Fin (D.shiftLength b)) :
+    c_elim2_boxStateIntegrand D E b u =
+      c_elim2_boxActiveRowFactor D E R b u * c_elim2_boxWithoutActiveRow D E R b u := by
+  classical
+  let e := c_elim2_activeRowIndexEquiv E R hR
+  let rowProd : c_elim2_ActiveRowIndex E → ℝ := fun I =>
+    ∏ ω : c_elim2_BoxBranch E,
+      D.rowFunction I.1 b
+        (c_elim2_boxRowArgument D E b I.1 u (c_elim2_boxBranchFull E ω))
+  have hprod : (∏ I : c_elim2_ActiveRowIndex E, rowProd I) =
+      ∏ J : c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1},
+        rowProd (e.symm J) := by
+    exact Fintype.prod_equiv e rowProd (fun J => rowProd (e.symm J))
+      (by intro I; simp)
+  have hsum :
+      (∏ J : c_elim2_ActiveRowIndexExcept E R ⊕ PUnit.{u + 1},
+        rowProd (e.symm J)) =
+      (∏ I : c_elim2_ActiveRowIndexExcept E R, rowProd ⟨I.val, I.property.1⟩) *
+        rowProd ⟨R, hR⟩ := by
+    rw [Fintype.prod_sum_type]
+    simp [e, c_elim2_activeRowIndexEquiv, rowProd]
+  have hactive : c_elim2_boxActiveProduct D E b u =
+      c_elim2_boxActiveRowFactor D E R b u *
+        (∏ I : c_elim2_ActiveRowIndexExcept E R,
+          rowProd ⟨I.val, I.property.1⟩) := by
+    unfold c_elim2_boxActiveProduct c_elim2_boxActiveRowFactor
+    change (∏ I : c_elim2_ActiveRowIndex E, rowProd I) =
+      rowProd ⟨R, hR⟩ * (∏ I : c_elim2_ActiveRowIndexExcept E R,
+        rowProd ⟨I.val, I.property.1⟩)
+    rw [hprod, hsum]
+    ring
+  unfold c_elim2_boxStateIntegrand c_elim2_boxWithoutActiveRow
+  rw [hactive]
+  ring
+
+noncomputable def c_elim2_finsetSubtypeInsertEquiv {α : Type u} [DecidableEq α]
+    (E : Finset α) (R : α) (hR : R ∉ E) :
+    {i : α // i ∈ insert R E} ≃ {i : α // i ∈ E} ⊕ PUnit.{u + 1} := by
+  classical
+  let f : {i : α // i ∈ insert R E} → {i : α // i ∈ E} ⊕ PUnit.{u + 1} :=
+    fun i => if hi : i.val = R then Sum.inr PUnit.unit else
+      Sum.inl ⟨i.val, (Finset.mem_insert.mp i.property).resolve_left hi⟩
+  let g : {i : α // i ∈ E} ⊕ PUnit.{u + 1} → {i : α // i ∈ insert R E} :=
+    fun j => match j with
+      | Sum.inl i => ⟨i.val, Finset.mem_insert_of_mem i.property⟩
+      | Sum.inr _ => ⟨R, Finset.mem_insert_self R E⟩
+  refine ⟨f, g, ?_, ?_⟩
+  · intro i
+    by_cases hi : i.val = R
+    · have heq : (⟨R, Finset.mem_insert_self R E⟩ : {i : α // i ∈ insert R E}) = i :=
+        Subtype.ext hi.symm
+      simpa [f, g, hi] using heq
+    · simp [f, g, hi]
+  · intro j
+    cases j with
+    | inl i =>
+        have hi : i.val ≠ R := by
+          intro heq
+          exact hR (heq ▸ i.property)
+        simp [f, g, hi]
+    | inr j =>
+        cases j
+        simp [f, g]
+
+noncomputable def c_elim2_boxBranchInsertEquiv {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E) :
+    c_elim2_BoxBranch (insert R E) ≃ c_elim2_BoxBranch E × Fin 2 := by
+  classical
+  let e := c_elim2_finsetSubtypeInsertEquiv E R hR
+  exact (Equiv.arrowCongr e (Equiv.refl (Fin 2))).trans
+    ((Equiv.sumArrowEquivProdArrow {i : α // i ∈ E} PUnit.{u + 1} (Fin 2)).trans
+      (Equiv.prodCongr (Equiv.refl (c_elim2_BoxBranch E))
+        (Equiv.punitArrowEquiv (Fin 2))) )
+
+noncomputable def c_elim2_boxRetainedBranchInsertEquiv {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R I : α)
+    (hR : R ∉ E) (hI : I ∈ E) :
+    c_elim2_BoxRetainedBranch (insert R E) I ≃
+      c_elim2_BoxRetainedBranch E I × Fin 2 := by
+  classical
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  have hSet : (insert R E).erase I = insert R (E.erase I) :=
+    Finset.erase_insert_of_ne hRI
+  have hR' : R ∉ E.erase I := by
+    intro h
+    exact hR (Finset.mem_erase.mp h).2
+  let eDom : {i : α // i ∈ (insert R E).erase I} ≃
+      {i : α // i ∈ insert R (E.erase I)} :=
+    Equiv.subtypeEquivRight (fun i => by rw [hSet])
+  exact (Equiv.arrowCongr eDom (Equiv.refl (Fin 2))).trans
+    (c_elim2_boxBranchInsertEquiv (E.erase I) R hR')
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_old {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch (insert R E)) (i : {i : α // i ∈ E}) :
+    (c_elim2_boxBranchInsertEquiv E R hR ω).1 i =
+      ω ⟨i.val, Finset.mem_insert_of_mem i.property⟩ := by
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_new {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch (insert R E)) :
+    (c_elim2_boxBranchInsertEquiv E R hR ω).2 =
+      ω ⟨R, Finset.mem_insert_self R E⟩ := by
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
+    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_old {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch E) (b : Fin 2) (i : {i : α // i ∈ E}) :
+    ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))
+        ⟨i.val, Finset.mem_insert_of_mem i.property⟩ = ω i := by
+  have hne : i.val ≠ R := by
+    intro heq
+    exact hR (heq ▸ i.property)
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
+    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv, hne]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_new {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch E) (b : Fin 2) :
+    ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))
+        ⟨R, Finset.mem_insert_self R E⟩ = b := by
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
+    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
+
+theorem c_elim2_boxEraseInsert {α : Type u} [DecidableEq α]
+    (E : Finset α) (R I : α) (hR : R ∉ E) (hI : I ∈ E) :
+    (insert R E).erase I = insert R (E.erase I) := by
+  have hRI : R ≠ I := by
+    intro heq
+    subst I
+    exact hR hI
+  exact Finset.erase_insert_of_ne hRI
+
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
     {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
