@@ -1612,6 +1612,7 @@ end HindmanSumsProducts.Prediction
 #print axioms HindmanSumsProducts.Prediction.maskedCorrelation_replace_factor
 #print axioms HindmanSumsProducts.Prediction.filterUpperBound_rpow
 #print axioms HindmanSumsProducts.Prediction.chainCount_telescope_helper
+#print axioms HindmanSumsProducts.Prediction.corrConst
 #print axioms HindmanSumsProducts.Prediction.subgroup_inverse
 #print axioms HindmanSumsProducts.cor_product_law
 #print axioms HindmanSumsProducts.Prediction.sum_fin_telescope
