@@ -4368,6 +4368,36 @@ noncomputable def pkgB_momentWeightedLinearFormsData {K sl : ℕ} {As : Finset �
     have hbound := momentPrimeTupleCRT_l1_le lo hi δ hδ hslot
     simpa [lo, hi, V, δ, momentCRTErrorBound, momentCRTSlotResidueError] using hbound
 
+/-- The moment base law is regular for every prime tuple once all shift intervals have
+positive length. The scale separation gives this uniformly in the tuple. -/
+theorem pkgB_momentBaseRegular_eventually {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (hgap : ValidGap B l) (T : CubeTemplate)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hT : Allowed Dm T) :
+    ∀ᶠ N : ℕ in atTop, ∀ p : Fin sl → ℕ,
+      T.Good (corrScales MS) l N (fun j => p (momentMasterEmbedding hT j)) →
+      momentBaseRegular MS B l T J0 N b (momentPrimeDiagonal hT p) := by
+  have hfloor := momentShiftLengthLower_ge_pow MS l T J0 hJ0 0
+  filter_upwards [hfloor] with N hfloor p hpGood
+  constructor
+  · have hW : 0 < primorial (N + 1) := primorial_pos _
+    have hX : 4 * primorial (N + 1) ≤ MS.core.parameters.X N B.1 :=
+      MS.gapStage.valid_raw_cutoffs N B.1
+    have hnorm := OAI.RawHarmonicProbability.mass_pos
+      (MS.core.parameters.X N B.1) (primorial (N + 1)) hW hX
+    simpa [harmonicNormalizer, OAI.DyadicHarmonicBoundary.mass,
+      Finset.sum_filter, one_div, Nat.coprime_comm] using hnorm
+  · intro k
+    have hfloor' : 1 ≤ momentShiftLengthLower MS l T J0 N := by
+      simpa [momentGapScale] using hfloor
+    have hlen := momentShiftLength_lower MS l T J0 N hJ0
+      (fun j => p (momentMasterEmbedding hT j)) hpGood
+    have hlen' : momentShiftLengthLower MS l T J0 N ≤
+        T.length (corrScales MS) l J0 N
+          (fun j => momentPrimeDiagonal hT p ((momentPrimeEnum b T.q).symm (k, j))) := by
+      simpa only [momentPrimeDiagonal_apply] using hlen
+    omega
+
 end Prediction
 
 end HindmanSumsProducts
