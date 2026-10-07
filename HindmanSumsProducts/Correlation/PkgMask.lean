@@ -10,6 +10,19 @@ open Filter
 open FromArithmetic
 attribute [local instance] Classical.propDecidable
 
+theorem rationalResidue_eq_num_of_den_one {p : ℕ} (hp : p.Prime) (x : ℚ)
+    (hx : x.den = 1) :
+    FromArithmetic.rationalResidue p hp x = (x.num : ZMod p) := by
+  letI : Fact p.Prime := ⟨hp⟩
+  unfold FromArithmetic.rationalResidue
+  rw [hx]
+  simp only [Nat.cast_one, div_one]
+
+theorem rationalResidue_intCast {p : ℕ} (hp : p.Prime) (z : ℤ) :
+    FromArithmetic.rationalResidue p hp (z : ℚ) = (z : ZMod p) := by
+  have h := rationalResidue_eq_num_of_den_one hp (z : ℚ) (by simp)
+  simpa using h
+
 theorem SuperPolynomialSmall.mul_rpow_tendsto {e V : ℕ → ℝ}
     (hsmall : SuperPolynomialSmall e V) (he : ∀ᶠ N in atTop, 0 ≤ e N)
     (hV : ∀ᶠ N in atTop, 1 ≤ V N) (B : ℝ) :
@@ -2034,12 +2047,489 @@ theorem chainScale_ratio_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
     rw [← Nat.cast_mul]
     exact Rat.den_natCast _
 
+theorem chainScale_num_coprime_of_prime_gt_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ d r, r.Prime → N + 1 < r →
+      Nat.Coprime (chainScale S.core.parameters C a N d).num.natAbs r := by
+  filter_upwards [S.core.chain_coefficients, S.gapStage.coefficient_divides_modulus]
+    with N hcoeff hdiv
+  obtain ⟨c, hcEq, hcPos, _⟩ := hcoeff m C a ha
+  have hcRel : ∀ d, (c d : ℚ) =
+      (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+        (S.core.parameters.ht N) (C.block d).set : ℚ) * a d := by
+    simpa [chainScale] using hcEq
+  intro d r hr hNr
+  have hmod : ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+      (S.core.parameters.M N : ℤ) := hdiv m C a ha c hcRel d
+  have hcdvdM : c d ∣ (S.core.parameters.M N : ℤ) := by
+    apply dvd_trans ?_ hmod
+    refine ⟨(primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ), ?_⟩
+    push_cast
+    ring
+  have hsmooth : OAI.RoughScales.Smooth (N + 1) (c d) := by
+    intro p hp hpc
+    exact S.core.parameters.Msmooth N p hp (dvd_trans hpc hcdvdM)
+  have hrough : OAI.RoughScales.Rough (N + 1) (r : ℤ) := by
+    intro p hp hpw hpr
+    have hprNat : p ∣ r := Int.natCast_dvd.mp hpr
+    have hEq : p = r := (Nat.prime_dvd_prime_iff_eq hp hr).mp hprNat
+    omega
+  have hsmoothAbs : OAI.RoughScales.Smooth (N + 1) ((c d).natAbs : ℤ) := by
+    have hcast : ((c d).natAbs : ℤ) = c d :=
+      Int.natAbs_of_nonneg (by exact_mod_cast (hcPos d).le)
+    simpa [hcast] using hsmooth
+  have hcoprime := OAI.RoughProductRemoval.smooth_nat_coprime_rough hsmoothAbs hrough
+  have hnum : (chainScale S.core.parameters C a N d).num = c d := by
+    change ((OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+      (S.core.parameters.ht N) (C.block d).set : ℚ) * a d).num = c d
+    rw [← hcEq d]
+    simp
+  simpa [hnum] using hcoprime
+
+theorem chainScale_pos_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ d, 0 < chainScale S.core.parameters C a N d := by
+  filter_upwards [S.core.chain_coefficients] with N hcoeff
+  obtain ⟨c, hcEq, hcPos, _⟩ := hcoeff m C a ha
+  intro d
+  change 0 < (OAI.ConstructedWordPlan.GlobalWordPlan.SourceTerminalArithmetic.height
+    (S.core.parameters.ht N) (C.block d).set : ℚ) * a d
+  rw [← hcEq d]
+  exact_mod_cast hcPos d
+
+theorem chainScale_den_one_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ d, (chainScale S.core.parameters C a N d).den = 1 := by
+  filter_upwards [S.core.chain_coefficients] with N hcoeff
+  obtain ⟨c, hcEq, hcPos, _⟩ := hcoeff m C a ha
+  intro d
+  have hscale : chainScale S.core.parameters C a N d = (c d : ℚ) :=
+    (hcEq d).symm
+  rw [hscale]
+  exact Rat.den_intCast _
+
+theorem chainScale_ratio_num_coprime_eventually {K s m : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) :
+    ∀ᶠ N in atTop, ∀ (J : Finset (Fin m)) (hJ : J.Nonempty) k, k ∈ J → ∀ r, r.Prime →
+      N + 1 < r →
+      Nat.Coprime
+        (chainScale S.core.parameters C a N k /
+          chainScale S.core.parameters C a N (J.max' hJ)).num.natAbs r := by
+  filter_upwards [chainScale_ratio_den_one_eventually S C a ha,
+      chainScale_den_one_eventually S C a ha,
+      chainScale_pos_eventually S C a ha,
+      chainScale_num_coprime_of_prime_gt_eventually S C a ha]
+    with N hratio hden hpos hunit
+  intro J hJ k hk r hr hNr
+  let d := J.max' hJ
+  let x := chainScale S.core.parameters C a N k
+  let y := chainScale S.core.parameters C a N d
+  let t := x / y
+  have htden : t.den = 1 := by simpa [t, x, y, d] using hratio J hJ k hk
+  have hxden : x.den = 1 := hden k
+  have hyden : y.den = 1 := hden d
+  have htNum : (t.num : ℚ) = t := (Rat.den_eq_one_iff _).mp htden
+  have hyNum : (y.num : ℚ) = y := (Rat.den_eq_one_iff _).mp hyden
+  have hxNum : (x.num : ℚ) = x := (Rat.den_eq_one_iff _).mp hxden
+  have hprod : t.num * y.num = x.num := by
+    have hcast : ((t.num * y.num : ℤ) : ℚ) = x := by
+      calc
+        ((t.num * y.num : ℤ) : ℚ) = (t.num : ℚ) * (y.num : ℚ) := by norm_cast
+        _ = t * y := by rw [htNum, hyNum]
+        _ = x := by
+          dsimp [t]
+          exact div_mul_cancel₀ x (ne_of_gt (hpos d))
+    have hcast' : ((t.num * y.num : ℤ) : ℚ) = (x.num : ℚ) :=
+      hcast.trans hxNum.symm
+    exact_mod_cast hcast'
+  have hnot : ¬ r ∣ t.num.natAbs := by
+    intro hdiv
+    have hdivInt : (r : ℤ) ∣ t.num := Int.natCast_dvd.mpr hdiv
+    have hkdivInt : (r : ℤ) ∣ x.num := by
+      rw [← hprod]
+      exact dvd_mul_of_dvd_left hdivInt _
+    have hkdivNat : r ∣ x.num.natAbs := Int.natCast_dvd.mp hkdivInt
+    have hxcoprime : Nat.Coprime x.num.natAbs r := hunit k r hr hNr
+    exact (Nat.Prime.coprime_iff_not_dvd hr).mp hxcoprime.symm hkdivNat
+  have hcop : Nat.Coprime r t.num.natAbs :=
+    (Nat.Prime.coprime_iff_not_dvd hr).2 hnot
+  simpa [t, x, y, d] using hcop.symm
+
+theorem rational_scale_num_cross_eq {m : ℕ} (c : Fin m → ℚ)
+    (a b j k : Fin m) (ha : c a ≠ 0) (hb : c b ≠ 0)
+    (haj : (c j / c a).den = 1) (hbk : (c k / c b).den = 1)
+    (hak : (c k / c a).den = 1) (hbj : (c j / c b).den = 1) :
+    (c j / c a).num * (c k / c b).num =
+      (c k / c a).num * (c j / c b).num := by
+  have hrat : c j / c a * (c k / c b) = c k / c a * (c j / c b) := by
+    field_simp [ha, hb]
+  have hnumA : ((c j / c a).num : ℚ) = c j / c a :=
+    (Rat.den_eq_one_iff _).mp haj
+  have hnumB : ((c k / c b).num : ℚ) = c k / c b :=
+    (Rat.den_eq_one_iff _).mp hbk
+  have hnumC : ((c k / c a).num : ℚ) = c k / c a :=
+    (Rat.den_eq_one_iff _).mp hak
+  have hnumD : ((c j / c b).num : ℚ) = c j / c b :=
+    (Rat.den_eq_one_iff _).mp hbj
+  have hcast :
+      (((c j / c a).num * (c k / c b).num : ℤ) : ℚ) =
+        (((c k / c a).num * (c j / c b).num : ℤ) : ℚ) := by
+    calc
+      _ = ((c j / c a).num : ℚ) * ((c k / c b).num : ℚ) := by simp
+      _ = (c j / c a) * (c k / c b) := by rw [hnumA, hnumB]
+      _ = (c k / c a) * (c j / c b) := hrat
+      _ = ((c k / c a).num : ℚ) * ((c j / c b).num : ℚ) := by
+        rw [hnumC, hnumD]
+      _ = _ := by simp
+  exact_mod_cast hcast
+
+theorem intCast_ne_zero_of_natAbs_coprime {r : ℕ} (hr : r.Prime) (z : ℤ)
+    (hz : Nat.Coprime z.natAbs r) : (z : ZMod r) ≠ 0 := by
+  intro hzero
+  have hdiv : (r : ℤ) ∣ z := (ZMod.intCast_zmod_eq_zero_iff_dvd z r).mp hzero
+  have hdivNat : r ∣ z.natAbs := Int.natCast_dvd.mp hdiv
+  exact (Nat.Prime.coprime_iff_not_dvd hr).mp hz.symm hdivNat
+
+theorem rowShapeScaleNumerator_unit_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r) :
+    ∀ᶠ N in atTop, ∀ R k, k ∈ (Sh.row R).support → ∀ v, v.Prime →
+      N + 1 < v →
+      ((chainScale S.core.parameters C a N k /
+        chainScale S.core.parameters C a N (Sh.row R).anchor).num : ZMod v) ≠ 0 := by
+  filter_upwards [chainScale_ratio_num_coprime_eventually S C a ha] with N hunit
+  intro R k hk v hv hNv
+  apply intCast_ne_zero_of_natAbs_coprime hv
+  exact hunit (Sh.row R).support (Sh.row R).support_nonempty k hk v hv hNv
+
+theorem pool_lower_gt_masterScaleV_eventually {K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm) (l : Fin K) :
+    ∀ᶠ N in atTop, masterScaleV S.core.parameters N l <
+      (S.primeStage.pool N l).lower := by
+  have hdom := S.primeStage.pool_lower_dominates l 1 (by norm_num)
+  have hlarge : ∀ᶠ N in atTop,
+      1 < (S.primeStage.pool N l).lower / (masterScaleV S.core.parameters N l : ℝ) := by
+    simpa [Real.rpow_one] using hdom.eventually_gt_atTop 1
+  filter_upwards [hlarge] with N hN
+  have hV : 0 < (masterScaleV S.core.parameters N l : ℝ) := by
+    unfold masterScaleV
+    positivity
+  have hlt' := (lt_div_iff₀ hV).mp hN
+  have hlt : (masterScaleV S.core.parameters N l : ℝ) <
+      ((S.primeStage.pool N l).lower : ℝ) := by simpa using hlt'
+  exact_mod_cast hlt
+
 def RowTemplate.valueNat {m q : ℕ} (T : RowTemplate m q) (p : Fin q → ℕ)
     (k : Fin m) : ℕ := (T.entry k).elim 0 fun e => ∏ i, p i ^ e i
 
 theorem RowTemplate.value_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) : T.value p k = (T.valueNat p k : ℚ) := by
   cases h : T.entry k <;> simp [RowTemplate.value, RowTemplate.valueNat, h]
+
+def rowTemplateIntegerCoefficient {m q : ℕ} (c : Fin m → ℚ)
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) : ℤ :=
+  (c k / c T.anchor).num * (T.valueNat p k : ℤ)
+
+theorem RowTemplate.mem_support_of_valueNat_ne_zero {m q : ℕ}
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m)
+    (hval : T.valueNat p k ≠ 0) : k ∈ T.support := by
+  cases h : T.entry k with
+  | none => simp [RowTemplate.valueNat, RowTemplate.support, h] at hval
+  | some e => simp [RowTemplate.support, h]
+
+theorem rowTemplateIntegerMinor_factor {m q : ℕ} (c : Fin m → ℚ)
+    (T U : RowTemplate m q) (p : Fin q → ℕ) (r : ℕ) (hr : r.Prime)
+    (hTa : c T.anchor ≠ 0) (hUa : c U.anchor ≠ 0)
+    (hdenT : ∀ i, i ∈ T.support → (c i / c T.anchor).den = 1)
+    (hdenU : ∀ i, i ∈ U.support → (c i / c U.anchor).den = 1)
+    (hunitT : ∀ i, i ∈ T.support →
+      ((c i / c T.anchor).num : ZMod r) ≠ 0)
+    (hunitU : ∀ i, i ∈ U.support →
+      ((c i / c U.anchor).num : ZMod r) ≠ 0)
+    (j k : Fin m) :
+    ∃ F : ℤ,
+      rowTemplateIntegerCoefficient c T p j *
+          rowTemplateIntegerCoefficient c U p k -
+        rowTemplateIntegerCoefficient c T p k *
+          rowTemplateIntegerCoefficient c U p j =
+        F * (((T.valueNat p j * U.valueNat p k : ℕ) : ℤ) -
+          ((T.valueNat p k * U.valueNat p j : ℕ) : ℤ)) ∧
+      (F : ZMod r) ≠ 0 := by
+  let v₁ := T.valueNat p j
+  let v₂ := U.valueNat p k
+  let v₃ := T.valueNat p k
+  let v₄ := U.valueNat p j
+  let n₁ := (c j / c T.anchor).num
+  let n₂ := (c k / c U.anchor).num
+  let n₃ := (c k / c T.anchor).num
+  let n₄ := (c j / c U.anchor).num
+  letI : Fact r.Prime := ⟨hr⟩
+  have hdet :
+      rowTemplateIntegerCoefficient c T p j *
+          rowTemplateIntegerCoefficient c U p k -
+        rowTemplateIntegerCoefficient c T p k *
+          rowTemplateIntegerCoefficient c U p j =
+        n₁ * n₂ * ((v₁ : ℤ) * (v₂ : ℤ)) -
+          n₃ * n₄ * ((v₃ : ℤ) * (v₄ : ℤ)) := by
+    simp [rowTemplateIntegerCoefficient, n₁, n₂, n₃, n₄, v₁, v₂, v₃, v₄]
+    ring
+  have hcast₁ : ((v₁ * v₂ : ℕ) : ℤ) = (v₁ : ℤ) * (v₂ : ℤ) := by
+    norm_cast
+  have hcast₂ : ((v₃ * v₄ : ℕ) : ℤ) = (v₃ : ℤ) * (v₄ : ℤ) := by
+    norm_cast
+  have support_of_ne {V : RowTemplate m q} (i : Fin m)
+      (hval : V.valueNat p i ≠ 0) : i ∈ V.support :=
+    V.mem_support_of_valueNat_ne_zero p i hval
+  by_cases hfirst : v₁ * v₂ ≠ 0
+  · have hv₁ : v₁ ≠ 0 := by
+      intro hz
+      apply hfirst
+      simp [hz]
+    have hv₂ : v₂ ≠ 0 := by
+      intro hz
+      apply hfirst
+      simp [hz]
+    have hjT := support_of_ne (V := T) j hv₁
+    have hkU := support_of_ne (V := U) k hv₂
+    have hFunit : ((n₁ * n₂ : ℤ) : ZMod r) ≠ 0 := by
+      simpa [n₁, n₂] using mul_ne_zero (hunitT j hjT) (hunitU k hkU)
+    by_cases hsecond : v₃ * v₄ ≠ 0
+    · have hv₃ : v₃ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hv₄ : v₄ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hkT := support_of_ne (V := T) k hv₃
+      have hjU := support_of_ne (V := U) j hv₄
+      have hcross := rational_scale_num_cross_eq c T.anchor U.anchor j k hTa hUa
+        (hdenT j hjT) (hdenU k hkU) (hdenT k hkT) (hdenU j hjU)
+      refine ⟨n₁ * n₂, ?_, hFunit⟩
+      rw [hdet, ← hcast₁, ← hcast₂, ← hcross]
+      ring
+    · have hzero₂ : ((v₃ * v₄ : ℕ) : ℤ) = 0 := by
+        have hn : v₃ * v₄ = 0 := by
+          by_contra hne
+          exact hsecond hne
+        exact_mod_cast hn
+      refine ⟨n₁ * n₂, ?_, hFunit⟩
+      rw [hdet, ← hcast₁, ← hcast₂, hzero₂]
+      ring
+  · by_cases hsecond : v₃ * v₄ ≠ 0
+    · have hv₃ : v₃ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hv₄ : v₄ ≠ 0 := by
+        intro hz
+        apply hsecond
+        simp [hz]
+      have hkT := support_of_ne (V := T) k hv₃
+      have hjU := support_of_ne (V := U) j hv₄
+      have hFunit : ((n₃ * n₄ : ℤ) : ZMod r) ≠ 0 := by
+        simpa [n₃, n₄] using mul_ne_zero (hunitT k hkT) (hunitU j hjU)
+      have hzero₁ : ((v₁ * v₂ : ℕ) : ℤ) = 0 := by
+        have hn : v₁ * v₂ = 0 := by
+          by_contra hne
+          exact hfirst hne
+        exact_mod_cast hn
+      refine ⟨n₃ * n₄, ?_, hFunit⟩
+      rw [hdet, ← hcast₁, ← hcast₂, hzero₁]
+      ring
+    · have hzero₁ : ((v₁ * v₂ : ℕ) : ℤ) = 0 := by
+        have hn : v₁ * v₂ = 0 := by
+          by_contra hne
+          exact hfirst hne
+        exact_mod_cast hn
+      have hzero₂ : ((v₃ * v₄ : ℕ) : ℤ) = 0 := by
+        have hn : v₃ * v₄ = 0 := by
+          by_contra hne
+          exact hsecond hne
+        exact_mod_cast hn
+      refine ⟨1, ?_, by norm_num⟩
+      rw [hdet, ← hcast₁, ← hcast₂, hzero₁, hzero₂]
+      simp
+
+def rowShapeLinearCoefficientsInt {m q r s : ℕ} (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) (c : Fin m → ℚ) :
+    ℕ → (Fin s → ℕ) → Fin r → Fin m → ℤ :=
+  fun _ p R k => (c k / c (Sh.row R).anchor).num *
+    ((Sh.row R).valueNat (fun i => p (ι i)) k : ℤ)
+
+theorem rowShapeLinearCoefficients_eq_intCast_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, ∀ p R k,
+      rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N) N p R k =
+        (rowShapeLinearCoefficientsInt Sh ι
+          (chainScale S.core.parameters C a N) N p R k : ℚ) := by
+  filter_upwards [chainScale_ratio_den_one_eventually S C a ha] with N hratio
+  intro p R k
+  let T := Sh.row R
+  let c := chainScale S.core.parameters C a N
+  by_cases hk : k ∈ T.support
+  · have hden : (c k / c T.anchor).den = 1 :=
+      hratio T.support T.support_nonempty k hk
+    have hnum : ((c k / c T.anchor).num : ℚ) = c k / c T.anchor :=
+      (Rat.den_eq_one_iff _).mp hden
+    change (c k / c T.anchor) * T.value (fun i => p (ι i)) k =
+      (((c k / c T.anchor).num *
+        (T.valueNat (fun i => p (ι i)) k : ℤ) : ℤ) : ℚ)
+    calc
+      (c k / c T.anchor) * T.value (fun i => p (ι i)) k =
+          ((c k / c T.anchor).num : ℚ) *
+            (T.valueNat (fun i => p (ι i)) k : ℚ) := by
+              conv_lhs => rw [← hnum, T.value_eq_valueNat]
+      _ = (((c k / c T.anchor).num *
+            (T.valueNat (fun i => p (ι i)) k : ℤ) : ℤ) : ℚ) := by
+              rw [Int.cast_mul, Int.cast_natCast]
+  · have hnone : T.entry k = none := by
+      cases h : T.entry k with
+      | none => rfl
+      | some e => exact (hk (by simp [RowTemplate.support, h])).elim
+    simp [rowShapeLinearCoefficients, rowShapeLinearCoefficientsInt,
+      RowTemplate.value, RowTemplate.valueNat, T, c, hnone]
+
+theorem RowTemplate.valueNat_cast_ne_zero_of_slot_not_dvd {m q : ℕ}
+    (T : RowTemplate m q) (p : Fin q → ℕ) (k : Fin m) (r : ℕ)
+    (hr : r.Prime) (hk : k ∈ T.support) (hslot : ∀ i, ¬ r ∣ p i) :
+    ((T.valueNat p k : ℕ) : ZMod r) ≠ 0 := by
+  letI : Fact r.Prime := ⟨hr⟩
+  obtain ⟨e, he⟩ := T.entry_exists_of_mem_support k hk
+  have hv : T.valueNat p k = ∏ i, p i ^ e i := by
+    simp [RowTemplate.valueNat, he]
+  rw [hv]
+  simp only [Nat.cast_prod, Nat.cast_pow]
+  apply Finset.prod_ne_zero_iff.mpr
+  intro i hi
+  apply pow_ne_zero
+  intro hz
+  exact hslot i ((ZMod.natCast_eq_zero_iff (p i) r).mp hz)
+
+theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
+    (p : Fin q → ℕ) (k : Fin m) :
+    evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) = T.valueNat p k := by
+  cases h : T.entry k <;>
+    simp [evalIntegerPolynomial, RowTemplate.poly, RowTemplate.valueNat, h,
+      MvPolynomial.eval_monomial]
+
+theorem evalIntegerPolynomial_rename {q s : ℕ} (ι : Fin q ↪ Fin s)
+    (P : IntegerPolynomial q) (p : Fin s → ℕ) :
+    evalIntegerPolynomial (MvPolynomial.rename ι P) (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial P (fun i => (p (ι i) : ℤ)) := by
+  unfold evalIntegerPolynomial
+  exact MvPolynomial.eval_rename ι (fun i => (p i : ℤ)) P
+
+theorem evalIntegerPolynomial_zmod_ne_zero {s : ℕ} (P : IntegerPolynomial s)
+    (p : Fin s → ℕ) (v : ℕ) (hv : v.Prime)
+    (havoid : ¬ (v : ℤ) ∣ evalIntegerPolynomial P (fun i => (p i : ℤ))) :
+    (evalIntegerPolynomial P (fun i => (p i : ℤ)) : ZMod v) ≠ 0 := by
+  intro hzero
+  apply havoid
+  exact (ZMod.intCast_zmod_eq_zero_iff_dvd
+    (evalIntegerPolynomial P (fun i => (p i : ℤ))) v).mp hzero
+
+theorem rowTemplate_minor_eval_eq {m q : ℕ} (T U : RowTemplate m q)
+    (p : Fin q → ℕ) (j k : Fin m) :
+    evalIntegerPolynomial
+        (T.poly j * U.poly k - T.poly k * U.poly j)
+        (fun i => (p i : ℤ)) =
+      ((T.valueNat p j * U.valueNat p k : ℕ) : ℤ) -
+      ((T.valueNat p k * U.valueNat p j : ℕ) : ℤ) := by
+  calc
+    evalIntegerPolynomial (T.poly j * U.poly k - T.poly k * U.poly j)
+        (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial (T.poly j) (fun i => (p i : ℤ)) *
+          evalIntegerPolynomial (U.poly k) (fun i => (p i : ℤ)) -
+        evalIntegerPolynomial (T.poly k) (fun i => (p i : ℤ)) *
+          evalIntegerPolynomial (U.poly j) (fun i => (p i : ℤ)) := by
+            simp [evalIntegerPolynomial]
+    _ = ((T.valueNat p j : ℕ) : ℤ) * ((U.valueNat p k : ℕ) : ℤ) -
+        ((T.valueNat p k : ℕ) : ℤ) * ((U.valueNat p j : ℕ) : ℤ) := by
+          rw [T.poly_eval_eq_valueNat, U.poly_eval_eq_valueNat,
+            T.poly_eval_eq_valueNat, U.poly_eval_eq_valueNat]
+    _ = _ := by push_cast; ring
+
+theorem rowShape_minor_value_ne_zero_of_tests {m q r s : ℕ}
+    (Sh : RowShape m q r) (ι : Fin q ↪ Fin s)
+    (Dm : Finset (IntegerPolynomial s))
+    (hlisted : ∀ P, P ∈ templateMinors Sh → MvPolynomial.rename ι P ∈ Dm)
+    (p : Fin s → ℕ) (v : ℕ) (hv : v.Prime)
+    (havoid : ∀ Q ∈ Dm,
+      ¬ (v : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))
+    (R I : Fin r) (hRI : R ≠ I) :
+    ∃ j k,
+      (((Sh.row R).valueNat (fun i => p (ι i)) j : ℕ) : ZMod v) *
+          (((Sh.row I).valueNat (fun i => p (ι i)) k : ℕ) : ZMod v) -
+        (((Sh.row R).valueNat (fun i => p (ι i)) k : ℕ) : ZMod v) *
+          (((Sh.row I).valueNat (fun i => p (ι i)) j : ℕ) : ZMod v) ≠ 0 := by
+  obtain ⟨P, hP, j, k, hPform⟩ :=
+    Sh.nonparallel_minor_mem_templateMinors R I hRI
+  have hPlisted : MvPolynomial.rename ι P ∈ Dm := hlisted P hP
+  have hEval :=
+    evalIntegerPolynomial_zmod_ne_zero (MvPolynomial.rename ι P) p v hv
+      (havoid (MvPolynomial.rename ι P) hPlisted)
+  rw [evalIntegerPolynomial_rename ι P p] at hEval
+  have hminor := rowTemplate_minor_eval_eq (Sh.row R) (Sh.row I)
+    (fun i => p (ι i)) j k
+  rw [hPform] at hEval
+  rw [hminor] at hEval
+  exact ⟨j, k, by
+    simpa only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, Nat.cast_mul] using hEval⟩
+
+theorem rowShapeLinearCoefficients_anchor_residue_ne_zero_eventually
+    {K s m q r : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, ∀ p R v (hv : v.Prime),
+      N + 1 < v → v ≤ masterScaleV S.core.parameters N C.gap →
+      (∀ i, (S.primeStage.pool N C.gap).lower ≤ p i ∧
+        p i < (S.primeStage.pool N C.gap).upper ∧ (p i).Prime) →
+      FromArithmetic.rationalResidue v hv
+        (rowShapeLinearCoefficients Sh ι
+          (chainScale S.core.parameters C a N) N p R (Sh.row R).anchor) ≠ 0 := by
+  filter_upwards [chainScale_pos_eventually S C a ha,
+      pool_lower_gt_masterScaleV_eventually S C.gap] with N hscale hpoolLower
+  intro p R v hv hNv hvV hp
+  let T := Sh.row R
+  have hslot : ∀ i, ¬ v ∣ p (ι i) := by
+    intro i hdiv
+    have hpi := hp (ι i)
+    have heq : v = p (ι i) :=
+      (Nat.prime_dvd_prime_iff_eq hv hpi.2.2).mp hdiv
+    have hlarge : masterScaleV S.core.parameters N C.gap < p (ι i) :=
+      lt_of_lt_of_le hpoolLower hpi.1
+    omega
+  have hratio : (chainScale S.core.parameters C a N T.anchor) /
+      (chainScale S.core.parameters C a N T.anchor) = 1 :=
+    div_self (ne_of_gt (hscale T.anchor))
+  have hcoef :
+      rowShapeLinearCoefficients Sh ι (chainScale S.core.parameters C a N) N p R T.anchor =
+        (T.valueNat (fun i => p (ι i)) T.anchor : ℚ) := by
+    change (chainScale S.core.parameters C a N T.anchor /
+        chainScale S.core.parameters C a N T.anchor) *
+        T.value (fun i => p (ι i)) T.anchor = _
+    rw [hratio, T.value_eq_valueNat]
+    ring
+  have hres :
+      FromArithmetic.rationalResidue v hv
+          (T.valueNat (fun i => p (ι i)) T.anchor : ℚ) =
+        (T.valueNat (fun i => p (ι i)) T.anchor : ZMod v) := by
+    simpa using rationalResidue_eq_num_of_den_one hv
+      (T.valueNat (fun i => p (ι i)) T.anchor : ℚ) (by simp)
+  rw [hcoef, hres]
+  exact T.valueNat_cast_ne_zero_of_slot_not_dvd
+    (fun i => p (ι i)) T.anchor v hv (Finset.max'_mem T.support T.support_nonempty) hslot
 
 theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
@@ -2082,6 +2572,31 @@ theorem rowForm_den_one_eventually {K s m q : ℕ} {Aset : Finset ℚ}
           (fun k => (c k / c T.anchor).num * (T.valueNat p k : ℤ) * z k) Finset.univ
   rw [hsum]
   exact Rat.den_intCast _
+
+theorem rowShapeLinearCoefficients_den_one_eventually {K s m q r : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (ha : ∀ d, a d ∈ Aset) (Sh : RowShape m q r)
+    (ι : Fin q ↪ Fin s) :
+    ∀ᶠ N in atTop, ∀ p R k,
+      (rowShapeLinearCoefficients Sh ι
+        (chainScale S.core.parameters C a N) N p R k).den = 1 := by
+  filter_upwards [chainScale_ratio_den_one_eventually S C a ha] with N hratio
+  intro p R k
+  let T := Sh.row R
+  let c := chainScale S.core.parameters C a N
+  by_cases hk : k ∈ T.support
+  · have hden : (c k / c T.anchor).den = 1 :=
+      hratio T.support T.support_nonempty k hk
+    change ((c k / c T.anchor) * T.value (fun i => p (ι i)) k).den = 1
+    rw [T.value_eq_valueNat, Rat.mul_den, hden]
+    simp
+  · have hnone : T.entry k = none := by
+      cases h : T.entry k with
+      | none => rfl
+      | some e => exact (hk (by simp [RowTemplate.support, h])).elim
+    change (c k / c T.anchor * T.value (fun i => p (ι i)) k).den = 1
+    simp [RowTemplate.value, hnone]
 
 theorem rowProduct_integrand_bound_eventually {K s m q r : ℕ} {Aset : Finset ℚ}
     {Dm : Finset (IntegerPolynomial s)} (S : FromArithmetic.MasterScales K Aset s Dm)
