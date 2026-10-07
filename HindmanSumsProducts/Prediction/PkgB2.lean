@@ -1049,6 +1049,360 @@ theorem pkgB2_uniformUnitTupleProbability_iid_marginal {q s Q : ℕ}
           symm
           rw [pkgB2_uniformUnitTupleProbability_prod]
 
+private noncomputable def pkgB2_poolRangeTupleEquiv {m M : ℕ} :
+    {p : Fin m → ℕ // p ∈ Fintype.piFinset (fun _ : Fin m => Finset.range M)} ≃
+      (Fin m → Fin M) where
+  toFun p i := ⟨p.1 i, by
+    have hi := Fintype.mem_piFinset.mp p.2 i
+    exact Finset.mem_range.mp hi⟩
+  invFun p := ⟨fun i => (p i).val, Fintype.mem_piFinset.mpr (fun i =>
+    Finset.mem_range.mpr (p i).isLt)⟩
+  left_inv := by
+    intro p
+    apply Subtype.ext
+    funext i
+    rfl
+  right_inv := by
+    intro p
+    funext i
+    apply Fin.ext
+    rfl
+
+/-- Finite-range form of an independent prime-pool event. A common finite upper bound for
+the slot cutoffs makes the sum a finite product average, even when slot ranges differ. -/
+private theorem pkgB2_independentPrimePoolProbability_finite {m : ℕ}
+    (lo hi : Fin m → ℕ) (M : ℕ) (hhi : ∀ i, hi i ≤ M)
+    (E : (Fin m → ℕ) → Prop) :
+    independentPrimePoolProbability lo hi E =
+      ∑ p : Fin m → Fin M,
+        (∏ i, primePoolLaw (lo i) (hi i) (p i).val) *
+          (if E (fun i => (p i).val) then 1 else 0) := by
+  classical
+  let S : Finset (Fin m → ℕ) := Fintype.piFinset
+    (fun _ : Fin m => Finset.range M)
+  have htermZero (p : Fin m → ℕ) (hp : p ∉ S) :
+      independentPrimePoolMass lo hi p * (if E p then 1 else 0) = 0 := by
+    have hnot : ¬ ∀ i : Fin m, p i ∈ Finset.range M := by
+      intro hall
+      apply hp
+      simpa [S, Fintype.mem_piFinset] using hall
+    obtain ⟨i, hiMem⟩ := not_forall.mp hnot
+    have hmass : independentPrimePoolMass lo hi p = 0 := by
+      unfold independentPrimePoolMass
+      apply Finset.prod_eq_zero (Finset.mem_univ i)
+      unfold primePoolLaw
+      split_ifs with h
+      · exact False.elim (hiMem (Finset.mem_range.mpr (lt_of_lt_of_le h.2.1 (hhi i))))
+      · rfl
+    simp [hmass]
+  have hsum : independentPrimePoolProbability lo hi E =
+      ∑ p ∈ S, independentPrimePoolMass lo hi p * (if E p then 1 else 0) := by
+    unfold independentPrimePoolProbability
+    exact tsum_eq_sum (s := S) htermZero
+  have hattach :
+      (∑ p ∈ S, independentPrimePoolMass lo hi p * (if E p then 1 else 0)) =
+        ∑ p : {p : Fin m → ℕ // p ∈ S},
+          independentPrimePoolMass lo hi p.1 * (if E p.1 then 1 else 0) := by
+    rw [← Finset.sum_attach]
+    simp
+  calc
+    independentPrimePoolProbability lo hi E =
+        ∑ p : {p : Fin m → ℕ // p ∈ S},
+          independentPrimePoolMass lo hi p.1 * (if E p.1 then 1 else 0) := by
+            rw [hsum, hattach]
+    _ = ∑ p : Fin m → Fin M,
+          (∏ i, primePoolLaw (lo i) (hi i) (p i).val) *
+            (if E (fun i => (p i).val) then 1 else 0) := by
+          apply Fintype.sum_equiv (pkgB2_poolRangeTupleEquiv (m := m) (M := M))
+          intro p
+          have hval :
+              (fun i => ((pkgB2_poolRangeTupleEquiv (m := m) (M := M) p) i).val) = p.1 := by
+            funext i
+            rfl
+          simp only [independentPrimePoolMass]
+          rw [← hval]
+
+private noncomputable def pkgB2_blockTupleEquiv {b sl M : ℕ} :
+    (Fin (b * sl) → Fin M) ≃ (Fin b → Fin sl → Fin M) where
+  toFun p k j := p (pkgB2_replicaEmbedding k j)
+  invFun p i := p ((finProdFinEquiv (m := b) (n := sl)).symm i).1
+      ((finProdFinEquiv (m := b) (n := sl)).symm i).2
+  left_inv := by
+    intro p
+    funext i
+    exact congrArg p ((finProdFinEquiv (m := b) (n := sl)).apply_symm_apply i)
+  right_inv := by
+    intro p
+    funext k j
+    exact congrArg (fun z : Fin b × Fin sl => p z.1 z.2)
+      ((finProdFinEquiv (m := b) (n := sl)).symm_apply_apply (k, j))
+
+/-- Independent prime slots factor across disjoint replica blocks, even when each block has a
+different pool. -/
+private theorem pkgB2_independentPrimePoolProbability_blockFactor {b sl M : ℕ}
+    (lo hi : Fin (b * sl) → ℕ) (loBlock hiBlock : Fin b → ℕ)
+    (hlo : ∀ k j, lo (pkgB2_replicaEmbedding k j) = loBlock k)
+    (hhi : ∀ k j, hi (pkgB2_replicaEmbedding k j) = hiBlock k)
+    (hbound : (∀ i, hi i ≤ M) ∧ ∀ k, hiBlock k ≤ M)
+    (G : ∀ k : Fin b, (Fin sl → ℕ) → Prop) :
+    independentPrimePoolProbability lo hi
+        (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j))) =
+      ∏ k, independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+        (fun _ => hiBlock k) (fun p => G k p) := by
+  classical
+  let Btuple := pkgB2_blockTupleEquiv (b := b) (sl := sl) (M := M)
+  let term : ∀ k, (Fin sl → Fin M) → ℝ := fun k q =>
+    (∏ j, primePoolLaw (loBlock k) (hiBlock k) (q j).val) *
+      (if G k (fun j => (q j).val) then 1 else 0)
+  have hfinite := pkgB2_independentPrimePoolProbability_finite lo hi M hbound.1
+    (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j)))
+  have hmass (p : Fin (b * sl) → Fin M) :
+      independentPrimePoolMass lo hi (fun i => (p i).val) =
+        ∏ k, ∏ j, primePoolLaw (loBlock k) (hiBlock k)
+          (p (pkgB2_replicaEmbedding k j)).val := by
+    unfold independentPrimePoolMass
+    calc
+      ∏ i : Fin (b * sl), primePoolLaw (lo i) (hi i) (p i).val =
+          ∏ z : Fin b × Fin sl,
+            primePoolLaw (lo (finProdFinEquiv (m := b) (n := sl) z))
+              (hi (finProdFinEquiv (m := b) (n := sl) z))
+              (p (finProdFinEquiv (m := b) (n := sl) z)).val := by
+                symm
+                exact Fintype.prod_equiv (finProdFinEquiv (m := b) (n := sl))
+                  (fun z => primePoolLaw (lo (finProdFinEquiv (m := b) (n := sl) z))
+                    (hi (finProdFinEquiv (m := b) (n := sl) z))
+                    (p (finProdFinEquiv (m := b) (n := sl) z)).val)
+                  (fun i => primePoolLaw (lo i) (hi i) (p i).val) (by intro z; rfl)
+      _ = ∏ k : Fin b, ∏ j : Fin sl,
+            primePoolLaw (loBlock k) (hiBlock k)
+              (p (pkgB2_replicaEmbedding k j)).val := by
+                rw [Fintype.prod_prod_type]
+                apply Finset.prod_congr rfl
+                intro k hk
+                apply Finset.prod_congr rfl
+                intro j hj
+                have hlo' : lo (finProdFinEquiv (m := b) (n := sl) (k, j)) = loBlock k := by
+                  have he : pkgB2_replicaEmbedding k j =
+                      finProdFinEquiv (m := b) (n := sl) (k, j) := rfl
+                  rw [← he]
+                  exact hlo k j
+                have hhi' : hi (finProdFinEquiv (m := b) (n := sl) (k, j)) = hiBlock k := by
+                  have he : pkgB2_replicaEmbedding k j =
+                      finProdFinEquiv (m := b) (n := sl) (k, j) := rfl
+                  rw [← he]
+                  exact hhi k j
+                rw [hlo', hhi']
+                rfl
+  have hterm (p : Fin (b * sl) → Fin M) :
+      (∏ i, primePoolLaw (lo i) (hi i) (p i).val) *
+          (if ∀ k, G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then 1 else 0) =
+        ∏ k, term k (fun j => p (pkgB2_replicaEmbedding k j)) := by
+    have hEvent :
+        (if ∀ k, G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then (1 : ℝ) else 0) =
+          ∏ k, if G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then (1 : ℝ) else 0 := by
+      by_cases hall : ∀ k, G k (fun j => (p (pkgB2_replicaEmbedding k j)).val)
+      · simp [hall]
+      · obtain ⟨k, hk⟩ := not_forall.mp hall
+        have hzero : ∏ k' : Fin b,
+            (if G k' (fun j => (p (pkgB2_replicaEmbedding k' j)).val) then (1 : ℝ) else 0) = 0 :=
+          Finset.prod_eq_zero (Finset.mem_univ k) (if_neg hk)
+        simpa only [if_neg hall] using hzero.symm
+    calc
+      _ = independentPrimePoolMass lo hi (fun i => (p i).val) *
+            (if ∀ k, G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then 1 else 0) := by
+              rfl
+      _ = (∏ k, ∏ j, primePoolLaw (loBlock k) (hiBlock k)
+              (p (pkgB2_replicaEmbedding k j)).val) *
+            (∏ k, if G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then 1 else 0) := by
+              rw [hmass p]
+              exact congrArg (fun z : ℝ =>
+                (∏ k, ∏ j, primePoolLaw (loBlock k) (hiBlock k)
+                  (p (pkgB2_replicaEmbedding k j)).val) * z) hEvent
+      _ = ∏ k, term k (fun j => p (pkgB2_replicaEmbedding k j)) := by
+              simp only [term]
+              rw [← Finset.prod_mul_distrib]
+  have hfactor :
+    (∑ p : Fin (b * sl) → Fin M,
+        (∏ i, primePoolLaw (lo i) (hi i) (p i).val) *
+          (if ∀ k, G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then 1 else 0)) =
+        ∏ k, ∑ q : Fin sl → Fin M, term k q := by
+    calc
+      _ = ∑ q : Fin b → Fin sl → Fin M, ∏ k, term k (q k) := by
+        apply Fintype.sum_equiv Btuple
+        intro p
+        have hB (k : Fin b) : Btuple p k =
+            fun j => p (pkgB2_replicaEmbedding k j) := rfl
+        simpa only [hB] using hterm p
+      _ = ∏ k, ∑ q : Fin sl → Fin M, term k q := by
+        symm
+        exact Fintype.prod_sum (fun k q => term k q)
+  have hRHS (k : Fin b) :
+      independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+          (fun _ => hiBlock k) (fun p => G k p) =
+        ∑ q : Fin sl → Fin M, term k q := by
+    simpa [term, independentPrimePoolMass] using
+      (pkgB2_independentPrimePoolProbability_finite
+        (fun _ : Fin sl => loBlock k) (fun _ => hiBlock k) M
+        (fun _ => hbound.2 k) (G k))
+  calc
+    independentPrimePoolProbability lo hi
+        (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j))) =
+      ∑ p : Fin (b * sl) → Fin M,
+        (∏ i, primePoolLaw (lo i) (hi i) (p i).val) *
+          (if ∀ k, G k (fun j => (p (pkgB2_replicaEmbedding k j)).val) then 1 else 0) := by
+            simpa using hfinite
+    _ = ∏ k, ∑ q : Fin sl → Fin M, term k q := hfactor
+    _ = ∏ k, independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+          (fun _ => hiBlock k) (fun p => G k p) := by
+        apply Finset.prod_congr rfl
+        intro k hk
+        exact (hRHS k).symm
+
+private theorem pkgB2_repGoodProbability_eq_product {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (hsl : 0 < sl) (N : ℕ)
+    (hpool : ∀ k, 0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+      (MS.primeStage.pool N (gap k)).upper) :
+    independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+        (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+          (pkgB2_repPrimeProject hT p k)) =
+      ∏ k, gapSlotProbability (corrScales MS) (gap k) N
+        ((T k).Good (corrScales MS) (gap k) N) := by
+  classical
+  let lo : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).lower
+  let hi : Fin (b * sl) → ℕ := fun i =>
+    (MS.primeStage.pool N (pkgB2_repGap gap i)).upper
+  let loBlock : Fin b → ℕ := fun k => (MS.primeStage.pool N (gap k)).lower
+  let hiBlock : Fin b → ℕ := fun k => (MS.primeStage.pool N (gap k)).upper
+  let G : ∀ k : Fin b, (Fin sl → ℕ) → Prop := fun k q =>
+    (T k).Good (corrScales MS) (gap k) N
+      (fun j => q ((Classical.choose (hT k)) j))
+  have hlo : ∀ k j, lo (pkgB2_replicaEmbedding k j) = loBlock k := by
+    intro k j
+    change (MS.primeStage.pool N
+      (gap ((finProdFinEquiv (m := b) (n := sl)).symm
+        (finProdFinEquiv (m := b) (n := sl) (k, j))).1)).lower = _
+    rw [(finProdFinEquiv (m := b) (n := sl)).symm_apply_apply (k, j)]
+  have hhi : ∀ k j, hi (pkgB2_replicaEmbedding k j) = hiBlock k := by
+    intro k j
+    change (MS.primeStage.pool N
+      (gap ((finProdFinEquiv (m := b) (n := sl)).symm
+        (finProdFinEquiv (m := b) (n := sl) (k, j))).1)).upper = _
+    rw [(finProdFinEquiv (m := b) (n := sl)).symm_apply_apply (k, j)]
+  let M := ∑ i : Fin (b * sl), hi i
+  have hboundFull : ∀ i, hi i ≤ M := by
+    intro i
+    dsimp [M]
+    exact Finset.single_le_sum (fun j hj => Nat.zero_le (hi j)) (Finset.mem_univ i)
+  have hboundBlock : ∀ k, hiBlock k ≤ M := by
+    intro k
+    let j0 : Fin sl := ⟨0, hsl⟩
+    rw [← hhi k j0]
+    exact hboundFull (pkgB2_replicaEmbedding k j0)
+  have hproject (p : Fin (b * sl) → ℕ) (k : Fin b) :
+      pkgB2_repPrimeProject hT p k =
+        fun j => p (pkgB2_replicaEmbedding k ((Classical.choose (hT k)) j)) := by
+    funext j
+    rfl
+  have hfullEvent :
+      (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+        (pkgB2_repPrimeProject hT p k)) =
+      (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j))) := by
+    funext p
+    apply propext
+    apply forall_congr'
+    intro k
+    rw [hproject p k]
+  have hfactor := pkgB2_independentPrimePoolProbability_blockFactor
+    lo hi loBlock hiBlock hlo hhi ⟨hboundFull, hboundBlock⟩ G
+  have hmarginal (k : Fin b) :
+      independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+          (fun _ => hiBlock k) (G k) =
+        gapSlotProbability (corrScales MS) (gap k) N
+          ((T k).Good (corrScales MS) (gap k) N) := by
+    have h := independentPrimePoolProbability_iid_marginal
+      (loBlock k) (hiBlock k) (hpool k) (Classical.choose (hT k))
+      ((T k).Good (corrScales MS) (gap k) N)
+    simpa [G, loBlock, hiBlock, gapSlotProbability, corrScales] using h.symm
+  calc
+    independentPrimePoolProbability lo hi
+        (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+          (pkgB2_repPrimeProject hT p k)) =
+      independentPrimePoolProbability lo hi
+        (fun p => ∀ k, G k (fun j => p (pkgB2_replicaEmbedding k j))) := by
+          rw [hfullEvent]
+    _ = ∏ k, independentPrimePoolProbability (fun _ : Fin sl => loBlock k)
+          (fun _ => hiBlock k) (G k) := hfactor
+    _ = _ := by
+      apply Finset.prod_congr rfl
+      intro k hk
+      exact hmarginal k
+
+private theorem pkgB2_repGoodProbability_lower_eventually {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (hT : ∀ k, Allowed Dm (T k)) (hsl : 0 < sl) :
+    ∀ᶠ N : ℕ in atTop,
+      (1 / 2 : ℝ) ^ b ≤ independentPrimePoolProbability
+        (fun i : Fin (b * sl) =>
+          (MS.primeStage.pool N (pkgB2_repGap gap i)).lower)
+        (fun i => (MS.primeStage.pool N (pkgB2_repGap gap i)).upper)
+        (fun p => ∀ k, (T k).Good (corrScales MS) (gap k) N
+          (pkgB2_repPrimeProject hT p k)) := by
+  have hgood (k : Fin b) : ∀ᶠ N : ℕ in atTop,
+      (1 / 2 : ℝ) < gapSlotProbability (corrScales MS) (gap k) N
+        ((T k).Good (corrScales MS) (gap k) N) := by
+    have hlim := good_probability_tendsto_one MS (T k) (hT k) (gap k)
+    exact hlim.eventually (Ioi_mem_nhds (by norm_num))
+  have hpoolPos (k : Fin b) : ∀ᶠ N : ℕ in atTop,
+      0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+        (MS.primeStage.pool N (gap k)).upper := by
+    have hratio := MS.primeStage.pool_harmonic_mass_dominates (gap k) 1 (by norm_num)
+    have hlarge : ∀ᶠ N : ℕ in atTop,
+        1 ≤ primePoolMass (MS.primeStage.pool N (gap k)).lower
+          (MS.primeStage.pool N (gap k)).upper /
+            (masterScaleV MS.core.parameters N (gap k) : ℝ) := by
+      simpa [pow_one] using hratio.eventually_ge_atTop (1 : ℝ)
+    filter_upwards [hlarge] with N hN
+    have hVpos : 0 < (masterScaleV MS.core.parameters N (gap k) : ℝ) := by
+      unfold masterScaleV
+      positivity
+    have hmass := (le_div_iff₀ hVpos).mp hN
+    have hmassPos :
+        0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+          (MS.primeStage.pool N (gap k)).upper := by
+      linarith
+    exact hmassPos
+  have hgoodAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      (1 / 2 : ℝ) < gapSlotProbability (corrScales MS) (gap k) N
+        ((T k).Good (corrScales MS) (gap k) N) := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => hgood k)
+    simpa using h
+  have hpoolAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      0 < primePoolMass (MS.primeStage.pool N (gap k)).lower
+        (MS.primeStage.pool N (gap k)).upper := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => hpoolPos k)
+    simpa using h
+  filter_upwards [hgoodAll, hpoolAll] with N hgoodN hpoolN
+  have hfactor := pkgB2_repGoodProbability_eq_product MS gap T hT hsl N hpoolN
+  rw [hfactor]
+  calc
+    (1 / 2 : ℝ) ^ b = ∏ k : Fin b, (1 / 2 : ℝ) := by simp
+    _ ≤ ∏ k : Fin b, gapSlotProbability (corrScales MS) (gap k) N
+          ((T k).Good (corrScales MS) (gap k) N) := by
+        apply Finset.prod_le_prod₀
+        · intro k hk
+          norm_num
+        · intro k hk
+          exact le_of_lt (hgoodN k)
+
 theorem pkgB2_uniformUnitTupleProbability_exists_le {α : Type*} {Q m : ℕ}
     (s : Finset α) (E : α → (Fin m → Fin Q) → Prop) :
     uniformUnitTupleProbability Q m (fun x => ∃ a ∈ s, E a x) ≤
@@ -2418,6 +2772,67 @@ noncomputable def pkgB2_baseRegular {K sl b : ℕ} {As : Finset ℚ}
   (∀ k, (T k).Good (corrScales MS) (gap k) N (pkgB2_repPrimeProject hT p k)) ∧
   (∀ k, 0 < pkgB2_shiftLength MS T J0 gap hT N p k) ∧
   (∀ k, 0 < pkgB2_translationLength MS T J0 gap k N)
+
+private theorem pkgB2_baseRegular_of_allGood_eventually {K sl b : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (gap : Fin b → Fin K)
+    (T : Fin b → CubeTemplate) (J0 : Fin b → ℕ)
+    (hgap : ∀ k, ValidGap B (gap k)) (hT : ∀ k, Allowed Dm (T k))
+    (hJ0 : ∀ k, 0 < J0 k) :
+    ∀ᶠ N : ℕ in atTop, ∀ p : Fin (b * sl) → ℕ,
+      (∀ k, (T k).Good (corrScales MS) (gap k) N (pkgB2_repPrimeProject hT p k)) →
+        pkgB2_baseRegular MS B T J0 gap hT N p := by
+  have hshift (k : Fin b) :
+      ∀ᶠ N : ℕ in atTop,
+        (pkgB2_blockScale MS.core.parameters B N) ^ 1 ≤
+          pkgB2_momentShiftLengthLower MS (gap k) (T k) (J0 k) N :=
+    pkgB2_shiftLengthFloor_ge_blockScale_pow MS B T J0 gap hgap hJ0 k 1
+  have htrans (k : Fin b) :
+      ∀ᶠ N : ℕ in atTop,
+        (pkgB2_blockScale MS.core.parameters B N) ^ 1 ≤
+          pkgB2_translationLength MS T J0 gap k N := by
+    simpa [pkgB2_translationLength] using
+      (pkgB2_translationLength_ge_blockScale_pow MS B T J0 gap hgap hJ0 k 1)
+  have hshiftAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      (pkgB2_blockScale MS.core.parameters B N) ^ 1 ≤
+        pkgB2_momentShiftLengthLower MS (gap k) (T k) (J0 k) N := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => hshift k)
+    simpa using h
+  have htransAll : ∀ᶠ N : ℕ in atTop, ∀ k : Fin b,
+      (pkgB2_blockScale MS.core.parameters B N) ^ 1 ≤
+        pkgB2_translationLength MS T J0 gap k N := by
+    have h := (eventually_all_finset (Finset.univ : Finset (Fin b))).2
+      (fun k _ => htrans k)
+    simpa using h
+  filter_upwards [hshiftAll, htransAll] with N hshiftN htransN
+  intro p hpGood
+  refine ⟨hpGood, ?_, ?_⟩
+  · intro k
+    have hactual := pkgB2_shiftLengthFloor_le_actual MS T J0 gap hJ0 N
+      (fun k => pkgB2_repPrimeProject hT p k) hpGood k
+    have hV : 1 ≤ pkgB2_blockScale MS.core.parameters B N := by
+      dsimp [pkgB2_blockScale]
+      omega
+    have hfloor : 0 <
+        pkgB2_momentShiftLengthLower MS (gap k) (T k) (J0 k) N := by
+      have hk := hshiftN k
+      have hk' : pkgB2_blockScale MS.core.parameters B N ≤
+          pkgB2_momentShiftLengthLower MS (gap k) (T k) (J0 k) N := by
+        simpa only [pow_one] using hk
+      exact lt_of_lt_of_le (Nat.zero_lt_one.trans_le hV) hk'
+    change 0 < (T k).length (corrScales MS) (gap k) (J0 k) N
+      (pkgB2_repPrimeProject hT p k)
+    exact lt_of_lt_of_le hfloor hactual
+  · intro k
+    have hk := htransN k
+    have hV : 1 ≤ pkgB2_blockScale MS.core.parameters B N := by
+      dsimp [pkgB2_blockScale]
+      omega
+    have hk' : pkgB2_blockScale MS.core.parameters B N ≤
+        pkgB2_translationLength MS T J0 gap k N := by
+      simpa only [pow_one] using hk
+    exact lt_of_lt_of_le (Nat.zero_lt_one.trans_le hV) hk'
 
 noncomputable def pkgB2_baseCoordinateLaw {K sl b : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
