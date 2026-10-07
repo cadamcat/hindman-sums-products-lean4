@@ -4877,8 +4877,117 @@ private theorem localKernel_exceptionalExcess_bound {p A q d : ℕ}
         rw [← htermVal]
         nlinarith [htermLE]
 
+private theorem globalKernelPrimeProduct_bound {K q d : ℕ}
+    (σ : Fin q → ℕ) (hσ : ∀ u, σ u ≠ 0) (hK : K ≠ 0)
+    (hdiv : ∀ u, σ u ∣ K) (coeff : Fin q → Fin d → ZMod K)
+    (P : Finset ℕ) (hP : K.primeFactors ⊆ P) (beta : ℕ → ℝ)
+    (hbeta : ∀ p ∈ P, 0 ≤ beta p)
+    [DecidableEq (primePowerIndex K)] [Fintype (primePowerIndex K)]
+    [Fintype (Multiplicative (Fin d → ZMod K))]
+    [Fintype (Multiplicative ((u : Fin q) → ZMod (σ u)))]
+    [∀ p : primePowerIndex K,
+      Fintype (Multiplicative (Fin d → ZMod (p.val ^ K.factorization p.val)))]
+    [∀ p : primePowerIndex K,
+      Fintype (Multiplicative ((u : Fin q) →
+        ZMod (p.val ^ (σ u).factorization p.val)))]
+    (hlower : ∀ p : primePowerIndex K, 1 ≤ normalizedKernelCount
+      (localDivisibilityGroupHom
+        (fun u => (σ u).factorization p.val)
+        (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+        (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p)))
+    (hupper : ∀ p : primePowerIndex K,
+      normalizedKernelCount
+        (localDivisibilityGroupHom
+          (fun u => (σ u).factorization p.val)
+          (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+          (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p)) ≤
+        1 + beta p.val) :
+    normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative ≤
+      ∏ p ∈ P, (1 + beta p) := by
+  classical
+  let localAlpha (p : primePowerIndex K) : ℝ := normalizedKernelCount
+    (localDivisibilityGroupHom
+      (fun u => (σ u).factorization p.val)
+      (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+      (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p))
+  have hfactor : normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative =
+      ∏ p : primePowerIndex K, localAlpha p := by
+    change normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative =
+      ∏ p : primePowerIndex K, normalizedKernelCount
+        (localDivisibilityGroupHom
+          (fun u => (σ u).factorization p.val)
+          (fun u => ((Nat.factorization_le_iff_dvd (hσ u) hK).2 (hdiv u)) p.val)
+          (fun u j => (primePowerCRTRingEquiv K hK (coeff u j)) p))
+    exact globalDivisibility_normalizedKernelCount_factor σ hσ hK hdiv coeff
+  have hlocalProd :
+      (∏ p : primePowerIndex K, localAlpha p) ≤
+        ∏ p : primePowerIndex K, (1 + beta p.val) := by
+    apply finset_prod_le_prod_of_nonneg Finset.univ localAlpha (fun p => 1 + beta p.val)
+    · intro p hp
+      have hlow : 1 ≤ localAlpha p := by simpa [localAlpha] using hlower p
+      exact le_trans (by norm_num : (0 : ℝ) ≤ 1) hlow
+    · intro p hp
+      exact add_nonneg (by norm_num) (hbeta p.val (hP p.property))
+    · intro p hp
+      simpa [localAlpha] using hupper p
+  have hsubtype :
+      (∏ p : primePowerIndex K, (1 + beta p.val)) =
+        ∏ p ∈ K.primeFactors, (1 + beta p) := by
+    simpa [primePowerIndex] using
+      (Finset.prod_subtype (p := fun p : ℕ => p ∈ K.primeFactors)
+        (F := (inferInstance : Fintype (primePowerIndex K)))
+        (s := K.primeFactors) (h := fun p : ℕ => Iff.rfl)
+        (f := fun p : ℕ => 1 + beta p)).symm
+  let extendedFactor : ℕ → ℝ := fun p => if p ∈ K.primeFactors then 1 + beta p else 1
+  have hfull : (∏ p ∈ K.primeFactors, (1 + beta p)) ≤
+      ∏ p ∈ P, (1 + beta p) := by
+    have hleft : (∏ p ∈ K.primeFactors, (1 + beta p)) =
+        ∏ p ∈ K.primeFactors, extendedFactor p := by
+      apply Finset.prod_congr rfl
+      intro p hp
+      change 1 + beta p = extendedFactor p
+      unfold extendedFactor
+      rw [if_pos hp]
+    have hsubset : (∏ p ∈ K.primeFactors, extendedFactor p) =
+        ∏ p ∈ P, extendedFactor p := by
+      exact Finset.prod_subset hP (by
+        intro p hpP hpNot
+        dsimp [extendedFactor]
+        exact if_neg hpNot)
+    have hright : (∏ p ∈ P, extendedFactor p) ≤
+        ∏ p ∈ P, (1 + beta p) := by
+      exact finset_prod_le_prod_of_nonneg P extendedFactor (fun p => 1 + beta p)
+        (by
+          intro p hp
+          dsimp [extendedFactor]
+          split_ifs with hpK
+          · exact add_nonneg (by norm_num) (hbeta p hp)
+          · norm_num)
+        (by intro p hp; exact add_nonneg (by norm_num) (hbeta p hp))
+        (by
+          intro p hp
+          by_cases hpK : p ∈ K.primeFactors
+          · dsimp [extendedFactor]
+            rw [if_pos hpK]
+          · dsimp [extendedFactor]
+            rw [if_neg hpK]
+            exact le_add_of_nonneg_right (hbeta p hp))
+    calc
+      (∏ p ∈ K.primeFactors, (1 + beta p)) =
+          ∏ p ∈ K.primeFactors, extendedFactor p := hleft
+      _ = ∏ p ∈ P, extendedFactor p := hsubset
+      _ ≤ ∏ p ∈ P, (1 + beta p) := hright
+  have hmid : normalizedKernelCount (globalDivisibilityAddHom σ hdiv coeff).toMultiplicative ≤
+      ∏ p : primePowerIndex K, (1 + beta p.val) := by
+    rw [hfactor]
+    exact hlocalProd
+  rw [hsubtype] at hmid
+  exact hmid.trans hfull
+
+set_option maxHeartbeats 1000000 in
 private theorem uniformBaseKernelCount_eq_normalizedKernelCount {K q d : ℕ}
-    (hK : 0 < K) (σ : Fin q → ℕ) (hσ : ∀ u, 0 < σ u)
+    (hK : 0 < K) [NeZero K] (σ : Fin q → ℕ) (hσ : ∀ u, 0 < σ u)
+    [∀ u, NeZero (σ u)]
     (hKprod : ∏ u, σ u = K) (hdiv : ∀ u, σ u ∣ K)
     (coeff : Fin q → Fin d → ZMod K) :
     (∑ r : Fin d → Fin K,
@@ -4958,13 +5067,14 @@ private theorem uniformBaseKernelCount_eq_normalizedKernelCount {K q d : ℕ}
                   apply Finset.sum_congr rfl
                   intro r hr
                   by_cases hgood : good r <;> simp [hgood] <;> ring
-            _ = _ := by rw [← Finset.mul_sum]; ring
+            _ = _ := by rw [← Finset.mul_sum]
     _ = (Fintype.card (Multiplicative ((u : Fin q) → ZMod (σ u))) : ℝ) *
           ((Fintype.card f.ker : ℝ) / (Fintype.card
             (Multiplicative (Fin d → ZMod K)) : ℝ)) := by
           rw [hcount, hcardH, hcardG]
           ring
-    _ = normalizedKernelCount f := rfl
+    _ = normalizedKernelCount f := by
+      simp [normalizedKernelCount, localKernelProbability]
 
 
 theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
