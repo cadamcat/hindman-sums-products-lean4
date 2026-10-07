@@ -422,6 +422,175 @@ private noncomputable def pkgB2_piSplitAt {α : Type*} [Fintype α] [DecidableEq
       simp [hne]
     · simp
 
+private noncomputable def pkgB2_piSupportSplitAt {α : Type*} [Fintype α]
+    [DecidableEq α] (a : α) (win : α → Finset ℤ) :
+    {x : α → ℤ // x ∈ Fintype.piFinset win} ≃
+      ({x : pkgB2_PiExcept a → ℤ //
+          x ∈ Fintype.piFinset (fun i : pkgB2_PiExcept a => win i.1)} ×
+        {z : ℤ // z ∈ win a}) where
+  toFun x :=
+    (⟨(pkgB2_piSplitAt a x.1).1,
+      Fintype.mem_piFinset.mpr (fun i => (Fintype.mem_piFinset.mp x.2) i.1)⟩,
+      ⟨(pkgB2_piSplitAt a x.1).2, Fintype.mem_piFinset.mp x.2 a⟩)
+  invFun z := ⟨(pkgB2_piSplitAt a).symm (z.1.1, z.2.1), by
+    apply Fintype.mem_piFinset.mpr
+    intro i
+    by_cases hi : i = a
+    · subst i
+      simpa [pkgB2_piSplitAt] using z.2.2
+    · let iRest : pkgB2_PiExcept a :=
+        ⟨i, Finset.mem_erase.mpr ⟨hi, Finset.mem_univ i⟩⟩
+      have hmem := Fintype.mem_piFinset.mp z.1.2 iRest
+      simpa [pkgB2_piSplitAt, hi, iRest] using hmem⟩
+  left_inv := by
+    intro x
+    apply Subtype.ext
+    exact (pkgB2_piSplitAt a).symm_apply_apply x.1
+  right_inv := by
+    intro z
+    have h := (pkgB2_piSplitAt a).apply_symm_apply (z.1.1, z.2.1)
+    apply Prod.ext
+    · apply Subtype.ext
+      funext i
+      exact congrFun (congrArg Prod.fst h) i
+    · apply Subtype.ext
+      exact congrArg Prod.snd h
+
+private theorem pkgB2_productLaw_tsum_splitAt {α : Type*} [Fintype α]
+    [DecidableEq α] (a : α) (law : α → ℤ → ℝ) (win : α → Finset ℤ)
+    (hzero : ∀ i z, z ∉ win i → law i z = 0) (F : (α → ℤ) → ℝ) :
+    (∑' x : α → ℤ, (∏ i, law i (x i)) * F x) =
+      ∑' xr : pkgB2_PiExcept a → ℤ,
+        (∏ i : pkgB2_PiExcept a, law i.1 (xr i)) *
+          ∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) := by
+  classical
+  let Full : Finset (α → ℤ) := Fintype.piFinset win
+  let Rest : Finset (pkgB2_PiExcept a → ℤ) :=
+    Fintype.piFinset (fun i : pkgB2_PiExcept a => win i.1)
+  let Selected : Finset ℤ := win a
+  let e := pkgB2_piSupportSplitAt a win
+  let restLaw (xr : pkgB2_PiExcept a → ℤ) : ℝ :=
+    ∏ i : pkgB2_PiExcept a, law i.1 (xr i)
+  have hfullWeightZero (x : α → ℤ) (hx : x ∉ Full) :
+      ∏ i, law i (x i) = 0 := by
+    have hnot : ¬ ∀ i, x i ∈ win i := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hzero i (x i) (by simpa using hi))
+  have hrestWeightZero (xr : pkgB2_PiExcept a → ℤ) (hx : xr ∉ Rest) :
+      restLaw xr = 0 := by
+    have hnot : ¬ ∀ i : pkgB2_PiExcept a, xr i ∈ win i.1 := by
+      intro hall
+      exact hx (Fintype.mem_piFinset.mpr hall)
+    obtain ⟨i, hi⟩ := not_forall.mp hnot
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (hzero i.1 (xr i) hi)
+  have hfullTermZero (x : α → ℤ) (hx : x ∉ Full) :
+      (∏ i, law i (x i)) * F x = 0 := by rw [hfullWeightZero x hx]; simp
+  have hselectedTermZero (xr : pkgB2_PiExcept a → ℤ) (z : ℤ) (hz : z ∉ Selected) :
+      law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) = 0 := by
+    rw [hzero a z (by simpa [Selected] using hz)]
+    simp
+  have hselectedTsum (xr : pkgB2_PiExcept a → ℤ) :
+      (∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z))) =
+        ∑ z ∈ Selected, law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) :=
+    tsum_eq_sum (s := Selected) (hselectedTermZero xr)
+  have hrestTermZero (xr : pkgB2_PiExcept a → ℤ) (hx : xr ∉ Rest) :
+      restLaw xr *
+        (∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z))) = 0 := by
+    rw [hrestWeightZero xr hx]
+    simp
+  have hprodLaw (x : α → ℤ) :
+      (∏ i, law i (x i)) =
+        restLaw (fun i : pkgB2_PiExcept a => x i.1) * law a (x a) := by
+    calc
+      ∏ i : α, law i (x i) =
+          (∏ i ∈ (Finset.univ : Finset α).erase a, law i (x i)) * law a (x a) :=
+            (Finset.prod_erase_mul (s := (Finset.univ : Finset α))
+              (f := fun i => law i (x i)) (a := a) (Finset.mem_univ a)).symm
+      _ = restLaw (fun i : pkgB2_PiExcept a => x i.1) * law a (x a) := by
+            have hrest : restLaw (fun i : pkgB2_PiExcept a => x i.1) =
+                ∏ i ∈ (Finset.univ : Finset α).erase a, law i (x i) := by
+              change (∏ i : {i : α // i ∈ (Finset.univ : Finset α).erase a},
+                law i.1 (x i.1)) = _
+              exact (Finset.prod_subtype ((Finset.univ : Finset α).erase a)
+                (by intro i; rfl) (fun i => law i (x i))).symm
+            rw [← hrest]
+  have hfinite :
+      (∑ x ∈ Full, (∏ i, law i (x i)) * F x) =
+        ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+          restLaw xr.1 * ∑ z ∈ Selected,
+            law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by
+    let eSub := pkgB2_piSupportSplitAt a win
+    have hattach : (∑ x ∈ Full, (∏ i, law i (x i)) * F x) =
+        ∑ x : {x : α → ℤ // x ∈ Full}, (∏ i, law i (x.1 i)) * F x.1 := by
+      rw [← Finset.sum_attach]
+      simp
+    calc
+      _ = ∑ x : {x : α → ℤ // x ∈ Full}, (∏ i, law i (x.1 i)) * F x.1 := hattach
+      _ = ∑ z : ({xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest} × {z : ℤ // z ∈ Selected}),
+            restLaw z.1.1 * law a z.2.1 * F (eSub.symm z).1 := by
+              apply Fintype.sum_equiv eSub
+              intro x
+              have hprod := hprodLaw x.1
+              have hF : F (eSub.symm (eSub x)).1 = F x.1 :=
+                congrArg (fun z => F z.1) (eSub.symm_apply_apply x)
+              calc
+                (∏ i, law i (x.1 i)) * F x.1 =
+                    (restLaw (fun i : pkgB2_PiExcept a => x.1 i.1) *
+                      law a (x.1 a)) * F (eSub.symm (eSub x)).1 := by
+                        rw [hprod, hF]
+                _ = restLaw (eSub x).1.1 * law a (eSub x).2.1 * F (eSub.symm (eSub x)) := by
+                        simp [eSub, pkgB2_piSupportSplitAt, pkgB2_piSplitAt, restLaw]
+      _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+            restLaw xr.1 * ∑ z : {z : ℤ // z ∈ Selected},
+              law a z.1 * F (eSub.symm (xr, z)).1 := by
+              rw [Fintype.sum_prod_type]
+              apply Finset.sum_congr rfl
+              intro xr hxr
+              rw [Finset.mul_sum]
+              apply Finset.sum_congr rfl
+              intro z hz
+              ring
+      _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+            restLaw xr.1 * ∑ z ∈ Selected,
+              law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by
+              apply Finset.sum_congr rfl
+              intro xr hxr
+              congr 1
+              have hvalues :
+                  (∑ z : {z : ℤ // z ∈ Selected},
+                    law a z.1 * F (eSub.symm (xr, z)).1) =
+                    ∑ z : {z : ℤ // z ∈ Selected},
+                      law a z.1 * F ((pkgB2_piSplitAt a).symm (xr.1, z.1)) := by
+                apply Finset.sum_congr rfl
+                intro z hz
+                rfl
+              calc
+                _ = ∑ z : {z : ℤ // z ∈ Selected},
+                    law a z.1 * F ((pkgB2_piSplitAt a).symm (xr.1, z.1)) := hvalues
+                _ = ∑ z ∈ Selected,
+                    law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by
+                      conv_rhs => rw [← Finset.sum_attach]
+                      simp
+      _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+            restLaw xr.1 * ∑ z ∈ Selected,
+              law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := by rfl
+  calc
+    _ = ∑ x ∈ Full, (∏ i, law i (x i)) * F x :=
+          tsum_eq_sum (s := Full) hfullTermZero
+    _ = ∑ xr : {xr : pkgB2_PiExcept a → ℤ // xr ∈ Rest},
+          restLaw xr.1 * ∑ z ∈ Selected,
+            law a z * F ((pkgB2_piSplitAt a).symm (xr.1, z)) := hfinite
+    _ = ∑' xr : pkgB2_PiExcept a → ℤ,
+          restLaw xr * ∑' z : ℤ, law a z * F ((pkgB2_piSplitAt a).symm (xr, z)) := by
+          rw [tsum_eq_sum (s := Rest) (fun xr hx => hrestTermZero xr hx)]
+          conv_rhs => rw [← Finset.sum_attach]
+          simp
+          apply Finset.sum_congr rfl
+          intro xr hxr
+          rw [← hselectedTsum xr.1]
+
 theorem pkgB2_weightedShiftStateStep {α β : Type u} [Fintype α]
     [DecidableEq α] [Fintype β] (E : Finset α) (R : α) (hR : R ∉ E)
     (μ : β → ℝ) (L : β → ℕ) (hL : ∀ b, 0 < L b)
