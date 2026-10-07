@@ -4,6 +4,8 @@ import HindmanSumsProducts.Correlation.PkgMask
 import HindmanSumsProducts.Correlation.PkgElim
 import HindmanSumsProducts.Correlation.PkgElim2
 import HindmanSumsProducts.Correlation.PkgVarS
+import HindmanSumsProducts.Correlation.PkgRootS
+import HindmanSumsProducts.Correlation.PkgRows
 
 /-! Helpers of lane `opus-corr` for the weighted Cauchy–Schwarz part of additive elimination
 (04:442–509): the box integrands `Φ_E`, the averaging identities over one shift coordinate, and
@@ -938,6 +940,225 @@ theorem opus_corr_elimPhi_empty (S : FromArithmetic.MasterScales K Aset s Dm)
     rfl
 
 end Concrete
+
+
+/-! ## The initial translation and the prefactors -/
+
+section Transfers
+
+variable {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+
+/-- Elimination averages only see good tuples and integer pivots. -/
+theorem opus_corr_elimAvg_congr_good (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) {Sh : RowShape m q r} (dirs : RowDirections Sh)
+    (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (F G : (Fin q → ℕ) → (Fin m → ℚ) → (NonTarget Sh → Fin 2 → ℕ) → ℝ)
+    (h : ∀ p, GoodTuple S C.gap N tests dirs.poly p → ∀ z : Fin m → ℤ,
+      shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (F p (fun k => (z k : ℚ))) =
+        shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (G p (fun k => (z k : ℚ)))) :
+    eliminationAverage S C N dirs tests J0 F = eliminationAverage S C N dirs tests J0 G := by
+  unfold eliminationAverage goodSlotAverage
+  congr 1
+  apply tsum_congr
+  intro p
+  congr 1
+  split_ifs with hg
+  · congr 1
+    apply tsum_congr
+    intro z
+    congr 1
+    exact h p hg z
+  · rfl
+
+theorem opus_corr_shiftAverage_congr_box {ι : Type*} [Fintype ι] [DecidableEq ι] (L : ℕ)
+    (F G : (ι → Fin 2 → ℕ) → ℝ) (h : ∀ u ∈ opus_corr_box L, F u = G u) :
+    shiftAverage ι L F = shiftAverage ι L G := by
+  rw [opus_corr_shiftAverage_eq_box, opus_corr_shiftAverage_eq_box, Finset.sum_congr rfl h]
+
+/-- Shift assignments clamped into `[0,L)`. -/
+def opus_corr_clamp {ι : Type*} (L : ℕ) (u : ι → Fin 2 → ℕ) : ι → Fin 2 → ℕ :=
+  fun R b => min (u R b) (L - 1)
+
+theorem opus_corr_clamp_of_mem_box {ι : Type*} [Fintype ι] [DecidableEq ι] {L : ℕ}
+    {u : ι → Fin 2 → ℕ} (hu : u ∈ opus_corr_box L) : opus_corr_clamp L u = u := by
+  simp only [opus_corr_box, Fintype.mem_piFinset, Finset.mem_range] at hu
+  funext R b
+  unfold opus_corr_clamp
+  have := hu R b
+  omega
+
+/-- The goodness and shift-length facts used by every transfer. -/
+theorem opus_corr_elim_setup {m q r : ℕ} (Sh : RowShape m q r) (dirs : RowDirections Sh)
+    (hdirs : dirs.Valid) (tests : Finset (IntegerPolynomial q))
+    (htests : ∀ P ∈ tests, P ≠ 0) (hdt : dirs.tests ⊆ tests) :
+    ∃ B : ℕ, ∀ {K s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+      (S : FromArithmetic.MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s), TestsListed Dm ι tests →
+    ∀ (C : MasterChain K m) (a : Fin m → ℚ), (∀ d, a d ∈ Aset) →
+    ∀ J0 : ℕ, 0 < J0 → ∀ᶠ N in atTop,
+      0 < gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly) ∧
+      (∀ p, GoodTuple S C.gap N tests dirs.poly p →
+        IntegerDirectionFacts S C a N dirs tests B p) ∧
+      (∀ p, GoodTuple S C.gap N tests dirs.poly p →
+        0 < shiftLength S C.gap J0 N dirs.poly p) := by
+  obtain ⟨B, hcore⟩ := row_directions_integer_core Sh dirs hdirs tests htests hdt
+  refine ⟨B, ?_⟩
+  intro K s Aset Dm S ι hlisted C a ha J0 hJ0
+  obtain ⟨hbad, _, hfacts⟩ := hcore S ι hlisted C a ha
+  have hgood := gapSlotProbability_tendsto_one_of_bad S C.gap
+    (fun N p => GoodTuple S C.gap N tests dirs.poly p) hbad
+  have hpos : ∀ᶠ N in atTop,
+      0 < gapSlotProbability S C.gap N (GoodTuple S C.gap N tests dirs.poly) :=
+    hgood.eventually (Ioi_mem_nhds (by norm_num : (0 : ℝ) < 1))
+  have hmod : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      directionModulus S N dirs.poly p ≤
+        ((S.primeStage.pool N C.gap).upper +
+          FromArithmetic.masterScaleV S.core.parameters N C.gap) ^ B := by
+    filter_upwards [hfacts] with N hN p hp
+    exact (hN p hp).2.2.1
+  have hlower := shiftLength_lower_pow_of_modulus_bound S C J0 B q hJ0 dirs tests hmod
+  have hlen : ∀ᶠ N in atTop, ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      0 < shiftLength S C.gap J0 N dirs.poly p := by
+    filter_upwards [hlower] with N hN p hp
+    have hV : 2 ≤ FromArithmetic.masterScaleV S.core.parameters N C.gap := by
+      unfold FromArithmetic.masterScaleV
+      omega
+    have hT : 1 ≤ (S.primeStage.pool N C.gap).upper +
+        FromArithmetic.masterScaleV S.core.parameters N C.gap := by omega
+    exact lt_of_lt_of_le Nat.zero_lt_one
+      ((Nat.one_le_pow q _ hT).trans (hN p hp))
+  filter_upwards [hpos, hfacts, hlen] with N h1 h2 h3
+  exact ⟨h1, h2, h3⟩
+
+theorem opus_corr_atQ_abs_le_one_add_V (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (g : ℤ → ℝ)
+    (hg : ∀ y, |g y| ≤ 1 + chainWeight S.core.parameters C N d y) (x : ℚ) :
+    |atQ g x| ≤ 1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ) := by
+  have hb := sol_root_atQ_weight_bounds S C N d x
+  have : |atQ g x| ≤ 1 + atQ (chainWeight S.core.parameters C N d) x := by
+    unfold atQ
+    split_ifs
+    · exact hg _
+    · simp
+  linarith [hb.2]
+
+/-- The per-tuple initial translation: averaging over the pivots, the product of all rows at
+`z+∑_Ru_R^0v_R` differs from the product at `z` by the pivot sampling error (04:442–452). -/
+theorem opus_corr_initial_pivot_step (S : FromArithmetic.MasterScales K Aset s Dm)
+    (C : MasterChain K m) (a : Fin m → ℚ) (N B J0 : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hf : ∀ R p y, |f R p y| ≤ 1 + chainWeight S.core.parameters C N (Sh.row R).anchor y)
+    (p : Fin q → ℕ) (hfacts : IntegerDirectionFacts S C a N dirs tests B p)
+    (u : NonTarget Sh → Fin 2 → ℕ) :
+    |(∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+        pivotMass S.core.parameters C N z.1 *
+          opus_corr_elimPhi (opus_corr_cT S C a N dirs f) (opus_corr_cA S C a N dirs f)
+            (opus_corr_cW S C a N dirs) ∅
+            (p, (fun k => (z.1 k : ℚ)),
+              opus_corr_clamp (shiftLength S C.gap J0 N dirs.poly p) u)) -
+      ∑ z : {z : Fin m → ℤ // z ∈ c_elim2_pivotSupport S.core.parameters C N},
+        pivotMass S.core.parameters C N z.1 *
+          ∏ J : Fin r, atQ (f J p) (rowForm (chainScale S.core.parameters C a N) (Sh.row J) p
+            (fun k => (z.1 k : ℚ)))| ≤
+      (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) ^ r *
+        (m : ℝ) * sol_root_error S C N (Fintype.card (NonTarget Sh)) B := by
+  classical
+  let c := chainScale S.core.parameters C a N
+  let Mp := directionModulus S N dirs.poly p
+  let L := shiftLength S C.gap J0 N dirs.poly p
+  let H := S.core.parameters.H N C.gap
+  let T := (S.primeStage.pool N C.gap).upper + FromArithmetic.masterScaleV S.core.parameters N C.gap
+  let d := Fintype.card (NonTarget Sh)
+  let u' := opus_corr_clamp L u
+  have hdir := hfacts.1
+  let vi : NonTarget Sh → Fin m → ℤ := fun R k => Classical.choose (hdir R.1 k R.2)
+  have hvi (R : NonTarget Sh) (k : Fin m) : (vi R k : ℚ) = dirs.translation c Mp p R.1 k ∧
+      (primorial (N + 1) : ℤ) ∣ vi R k ∧ (vi R k).natAbs ≤ T ^ B :=
+    Classical.choose_spec (hdir R.1 k R.2)
+  let shift : Fin m → ℤ := fun k => ∑ R : NonTarget Sh, (u' R 0 : ℤ) * vi R k
+  have hshiftq (k : Fin m) : (shift k : ℚ) =
+      ∑ R : NonTarget Sh, (u' R 0 : ℚ) * dirs.translation c Mp p R.1 k := by
+    simp only [shift, Int.cast_sum, Int.cast_mul, Int.cast_natCast]
+    apply Finset.sum_congr rfl
+    intro R _
+    rw [(hvi R k).1]
+  let Ftest : (Fin m → ℤ) → ℝ := fun w =>
+    ∏ J : Fin r, atQ (f J p) (rowForm c (Sh.row J) p (fun k => (w k : ℚ)))
+  have hFtest (w : Fin m → ℤ) :
+      |Ftest w| ≤ (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) ^ r := by
+    simp only [Ftest]
+    rw [Finset.abs_prod]
+    calc
+      ∏ J : Fin r, |atQ (f J p) (rowForm c (Sh.row J) p (fun k => (w k : ℚ)))| ≤
+          ∏ _J : Fin r, (1 + (FromArithmetic.masterScaleV S.core.parameters N C.gap : ℝ)) :=
+        Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _)
+          (fun J _ => opus_corr_atQ_abs_le_one_add_V S C N _ (f J p) (hf J p) _)
+      _ = _ := by simp
+  have hpoint (z : Fin m → ℤ) :
+      opus_corr_elimPhi (opus_corr_cT S C a N dirs f) (opus_corr_cA S C a N dirs f)
+          (opus_corr_cW S C a N dirs) ∅ (p, (fun k => (z k : ℚ)), u') =
+        Ftest (fun k => z k + shift k) := by
+    rw [opus_corr_elimPhi_empty S C a N dirs tests B f p hfacts]
+    simp only [Ftest]
+    congr 1
+    funext J
+    congr 2
+    funext k
+    push_cast
+    rw [hshiftq k]
+  have hLH : L ≤ H := Nat.div_le_self _ _
+  have hshiftBound (k : Fin m) :
+      |(shift k : ℝ)| ≤ (sol_root_envelope S C N d B : ℝ) := by
+    have hterm (R : NonTarget Sh) : |((u' R 0 : ℤ) * vi R k : ℝ)| ≤ (H : ℝ) * (T : ℝ) ^ B := by
+      rw [abs_mul]
+      have hu : ((u' R 0 : ℤ) : ℝ) ≤ H := by
+        have : u' R 0 ≤ H := by
+          simp only [u', opus_corr_clamp]
+          omega
+        push_cast
+        exact_mod_cast this
+      have hv : |((vi R k : ℤ) : ℝ)| ≤ (T : ℝ) ^ B := by
+        have hnat := (hvi R k).2.2
+        have hcast : |((vi R k : ℤ) : ℝ)| = ((vi R k).natAbs : ℝ) := by
+          have hc := congrArg (fun z : ℤ => (z : ℝ)) (Int.natCast_natAbs (vi R k))
+          simpa using hc.symm
+        rw [hcast]
+        exact_mod_cast hnat
+      rw [abs_of_nonneg (by positivity)]
+      exact mul_le_mul hu hv (abs_nonneg _) (by positivity)
+    calc
+      |(shift k : ℝ)| = |∑ R : NonTarget Sh, ((u' R 0 : ℤ) * vi R k : ℝ)| := by
+        simp [shift]
+      _ ≤ ∑ R : NonTarget Sh, |((u' R 0 : ℤ) * vi R k : ℝ)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _R : NonTarget Sh, (H : ℝ) * (T : ℝ) ^ B := Finset.sum_le_sum (fun R _ => hterm R)
+      _ = (d : ℝ) * ((H : ℝ) * (T : ℝ) ^ B) := by simp [d]
+      _ ≤ (sol_root_envelope S C N d B : ℝ) := by
+        have hnat : d * (H * T ^ B) ≤ sol_root_envelope S C N d B := by
+          unfold sol_root_envelope
+          calc
+            d * (H * T ^ B) = (d * H) * T ^ B := by ring
+            _ ≤ ((d + 1) * (H + 1)) * T ^ B :=
+              Nat.mul_le_mul_right _ (Nat.mul_le_mul (Nat.le_succ d) (Nat.le_succ H))
+        exact_mod_cast hnat
+  have hdiv (k : Fin m) : ∃ v : ℤ, shift k = (primorial (N + 1) : ℤ) * v := by
+    have : (primorial (N + 1) : ℤ) ∣ shift k :=
+      Finset.dvd_sum (fun R _ => dvd_mul_of_dvd_right (hvi R k).2.1 _)
+    obtain ⟨v, hv⟩ := this
+    exact ⟨v, hv⟩
+  have hs := sol_root_pivot_translation_bound S C N d B shift hdiv hshiftBound Ftest _
+    (by positivity) hFtest
+  rw [sol_root_pivot_finite_sum, sol_root_pivot_finite_sum] at hs
+  have hpoint' (z : Fin m → ℤ) :
+      opus_corr_elimPhi (opus_corr_cT S C a N dirs f) (opus_corr_cA S C a N dirs f)
+          (opus_corr_cW S C a N dirs) ∅
+          (p, (fun k => (z k : ℚ)), opus_corr_clamp (shiftLength S C.gap J0 N dirs.poly p) u) =
+        Ftest (fun k => z k + shift k) := hpoint z
+  simp_rw [hpoint']
+  exact hs
+
+end Transfers
 
 end
 end HindmanSumsProducts
