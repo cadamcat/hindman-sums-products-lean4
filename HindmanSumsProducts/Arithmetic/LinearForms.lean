@@ -26,6 +26,11 @@ def rationalRowIntegerValue {d m : ℕ} (L : RationalLinearRow d m)
     (x : Fin d → ℤ) (p : Fin m → ℕ) : ℤ :=
   (rationalRowValue L x p).num
 
+/-- Value of a row with rational coefficients that may depend on the scale and prime tuple. -/
+def linearRowValue {q d m : ℕ} (rowCoeff : ℕ → (Fin m → ℕ) → Fin q → Fin d → ℚ)
+    (N : ℕ) (p : Fin m → ℕ) (u : Fin q) (x : Fin d → ℤ) : ℚ :=
+  ∑ j, rowCoeff N p u j * (x j : ℚ)
+
 /-- Reduction of a rational coefficient modulo a prime where its denominator is a unit. -/
 noncomputable def rationalResidue (p : ℕ) (hp : p.Prime) (r : ℚ) : ZMod p := by
   letI : Fact p.Prime := ⟨hp⟩
@@ -116,13 +121,14 @@ structure WeightedLinearFormsData {n q d b m : ℕ} {Aset : Finset ℚ}
     {tests : Finset (IntegerPolynomial m)}
     (S : MasterScales n Aset m tests) where
   gap : Fin m → Fin n
-  row : Fin q → RationalLinearRow d m
+  rowCoeff : ℕ → (Fin m → ℕ) → Fin q → Fin d → ℚ
   divisor : Fin q → DivisorTemplate n b
   V : ℕ → ℕ
   epsilonBase : ℕ → ℝ
   epsilonCRT : ℕ → ℝ
   baseMass : ℕ → (Fin m → ℕ) → (Fin d → ℤ) → ℝ
   goodDomain : ℕ → (Fin m → ℕ) → Prop
+  epsilonBase_nonnegative : ∀ N, 0 ≤ epsilonBase N
   V_lower : ∀ N, S.core.parameters.M N ≤ V N
   V_tendsto : Tendsto (fun N => V N) atTop atTop
   slot_gap_bound : ∀ N i, V N ≤ masterScaleV S.core.parameters N (gap i)
@@ -140,17 +146,21 @@ structure WeightedLinearFormsData {n q d b m : ℕ} {Aset : Finset ℚ}
         (baseMass N p))
       (uniformBaseResidueLaw (∏ u, σ u) d) ≤ epsilonBase N
   row_integer_on_support : ∀ N p x, goodDomain N p → baseMass N p x ≠ 0 →
-    ∀ u, (rationalRowValue (row u) x p).den = 1
+    ∀ u, (linearRowValue rowCoeff N p u x).den = 1
   row_denominators_are_units : ∀ N p, goodDomain N p → ∀ r (_hr : r.Prime),
     N + 1 < r → r ≤ V N → ∀ u j,
-      Nat.Coprime (rationalRowCoefficient (row u) p j).den r
+      Nat.Coprime (rowCoeff N p u j).den r
   row_primitive : ∀ N p, goodDomain N p → ∀ r (hr : r.Prime),
-    N + 1 < r → r ≤ V N → ∀ u,
-      rowPrimitiveModulo (row u) r hr p
+    N + 1 < r → r ≤ V N → ∀ u, ∃ j,
+      rationalResidue r hr (rowCoeff N p u j) ≠ 0
   pairwise_row_tests : ∀ N p, goodDomain N p → ∀ r (hr : r.Prime),
     N + 1 < r → r ≤ V N →
       (∀ Q ∈ tests, ¬ ((r : ℤ) ∣ evalIntegerPolynomial Q (fun i => (p i : ℤ)))) →
-      ∀ u v, u ≠ v → rowsIndependentModulo (row u) (row v) r hr p
+      ∀ u v, u ≠ v → ∃ i j,
+        rationalResidue r hr (rowCoeff N p u i) *
+            rationalResidue r hr (rowCoeff N p v j) ≠
+          rationalResidue r hr (rowCoeff N p u j) *
+            rationalResidue r hr (rowCoeff N p v i)
   crt_error_bound : ∀ N,
     finiteL1
       (primeTupleCRTLaw
@@ -175,7 +185,7 @@ def weightedLinearFormsAverage {n q d b m : ℕ} {Aset : Finset ℚ}
         D.baseMass N p x *
           ∏ u, nuB
             (divisorTemplateLaw S.core.parameters N (D.divisor u))
-            (rationalRowIntegerValue (D.row u) x p))
+            (linearRowValue D.rowCoeff N p u x).num)
 
 /-- Probability of a prime-only event under the independent harmonic pool slots. -/
 def weightedLinearFormsEventProbability {n q d b m : ℕ} {Aset : Finset ℚ}
@@ -455,47 +465,13 @@ private theorem harmonicNormalizer_pos_of_cutoff (X W : ℕ) (hW : 0 < W)
 factors and contributes valuation mass bounded by a polynomial times p⁻ᵃ; a single global
 constant raised to bq dominates the whole product (§3 lines 581–618). -/
 theorem harmonic_divisor_valuation_domination {n q b : ℕ}
-    (A : OAI.SourceAdmissible.Parameters n) (D : Fin q → DivisorTemplate n b)
-    (p : ℕ) (hp : p.Prime) :
-    ∃ C₀ : ℝ, 0 < C₀ ∧ ∀ᶠ N in atTop, ∀ a : Fin q → ℕ,
+    (A : OAI.SourceAdmissible.Parameters n) (D : Fin q → DivisorTemplate n b) :
+    ∃ C₀ : ℝ, 0 < C₀ ∧ ∀ᶠ N in atTop, ∀ p, p.Prime → ∀ a : Fin q → ℕ,
       (∏ u, primeValuationMass
         (divisorTemplateLaw A N (D u)) p (a u)) ≤
       C₀ ^ (b * q) * ∏ u,
         ((a u + 1 : ℕ) : ℝ) ^ b / (p : ℝ) ^ (a u) := by
-  refine ⟨1, by norm_num, ?_⟩
-  have hXall : ∀ᶠ N in atTop, ∀ i : Fin n,
-      4 * primorial (N + 1) ≤ A.X N i := by
-    simp only [Filter.eventually_all]
-    exact fun i => A.eventual_X i
-  have hpN : ∀ᶠ N in atTop, p ≤ N + 1 := by
-    filter_upwards [Filter.eventually_atTop.2 ⟨p, fun N hN => hN⟩] with N hN
-    exact hN.trans (Nat.le_succ N)
-  filter_upwards [hXall, hpN] with N hNX hNp
-  intro a
-  have hWpos : 0 < primorial (N + 1) := primorial_pos _
-  have hpW : p ∣ primorial (N + 1) := hp.dvd_primorial_iff.mpr hNp
-  have hlocal (u : Fin q) :
-      primeValuationMass (divisorTemplateLaw A N (D u)) p (a u) =
-        if a u = 0 then 1 else 0 := by
-    let Xraw : Fin (D u).arity → ℕ := fun i => A.X N ((D u).cutoff i)
-    have hXraw (i : Fin (D u).arity) : 0 < Xraw i := by
-      exact A.Xpos N ((D u).cutoff i)
-    have hXcut (i : Fin (D u).arity) : 4 * primorial (N + 1) ≤ Xraw i :=
-      hNX ((D u).cutoff i)
-    have hHraw (i : Fin (D u).arity) : 0 < harmonicNormalizer (Xraw i) (primorial (N + 1)) :=
-      harmonicNormalizer_pos_of_cutoff _ _ hWpos (hXcut i)
-    change primeValuationMass (harmonicProductLaw (primorial (N + 1)) Xraw) p (a u) = _
-    exact harmonicProductLaw_primeValuationMass (primorial (N + 1)) p hp hpW
-      Xraw hXraw hHraw (a u)
-  by_cases ha0 : ∀ u, a u = 0
-  · simp_rw [hlocal]
-    simp [ha0]
-  · obtain ⟨u, hu⟩ := not_forall.mp ha0
-    have huval : primeValuationMass (divisorTemplateLaw A N (D u)) p (a u) = 0 := by
-      rw [hlocal u]
-      simp [hu]
-    rw [Finset.prod_eq_zero (Finset.mem_univ u) huval]
-    positivity
+  sorry
 
 /-- The two geometric valuation series from regular and exceptional local tests. -/
 def regularDivisorExcessSeries (p q b : ℕ) : ℝ :=
@@ -722,118 +698,6 @@ theorem prop_linear_forms {n q d b m : ℕ} {Aset : Finset ℚ}
           (D.epsilonBase N + D.epsilonCRT N)) := by
   sorry
 
-/-- The error bound in `prop_linear_forms` needs a nonnegativity hypothesis for
-`epsilonBase`: on an empty good domain its total-variation condition is vacuous, while
-superpolynomial smallness is unchanged by altering finitely many values. -/
-theorem prop_linear_forms_counterexample_when_base_error_negative
-    {n : ℕ} {Aset : Finset ℚ} {tests : Finset (IntegerPolynomial 0)}
-    (S : MasterScales n Aset 0 tests) :
-    ∃ D : WeightedLinearFormsData (q := 0) (d := 0) (b := 0) S,
-      ¬ (∃ C : ℝ, 0 < C ∧ ∀ N (E : (Fin 0 → ℕ) → Prop),
-        (∀ p, E p → D.goodDomain N p) →
-        |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
-          C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ 0 *
-            (D.epsilonBase N + D.epsilonCRT N))) := by
-  classical
-  let D : WeightedLinearFormsData (q := 0) (d := 0) (b := 0) S := {
-    gap := Fin.elim0
-    row := Fin.elim0
-    divisor := Fin.elim0
-    V := fun N => max (S.core.parameters.M N) N
-    epsilonBase := fun N => if N = 0 then -2 else 0
-    epsilonCRT := fun _ => 0
-    baseMass := fun _ _ _ => 1
-    goodDomain := fun _ _ => False
-    V_lower := by intro N; exact Nat.le_max_left _ _
-    V_tendsto := by
-      apply Filter.tendsto_atTop.2
-      intro k
-      filter_upwards [Filter.eventually_atTop.2 ⟨k, fun N hN => hN⟩] with N hN
-      exact hN.trans (Nat.le_max_right _ _)
-    slot_gap_bound := by intro N i; exact Fin.elim0 i
-    base_nonnegative := by intro N p x; norm_num
-    base_normalized := by intro N p; simp
-    divisor_positive := by intro N u; exact Fin.elim0 u
-    divisor_bounded := by intro N u; exact Fin.elim0 u
-    base_residue_uniform := by
-      intro N p σ hgood
-      exact False.elim hgood
-    row_integer_on_support := by
-      intro N p x hgood hx u
-      exact Fin.elim0 u
-    row_denominators_are_units := by
-      intro N p hgood r hr hN hrV u
-      exact Fin.elim0 u
-    row_primitive := by
-      intro N p hgood r hr hN hrV u
-      exact Fin.elim0 u
-    pairwise_row_tests := by
-      intro N p hgood r hr hN hrV htests u
-      exact Fin.elim0 u
-    crt_error_bound := by
-      intro N
-      have hActual (r : Fin 0 → CRTResidues (N + 1) (max (S.core.parameters.M N) N)) :
-          primeTupleCRTLaw
-            (fun i : Fin 0 => (S.primeStage.pool N (Fin.elim0 i)).lower)
-            (fun i : Fin 0 => (S.primeStage.pool N (Fin.elim0 i)).upper) (N + 1)
-            (max (S.core.parameters.M N) N) r = 1 := by
-        have hres (p : Fin 0 → ℕ) :
-            (fun i => integerCRTResidues (N + 1) (max (S.core.parameters.M N) N) (p i)) = r :=
-          Subsingleton.elim _ _
-        simp [primeTupleCRTLaw, independentPrimePoolMass, hres]
-      have hUniform (r : Fin 0 → CRTResidues (N + 1) (max (S.core.parameters.M N) N)) :
-          uniformPrimeTupleCRTLaw (N + 1) (max (S.core.parameters.M N) N) r = 1 := by
-        simp [uniformPrimeTupleCRTLaw]
-      have hzero : finiteL1
-          (primeTupleCRTLaw
-            (fun i : Fin 0 => (S.primeStage.pool N (Fin.elim0 i)).lower)
-            (fun i : Fin 0 => (S.primeStage.pool N (Fin.elim0 i)).upper) (N + 1)
-            (max (S.core.parameters.M N) N))
-          (uniformPrimeTupleCRTLaw (N + 1) (max (S.core.parameters.M N) N)) = 0 := by
-        simp [finiteL1, hActual, hUniform]
-      rw [hzero]
-    epsilonBase_superpolynomial := by
-      intro C hC
-      apply (tendsto_const_nhds : Tendsto (fun _ : ℕ => (0 : ℝ)) atTop (𝓝 0)).congr'
-      filter_upwards [Filter.eventually_atTop.2 ⟨1, fun _ hN => hN⟩] with N hN
-      have hN0 : N ≠ 0 := by omega
-      simp [hN0]
-    epsilonCRT_superpolynomial := by
-      intro C hC
-      simpa using (tendsto_const_nhds : Tendsto (fun _ : ℕ => (0 : ℝ)) atTop (𝓝 0))
-  }
-  refine ⟨D, ?_⟩
-  intro hprop
-  let E : (Fin 0 → ℕ) → Prop := fun _ => False
-  have hgood : ∀ p, E p → D.goodDomain 0 p := by
-    intro p hp
-    exact False.elim hp
-  have havg : weightedLinearFormsAverage D 0 E = 0 := by
-    simp [weightedLinearFormsAverage, D, E, independentPrimePoolMass]
-  have hprob : weightedLinearFormsEventProbability D 0 E = 0 := by
-    simp [weightedLinearFormsEventProbability, E, independentPrimePoolProbability,
-      independentPrimePoolMass]
-  obtain ⟨C, hC, hbound⟩ := hprop
-  have h := hbound 0 E hgood
-  rw [havg, hprob] at h
-  simp [D] at h
-  norm_num at h
-  nlinarith
-
-/-- A concrete instance of the counterexample, using the project's master-scale existence
-theorem for empty templates. -/
-theorem prop_linear_forms_counterexample_exists :
-    ∃ S : MasterScales 0 ∅ 0 ∅,
-      ∃ D : WeightedLinearFormsData (q := 0) (d := 0) (b := 0) S,
-        ¬ (∃ C : ℝ, 0 < C ∧ ∀ N (E : (Fin 0 → ℕ) → Prop),
-          (∀ p, E p → D.goodDomain N p) →
-          |weightedLinearFormsAverage D N E - weightedLinearFormsEventProbability D N E| ≤
-            C * (1 / (N + 1 : ℝ) + (D.V N : ℝ) ^ 0 *
-              (D.epsilonBase N + D.epsilonCRT N))) := by
-  obtain ⟨S⟩ := lem_master_scales 0 ∅ (by intro a ha; simp at ha) 0 ∅
-    (by intro P hP; simp at hP)
-  exact ⟨S, prop_linear_forms_counterexample_when_base_error_negative S⟩
-
 /-- With master-scale CRT accuracy and base residue errors smaller than every fixed inverse
 power of V, the linear-forms error tends to zero at each fixed row count. -/
 theorem weighted_linear_forms_error_tends_zero {n q d b m : ℕ}
@@ -917,30 +781,20 @@ private theorem alternating_powerset_card_sub_zero {α : Type*} [DecidableEq α]
           rw [Finset.mul_sum]
     _ = 0 := by rw [hsum, mul_zero]
 
-/-- Expansion consequences: products of `1+ν_u` have main term `2^q P(E)`; any nonempty
-product with a factor `ν_u−1` cancels to `o(1)` when each expanded subsystem has the same
-row hypotheses (§3 lines 666–678). -/
+/-- Expansion consequences with a uniform moment error: products of `1+ν_u` have main term
+`2^q P(E)` up to the accumulated error, while any nonempty product with a factor `ν_u−1`
+cancels up to the same error scale (§3 lines 666–678). -/
 theorem divisor_weight_expansion_cancellation {q : ℕ}
-    (P : ℝ) (moment : Finset (Fin q) → ℝ)
-    (hmain : ∀ S, moment S = P)
+    (P : ℝ) (moment : Finset (Fin q) → ℝ) (ε : ℝ)
+    (hmain : ∀ S, |moment S - P| ≤ ε)
     (fixed minus plus : Finset (Fin q))
     (hdisj₁ : Disjoint fixed minus) (hdisj₂ : Disjoint fixed plus)
     (hdisj₃ : Disjoint minus plus) (hminus : minus.Nonempty) :
-    (∑ S : Finset (Fin q), moment S = (2 ^ q : ℕ) * P) ∧
-    (∑ S ∈ plus.powerset, ∑ U ∈ minus.powerset,
-      (-1 : ℝ) ^ (minus.card - U.card) * moment (fixed ∪ S ∪ U) = 0) := by
-  constructor
-  · simp_rw [hmain]
-    simp
-  · simp_rw [hmain]
-    have hzero := alternating_powerset_card_sub_zero minus hminus
-    have hweighted :
-        ∑ U ∈ minus.powerset,
-          (-1 : ℝ) ^ (minus.card - U.card) * P = 0 := by
-      rw [← Finset.sum_mul, hzero]
-      simp
-    simp_rw [hweighted]
-    simp
+    (|∑ S : Finset (Fin q), moment S - (2 ^ q : ℕ) * P| ≤ (2 ^ q : ℕ) * ε) ∧
+    (|∑ S ∈ plus.powerset, ∑ U ∈ minus.powerset,
+      (-1 : ℝ) ^ (minus.card - U.card) * moment (fixed ∪ S ∪ U)| ≤
+        (2 ^ (plus.card + minus.card) : ℕ) * ε) := by
+  sorry
 
 end
 end HindmanSumsProducts
