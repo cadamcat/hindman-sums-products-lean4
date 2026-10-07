@@ -5457,6 +5457,363 @@ theorem pkgElim_shiftAverage_eq_signedIntervalProduct
           ∑ u ∈ Sunc, F (fun i e => ((u (i, e) : ℤ)).toNat) := hsumConstant
     _ = _ := by simpa [pkgElim_oldShiftIndexEquiv] using hproduct.symm
 
+abbrev pkgElim_OldCoordinate {m q r : ℕ} (Sh : RowShape m q r) :=
+  NonTarget Sh × Fin 2
+
+abbrev pkgElim_ShiftCoordinate {m q r : ℕ} (Sh : RowShape m q r) :=
+  pkgElim_OldCoordinate Sh ⊕ Fin 2
+
+noncomputable def pkgElim_coordinatePiecesEquiv {m q r : ℕ}
+    (Sh : RowShape m q r) :
+    (Fin m → ℤ) × ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ)) ≃
+      (Coordinate Sh → ℤ) := by
+  let eInner : (pkgElim_ShiftCoordinate Sh → ℤ) ≃
+      (pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ) :=
+    Equiv.sumArrowEquivProdArrow (pkgElim_OldCoordinate Sh) (Fin 2) ℤ
+  let eOuter : (Coordinate Sh → ℤ) ≃
+      (Fin m → ℤ) × (pkgElim_ShiftCoordinate Sh → ℤ) :=
+    Equiv.sumArrowEquivProdArrow (Fin m) (pkgElim_ShiftCoordinate Sh) ℤ
+  exact (Equiv.prodCongr (Equiv.refl (Fin m → ℤ)) eInner.symm).trans eOuter.symm
+
+@[simp] theorem pkgElim_coordinatePiecesEquiv_apply_pivot {m q r : ℕ}
+    (Sh : RowShape m q r) (z : Fin m → ℤ)
+    (old : pkgElim_OldCoordinate Sh → ℤ) (root : Fin 2 → ℤ) (k : Fin m) :
+    pkgElim_coordinatePiecesEquiv Sh (z, (old, root)) (.inl k) = z k := by
+  simp [pkgElim_coordinatePiecesEquiv]
+
+@[simp] theorem pkgElim_coordinatePiecesEquiv_apply_old {m q r : ℕ}
+    (Sh : RowShape m q r) (z : Fin m → ℤ)
+    (old : pkgElim_OldCoordinate Sh → ℤ) (root : Fin 2 → ℤ)
+    (u : pkgElim_OldCoordinate Sh) :
+    pkgElim_coordinatePiecesEquiv Sh (z, (old, root)) (.inr (.inl u)) = old u := by
+  simp [pkgElim_coordinatePiecesEquiv]
+
+@[simp] theorem pkgElim_coordinatePiecesEquiv_apply_root {m q r : ℕ}
+    (Sh : RowShape m q r) (z : Fin m → ℤ)
+    (old : pkgElim_OldCoordinate Sh → ℤ) (root : Fin 2 → ℤ) (j : Fin 2) :
+    pkgElim_coordinatePiecesEquiv Sh (z, (old, root)) (.inr (.inr j)) = root j := by
+  simp [pkgElim_coordinatePiecesEquiv]
+
+noncomputable def pkgElim_coordinateMapLaw {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (x : Coordinate Sh → ℤ) : ℝ :=
+  ∏ v : Coordinate Sh, coordinateLaw S C Sh dirs J0 N p v (x v)
+
+theorem pkgElim_coordinateProductLaw_reindex {K m q r s d : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (eX : Coordinate Sh ≃ Fin d) (x : Fin d → ℤ) :
+    coordinateProductLaw S C Sh dirs J0 N p eX x =
+      pkgElim_coordinateMapLaw S C Sh dirs J0 N p (fun v => x (eX v)) := by
+  unfold coordinateProductLaw pkgElim_coordinateMapLaw
+  exact (Fintype.prod_equiv eX
+    (fun v => coordinateLaw S C Sh dirs J0 N p v (x (eX v)))
+    (fun i => coordinateLaw S C Sh dirs J0 N p (eX.symm i) (x i))
+    (by intro v; simp)).symm
+
+theorem pkgElim_coordinateMapLaw_pieces {K m q r s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (J0 N : ℕ)
+    (p : Fin q → ℕ) (z : Fin m → ℤ)
+    (old : pkgElim_OldCoordinate Sh → ℤ) (root : Fin 2 → ℤ) :
+    pkgElim_coordinateMapLaw S C Sh dirs J0 N p
+        (pkgElim_coordinatePiecesEquiv Sh (z, (old, root))) =
+      pivotMass S.core.parameters C N z *
+        ((∏ u : pkgElim_OldCoordinate Sh,
+          FromArithmetic.uniformIntegerIntervalLaw 0
+            (max 1 (shiftLength S C.gap J0 N dirs.poly p)) (old u)) *
+          ∏ j : Fin 2,
+            FromArithmetic.uniformIntegerIntervalLaw 0
+              (S.core.parameters.H N C.gap) (root j)) := by
+  classical
+  simp [pkgElim_coordinateMapLaw, coordinateLaw, pivotMass,
+    pkgElim_coordinatePiecesEquiv, Fintype.prod_sum_type, Fintype.prod_prod_type]
+
+theorem pkgElim_coordinateProductAverage_eq_pivotShiftRoot
+    {K m q r s d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (Sh : RowShape m q r) (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q))
+    (J0 B N : ℕ) (hJ0 : 0 < J0) (p : Fin q → ℕ)
+    (eX : Coordinate Sh ≃ Fin d)
+    (hGlobal : pkgElim_momentGlobalData S C a Sh dirs tests J0 B N)
+    (hGood : GoodTuple S C.gap N tests dirs.poly p)
+    (F : (Coordinate Sh → ℤ) → ℝ) :
+    ∑' x : Fin d → ℤ,
+      coordinateProductLaw S C Sh dirs J0 N p eX x * F (fun v => x (eX v)) =
+    ∑' z : Fin m → ℤ,
+      pivotMass S.core.parameters C N z *
+        shiftAverage (NonTarget Sh) (shiftLength S C.gap J0 N dirs.poly p)
+          (fun u => (1 / (S.core.parameters.H N C.gap : ℝ)) ^ 2 *
+            ∑ v ∈ Fintype.piFinset
+              (fun _ : Fin 2 => Finset.range (S.core.parameters.H N C.gap)),
+              F (pkgElim_coordinatePiecesEquiv Sh
+                (z, (fun w : pkgElim_OldCoordinate Sh => (u w.1 w.2 : ℤ)),
+                  (fun j => (v j : ℤ))))) := by
+  classical
+  rcases hGlobal with ⟨_, hFacts, _, _, hLength⟩
+  rcases hFacts p hGood with ⟨_, _, hMpBound, _, _, _, _, _⟩
+  let V := masterScaleV S.core.parameters N C.gap
+  let T := (S.primeStage.pool N C.gap).upper + V
+  let Dmin := S.core.parameters.H N C.gap / (J0 * T ^ B)
+  let L := shiftLength S C.gap J0 N dirs.poly p
+  have hDmin : 1 ≤ Dmin := by simpa [Dmin, T, V] using hLength
+  have hMpPos : 0 < directionModulus S N dirs.poly p := by
+    unfold directionModulus
+    exact Nat.mul_pos (S.core.parameters.Mpos N) (roughPart_pos _ _)
+  have hdenLe : J0 * directionModulus S N dirs.poly p ≤ J0 * T ^ B := by
+    dsimp [T, V]
+    exact Nat.mul_le_mul_left J0 hMpBound
+  have hdenPos : 0 < J0 * directionModulus S N dirs.poly p :=
+    Nat.mul_pos hJ0 hMpPos
+  have hDminLeL : Dmin ≤ L := by
+    dsimp [Dmin, L]
+    exact Nat.div_le_div_left hdenLe hdenPos
+  have hLone : 1 ≤ L := le_trans hDmin hDminLeL
+  have hLpos : 0 < L := lt_of_lt_of_le Nat.zero_lt_one hLone
+  have hLmax : max 1 L = L := max_eq_right hLone
+  have hH : 0 < S.core.parameters.H N C.gap := S.core.parameters.Hpos N C.gap
+  let pivotSupport : Fin m → Finset ℤ := fun k =>
+    pkgElim_coordinateSupport S C Sh dirs J0 N p (.inl k)
+  let zSupport : Finset (Fin m → ℤ) := Fintype.piFinset pivotSupport
+  let intervalSupport : Finset ℤ := Finset.Ico 0 (L : ℤ)
+  let rootSupport : Finset ℤ := Finset.Ico 0 (S.core.parameters.H N C.gap : ℤ)
+  let oldSupport : Finset (pkgElim_OldCoordinate Sh → ℤ) :=
+    Fintype.piFinset fun _ : pkgElim_OldCoordinate Sh => intervalSupport
+  let rootPiSupport : Finset (Fin 2 → ℤ) :=
+    Fintype.piFinset fun _ : Fin 2 => rootSupport
+  let shiftSupport : Finset ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ)) :=
+    oldSupport.product rootPiSupport
+  let oldMass : (pkgElim_OldCoordinate Sh → ℤ) → ℝ := fun u =>
+    ∏ y : pkgElim_OldCoordinate Sh,
+      FromArithmetic.uniformIntegerIntervalLaw 0 L (u y)
+  let rootMass : (Fin 2 → ℤ) → ℝ := fun v =>
+    ∏ j : Fin 2,
+      FromArithmetic.uniformIntegerIntervalLaw 0 (S.core.parameters.H N C.gap) (v j)
+  let ePi : (Fin d → ℤ) ≃ (Coordinate Sh → ℤ) :=
+    { toFun := fun x => fun v => x (eX v)
+      invFun := fun x => fun i => x (eX.symm i)
+      left_inv := by intro x; funext i; simp
+      right_inv := by intro x; funext v; simp }
+  let ePieces := pkgElim_coordinatePiecesEquiv Sh
+  let pieceTerm : ((Fin m → ℤ) ×
+      ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ))) → ℝ := fun y =>
+    pkgElim_coordinateMapLaw S C Sh dirs J0 N p (ePieces y) * F (ePieces y)
+  have hpivotZero (z : Fin m → ℤ) (hz : z ∉ zSupport) : pivotMass S.core.parameters C N z = 0 := by
+    have hnot : ∃ k : Fin m, z k ∉ pivotSupport k := by
+      by_contra h
+      push_neg at h
+      apply hz
+      exact Fintype.mem_piFinset.mpr h
+    obtain ⟨k, hk⟩ := hnot
+    have hzero := pkgElim_coordinateLaw_zero_of_not_mem S C Sh dirs J0 N p
+      (.inl k) (z k) hk
+    have hzero' : harmonicLaw (S.core.parameters.X N (C.block k).1)
+        (primorial (N + 1)) (z k) = 0 := by simpa [coordinateLaw] using hzero
+    unfold pivotMass
+    exact Finset.prod_eq_zero (Finset.mem_univ k) hzero'
+  have hlawZero (z : ℤ) (hz : z ∉ intervalSupport) :
+      FromArithmetic.uniformIntegerIntervalLaw 0 L z = 0 := by
+    unfold FromArithmetic.uniformIntegerIntervalLaw
+    rw [if_neg]
+    intro h
+    exact hz (Finset.mem_Ico.mpr (by simpa using h))
+  have hrootLawZero (z : ℤ) (hz : z ∉ rootSupport) :
+      FromArithmetic.uniformIntegerIntervalLaw 0 (S.core.parameters.H N C.gap) z = 0 := by
+    unfold FromArithmetic.uniformIntegerIntervalLaw
+    rw [if_neg]
+    intro h
+    exact hz (Finset.mem_Ico.mpr (by simpa using h))
+  have holdMassZero (u : pkgElim_OldCoordinate Sh → ℤ) (hu : u ∉ oldSupport) :
+      oldMass u = 0 := by
+    have hnot : ∃ y, u y ∉ intervalSupport := by
+      by_contra h
+      push_neg at h
+      apply hu
+      exact Fintype.mem_piFinset.mpr h
+    obtain ⟨y, hy⟩ := hnot
+    dsimp [oldMass]
+    exact Finset.prod_eq_zero (Finset.mem_univ y) (hlawZero (u y) hy)
+  have hrootMassZero (v : Fin 2 → ℤ) (hv : v ∉ rootPiSupport) : rootMass v = 0 := by
+    have hnot : ∃ j, v j ∉ rootSupport := by
+      by_contra h
+      push_neg at h
+      apply hv
+      exact Fintype.mem_piFinset.mpr h
+    obtain ⟨j, hj⟩ := hnot
+    dsimp [rootMass]
+    exact Finset.prod_eq_zero (Finset.mem_univ j) (hrootLawZero (v j) hj)
+  have hshiftMassZero (y : (pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ))
+      (hy : y ∉ shiftSupport) : oldMass y.1 * rootMass y.2 = 0 := by
+    have hnot : y.1 ∉ oldSupport ∨ y.2 ∉ rootPiSupport := by
+      by_contra h
+      push_neg at h
+      apply hy
+      exact Finset.mem_product.mpr h
+    rcases hnot with ho | hr
+    · simp [holdMassZero y.1 ho]
+    · simp [hrootMassZero y.2 hr]
+  have hpieceZero (y : (Fin m → ℤ) ×
+      ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ))) (hy : y ∉ zSupport.product shiftSupport) :
+      pieceTerm y = 0 := by
+    have hnot : y.1 ∉ zSupport ∨ y.2 ∉ shiftSupport := by
+      by_contra h
+      push_neg at h
+      apply hy
+      exact Finset.mem_product.mpr h
+    have hMap : pkgElim_coordinateMapLaw S C Sh dirs J0 N p (ePieces y) =
+        pivotMass S.core.parameters C N y.1 * (oldMass y.2.1 * rootMass y.2.2) := by
+      simpa [ePieces, oldMass, rootMass, L, hLmax] using
+        (pkgElim_coordinateMapLaw_pieces S C Sh dirs J0 N p
+          y.1 y.2.1 y.2.2)
+    rcases hnot with hz | hshift
+    · simp [pieceTerm, hMap, hpivotZero y.1 hz]
+    · simp [pieceTerm, hMap, hshiftMassZero y.2 hshift]
+  have hCoordinateTsum :
+      (∑' x : Fin d → ℤ,
+        coordinateProductLaw S C Sh dirs J0 N p eX x * F (fun v => x (eX v))) =
+      ∑' x : Coordinate Sh → ℤ,
+        pkgElim_coordinateMapLaw S C Sh dirs J0 N p x * F x := by
+    calc
+      _ = ∑' x : Fin d → ℤ,
+          pkgElim_coordinateMapLaw S C Sh dirs J0 N p (ePi x) * F (ePi x) := by
+        apply tsum_congr
+        intro x
+        rw [pkgElim_coordinateProductLaw_reindex]
+        simpa [ePi]
+      _ = _ := ePi.tsum_eq (fun x => pkgElim_coordinateMapLaw S C Sh dirs J0 N p x * F x)
+  have hPiecesTsum :
+      (∑' x : Coordinate Sh → ℤ,
+        pkgElim_coordinateMapLaw S C Sh dirs J0 N p x * F x) =
+      ∑' y : (Fin m → ℤ) × ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ)),
+        pieceTerm y := by
+    calc
+      _ = ∑' y : (Fin m → ℤ) ×
+          ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ)),
+          pkgElim_coordinateMapLaw S C Sh dirs J0 N p (ePieces y) * F (ePieces y) :=
+            (ePieces.tsum_eq fun x =>
+              pkgElim_coordinateMapLaw S C Sh dirs J0 N p x * F x).symm
+      _ = _ := rfl
+  have hSplit :
+      (∑' y : (Fin m → ℤ) × ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ)), pieceTerm y) =
+      ∑' z : Fin m → ℤ, ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        ∑' v : Fin 2 → ℤ, pieceTerm (z, (u, v)) := by
+    calc
+      _ = ∑' z : Fin m → ℤ, ∑' w :
+          (pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ), pieceTerm (z, w) :=
+            pkgElim_tsum_prod_of_finite_support zSupport shiftSupport pieceTerm hpieceZero
+      _ = _ := by
+        apply tsum_congr
+        intro z
+        exact pkgElim_tsum_prod_of_finite_support oldSupport rootPiSupport
+          (fun w => pieceTerm (z, w)) (by
+            intro w hw
+            exact hpieceZero (z, w) (by
+              intro hmem
+              exact hw (Finset.mem_product.mp hmem).2))
+  let rootMean (z : Fin m → ℤ) (u : pkgElim_OldCoordinate Sh → ℤ) : ℝ :=
+    (1 / (S.core.parameters.H N C.gap : ℝ)) ^ Fintype.card (Fin 2) *
+      ∑ v ∈ Fintype.piFinset
+          (fun _ : Fin 2 => Finset.range (S.core.parameters.H N C.gap)),
+        F (ePieces (z, (u, fun j => (v j : ℤ))))
+  have hRootAverage (z : Fin m → ℤ) (u : pkgElim_OldCoordinate Sh → ℤ) :
+      ∑' v : Fin 2 → ℤ, rootMass v * F (ePieces (z, (u, v))) = rootMean z u := by
+    simpa [rootMass, rootMean] using
+      (pkgElim_uniformIntegerProduct_average (S.core.parameters.H N C.gap) hH
+        (fun v => F (ePieces (z, (u, v)))))
+  have hRootFactor (z : Fin m → ℤ) (u : pkgElim_OldCoordinate Sh → ℤ) :
+      (∑' v : Fin 2 → ℤ, pieceTerm (z, (u, v))) =
+        (pivotMass S.core.parameters C N z * oldMass u) * rootMean z u := by
+    calc
+      _ = ∑' v : Fin 2 → ℤ,
+          (pivotMass S.core.parameters C N z * oldMass u) *
+            (rootMass v * F (ePieces (z, (u, v)))) := by
+          apply tsum_congr
+          intro v
+          simp [pieceTerm]
+          rw [pkgElim_coordinateMapLaw_pieces]
+          simp [oldMass, rootMass, L, hLmax]
+          ring
+      _ = (pivotMass S.core.parameters C N z * oldMass u) *
+            ∑' v : Fin 2 → ℤ, rootMass v * F (ePieces (z, (u, v))) := by
+          rw [tsum_mul_left]
+      _ = _ := by rw [hRootAverage]
+  have hRootExpanded :
+      (∑' z : Fin m → ℤ, ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        ∑' v : Fin 2 → ℤ, pieceTerm (z, (u, v))) =
+      ∑' z : Fin m → ℤ, ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        (pivotMass S.core.parameters C N z * oldMass u) * rootMean z u := by
+    apply tsum_congr
+    intro z
+    apply tsum_congr
+    intro u
+    exact hRootFactor z u
+  have hOldReplace (z : Fin m → ℤ) :
+      (∑' u : pkgElim_OldCoordinate Sh → ℤ, oldMass u * rootMean z u) =
+      ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        oldMass u * rootMean z (fun w => ((u w).toNat : ℤ)) := by
+    apply tsum_congr
+    intro u
+    by_cases hzero : oldMass u = 0
+    · simp [hzero]
+    · have hnonneg (w : pkgElim_OldCoordinate Sh) : 0 ≤ u w := by
+        by_contra hn
+        have hlaw : FromArithmetic.uniformIntegerIntervalLaw 0 L (u w) = 0 := by
+          unfold FromArithmetic.uniformIntegerIntervalLaw
+          rw [if_neg]
+          intro hh
+          exact hn hh.1
+        have hmassZero : oldMass u = 0 := by
+          dsimp [oldMass]
+          exact Finset.prod_eq_zero (Finset.mem_univ w) hlaw
+        exact hzero hmassZero
+      have huEq : (fun w => ((u w).toNat : ℤ)) = u := by
+        funext w
+        exact Int.toNat_of_nonneg (hnonneg w)
+      rw [huEq]
+  have hOldBridge (z : Fin m → ℤ) :
+      (∑' u : pkgElim_OldCoordinate Sh → ℤ, oldMass u * rootMean z u) =
+      shiftAverage (NonTarget Sh) L
+        (fun u => rootMean z (fun w => ((u w.1 w.2 : ℤ)))) := by
+    rw [hOldReplace]
+    exact (pkgElim_shiftAverage_eq_signedIntervalProduct L hLpos
+      (fun u => rootMean z (fun w => ((u w.1 w.2 : ℤ))))).symm
+  have hOldFactor :
+      (∑' z : Fin m → ℤ, ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        (pivotMass S.core.parameters C N z * oldMass u) * rootMean z u) =
+      ∑' z : Fin m → ℤ,
+        pivotMass S.core.parameters C N z *
+          shiftAverage (NonTarget Sh) L
+            (fun u => rootMean z (fun w => ((u w.1 w.2 : ℤ)))) := by
+    apply tsum_congr
+    intro z
+    calc
+      _ = ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+          (pivotMass S.core.parameters C N z) * (oldMass u * rootMean z u) := by
+          apply tsum_congr
+          intro u
+          ring
+      _ = pivotMass S.core.parameters C N z *
+          ∑' u : pkgElim_OldCoordinate Sh → ℤ, oldMass u * rootMean z u := by
+          rw [tsum_mul_left]
+      _ = _ := by rw [hOldBridge]
+  calc
+    _ = ∑' x : Coordinate Sh → ℤ,
+        pkgElim_coordinateMapLaw S C Sh dirs J0 N p x * F x := hCoordinateTsum
+    _ = ∑' y : (Fin m → ℤ) × ((pkgElim_OldCoordinate Sh → ℤ) × (Fin 2 → ℤ)),
+        pieceTerm y := hPiecesTsum
+    _ = ∑' z : Fin m → ℤ, ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        ∑' v : Fin 2 → ℤ, pieceTerm (z, (u, v)) := hSplit
+    _ = ∑' z : Fin m → ℤ, ∑' u : pkgElim_OldCoordinate Sh → ℤ,
+        (pivotMass S.core.parameters C N z * oldMass u) * rootMean z u := hRootExpanded
+    _ = ∑' z : Fin m → ℤ,
+        pivotMass S.core.parameters C N z *
+          shiftAverage (NonTarget Sh) L
+            (fun u => rootMean z (fun w => ((u w.1 w.2 : ℤ)))) := hOldFactor
+
 theorem pkgElim_expandedAuxiliaryMoment_tendsto_one
     {K m q r s h d : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
     (S : MasterScales K Aset s Dm) (ι : Fin q ↪ Fin s)
