@@ -885,7 +885,8 @@ theorem exists_branch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       (e : RowBranchIndex I ≃ Fin r'),
       (∀ x : RowBranchIndex I,
         Sh'.row (e x) = RowBranchTemplate Sh L R x.val.1 x.val.2) ∧
-        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧
+          Sh'.star = e ⟨(Sh.star, 0), Or.inl rfl⟩ := by
   classical
   letI : DecidablePred I := Classical.decPred I
   let β := RowBranchIndex I
@@ -955,7 +956,7 @@ theorem exists_branch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
   have hrowmap (x : β) : Sh'.row (e x) = btemp x.val := by
     change btemp (e.symm (e x)).val = btemp x.val
     simp
-  refine ⟨Fintype.card β, Sh', e, ?_, hcard, hstar⟩
+  refine ⟨Fintype.card β, Sh', e, ?_, hcard, hstar, rfl⟩
   intro x
   exact hrowmap x
 
@@ -969,7 +970,8 @@ theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       (∀ x, Sh'.row (e x) = RowBranchTemplate Sh
         (fun i => (Sh.row i).scaleBranchP u)
         (fun i => (Sh.row i).scaleBranchQ u) x.val.1 x.val.2) ∧
-        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧
+        Sh'.star = e ⟨(Sh.star, 0), Or.inl rfl⟩ := by
   let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchP u
   let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBranchQ u
   let I : Fin r → Prop := fun i => (L i).Parallel (R i)
@@ -1008,11 +1010,12 @@ theorem exists_scaleBranch_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       ((Sh.row Sh.star).scaleBranchP u).support = (Sh.row Sh.star).support :=
         RowTemplate.scaleBranchP_support _ _
       _ = Jstar := hStarSupport
-  obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+  obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
     exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
-  refine ⟨r', Sh', ?_, ?_, hr', hstar'⟩
+  refine ⟨r', Sh', ?_, ?_, hr', hstar', ?_⟩
   · simpa [I, L, R] using e
   · simpa [I, L, R, RowBranchTemplate] using hrow
+  · simpa [I, L, R] using hstarIndex
 
 theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar : Finset (Fin m)) (hStarSupport : (Sh.row Sh.star).support = Jstar)
@@ -1024,7 +1027,8 @@ theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       (∀ x, Sh'.row (e x) = RowBranchTemplate Sh
         (fun i => (Sh.row i).scaleBalancedP u v)
         (fun i => (Sh.row i).scaleBalancedQ u v) x.val.1 x.val.2) ∧
-        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar := by
+        r' ≤ 2 * r ∧ (Sh'.row Sh'.star).support = Jstar ∧
+        Sh'.star = e ⟨(Sh.star, 0), Or.inl rfl⟩ := by
   let L : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedP u v
   let R : Fin r → RowTemplate m (q + 2) := fun i => (Sh.row i).scaleBalancedQ u v
   let I : Fin r → Prop := fun i => (L i).Parallel (R i)
@@ -1068,11 +1072,12 @@ theorem exists_scaleBalanced_row_shape {m q r : ℕ} (Sh : RowShape m q r)
       ((Sh.row Sh.star).scaleBalancedP u v).support = (Sh.row Sh.star).support :=
         RowTemplate.scaleBalancedP_support _ _ _
       _ = Jstar := hStarSupport
-  obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+  obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
     exists_branch_row_shape Sh L R I hI hAcross hStar Jstar hTarget
-  refine ⟨r', Sh', ?_, ?_, hr', hstar'⟩
+  refine ⟨r', Sh', ?_, ?_, hr', hstar', ?_⟩
   · simpa [I, L, R] using e
   · simpa [I, L, R, RowBranchTemplate] using hrow
+  · simpa [I, L, R] using hstarIndex
 
 theorem card_nonempty_mask_subsets (m : ℕ) :
     Fintype.card {U : Finset (Fin m) // U.Nonempty} = maskCount m := by
@@ -3222,6 +3227,67 @@ theorem RowTemplate.rowForm_eq_monomial_scale_of_parallel {m q : ℕ}
 def dropPrimeTuple2 {q : ℕ} (p : Fin (q + 2) → ℕ) : Fin q → ℕ :=
   fun i => p i.succ.succ
 
+theorem RowTemplate.anchor_eq_of_support_eq {m q q' : ℕ}
+    (T : RowTemplate m q) (U : RowTemplate m q')
+    (h : T.support = U.support) : T.anchor = U.anchor := by
+  apply le_antisymm
+  · apply Finset.max'_le
+    intro k hk
+    have hk' : k ∈ U.support := by simpa [h] using hk
+    exact Finset.le_max' U.support k hk'
+  · apply Finset.max'_le
+    intro k hk
+    have hk' : k ∈ T.support := by simpa [h] using hk
+    exact Finset.le_max' T.support k hk'
+
+def outsideBranchMaskFunction {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u : Fin m) (U : Finset (Fin m))
+    (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
+  f U (dropPrimeTuple2 p)
+      ((if u ∈ U then (p 1 : ℤ) else 1) * y) *
+    f U (dropPrimeTuple2 p)
+      ((if u ∈ U then (p 0 : ℤ) else 1) * y)
+
+def balancedBranchMaskFunction {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u v : Fin m) (U : Finset (Fin m))
+    (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
+  f U (dropPrimeTuple2 p)
+      ((if u ∈ U then (p 0 : ℤ) else 1) *
+        (if v ∈ U then (p 1 : ℤ) else 1) * y) *
+    f U (dropPrimeTuple2 p)
+      ((if v ∈ U then (p 0 : ℤ) else 1) *
+        (if u ∈ U then (p 1 : ℤ) else 1) * y)
+
+theorem outsideBranchMaskFunction_abs_le {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ) (y : ℤ)
+    (hf : ∀ U p y, |f U p y| ≤ 1) :
+    |outsideBranchMaskFunction f u U p y| ≤ 1 := by
+  unfold outsideBranchMaskFunction
+  rw [abs_mul]
+  calc
+    |f U (dropPrimeTuple2 p) ((if u ∈ U then (p 1 : ℤ) else 1) * y)| *
+        |f U (dropPrimeTuple2 p) ((if u ∈ U then (p 0 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+          exact mul_le_mul (hf U _ _) (hf U _ _) (abs_nonneg _) (by norm_num)
+    _ = 1 := by norm_num
+
+theorem balancedBranchMaskFunction_abs_le {m q : ℕ}
+    (f : Finset (Fin m) → (Fin q → ℕ) → ℤ → ℝ)
+    (u v : Fin m) (U : Finset (Fin m)) (p : Fin (q + 2) → ℕ) (y : ℤ)
+    (hf : ∀ U p y, |f U p y| ≤ 1) :
+    |balancedBranchMaskFunction f u v U p y| ≤ 1 := by
+  unfold balancedBranchMaskFunction
+  rw [abs_mul]
+  calc
+    |f U (dropPrimeTuple2 p)
+          ((if u ∈ U then (p 0 : ℤ) else 1) * (if v ∈ U then (p 1 : ℤ) else 1) * y)| *
+        |f U (dropPrimeTuple2 p)
+          ((if v ∈ U then (p 0 : ℤ) else 1) * (if u ∈ U then (p 1 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+          exact mul_le_mul (hf U _ _) (hf U _ _) (abs_nonneg _) (by norm_num)
+    _ = 1 := by norm_num
+
 theorem extendPrimeTuple2_drop {q : ℕ} (p : Fin (q + 2) → ℕ) :
     extendPrimeTuple (extendPrimeTuple (dropPrimeTuple2 p) (p 1)) (p 0) = p := by
   funext i
@@ -3283,6 +3349,10 @@ noncomputable def combineParallelRowFunction {q : ℕ}
     (W : ℤ → ℝ) (p : Fin (q + 2) → ℕ) (y : ℤ) : ℝ :=
   f (dropPrimeTuple2 p) y *
     atQ (f (dropPrimeTuple2 p)) (scale p * (y : ℚ)) / W y
+
+noncomputable def RowTemplate.parallelScaleFactor {m q : ℕ}
+    (T T' : RowTemplate m q) (hpar : T.Parallel T') (p : Fin q → ℕ) : ℚ :=
+  ∏ i, (p i : ℚ) ^ (Classical.choose hpar.2 i)
 
 theorem combineParallelRowFunction_abs_le {q : ℕ}
     (f : (Fin q → ℕ) → ℤ → ℝ) (scale : (Fin (q + 2) → ℕ) → ℚ)
@@ -3651,6 +3721,53 @@ theorem chainWeight_scaleBalanced_invariant {K s m : ℕ} {Aset : Finset ℚ}
     simp only [if_pos hsingleV] at hden ⊢
     exact chainWeight_rat_div_mul_eq_of_prime_gt S C N d (p 0) (p 1)
       hp₀ hp₁ hV₀ hV₁ hne y hden
+
+noncomputable def mergedBranchRowFunction {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ) (j : Fin r') (y : ℤ) : ℝ := by
+  classical
+  let x := e.symm j
+  by_cases h : I x.val.1
+  · by_cases hg : good p
+    ·
+      let hpar : (L x.val.1).Parallel (R x.val.1) := hInv x.val.1 |>.mp h
+      exact combineParallelRowFunction (f x.val.1)
+        (fun p' => RowTemplate.parallelScaleFactor (L x.val.1) (R x.val.1) hpar p')
+        (W x.val.1) p y
+    · exact 0
+  · exact f x.val.1 (dropPrimeTuple2 p) y
+
+theorem mergedBranchRowFunction_abs_le {m q r r' : ℕ} {I : Fin r → Prop}
+    (good : (Fin (q + 2) → ℕ) → Prop)
+    (L R : Fin r → RowTemplate m (q + 2))
+    (e : RowBranchIndex I ≃ Fin r')
+    (hInv : ∀ i, I i ↔ (L i).Parallel (R i))
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ) (W : Fin r → ℤ → ℝ)
+    (p : Fin (q + 2) → ℕ)
+    (hf : ∀ i p y, |f i p y| ≤ W i y)
+    (hW : ∀ i y, 0 ≤ W i y) (hWpos : ∀ i y, 0 < W i y)
+    (hinv : ∀ i (h : I i) (p : Fin (q + 2) → ℕ) (y : ℤ), good p →
+      (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp h) p * (y : ℚ)).den = 1 →
+      W i ((RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp h) p *
+        (y : ℚ)).num) = W i y) (j : Fin r') (y : ℤ) :
+    |mergedBranchRowFunction good L R e hInv f W p j y| ≤ W (e.symm j).val.1 y := by
+  classical
+  let x := e.symm j
+  by_cases h : I x.val.1
+  · by_cases hg : good p
+    · have hInvRow := hInv x.val.1 |>.mp h
+      have hBound := combineParallelRowFunction_abs_le (f x.val.1)
+        (fun p' => RowTemplate.parallelScaleFactor (L x.val.1) (R x.val.1) hInvRow p')
+        (W x.val.1) p
+        (hW x.val.1) (hWpos x.val.1) (hf x.val.1)
+        (fun y hden => hinv x.val.1 h p y hg hden)
+      simpa [mergedBranchRowFunction, x, h, hg, hInvRow] using hBound y
+    · simpa [mergedBranchRowFunction, x, h, hg] using hW x.val.1 y
+  · simpa [mergedBranchRowFunction, x, h] using hf x.val.1 (dropPrimeTuple2 p) y
 
 theorem RowTemplate.poly_eval_eq_valueNat {m q : ℕ} (T : RowTemplate m q)
     (p : Fin q → ℕ) (k : Fin m) :
@@ -6821,6 +6938,169 @@ theorem correlation_empty {m q r K s : ℕ} {Aset : Finset ℚ}
 
 end MaskRemovalState
 
+noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (N : ℕ)
+    (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBranchP u).Parallel ((st.shape.row i).scaleBranchQ u)) ≃ Fin r') :
+    MaskRemovalState m (q + 2) r' := by
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchQ u
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  have hI : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  refine ⟨Sh', st.masks.erase U,
+    (fun V p y => outsideBranchMaskFunction st.maskFunction u V p y), ?_⟩
+  intro R' p y
+  exact mergedBranchRowFunction
+    (fun p => p ∈ independentPrimePoolSupport
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+      (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper))
+    L R e hI st.rowFunction
+    (fun R y => 1 + chainWeight S.core.parameters C N (st.shape.row R).anchor y)
+    p R' y
+
+theorem outsideBranchMaskRemovalState_valid {K s m q r r' : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (st : MaskRemovalState m q r) (U : Finset (Fin m)) (u : Fin m)
+    (Jstar : Finset (Fin m)) (gstar : ℤ → ℝ)
+    (hvalid : st.Valid S C a N Jstar gstar)
+    (Sh' : RowShape m (q + 2) r')
+    (e : RowBranchIndex (fun i =>
+      ((st.shape.row i).scaleBranchP u).Parallel
+        ((st.shape.row i).scaleBranchQ u)) ≃ Fin r')
+    (hrow : ∀ x, Sh'.row (e x) = RowBranchTemplate st.shape
+      (fun i => (st.shape.row i).scaleBranchP u)
+      (fun i => (st.shape.row i).scaleBranchQ u) x.val.1 x.val.2)
+    (hstarIndex : Sh'.star = e ⟨(st.shape.star, 0), Or.inl rfl⟩)
+    (hstarNot : ¬ ((st.shape.row st.shape.star).scaleBranchP u).Parallel
+      ((st.shape.row st.shape.star).scaleBranchQ u))
+    (hpoolLower : masterScaleV S.core.parameters N C.gap <
+      (S.primeStage.pool N C.gap).lower) :
+    (outsideBranchMaskRemovalState S C N st U u Sh' e).Valid
+      S C a N Jstar gstar := by
+  classical
+  rcases hvalid with ⟨hstarSupport, hmask, hrowBound, hstarFunction⟩
+  let L : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchP u
+  let R : Fin r → RowTemplate m (q + 2) := fun i => (st.shape.row i).scaleBranchQ u
+  let I : Fin r → Prop := fun i => (L i).Parallel (R i)
+  let hInv : ∀ i, I i ↔ (L i).Parallel (R i) := fun _ => Iff.rfl
+  let good : (Fin (q + 2) → ℕ) → Prop := fun p => p ∈ independentPrimePoolSupport
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+    (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper)
+  let W : Fin r → ℤ → ℝ := fun i y =>
+    1 + chainWeight S.core.parameters C N (st.shape.row i).anchor y
+  let xstar : RowBranchIndex I := ⟨(st.shape.star, 0), Or.inl rfl⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · calc
+      (Sh'.row Sh'.star).support =
+          (Sh'.row (e xstar)).support := by rw [hstarIndex]
+      _ = (RowBranchTemplate st.shape L R st.shape.star 0).support :=
+        congrArg (fun T : RowTemplate m (q + 2) => T.support)
+          (by simpa [L, R] using hrow xstar)
+      _ = (L st.shape.star).support := by simp [RowBranchTemplate]
+      _ = (st.shape.row st.shape.star).support :=
+        (st.shape.row st.shape.star).scaleBranchP_support u
+      _ = Jstar := hstarSupport
+  · intro V hV p y
+    rcases Finset.mem_erase.mp hV with ⟨_, hVold⟩
+    change |outsideBranchMaskFunction st.maskFunction u V p y| ≤ 1
+    unfold outsideBranchMaskFunction
+    rw [abs_mul]
+    calc
+      |st.maskFunction V (dropPrimeTuple2 p)
+          ((if u ∈ V then (p 1 : ℤ) else 1) * y)| *
+        |st.maskFunction V (dropPrimeTuple2 p)
+          ((if u ∈ V then (p 0 : ℤ) else 1) * y)| ≤ 1 * 1 := by
+            exact mul_le_mul
+              (hmask V hVold (dropPrimeTuple2 p) _)
+              (hmask V hVold (dropPrimeTuple2 p) _)
+              (abs_nonneg _) (by norm_num)
+      _ = 1 := by norm_num
+  · intro R' p y
+    let x := e.symm R'
+    have hRbranch : (Sh'.row R').support = (st.shape.row x.val.1).support := by
+      rw [show R' = e x from by simp [x]]
+      rw [show Sh'.row (e x) =
+        RowBranchTemplate st.shape L R x.val.1 x.val.2 by simpa [L, R] using hrow x]
+      by_cases hzero : x.val.2.val = 0
+      · have hb : x.val.2 = 0 := Fin.ext hzero
+        simpa [RowBranchTemplate, hb] using
+          (st.shape.row x.val.1).scaleBranchP_support u
+      · have hone : x.val.2.val = 1 := by omega
+        have hb : x.val.2 = 1 := Fin.ext hone
+        simpa [RowBranchTemplate, hb] using
+          (st.shape.row x.val.1).scaleBranchQ_support u
+    have hanchor : (Sh'.row R').anchor = (st.shape.row x.val.1).anchor :=
+      RowTemplate.anchor_eq_of_support_eq (Sh'.row R') (st.shape.row x.val.1) hRbranch
+    have hWnonneg : ∀ i y, 0 ≤ W i y := by
+      intro i y
+      dsimp [W]
+      have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+      linarith
+    have hWpos : ∀ i y, 0 < W i y := by
+      intro i y
+      dsimp [W]
+      have h := chainWeight_nonneg S C N (st.shape.row i).anchor y
+      linarith
+    have hInvWeight : ∀ i (hi : I i) p' (y : ℤ),
+        good p' →
+        (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' *
+          (y : ℚ)).den = 1 →
+        W i (RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' *
+          (y : ℚ)).num = W i y := by
+      intro i hi p' y hgood hden
+      have hslots := (independentPrimePoolSupport_mem_iff
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).lower)
+        (fun _ : Fin (q + 2) => (S.primeStage.pool N C.gap).upper) p').mp hgood
+      have hslot (j : Fin (q + 2)) :
+          (S.primeStage.pool N C.gap).lower ≤ p' j ∧
+            p' j < (S.primeStage.pool N C.gap).upper ∧ (p' j).Prime := by
+        rcases Finset.mem_filter.mp (hslots j) with ⟨hIco, hpj⟩
+        rcases Finset.mem_Ico.mp hIco with ⟨hlo, hhi⟩
+        exact ⟨hlo, hhi, hpj⟩
+      have hp0 : (p' 0).Prime := (hslot 0).2.2
+      have hp1 : (p' 1).Prime := (hslot 1).2.2
+      have hV0 : masterScaleV S.core.parameters N C.gap < p' 0 :=
+        lt_of_lt_of_le hpoolLower (hslot 0).1
+      have hV1 : masterScaleV S.core.parameters N C.gap < p' 1 :=
+        lt_of_lt_of_le hpoolLower (hslot 1).1
+      have hpall : ∀ j, p' j ≠ 0 := fun j =>
+        Nat.ne_of_gt (Nat.Prime.pos (hslot j).2.2)
+      have hp1q : (p' 1 : ℚ) ≠ 0 := by exact_mod_cast hpall 1
+      by_cases heq : p' 0 = p' 1
+      · have hfac : RowTemplate.parallelScaleFactor (L i) (R i) (hInv i |>.mp hi) p' = 1 := by
+          change (∏ j, (p' j : ℚ) ^ (Classical.choose (hInv i |>.mp hi).2 j)) = 1
+          rw [RowTemplate.scaleBranch_parallel_factor_eq (st.shape.row i) u p' hpall
+            (hInv i |>.mp hi)]
+          by_cases hsingle : (st.shape.row i).support = {u}
+          · simp [hsingle, heq, hp1q]
+          · simp [hsingle]
+        rw [hfac] at hden ⊢
+        simpa [W]
+      · have hwt := chainWeight_scaleBranch_invariant S C N
+          (st.shape.row i).anchor (st.shape.row i) u p' hpall hp0 hp1 hV0 hV1 heq
+          (hInv i |>.mp hi) y hden
+        simpa [W, RowTemplate.parallelScaleFactor] using
+          congrArg (fun t : ℝ => 1 + t) hwt
+    have hbound := mergedBranchRowFunction_abs_le good L R e hInv st.rowFunction W p
+      hrowBound hWnonneg hWpos hInvWeight R' y
+    simpa [outsideBranchMaskRemovalState, W, hanchor] using hbound
+  · intro p
+    change mergedBranchRowFunction good L R e hInv st.rowFunction W p Sh'.star = gstar
+    rw [hstarIndex]
+    have hx : ¬ I st.shape.star := by simpa [I, L, R] using hstarNot
+    have hmerged :
+        mergedBranchRowFunction good L R e hInv st.rowFunction W p (e xstar) =
+          st.rowFunction st.shape.star (dropPrimeTuple2 p) := by
+      unfold mergedBranchRowFunction
+      simp only [Equiv.symm_apply_apply]
+      simp [xstar, I, L, R, hstarNot]
+    rw [hmerged]
+    exact hstarFunction (dropPrimeTuple2 p)
+
 theorem exists_maskShape_step {m q r : ℕ} (Sh : RowShape m q r)
     (Jstar U : Finset (Fin m)) (hJ : 2 ≤ Jstar.card)
     (hStar : (Sh.row Sh.star).support = Jstar) :
@@ -6835,12 +7115,12 @@ theorem exists_maskShape_step {m q r : ℕ} (Sh : RowShape m q r)
     rcases Finset.mem_erase.mp hvErase with ⟨hvu, hvJ⟩
     have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
     have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
-    obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+    obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
       exists_scaleBranch_row_shape Sh Jstar hStar u v huSupp hvSupp hvu
     exact ⟨r', Sh', hr', hstar'⟩
   · have huSupp : u ∈ (Sh.row Sh.star).support := by rw [hStar]; exact huJ
     have hvSupp : v ∈ (Sh.row Sh.star).support := by rw [hStar]; exact hvJ
-    obtain ⟨r', Sh', e, hrow, hr', hstar'⟩ :=
+    obtain ⟨r', Sh', e, hrow, hr', hstar', hstarIndex⟩ :=
       exists_scaleBalanced_row_shape Sh Jstar hStar u v huSupp hvSupp huv
     exact ⟨r', Sh', hr', hstar'⟩
 
