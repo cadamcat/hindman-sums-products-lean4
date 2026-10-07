@@ -836,6 +836,34 @@ private theorem c_test2_scaleRatioNat {K s m : ℕ}
   have hρM : ρ ∣ S.core.parameters.M N := Int.natCast_dvd_natCast.mp hρMInt
   exact ⟨ρ, hρpos, hratioQ, hW, hρM⟩
 
+theorem c_test2_scaleRatioNat_public {K s m : ℕ}
+    {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (N : ℕ) (c : Fin m → ℤ)
+    (hpos : ∀ d, 0 < c d)
+    (hratio : ∀ u d, u < d → ∃ t : ℕ,
+      c u = (primorial (N + 1) : ℤ) * (t : ℤ) * c d)
+    (hmod : ∀ d,
+      ((primorial (N + 1) ^ (S.primeStage.e0 N + 1) : ℕ) : ℤ) * c d ∣
+        (S.core.parameters.M N : ℤ))
+    (i d : Fin m) (hid : i < d) :
+    ∃ ρ : ℕ, 0 < ρ ∧ (ρ : ℚ) = (c i : ℚ) / (c d : ℚ) ∧
+      primorial (N + 1) ∣ ρ ∧ ρ ∣ S.core.parameters.M N :=
+  c_test2_scaleRatioNat S N c hpos hratio hmod i d hid
+
+theorem c_test2_evalIntegerPolynomial_rename {q s : ℕ}
+    (ι : Fin q ↪ Fin s) (P : IntegerPolynomial q) (p : Fin s → ℕ) :
+    evalIntegerPolynomial (MvPolynomial.rename ι P) (fun i => (p i : ℤ)) =
+      evalIntegerPolynomial P (fun i => (p (ι i) : ℤ)) := by
+  change MvPolynomial.eval (fun i => (p i : ℤ)) (MvPolynomial.rename ι P) =
+    MvPolynomial.eval (fun i => (p (ι i) : ℤ)) P
+  rw [MvPolynomial.eval_rename]
+  rfl
+
+theorem c_test2_rationalResidue_natCast {r : ℕ} (hr : r.Prime) (n : ℕ) :
+    FromArithmetic.rationalResidue r hr (n : ℚ) = (n : ZMod r) := by
+  letI : Fact r.Prime := ⟨hr⟩
+  simp [FromArithmetic.rationalResidue]
+
 -- Adapted from HindmanSumsProducts/Correlation/PkgRows.lean.
 private lemma c_test2_rowPoly_ne_zero_of_some {m q : ℕ} (T : RowTemplate m q)
     (k : Fin m) (e : Fin q → ℕ) (he : T.entry k = some e) : T.poly k ≠ 0 := by
