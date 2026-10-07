@@ -8499,6 +8499,24 @@ theorem pkgMask_stateIntegrand_outsideFactor {m q r K s : ℕ} {Aset : Finset �
   field_simp [hΩ]
   ring
 
+theorem pkgMask_stateIntegrand_selectedMask_factor {m q r K s : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (st : MaskRemovalState m q r)
+    (S : MasterScales K Aset s Dm) (C : MasterChain K m) (a : Fin m → ℚ)
+    (N : ℕ) (U : Finset (Fin m)) (u : Fin m) (p : Fin q → ℕ)
+    (z : Fin m → ℤ) (prime : ℕ) (hU : U ∈ st.masks) (hu : u ∉ U) :
+    pkgMask_stateIntegrand st S C a N p
+        (Function.update z u ((prime : ℤ) * z u)) =
+      st.maskFunction U p (∏ k ∈ U, z k) *
+        ((∏ V ∈ st.masks.erase U,
+          st.maskFunction V p
+            (∏ k ∈ V, Function.update z u ((prime : ℤ) * z u) k)) *
+          ∏ R, atQ (st.rowFunction R p)
+            (rowForm (chainScale S.core.parameters C a N) (st.shape.row R) p
+              fun k => ((Function.update z u ((prime : ℤ) * z u) k : ℤ) : ℚ))) := by
+  have h := pkgMask_stateIntegrand_outsideFactor st S C a N U u p z prime 1 hU hu
+    (by norm_num)
+  simpa using h
+
 end MaskRemovalState
 
 noncomputable def outsideBranchMaskRemovalState {K s m q r r' : ℕ}
