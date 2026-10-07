@@ -15,6 +15,23 @@ private abbrev MomentBaseIndex (b d : ℕ) := Unit ⊕ (Fin b × (Fin d × Fin 2
 private abbrev MomentRowIndex (b d : ℕ) :=
   Unit ⊕ (Fin b × {ω : Finset (Fin d) // ω.Nonempty})
 
+private abbrev MomentShiftIntegerTuple (b d : ℕ) := Fin b → Fin d → Fin 2 → ℤ
+
+private noncomputable def momentBaseValuesEquiv (b d : ℕ) :
+    (MomentBaseIndex b d → ℤ) ≃ (ℤ × MomentShiftIntegerTuple b d) where
+  toFun x := (x (.inl ()), fun k j side => x (.inr (k, (j, side))))
+  invFun v i := match i with
+    | .inl _ => v.1
+    | .inr (k, (j, side)) => v.2 k j side
+  left_inv x := by
+    funext i
+    cases i with
+    | inl u => rfl
+    | inr idx => rcases idx with ⟨k, ⟨j, side⟩⟩; rfl
+  right_inv v := by
+    rcases v with ⟨y, u⟩
+    congr 1
+
 private noncomputable def momentPrimeEnum (b q : ℕ) :
     Fin (Fintype.card (MomentPrimeIndex b q)) ≃ MomentPrimeIndex b q :=
   (Fintype.equivFin _).symm
@@ -22,6 +39,43 @@ private noncomputable def momentPrimeEnum (b q : ℕ) :
 private noncomputable def momentBaseEnum (b d : ℕ) :
     Fin (Fintype.card (MomentBaseIndex b d)) ≃ MomentBaseIndex b d :=
   (Fintype.equivFin _).symm
+
+private noncomputable def momentBaseCoordEquiv (b d : ℕ) :
+    (Fin (Fintype.card (MomentBaseIndex b d)) → ℤ) ≃
+      (ℤ × MomentShiftIntegerTuple b d) :=
+  (momentBaseEnum b d).arrowCongr (Equiv.refl ℤ) |>.trans
+    (momentBaseValuesEquiv b d)
+
+private noncomputable def momentBaseEncodeInt {b d : ℕ} (y : ℤ)
+    (u : MomentShiftIntegerTuple b d) :
+    Fin (Fintype.card (MomentBaseIndex b d)) → ℤ :=
+  (momentBaseCoordEquiv b d).symm (y, u)
+
+private theorem momentBaseEncodeInt_root {b d : ℕ} (y : ℤ)
+    (u : MomentShiftIntegerTuple b d) :
+    momentBaseEncodeInt y u ((momentBaseEnum b d).symm (.inl ())) = y := by
+  simp [momentBaseEncodeInt, momentBaseCoordEquiv, momentBaseValuesEquiv]
+
+private theorem momentBaseEncodeInt_shift {b d : ℕ} (y : ℤ)
+    (u : MomentShiftIntegerTuple b d) (k : Fin b) (j : Fin d) (side : Fin 2) :
+    momentBaseEncodeInt y u ((momentBaseEnum b d).symm (.inr (k, (j, side)))) =
+      u k j side := by
+  simp [momentBaseEncodeInt, momentBaseCoordEquiv, momentBaseValuesEquiv]
+
+private noncomputable def momentBaseEncode {b d : ℕ} (y : ℤ)
+    (u : Fin b → Fin d → Fin 2 → ℕ) :
+    Fin (Fintype.card (MomentBaseIndex b d)) → ℤ :=
+  (momentBaseCoordEquiv b d).symm (y, fun k j side => (u k j side : ℤ))
+
+private theorem momentBaseEncode_root {b d : ℕ} (y : ℤ)
+    (u : Fin b → Fin d → Fin 2 → ℕ) :
+    momentBaseEncode y u ((momentBaseEnum b d).symm (.inl ())) = y := by
+  simp [momentBaseEncode, momentBaseCoordEquiv, momentBaseValuesEquiv]
+
+private theorem momentBaseEncode_shift {b d : ℕ} (y : ℤ)
+    (u : Fin b → Fin d → Fin 2 → ℕ) (k : Fin b) (j : Fin d) (side : Fin 2) :
+    momentBaseEncode y u ((momentBaseEnum b d).symm (.inr (k, (j, side)))) = u k j side := by
+  simp [momentBaseEncode, momentBaseCoordEquiv, momentBaseValuesEquiv]
 
 private noncomputable def momentRowEnum (b d : ℕ) :
     Fin (Fintype.card (MomentRowIndex b d)) ≃ MomentRowIndex b d :=
@@ -644,6 +698,30 @@ private theorem momentRowCoeffInt_shift_formula {K sl : ℕ} {As : Finset ℚ}
           simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hj]
       · simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hk, eq_comm]
 
+private theorem momentRowCoeffInt_shift_formula_one {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate)
+    (l : Fin K) (N : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (u : Fin (Fintype.card (MomentRowIndex b T.d))) (k : Fin b) (j : Fin T.d) :
+    momentRowCoeffInt MS b T l N p u
+      ((momentBaseEnum b T.d).symm (.inr (k, (j, (1 : Fin 2)))) ) =
+      if (k, j) ∈ momentRowSupport (momentRowEnum b T.d u) then
+        (momentModulus MS b T l N p k : ℤ) else 0 := by
+  classical
+  have hbase := (momentBaseEnum b T.d).apply_symm_apply
+    (.inr (k, (j, (1 : Fin 2))))
+  cases hrow : momentRowEnum b T.d u with
+  | inl _ =>
+      simp [momentRowCoeffInt, momentRowSupport, hbase, hrow]
+  | inr row =>
+      rcases row with ⟨k', ω⟩
+      by_cases hk : k = k'
+      · subst k'
+        by_cases hj : j ∈ ω.1 <;>
+          simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hj]
+      · simp [momentRowCoeffInt, momentRowSupport, hbase, hrow, hk, eq_comm]
+
 private theorem momentRowSupport_exists_symmetric_difference {b d : ℕ}
     {u v : MomentRowIndex b d} (huv : u ≠ v) :
     ∃ x, (x ∈ momentRowSupport u ∧ x ∉ momentRowSupport v) ∨
@@ -1118,6 +1196,193 @@ private theorem momentLinearRowValue_den_eq_one {K sl : ℕ} {As : Finset ℚ}
     (linearRowValue (momentRowCoeff MS b T l) N p u x).den = 1 := by
   rw [momentLinearRowValue_eq_castInt]
   simp only [Rat.den_intCast]
+
+private theorem momentLinearRowValue_baseEncode {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate) (l : Fin K)
+    (N : ℕ) (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (k : Fin b) (ω : Finset (Fin T.d)) (hω : ω.Nonempty)
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    linearRowValue (momentRowCoeff MS b T l) N p
+      ((momentRowEnum b T.d).symm (.inr (k, ⟨ω, hω⟩))) (momentBaseEncode y u) =
+      ((y + (momentModulus MS b T l N p k : ℤ) *
+        ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0)) : ℚ) := by
+  classical
+  let row := (momentRowEnum b T.d).symm (.inr (k, ⟨ω, hω⟩))
+  let root := (momentBaseEnum b T.d).symm (.inl ())
+  have hsum :
+      (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) =
+      ∑ v : MomentBaseIndex b T.d,
+        momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm v) := by
+    exact Fintype.sum_equiv (momentBaseEnum b T.d)
+      (fun i => momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i)
+      (fun v => momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm v)) (by intro i; simp)
+  have hrootCoeff : momentRowCoeffInt MS b T l N p row root = 1 := by
+    simp [row, root, momentRowCoeffInt]
+  have hcoord (k' : Fin b) (j' : Fin T.d) :
+      (∑ side : Fin 2,
+        momentRowCoeffInt MS b T l N p row
+            ((momentBaseEnum b T.d).symm (.inr (k', (j', side)))) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inr (k', (j', side))))) =
+      if (k', j') ∈ momentRowSupport (.inr (k, ⟨ω, hω⟩)) then
+        (momentModulus MS b T l N p k : ℤ) *
+          ((u k j' 1 : ℤ) - u k j' 0) else 0 := by
+    have h0 := momentRowCoeffInt_shift_formula MS b T l N p row k' j'
+    have h1 := momentRowCoeffInt_shift_formula_one MS b T l N p row k' j'
+    have hrow : momentRowEnum b T.d row = .inr (k, ⟨ω, hω⟩) := by simp [row]
+    rw [hrow] at h0 h1
+    by_cases hcond : k' = k ∧ j' ∈ ω
+    · rcases hcond with ⟨rfl, hj⟩
+      simp [Fin.sum_univ_succ, h0, h1, hj, momentBaseEncode_shift, momentRowSupport]
+      ring
+    · simp [Fin.sum_univ_succ, h0, h1, hcond, momentBaseEncode_shift, momentRowSupport]
+  rw [momentLinearRowValue_eq_castInt]
+  have hInt :
+    (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) =
+      y + (momentModulus MS b T l N p k : ℤ) *
+        ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0) := by
+    rw [hsum]
+    simp only [MomentBaseIndex, Fintype.sum_sum_type, Fintype.sum_prod_type]
+    have hrootEncode (a : Unit) :
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a)) = y := by
+      cases a
+      have hidx : (Fintype.equivFin (MomentBaseIndex b T.d)) (.inl ()) =
+          (momentBaseEnum b T.d).symm (.inl ()) := rfl
+      rw [← hidx]
+      exact momentBaseEncode_root y u
+    have hrootIndex (a : Unit) : (momentBaseEnum b T.d).symm (.inl a) = root := by
+      cases a
+      rfl
+    have hrootCoeffAll (a : Unit) :
+        momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm (.inl a)) = 1 := by
+      rw [hrootIndex]
+      exact hrootCoeff
+    have hrootSum :
+        (∑ a : Unit,
+          momentRowCoeffInt MS b T l N p row
+            ((momentBaseEnum b T.d).symm (.inl a)) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a))) = y := by
+      simp [hrootCoeffAll, hrootEncode]
+    rw [hrootSum]
+    simp_rw [hcoord]
+    simp only [momentRowSupport, Finset.mem_filter, Finset.mem_univ, true_and]
+    have hsumShift :
+        (∑ k' : Fin b, ∑ j' : Fin T.d,
+          if k' = k ∧ j' ∈ ω then
+            (momentModulus MS b T l N p k : ℤ) *
+              ((u k j' 1 : ℤ) - u k j' 0) else 0) =
+        (momentModulus MS b T l N p k : ℤ) *
+          ∑ j' ∈ ω, ((u k j' 1 : ℤ) - u k j' 0) := by
+      rw [Finset.sum_comm]
+      calc
+        _ = ∑ j' : Fin T.d,
+            if j' ∈ ω then
+              (momentModulus MS b T l N p k : ℤ) *
+                ((u k j' 1 : ℤ) - u k j' 0) else 0 := by
+          apply Finset.sum_congr rfl
+          intro j' hj'
+          by_cases hj : j' ∈ ω <;> simp [hj]
+        _ = ∑ j' ∈ ω,
+            (momentModulus MS b T l N p k : ℤ) *
+              ((u k j' 1 : ℤ) - u k j' 0) := by
+          simp [Finset.sum_filter]
+        _ = _ := by rw [Finset.mul_sum]
+    rw [hsumShift]
+  exact_mod_cast hInt
+
+private theorem momentLinearRowValue_rootBaseEncode {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate) (l : Fin K)
+    (N : ℕ) (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    linearRowValue (momentRowCoeff MS b T l) N p
+      ((momentRowEnum b T.d).symm (.inl ())) (momentBaseEncode y u) = (y : ℚ) := by
+  classical
+  let row := (momentRowEnum b T.d).symm (.inl ())
+  let root := (momentBaseEnum b T.d).symm (.inl ())
+  have hsum :
+      (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) =
+      ∑ v : MomentBaseIndex b T.d,
+        momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+          momentBaseEncode y u ((momentBaseEnum b T.d).symm v) := by
+    exact Fintype.sum_equiv (momentBaseEnum b T.d)
+      (fun i => momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i)
+      (fun v => momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm v) *
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm v)) (by intro i; simp)
+  have hrootCoeff (a : Unit) :
+      momentRowCoeffInt MS b T l N p row ((momentBaseEnum b T.d).symm (.inl a)) = 1 := by
+    simp [row, momentRowCoeffInt]
+  have hshiftCoeff (k : Fin b) (j : Fin T.d) (side : Fin 2) :
+      momentRowCoeffInt MS b T l N p row
+        ((momentBaseEnum b T.d).symm (.inr (k, (j, side)))) = 0 := by
+    simp [row, momentRowCoeffInt]
+  have hrootEncode (a : Unit) :
+      momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a)) = y := by
+    cases a
+    change momentBaseEncode y u
+      ((Fintype.equivFin (MomentBaseIndex b T.d)) (.inl ())) = y
+    rw [show (Fintype.equivFin (MomentBaseIndex b T.d)) (.inl ()) =
+      (momentBaseEnum b T.d).symm (.inl ()) by rfl]
+    exact momentBaseEncode_root y u
+  have hrootSum :
+      (∑ a : Unit,
+        momentRowCoeffInt MS b T l N p row
+          ((momentBaseEnum b T.d).symm (.inl a)) *
+        momentBaseEncode y u ((momentBaseEnum b T.d).symm (.inl a))) = y := by
+    simp_rw [hrootCoeff, hrootEncode]
+    simp
+  rw [momentLinearRowValue_eq_castInt]
+  have hInt :
+      (∑ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentRowCoeffInt MS b T l N p row i * momentBaseEncode y u i) = y := by
+    rw [hsum]
+    simp only [MomentBaseIndex, Fintype.sum_sum_type, Fintype.sum_prod_type]
+    rw [hrootSum]
+    simp [hshiftCoeff]
+  exact_mod_cast hInt
+
+private theorem momentLinearRowValue_num_baseEncode {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate) (l : Fin K)
+    (N : ℕ) (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (r : Fin (Fintype.card (MomentRowIndex b T.d)))
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    (linearRowValue (momentRowCoeff MS b T l) N p r (momentBaseEncode y u)).num =
+      match momentRowEnum b T.d r with
+      | .inl _ => y
+      | .inr (k, ω) =>
+          y + momentModulus MS b T l N p k *
+            (ω.1).sum (fun j : Fin T.d => (u k j 1 : ℤ) - u k j 0) := by
+  classical
+  cases hv : momentRowEnum b T.d r with
+  | inl a =>
+      have hr : r = (momentRowEnum b T.d).symm (.inl a) := by
+        calc
+          r = (momentRowEnum b T.d).symm (momentRowEnum b T.d r) :=
+            (momentRowEnum b T.d).symm_apply_apply r |>.symm
+          _ = _ := by rw [hv]
+      rw [hr]
+      simp only [(momentRowEnum b T.d).apply_symm_apply]
+      cases a
+      rw [momentLinearRowValue_rootBaseEncode]
+      simp
+  | inr z =>
+      rcases z with ⟨k, ω⟩
+      rcases ω with ⟨ω, hω⟩
+      have hr : r = (momentRowEnum b T.d).symm (.inr (k, ⟨ω, hω⟩)) := by
+        calc
+          r = (momentRowEnum b T.d).symm (momentRowEnum b T.d r) :=
+            (momentRowEnum b T.d).symm_apply_apply r |>.symm
+          _ = _ := by rw [hv]
+      rw [hr]
+      simp only [(momentRowEnum b T.d).apply_symm_apply]
+      rw [momentLinearRowValue_baseEncode MS b T l N p k ω hω y u]
+      norm_cast
 
 theorem clip_eq_self_of_abs_le (K x : ℝ) (hx : |x| ≤ K) :
     clip K x = x := by
@@ -1623,6 +1888,61 @@ private theorem momentTailProductLaw_eq_divisorTemplateLaw {K sl : ℕ} {As : Fi
     _ = divisorTemplateLaw MS.core.parameters N (momentTailDivisorTemplate B) σ := by
       rfl
 
+private theorem momentUnitDivisorLaw_eq {K : ℕ} (A : Parameters K) (N σ : ℕ) :
+    divisorTemplateLaw A N (momentUnitDivisorTemplate K) σ =
+      if σ = 1 then 1 else 0 := by
+  classical
+  unfold divisorTemplateLaw harmonicProductLaw
+  change (∑' t : Fin 0 → ℕ,
+      (if (∏ i, t i) = σ then (1 : ℝ) else 0) *
+        ∏ i, harmonicNatLaw (A.X N (Fin.elim0 i)) (primorial (N + 1)) (t i)) = _
+  rw [tsum_eq_single (default : Fin 0 → ℕ)]
+  · have hprod : ∏ i : Fin 0, (default : Fin 0 → ℕ) i = 1 := Fintype.prod_empty _
+    have hraw : ∏ i : Fin 0,
+        harmonicNatLaw (A.X N (Fin.elim0 i)) (primorial (N + 1))
+          ((default : Fin 0 → ℕ) i) = 1 := Fintype.prod_empty _
+    rw [hprod, hraw]
+    simp [eq_comm]
+  · intro t ht
+    apply False.elim
+    apply ht
+    funext i
+    exact Fin.elim0 i
+
+private theorem momentUnitDivisorNu_eq_one {K : ℕ} (A : Parameters K) (N : ℕ)
+    (z : ℤ) : nuB (divisorTemplateLaw A N (momentUnitDivisorTemplate K)) z = 1 := by
+  classical
+  unfold nuB
+  simp_rw [momentUnitDivisorLaw_eq A N]
+  rw [tsum_eq_single 1]
+  · norm_num
+  · intro σ hσ
+    simp [hσ]
+
+private theorem momentTailDivisorNu_eq_nu {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (N : ℕ) (z : ℤ) :
+    nuB (divisorTemplateLaw MS.core.parameters N (momentTailDivisorTemplate B)) z =
+      nu MS.core.parameters N B z := by
+  classical
+  unfold nu nuB
+  apply tsum_congr
+  intro σ
+  rw [← momentTailProductLaw_eq_divisorTemplateLaw MS N B σ]
+
+private theorem momentDivisorFamilyNu_eq {K sl b d : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (active : Finset (Fin (Fintype.card (MomentRowIndex b d))))
+    (u : Fin (Fintype.card (MomentRowIndex b d))) (N : ℕ) (z : ℤ) :
+    nuB (divisorTemplateLaw MS.core.parameters N (momentDivisorFamily B active u)) z =
+      if u ∈ active then nu MS.core.parameters N B z else 1 := by
+  classical
+  by_cases ha : u ∈ active
+  · simpa [momentDivisorFamily, ha] using
+      (momentTailDivisorNu_eq_nu MS B N z)
+  · simpa [momentDivisorFamily, ha] using
+      (momentUnitDivisorNu_eq_one MS.core.parameters N z)
+
 private theorem momentHarmonicLaw_tsum_eq_one (X W : ℕ) (hX : 0 < X)
     (hH : 0 < harmonicNormalizer X W) :
     ∑' y : ℤ, harmonicLaw X W y = 1 := by
@@ -1725,6 +2045,47 @@ private noncomputable def momentBaseMass {K sl : ℕ} {As : Finset ℚ}
     ∏ j, momentBaseCoordinateLaw MS B l T J0 N b p
       (momentBaseEnum b T.d j) (x j)
   else if x = 0 then 1 else 0
+
+private theorem momentBaseMass_encodeInt {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (hreg : momentBaseRegular MS B l T J0 N b p) (L : ℕ)
+    (hL : ∀ k : Fin b, T.length (corrScales MS) l J0 N
+      (fun j => p ((momentPrimeEnum b T.q).symm (k, j))) = L)
+    (y : ℤ) (u : MomentShiftIntegerTuple b T.d) :
+    momentBaseMass MS B l T J0 N b p (momentBaseEncodeInt y u) =
+      harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+        ∏ k : Fin b, ∏ j : Fin T.d, ∏ side : Fin 2,
+          uniformIntegerIntervalLaw 0 L (u k j side) := by
+  classical
+  have hprod :
+      (∏ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+        momentBaseCoordinateLaw MS B l T J0 N b p (momentBaseEnum b T.d i)
+          (momentBaseEncodeInt y u i)) =
+      ∏ v : MomentBaseIndex b T.d,
+        momentBaseCoordinateLaw MS B l T J0 N b p v
+          (momentBaseEncodeInt y u ((momentBaseEnum b T.d).symm v)) := by
+    exact Fintype.prod_equiv (momentBaseEnum b T.d)
+      (fun i => momentBaseCoordinateLaw MS B l T J0 N b p (momentBaseEnum b T.d i)
+        (momentBaseEncodeInt y u i))
+      (fun v => momentBaseCoordinateLaw MS B l T J0 N b p v
+        (momentBaseEncodeInt y u ((momentBaseEnum b T.d).symm v)))
+      (by intro i; simp)
+  calc
+    momentBaseMass MS B l T J0 N b p (momentBaseEncodeInt y u) =
+        ∏ i : Fin (Fintype.card (MomentBaseIndex b T.d)),
+          momentBaseCoordinateLaw MS B l T J0 N b p (momentBaseEnum b T.d i)
+            (momentBaseEncodeInt y u i) := by
+      simp [momentBaseMass, hreg]
+    _ = ∏ v : MomentBaseIndex b T.d,
+          momentBaseCoordinateLaw MS B l T J0 N b p v
+            (momentBaseEncodeInt y u ((momentBaseEnum b T.d).symm v)) := hprod
+    _ = harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+          ∏ k : Fin b, ∏ j : Fin T.d, ∏ side : Fin 2,
+            uniformIntegerIntervalLaw 0 L (u k j side) := by
+      simp [MomentBaseIndex, Fintype.prod_sum_type, Fintype.prod_prod_type,
+        momentBaseCoordinateLaw, momentBaseEncodeInt_root, momentBaseEncodeInt_shift, hL]
 
 private noncomputable def momentBaseWindow {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
@@ -1868,6 +2229,291 @@ private theorem momentBaseMass_zero_outside {K sl : ℕ} {As : Finset ℚ}
           exact_mod_cast hU
       exact False.elim (hx hzeroMem)
     · simp [momentBaseMass, hreg, hx0]
+
+private def momentReplicaShiftSupportInt (b d L : ℕ) :
+    Finset (MomentShiftIntegerTuple b d) :=
+  Fintype.piFinset (fun _ : Fin b =>
+    Fintype.piFinset (fun _ : Fin d =>
+      Fintype.piFinset (fun _ : Fin 2 => Finset.Ico (0 : ℤ) (L : ℤ))))
+
+private noncomputable def momentReplicaShiftMassInt {b d : ℕ} (L : ℕ)
+    (u : MomentShiftIntegerTuple b d) : ℝ :=
+  ∏ k : Fin b, ∏ j : Fin d, ∏ side : Fin 2,
+    uniformIntegerIntervalLaw 0 L (u k j side)
+
+private noncomputable def momentReplicaShiftAverageInt {b d : ℕ} (L : ℕ)
+    (F : MomentShiftIntegerTuple b d → ℝ) : ℝ :=
+  ∑' u : MomentShiftIntegerTuple b d, momentReplicaShiftMassInt L u * F u
+
+private theorem momentReplicaShiftMassInt_zero_of_not_mem {b d L : ℕ}
+    (u : MomentShiftIntegerTuple b d)
+    (hu : u ∉ momentReplicaShiftSupportInt b d L) :
+    momentReplicaShiftMassInt L u = 0 := by
+  classical
+  have hnot : ¬ ∀ k : Fin b, ∀ j : Fin d, ∀ side : Fin 2,
+      u k j side ∈ Finset.Ico (0 : ℤ) (L : ℤ) := by
+    simpa [momentReplicaShiftSupportInt, Fintype.mem_piFinset] using hu
+  obtain ⟨k, hk⟩ := not_forall.mp hnot
+  obtain ⟨j, hj⟩ := not_forall.mp hk
+  obtain ⟨side, hs⟩ := not_forall.mp hj
+  have hbounds : ¬ (0 ≤ u k j side ∧ u k j side < (L : ℤ)) := by
+    simpa only [Finset.mem_Ico] using hs
+  have hzero : uniformIntegerIntervalLaw 0 L (u k j side) = 0 := by
+    simp [uniformIntegerIntervalLaw, hbounds]
+  unfold momentReplicaShiftMassInt
+  have hside : ∏ side' : Fin 2, uniformIntegerIntervalLaw 0 L (u k j side') = 0 :=
+    Finset.prod_eq_zero (Finset.mem_univ side) hzero
+  have hjprod : ∏ j' : Fin d, ∏ side' : Fin 2,
+      uniformIntegerIntervalLaw 0 L (u k j' side') = 0 :=
+    Finset.prod_eq_zero (Finset.mem_univ j) hside
+  exact Finset.prod_eq_zero (Finset.mem_univ k) hjprod
+
+private def momentReplicaShiftSupportNat (b d L : ℕ) :
+    Finset (Fin b → Fin d → Fin 2 → ℕ) :=
+  Fintype.piFinset (fun _ : Fin b =>
+    Fintype.piFinset (fun _ : Fin d =>
+      Fintype.piFinset (fun _ : Fin 2 => Finset.range L)))
+
+private noncomputable def momentReplicaShiftSupportEquiv {b d : ℕ} (L : ℕ) :
+    {u : Fin b → Fin d → Fin 2 → ℕ // u ∈ momentReplicaShiftSupportNat b d L} ≃
+      {v : MomentShiftIntegerTuple b d // v ∈ momentReplicaShiftSupportInt b d L} where
+  toFun u := ⟨fun k j side => (u.1 k j side : ℤ), by
+    have hfields : ∀ k j side, u.1 k j side < L := by
+      simpa [momentReplicaShiftSupportNat, Finset.mem_range] using u.2
+    simp only [momentReplicaShiftSupportInt, Fintype.mem_piFinset, Finset.mem_Ico]
+    intro k j side
+    constructor
+    · positivity
+    · exact_mod_cast hfields k j side⟩
+  invFun v := ⟨fun k j side => (v.1 k j side).toNat, by
+    have hfields : ∀ k j side,
+        0 ≤ v.1 k j side ∧ v.1 k j side < (L : ℤ) := by
+      simpa [momentReplicaShiftSupportInt, Finset.mem_Ico] using v.2
+    simp only [momentReplicaShiftSupportNat, Fintype.mem_piFinset, Finset.mem_range]
+    intro k j side
+    have hcast : (((v.1 k j side).toNat : ℕ) : ℤ) = v.1 k j side :=
+      Int.toNat_of_nonneg (hfields k j side).1
+    have hlt : (v.1 k j side).toNat < L := by
+      have hltZ : (((v.1 k j side).toNat : ℕ) : ℤ) < (L : ℤ) := by
+        rw [hcast]
+        exact (hfields k j side).2
+      exact_mod_cast hltZ
+    exact hlt⟩
+  left_inv u := by
+    apply Subtype.ext
+    funext k j side
+    have hcast :
+        ((((u.1 k j side : ℕ) : ℤ).toNat : ℕ) : ℤ) = (u.1 k j side : ℤ) :=
+      Int.natCast_toNat_eq_self.mpr (by positivity)
+    exact_mod_cast hcast
+  right_inv v := by
+    apply Subtype.ext
+    funext k j side
+    have hcoords : ∀ k j side,
+        v.1 k j side ∈ Finset.Ico (0 : ℤ) (L : ℤ) := by
+      simpa [momentReplicaShiftSupportInt] using v.2
+    exact Int.toNat_of_nonneg
+      ((Finset.mem_Ico.mp (hcoords k j side)).1)
+
+private theorem momentReplicaShiftMassInt_eq_const_of_mem {b d L : ℕ} (hL : 0 < L)
+    (u : MomentShiftIntegerTuple b d)
+    (hu : u ∈ momentReplicaShiftSupportInt b d L) :
+    momentReplicaShiftMassInt L u = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ := by
+  classical
+  have hcoord (k : Fin b) (j : Fin d) (side : Fin 2) :
+      uniformIntegerIntervalLaw 0 L (u k j side) = 1 / (L : ℝ) := by
+    have hfields : ∀ k j,
+        (u k j 0 ∈ Finset.Ico (0 : ℤ) (L : ℤ)) ∧
+          (u k j 1 ∈ Finset.Ico (0 : ℤ) (L : ℤ)) := by
+      simpa [momentReplicaShiftSupportInt, Fintype.mem_piFinset] using hu
+    have hmem : u k j side ∈ Finset.Ico (0 : ℤ) (L : ℤ) := by
+      fin_cases side
+      · exact (hfields k j).1
+      · exact (hfields k j).2
+    simp [uniformIntegerIntervalLaw, Finset.mem_Ico.mp hmem]
+  have hpow (x : ℝ) : ((x ^ 2) ^ Fintype.card (Fin d)) ^ b =
+      x ^ (2 * Fintype.card (Fin d) * b) := by
+    calc
+      ((x ^ 2) ^ Fintype.card (Fin d)) ^ b = x ^ (2 * (Fintype.card (Fin d) * b)) := by
+        rw [pow_mul, pow_mul]
+      _ = x ^ (2 * Fintype.card (Fin d) * b) := by congr 1 <;> ring
+  unfold momentReplicaShiftMassInt
+  simp_rw [hcoord]
+  calc
+    (∏ k : Fin b, ∏ j : Fin d, ∏ side : Fin 2, (1 / (L : ℝ))) =
+        (((1 / (L : ℝ)) ^ 2) ^ Fintype.card (Fin d)) ^ b := by
+      simp [Finset.prod_const, Fintype.card_fin]
+    _ = (1 / (L : ℝ)) ^ (2 * Fintype.card (Fin d) * b) := by
+      exact hpow (1 / (L : ℝ))
+    _ = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ := by
+      simp [one_div_pow]
+
+private theorem momentReplicaShiftAverageInt_eq_nat {b d L : ℕ} (hL : 0 < L)
+    (F : MomentShiftIntegerTuple b d → ℝ) :
+    momentReplicaShiftAverageInt L F =
+      ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        ∑ u ∈ momentReplicaShiftSupportNat b d L,
+          F (fun k j side => (u k j side : ℤ)) := by
+  classical
+  let SN := momentReplicaShiftSupportNat b d L
+  let SZ := momentReplicaShiftSupportInt b d L
+  let e := momentReplicaShiftSupportEquiv (b := b) (d := d) L
+  have hzero (u : MomentShiftIntegerTuple b d) (hu : u ∉ SZ) :
+      momentReplicaShiftMassInt L u * F u = 0 := by
+    simp [momentReplicaShiftMassInt_zero_of_not_mem (L := L) u (by simpa [SZ] using hu)]
+  have hsum :
+      (∑ u ∈ SZ, momentReplicaShiftMassInt L u * F u) =
+      ∑ u ∈ SN, ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        F (fun k j side => (u k j side : ℤ)) := by
+    calc
+      _ = ∑ u ∈ SZ.attach,
+            momentReplicaShiftMassInt L u.1 * F u.1 :=
+        (Finset.sum_attach SZ (fun u => momentReplicaShiftMassInt L u * F u)).symm
+      _ = ∑ u : {u : MomentShiftIntegerTuple b d // u ∈ SZ},
+            momentReplicaShiftMassInt L u.1 * F u.1 := by
+        rw [← Finset.univ_eq_attach SZ]
+      _ = ∑ u : {u : Fin b → Fin d → Fin 2 → ℕ // u ∈ SN},
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+              F (fun k j side => (u.1 k j side : ℤ)) := by
+        apply Fintype.sum_equiv e.symm
+        intro u
+        rw [momentReplicaShiftMassInt_eq_const_of_mem (L := L) hL u.1 u.2]
+        have heq : (fun k j side => ((e.symm u).1 k j side : ℤ)) = u.1 := by
+          exact congrArg Subtype.val (e.apply_symm_apply u)
+        rw [heq]
+      _ = ∑ u ∈ SN.attach,
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+              F (fun k j side => (u.1 k j side : ℤ)) := by
+        rw [← Finset.univ_eq_attach SN]
+      _ = ∑ u ∈ SN,
+            ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+              F (fun k j side => (u k j side : ℤ)) :=
+        by simpa using (Finset.sum_attach SN (fun u =>
+          ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+            F (fun k j side => (u k j side : ℤ))))
+  have hzero' : ∀ u ∉ SZ,
+      momentReplicaShiftMassInt L u * F u = 0 := by
+    exact hzero
+  calc
+    momentReplicaShiftAverageInt L F =
+        ∑ u ∈ SZ, momentReplicaShiftMassInt L u * F u := by
+      unfold momentReplicaShiftAverageInt
+      exact tsum_eq_sum (s := SZ) hzero'
+    _ = ∑ u ∈ SN, ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+          F (fun k j side => (u k j side : ℤ)) := hsum
+    _ = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        ∑ u ∈ SN, F (fun k j side => (u k j side : ℤ)) := by
+      rw [← Finset.mul_sum]
+    _ = ((L : ℝ) ^ (2 * Fintype.card (Fin d) * b))⁻¹ *
+        ∑ u ∈ momentReplicaShiftSupportNat b d L,
+          F (fun k j side => (u k j side : ℤ)) := by simp [SN]
+
+private theorem momentBaseMass_tsum_eq_Emu_replicaShift {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (hreg : momentBaseRegular MS B l T J0 N b p) (L : ℕ)
+    (hL : ∀ k : Fin b, T.length (corrScales MS) l J0 N
+      (fun j => p ((momentPrimeEnum b T.q).symm (k, j))) = L)
+    (F : (Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ) → ℝ) :
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b p x * F x =
+    Emu MS.core.parameters N B.1 (fun y =>
+      momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u))) := by
+  classical
+  let e := momentBaseCoordEquiv b T.d
+  let Sx := Fintype.piFinset (fun _ : Fin (Fintype.card (MomentBaseIndex b T.d)) =>
+    momentBaseWindow MS B l T J0 N b p)
+  let Spair := Sx.image e
+  have hpairZero (v : ℤ × MomentShiftIntegerTuple b T.d) (hv : v ∉ Spair) :
+      momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v) = 0 := by
+    have hx : e.symm v ∉ Sx := by
+      intro hx
+      apply hv
+      exact Finset.mem_image.mpr ⟨e.symm v, hx, by simp [e]⟩
+    simp [momentBaseMass_zero_outside MS B l T J0 N b p (e.symm v) (by simpa [Sx] using hx)]
+  have hpairSummable : Summable (fun v : ℤ × MomentShiftIntegerTuple b T.d =>
+      momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v)) := by
+    apply summable_of_ne_finset_zero (s := Spair)
+    intro v hv
+    exact hpairZero v (by simpa [Spair] using hv)
+  have hshiftSummable (y : ℤ) : Summable (fun u : MomentShiftIntegerTuple b T.d =>
+      momentReplicaShiftMassInt L u * F (momentBaseEncodeInt y u)) := by
+    apply summable_of_ne_finset_zero (s := momentReplicaShiftSupportInt b T.d L)
+    intro u hu
+    simp [momentReplicaShiftMassInt_zero_of_not_mem u hu]
+  have hinnerSummable (y : ℤ) : Summable (fun u : MomentShiftIntegerTuple b T.d =>
+      momentBaseMass MS B l T J0 N b p (e.symm (y, u)) * F (e.symm (y, u))) := by
+    apply summable_of_ne_finset_zero (s := momentReplicaShiftSupportInt b T.d L)
+    intro u hu
+    have heq : e.symm (y, u) = momentBaseEncodeInt y u := rfl
+    rw [heq, momentBaseMass_encodeInt MS B l T J0 N b p hreg L hL y u]
+    have hzero := momentReplicaShiftMassInt_zero_of_not_mem (L := L) u hu
+    change (harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+        momentReplicaShiftMassInt L u) * F (momentBaseEncodeInt y u) = 0
+    rw [hzero]
+    simp
+  have hreindex :
+      (∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+        momentBaseMass MS B l T J0 N b p x * F x) =
+      ∑' v : ℤ × MomentShiftIntegerTuple b T.d,
+        momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v) := by
+    simpa [e] using
+      (e.tsum_eq (fun v : ℤ × MomentShiftIntegerTuple b T.d =>
+        momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v)))
+  calc
+    _ = ∑' v : ℤ × MomentShiftIntegerTuple b T.d,
+          momentBaseMass MS B l T J0 N b p (e.symm v) * F (e.symm v) := hreindex
+    _ = ∑' y : ℤ, ∑' u : MomentShiftIntegerTuple b T.d,
+          momentBaseMass MS B l T J0 N b p (e.symm (y, u)) * F (e.symm (y, u)) :=
+      hpairSummable.tsum_prod' hinnerSummable
+    _ = ∑' y : ℤ, harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+          momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u)) := by
+      apply tsum_congr
+      intro y
+      calc
+        _ = ∑' u : MomentShiftIntegerTuple b T.d,
+              harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+                (momentReplicaShiftMassInt L u * F (momentBaseEncodeInt y u)) := by
+          apply tsum_congr
+          intro u
+          have heq : e.symm (y, u) = momentBaseEncodeInt y u := rfl
+          rw [heq, momentBaseMass_encodeInt MS B l T J0 N b p hreg L hL y u]
+          rw [momentReplicaShiftMassInt]
+          ring
+        _ = harmonicLaw (MS.core.parameters.X N B.1) (primorial (N + 1)) y *
+              momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u)) :=
+          (hshiftSummable y).tsum_mul_left _
+    _ = Emu MS.core.parameters N B.1 (fun y =>
+          momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u))) := rfl
+
+private theorem momentBaseMass_tsum_eq_Emu_natReplicaShift {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm)
+    (B : Block K) (l : Fin K) (T : CubeTemplate) (J0 N b : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (hreg : momentBaseRegular MS B l T J0 N b p) (L : ℕ)
+    (hL : ∀ k : Fin b, T.length (corrScales MS) l J0 N
+      (fun j => p ((momentPrimeEnum b T.q).symm (k, j))) = L)
+    (hLpos : 0 < L)
+    (F : (Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ) → ℝ) :
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b p x * F x =
+    Emu MS.core.parameters N B.1 (fun y =>
+      ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+        ∑ u ∈ momentReplicaShiftSupportNat b T.d L, F (momentBaseEncode y u)) := by
+  rw [momentBaseMass_tsum_eq_Emu_replicaShift MS B l T J0 N b p hreg L hL F]
+  apply congrArg (Emu MS.core.parameters N B.1)
+  funext y
+  have hAvg := momentReplicaShiftAverageInt_eq_nat (L := L) hLpos
+    (fun u => F (momentBaseEncodeInt y u))
+  calc
+    momentReplicaShiftAverageInt L (fun u => F (momentBaseEncodeInt y u)) =
+        ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+          ∑ u ∈ momentReplicaShiftSupportNat b T.d L,
+            F (momentBaseEncodeInt y (fun k j side => (u k j side : ℤ))) := hAvg
+    _ = ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+          ∑ u ∈ momentReplicaShiftSupportNat b T.d L, F (momentBaseEncode y u) := by
+      congr 1
 
 private theorem momentBaseMass_tsum_eq_one {K sl : ℕ} {As : Finset ℚ}
     {Dm : Finset (IntegerPolynomial sl)}
@@ -3174,6 +3820,8 @@ theorem finite_holder_weighted {ι α : Type*} (I : Finset ι) (B : Finset α)
       rw [hterm x hx]
     _ ≤ ∏ i ∈ I, (∑ x ∈ B, F i x) ^ p := hmain
 
+-- End of code adapted from OpenAI
+
 theorem Emu_weighted_holder {ι : Type*} (I : Finset ι) (hI : I.Nonempty)
     {n : ℕ} (A : Parameters n) (N : ℕ) (pivot : Fin n) (w : ℤ → ℝ)
     (f : ι → ℤ → ℝ) (hw : ∀ y, 0 ≤ w y) :
@@ -3217,6 +3865,7 @@ theorem Emu_weighted_holder {ι : Type*} (I : Finset ι) (hI : I.Nonempty)
       intro i hi
       rw [hright i]
 
+-- Adapted from OpenAI openai/math (Apache-2.0), OAI/Probability/InvariantIsing/Arrays/PerturbationFeatures.lean.
 theorem abs_prod_sub_prod_le {ι : Type*} [DecidableEq ι]
     (s : Finset ι) (f g : ι → ℝ) :
     |(∏ i ∈ s, f i) - ∏ i ∈ s, g i| ≤
@@ -3294,6 +3943,8 @@ theorem abs_prod_sub_prod_le {ι : Type*} [DecidableEq ι]
       _ = ∑ i ∈ insert a s, |f i - g i| *
             ∏ j ∈ insert a s, (if j = i then (1 : ℝ) else M j) := by
               simpa [M] using hsum.symm
+
+-- End of code adapted from OpenAI
 
 theorem prod_ite_singleton {ι : Type*} [DecidableEq ι] (s : Finset ι)
     (i : ι) (hi : i ∈ s) (a : ℝ) :
@@ -4750,6 +5401,34 @@ private theorem pkgB_primePoolLaw_nonneg_of_mass_pos (lo hi p : ℕ)
     exact div_nonneg (div_nonneg (by norm_num) hp.le) hMass.le
   · exact le_of_eq rfl
 
+private theorem pkgB_primePoolMass_pos_eventually {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)} (MS : MasterScales K As sl Dm) (l : Fin K) :
+    ∀ᶠ N : ℕ in atTop, 0 < primePoolMass (MS.primeStage.pool N l).lower
+      (MS.primeStage.pool N l).upper := by
+  have hVnat := momentMasterScaleV_tendsto MS.core.parameters l
+  have hV : Tendsto (fun N : ℕ => (masterScaleV MS.core.parameters N l : ℝ)) atTop atTop :=
+    tendsto_natCast_atTop_atTop.comp hVnat
+  have hVpos : ∀ᶠ N : ℕ in atTop, 0 < (masterScaleV MS.core.parameters N l : ℝ) :=
+    hV.eventually (eventually_gt_atTop 0)
+  have hratio0 := MS.primeStage.pool_harmonic_mass_dominates l
+  have hratio : Tendsto
+      (fun N : ℕ => primePoolMass (MS.primeStage.pool N l).lower
+        (MS.primeStage.pool N l).upper /
+          (masterScaleV MS.core.parameters N l : ℝ)) atTop atTop := by
+    simpa [Real.rpow_one] using hratio0 1 (by norm_num)
+  have hratioEvent : ∀ᶠ N : ℕ in atTop,
+      1 ≤ primePoolMass (MS.primeStage.pool N l).lower
+        (MS.primeStage.pool N l).upper /
+          (masterScaleV MS.core.parameters N l : ℝ) :=
+    hratio.eventually (eventually_ge_atTop 1)
+  filter_upwards [hVpos, hratioEvent] with N hVpos hratio
+  have hle : (masterScaleV MS.core.parameters N l : ℝ) ≤
+      primePoolMass (MS.primeStage.pool N l).lower
+        (MS.primeStage.pool N l).upper := by
+    have h := (le_div_iff₀ hVpos).mp hratio
+    simpa using h
+  exact lt_of_lt_of_le hVpos hle
+
 private theorem pkgB_goodPrimeAverage_abs_pow_le {q : ℕ}
     (lo hi : Fin q → ℕ) (Good : (Fin q → ℕ) → Prop) [DecidablePred Good]
     (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i))
@@ -4823,6 +5502,561 @@ private theorem pkgB_goodPrimeAverage_abs_pow_le {q : ℕ}
           independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0) := by
       rw [← hnum (fun p => |F p| ^ b)]
     _ = _ := rfl
+
+private theorem pkgB_momentCubeFactor_abs_le {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
+    (J0 N : ℕ) (I : DualInput MS B T N) (p : Fin T.q → ℕ)
+    (y : ℤ) (u : Fin T.d → Fin 2 → ℕ) :
+    |I.e p * ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+      I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+        ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0))| ≤
+      ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+        (1 + nu MS.core.parameters N B
+          (y + (T.modulus (corrScales MS) N p : ℤ) *
+            ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0))) := by
+  classical
+  let S : Finset (Finset (Fin T.d)) :=
+    (Finset.univ : Finset (Finset (Fin T.d))).erase ∅
+  let z : Finset (Fin T.d) → ℤ := fun ω =>
+    y + (T.modulus (corrScales MS) N p : ℤ) *
+      ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0)
+  have hnu (ω : Finset (Fin T.d)) :
+      0 ≤ nu MS.core.parameters N B (z ω) :=
+    pkgB_nu_nonneg MS.core.parameters N B (z ω)
+  have hfac (ω : Finset (Fin T.d)) (hω : ω ∈ S) :
+      |I.g ω p (z ω)| ≤ 1 + nu MS.core.parameters N B (z ω) := by
+    exact I.g_bound ω p (z ω)
+  have hprodNonneg : 0 ≤ ∏ ω ∈ S, |I.g ω p (z ω)| := by
+    apply Finset.prod_nonneg
+    intro ω hω
+    positivity
+  have hprodLE :
+      (∏ ω ∈ S, |I.g ω p (z ω)|) ≤
+        ∏ ω ∈ S, (1 + nu MS.core.parameters N B (z ω)) := by
+    apply Finset.prod_le_prod₀
+      (fun ω hω => abs_nonneg _)
+      (fun ω hω => hfac ω hω)
+  calc
+    |I.e p * ∏ ω ∈ S, I.g ω p (z ω)| =
+        |I.e p| * ∏ ω ∈ S, |I.g ω p (z ω)| := by
+          rw [abs_mul, Finset.abs_prod]
+    _ ≤ 1 * ∏ ω ∈ S, |I.g ω p (z ω)| :=
+      mul_le_mul_of_nonneg_right (I.e_bound p) hprodNonneg
+    _ ≤ 1 * ∏ ω ∈ S, (1 + nu MS.core.parameters N B (z ω)) :=
+      mul_le_mul_of_nonneg_left hprodLE (by norm_num)
+    _ = _ := by simp [S, z]
+
+private theorem pkgB_momentShiftReplicaProduct_bound {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
+    (J0 N L b : ℕ) (I : DualInput MS B T N) (p : Fin T.q → ℕ) (y : ℤ) :
+    |I.e p * shiftAverage (Fin T.d) L (fun u =>
+      ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+        I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+          ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0)))| ^ b ≤
+      ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+        ∑ v ∈ Fintype.piFinset (fun _ : Fin b => pkgB_shiftSupport T.d L),
+          ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+            (1 + nu MS.core.parameters N B
+              (y + (T.modulus (corrScales MS) N p : ℤ) *
+                ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0))) := by
+  classical
+  let F : (Fin T.d → Fin 2 → ℕ) → ℝ := fun u =>
+    I.e p * ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+      I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+        ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0))
+  let S : Finset (Fin b → Fin T.d → Fin 2 → ℕ) :=
+    Fintype.piFinset (fun _ : Fin b => pkgB_shiftSupport T.d L)
+  have hshift : I.e p * shiftAverage (Fin T.d) L (fun u =>
+      ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+        I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+          ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0))) = shiftAverage (Fin T.d) L F := by
+    unfold shiftAverage
+    let S₀ := Fintype.piFinset (fun _ : Fin T.d =>
+      Fintype.piFinset fun _ : Fin 2 => Finset.range L)
+    change I.e p * (((L : ℝ) ^ (2 * Fintype.card (Fin T.d)))⁻¹ *
+        ∑ u ∈ S₀, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+          I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+            ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0))) =
+      ((L : ℝ) ^ (2 * Fintype.card (Fin T.d)))⁻¹ *
+        ∑ u ∈ S₀, F u
+    calc
+      _ = ((L : ℝ) ^ (2 * Fintype.card (Fin T.d)))⁻¹ *
+          (I.e p * ∑ u ∈ S₀,
+            ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+              I.g ω p (y + (T.modulus (corrScales MS) N p : ℤ) *
+                ∑ j ∈ ω, ((u j 1 : ℤ) - u j 0))) := by ring
+      _ = ((L : ℝ) ^ (2 * Fintype.card (Fin T.d)))⁻¹ *
+          ∑ u ∈ S₀, F u := by
+        rw [Finset.mul_sum]
+  have hfactor (v : Fin b → Fin T.d → Fin 2 → ℕ) :
+      (∏ k : Fin b, |F (v k)|) ≤
+        ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+          (1 + nu MS.core.parameters N B
+            (y + (T.modulus (corrScales MS) N p : ℤ) *
+              ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0))) := by
+    apply Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _)
+    intro k hk
+    simpa [F] using
+      (pkgB_momentCubeFactor_abs_le MS B T l J0 N I p y (v k))
+  have hsum := pkgB_shiftAverage_abs_pow_le_replica
+    (F := F) (d := T.d) (b := b) (L := L)
+  have hcoef : 0 ≤ ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ := by
+    positivity
+  rw [hshift]
+  calc
+    |shiftAverage (Fin T.d) L F| ^ b ≤
+        ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+        ∑ v ∈ S, ∏ k : Fin b, |F (v k)| := by
+      simpa [F, pkgB_shiftSupport, S, Nat.mul_assoc,
+        Nat.mul_left_comm, Nat.mul_comm] using hsum
+    _ ≤ ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+        ∑ v ∈ S, ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+          (1 + nu MS.core.parameters N B
+            (y + (T.modulus (corrScales MS) N p : ℤ) *
+              ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0))) := by
+      apply mul_le_mul_of_nonneg_left _ hcoef
+      apply Finset.sum_le_sum
+      intro v hv
+      exact hfactor v
+    _ = _ := by rfl
+
+private theorem pkgB_momentNonemptyProduct {d : ℕ}
+    (f : Finset (Fin d) → ℝ) :
+    (∏ ω ∈ (Finset.univ : Finset (Finset (Fin d))).erase ∅, f ω) =
+      ∏ ω : {ω : Finset (Fin d) // ω.Nonempty}, f ω.1 := by
+  classical
+  apply Finset.prod_subtype
+  intro ω
+  simp [Finset.nonempty_iff_ne_empty]
+
+private noncomputable def pkgB_momentNonemptySubsetEquiv (d : ℕ) :
+    {ω : Finset (Fin d) // ω.Nonempty} ≃
+      {ω : Finset (Fin d) // ω ∈ (Finset.univ : Finset (Finset (Fin d))).erase ∅} where
+  toFun ω := ⟨ω.1, Finset.mem_erase.mpr
+    ⟨Finset.nonempty_iff_ne_empty.mp ω.2, Finset.mem_univ _⟩⟩
+  invFun ω := ⟨ω.1,
+    Finset.nonempty_iff_ne_empty.mpr (Finset.mem_erase.mp ω.2).1⟩
+  left_inv ω := by apply Subtype.ext; rfl
+  right_inv ω := by apply Subtype.ext; rfl
+
+private theorem pkgB_momentRowIndex_card (b d : ℕ) :
+    Fintype.card (MomentRowIndex b d) = 1 + b * (2 ^ d - 1) := by
+  classical
+  let S : Finset (Finset (Fin d)) :=
+    (Finset.univ : Finset (Finset (Fin d))).erase ∅
+  have hsub : Fintype.card {ω : Finset (Fin d) // ω.Nonempty} = S.card := by
+    calc
+      Fintype.card {ω : Finset (Fin d) // ω.Nonempty} =
+          Fintype.card {ω : Finset (Fin d) // ω ∈ S} :=
+            Fintype.card_congr (pkgB_momentNonemptySubsetEquiv d)
+      _ = S.card := by simp
+  have hS : S.card = 2 ^ d - 1 := by
+    simp [S, Finset.card_erase_of_mem]
+  simp [MomentRowIndex, Fintype.card_sum, Fintype.card_prod, hsub, hS]
+
+private theorem pkgB_momentAllRows_one_add_baseEncode {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (b : ℕ)
+    (T : CubeTemplate) (l : Fin K) (N : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    (∏ r : Fin (Fintype.card (MomentRowIndex b T.d)),
+      (1 + nu MS.core.parameters N B
+        (linearRowValue (momentRowCoeff MS b T l) N p r
+          (momentBaseEncode y u)).num)) =
+      (1 + nu MS.core.parameters N B y) *
+        ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+          (1 + nu MS.core.parameters N B
+            (y + (momentModulus MS b T l N p k : ℤ) *
+              ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0))) := by
+  classical
+  have hprod :
+      (∏ r : Fin (Fintype.card (MomentRowIndex b T.d)),
+        (1 + nu MS.core.parameters N B
+          (linearRowValue (momentRowCoeff MS b T l) N p r
+            (momentBaseEncode y u)).num)) =
+      ∏ v : MomentRowIndex b T.d,
+        (1 + nu MS.core.parameters N B
+          (linearRowValue (momentRowCoeff MS b T l) N p
+            ((momentRowEnum b T.d).symm v) (momentBaseEncode y u)).num) := by
+    exact Fintype.prod_equiv (momentRowEnum b T.d)
+      (fun r => 1 + nu MS.core.parameters N B
+        (linearRowValue (momentRowCoeff MS b T l) N p r (momentBaseEncode y u)).num)
+      (fun v => 1 + nu MS.core.parameters N B
+        (linearRowValue (momentRowCoeff MS b T l) N p
+          ((momentRowEnum b T.d).symm v) (momentBaseEncode y u)).num)
+      (by intro r; simp)
+  have hrootEval (a : Unit) :
+      (linearRowValue (momentRowCoeff MS b T l) N p
+        ((momentRowEnum b T.d).symm (.inl a)) (momentBaseEncode y u)).num = y := by
+    cases a
+    simp [momentLinearRowValue_num_baseEncode]
+  have hnonrootEval (k : Fin b) (ω : {ω : Finset (Fin T.d) // ω.Nonempty}) :
+      (linearRowValue (momentRowCoeff MS b T l) N p
+        ((momentRowEnum b T.d).symm (.inr (k, ω))) (momentBaseEncode y u)).num =
+      y + (momentModulus MS b T l N p k : ℤ) *
+        ∑ j ∈ ω.1, ((u k j 1 : ℤ) - u k j 0) := by
+    simpa [momentLinearRowValue_num_baseEncode]
+  rw [hprod]
+  simp only [MomentRowIndex, Fintype.prod_sum_type, Fintype.prod_prod_type]
+  simp_rw [hrootEval, hnonrootEval]
+  rw [Fintype.prod_unique]
+  apply congrArg (fun z : ℝ =>
+    (1 + nu MS.core.parameters N B y) * z)
+  apply Finset.prod_congr rfl
+  intro k hk
+  exact (pkgB_momentNonemptyProduct (fun ω =>
+    1 + nu MS.core.parameters N B
+      (y + (momentModulus MS b T l N p k : ℤ) *
+        ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0)))).symm
+
+private theorem pkgB_momentAllRows_one_add_expand {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (b : ℕ)
+    (T : CubeTemplate) (l : Fin K) (N : ℕ)
+    (p : Fin (Fintype.card (MomentPrimeIndex b T.q)) → ℕ)
+    (y : ℤ) (u : Fin b → Fin T.d → Fin 2 → ℕ) :
+    (1 + nu MS.core.parameters N B y) *
+      ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+        (1 + nu MS.core.parameters N B
+          (y + (momentModulus MS b T l N p k : ℤ) *
+            ∑ j ∈ ω, ((u k j 1 : ℤ) - u k j 0))) =
+    ∑ active ∈ (Finset.univ : Finset
+      (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset,
+      ∏ r ∈ active, nu MS.core.parameters N B
+        (linearRowValue (momentRowCoeff MS b T l) N p r (momentBaseEncode y u)).num := by
+  classical
+  rw [← pkgB_momentAllRows_one_add_baseEncode MS B b T l N p y u]
+  simpa using (Finset.prod_one_add
+    (f := fun r : Fin (Fintype.card (MomentRowIndex b T.d)) =>
+      nu MS.core.parameters N B
+        (linearRowValue (momentRowCoeff MS b T l) N p r (momentBaseEncode y u)).num)
+    (s := Finset.univ))
+
+private noncomputable def pkgB_momentPrimeRepeat {b q : ℕ} (p : Fin q → ℕ) :
+    Fin (Fintype.card (MomentPrimeIndex b q)) → ℕ :=
+  fun i => p (momentPrimeEnum b q i).2
+
+private theorem pkgB_momentPrimeRepeat_apply {b q : ℕ} (p : Fin q → ℕ)
+    (k : Fin b) (j : Fin q) :
+    pkgB_momentPrimeRepeat (b := b) p
+      ((momentPrimeEnum b q).symm (k, j)) = p j := by
+  simp [pkgB_momentPrimeRepeat]
+
+private theorem pkgB_momentModulus_repeat {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (b : ℕ) (T : CubeTemplate) (l : Fin K)
+    (N : ℕ) (p : Fin T.q → ℕ) (k : Fin b) :
+    momentModulus MS b T l N (pkgB_momentPrimeRepeat (b := b) p) k =
+      T.modulus (corrScales MS) N p := by
+  simp [momentModulus, pkgB_momentPrimeRepeat]
+
+private noncomputable def pkgB_momentActiveShiftTerm {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
+    (J0 N b : ℕ) (p : Fin T.q → ℕ)
+    (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) (y : ℤ) : ℝ := by
+  classical
+  let L := T.length (corrScales MS) l J0 N p
+  exact ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+    ∑ u ∈ momentReplicaShiftSupportNat b T.d L,
+      ∏ r ∈ active, nu MS.core.parameters N B
+        (linearRowValue (momentRowCoeff MS b T l) N
+          (pkgB_momentPrimeRepeat (b := b) p) r (momentBaseEncode y u)).num
+
+private theorem pkgB_momentActiveBaseIntegral {K sl : ℕ} {As : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
+    (J0 N b : ℕ) (hb : 0 < b) (p : Fin T.q → ℕ)
+    (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+    (hreg : momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p)) :
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p) x *
+        ∏ r ∈ active, nu MS.core.parameters N B
+          (linearRowValue (momentRowCoeff MS b T l) N
+            (pkgB_momentPrimeRepeat (b := b) p) r x).num =
+    Emu MS.core.parameters N B.1
+      (pkgB_momentActiveShiftTerm MS B T l J0 N b p active) := by
+  classical
+  let L := T.length (corrScales MS) l J0 N p
+  have hL : ∀ k : Fin b, T.length (corrScales MS) l J0 N
+      (fun j => (pkgB_momentPrimeRepeat (b := b) p)
+        ((momentPrimeEnum b T.q).symm (k, j))) = L := by
+    intro k
+    simp [L, pkgB_momentPrimeRepeat]
+  rcases hreg with ⟨hNorm, hLengths⟩
+  have hLpos : 0 < L := by
+    let k0 : Fin b := ⟨0, by omega⟩
+    have hk' := hLengths k0
+    simpa [L, pkgB_momentPrimeRepeat] using hk'
+  let F : (Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ) → ℝ := fun x =>
+    ∏ r ∈ active, nu MS.core.parameters N B
+      (linearRowValue (momentRowCoeff MS b T l) N
+        (pkgB_momentPrimeRepeat (b := b) p) r x).num
+  have h := momentBaseMass_tsum_eq_Emu_natReplicaShift MS B l T J0 N b
+    (pkgB_momentPrimeRepeat (b := b) p) ⟨hNorm, hLengths⟩ L hL hLpos F
+  change
+    (∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p) x * F x) =
+    Emu MS.core.parameters N B.1 (fun y =>
+      ((T.length (corrScales MS) l J0 N p : ℝ) ^
+        (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+        ∑ u ∈ momentReplicaShiftSupportNat b T.d
+          (T.length (corrScales MS) l J0 N p), F (momentBaseEncode y u))
+  simpa [F, L] using h
+
+private theorem pkgB_independentPrimePoolProbability_embedding {q m : ℕ}
+    (ι : Fin q ↪ Fin m) (lo hi : ℕ) (hMass : 0 < primePoolMass lo hi)
+    (Good : (Fin q → ℕ) → Prop) [DecidablePred Good] :
+    independentPrimePoolProbability (fun _ : Fin m => lo) (fun _ => hi)
+      (fun p => Good (fun i => p (ι i))) =
+    independentPrimePoolProbability (fun _ : Fin q => lo) (fun _ => hi) Good := by
+  simpa [independentPrimePoolProbability] using
+    (pkgB_primePoolAverage_embedding ι lo hi hMass
+      (fun p => if Good p then 1 else 0))
+
+private theorem pkgB_momentWeightedLinearFormsAverage_eq_goodActiveShiftTerm
+    {K sl : ℕ} {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (l : Fin K)
+    (hgap : ValidGap B l) (T : CubeTemplate) (hT : Allowed Dm T)
+    (J0 : ℕ) (hJ0 : 0 < J0) (b : ℕ) (hb : 0 < b) (N : ℕ)
+    [DecidablePred (fun p : Fin T.q → ℕ => T.Good (corrScales MS) l N p)]
+    (active : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+    (hMass : 0 < primePoolMass (MS.primeStage.pool N l).lower
+      (MS.primeStage.pool N l).upper)
+    (hreg : ∀ p : Fin T.q → ℕ, T.Good (corrScales MS) l N p →
+      momentBaseRegular MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p)) :
+    weightedLinearFormsAverage
+        (pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b active)
+        N (fun p => T.Good (corrScales MS) l N
+          (fun j => p (momentMasterEmbedding hT j))) =
+      ∑' p : Fin T.q → ℕ,
+        independentPrimePoolMass (fun _ => (MS.primeStage.pool N l).lower)
+          (fun _ => (MS.primeStage.pool N l).upper) p *
+          (if T.Good (corrScales MS) l N p then
+            Emu MS.core.parameters N B.1
+              (pkgB_momentActiveShiftTerm MS B T l J0 N b p active)
+          else 0) := by
+  classical
+  let ι := momentMasterEmbedding hT
+  let D := pkgB_momentWeightedLinearFormsData MS B l hgap T hT J0 hJ0 b active
+  let GoodQ := fun p : Fin T.q → ℕ => T.Good (corrScales MS) l N p
+  let GoodFull := fun p : Fin sl → ℕ => GoodQ (fun j => p (ι j))
+  let Ffull (p : Fin sl → ℕ) : ℝ :=
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      D.baseMass N p x *
+        ∏ r : Fin (Fintype.card (MomentRowIndex b T.d)),
+          nuB (divisorTemplateLaw MS.core.parameters N (D.divisor r))
+            (linearRowValue D.rowCoeff N p r x).num
+  let Fq (p : Fin T.q → ℕ) : ℝ :=
+    ∑' x : Fin (Fintype.card (MomentBaseIndex b T.d)) → ℤ,
+      momentBaseMass MS B l T J0 N b (pkgB_momentPrimeRepeat (b := b) p) x *
+        ∏ r ∈ active, nu MS.core.parameters N B
+          (linearRowValue (momentRowCoeff MS b T l) N
+            (pkgB_momentPrimeRepeat (b := b) p) r x).num
+  have hdiag (p : Fin sl → ℕ) :
+      momentPrimeDiagonal hT p =
+        pkgB_momentPrimeRepeat (b := b) (fun j => p (ι j)) := by
+    funext i
+    rfl
+  have hFfull (p : Fin sl → ℕ) : Ffull p = Fq (fun j => p (ι j)) := by
+    unfold Ffull Fq
+    dsimp [D, pkgB_momentWeightedLinearFormsData, linearRowValue]
+    rw [hdiag p]
+    apply tsum_congr
+    intro x
+    simp [momentDivisorFamilyNu_eq, Finset.prod_ite_mem]
+  have hinnerGood (p : Fin T.q → ℕ) (hp : GoodQ p) :
+      Fq p = Emu MS.core.parameters N B.1
+        (pkgB_momentActiveShiftTerm MS B T l J0 N b p active) := by
+    unfold Fq
+    exact pkgB_momentActiveBaseIntegral MS B T l J0 N b hb p active (hreg p hp)
+  let lo : ℕ := (MS.primeStage.pool N l).lower
+  let hi : ℕ := (MS.primeStage.pool N l).upper
+  have hWLF :
+      weightedLinearFormsAverage D N GoodFull =
+        ∑' p : Fin sl → ℕ,
+          independentPrimePoolMass (fun _ : Fin sl => lo) (fun _ => hi) p *
+          (if GoodFull p then Ffull p else 0) := by
+    unfold weightedLinearFormsAverage
+    dsimp [D, pkgB_momentWeightedLinearFormsData, lo, hi]
+    apply tsum_congr
+    intro p
+    by_cases hp : GoodFull p
+    · simp [Ffull, GoodFull, D, pkgB_momentWeightedLinearFormsData, lo, hi, hp] <;> ring
+    · simp [Ffull, GoodFull, D, pkgB_momentWeightedLinearFormsData, lo, hi, hp]
+  calc
+    weightedLinearFormsAverage D N GoodFull = _ := hWLF
+    _ = ∑' p : Fin sl → ℕ,
+          independentPrimePoolMass (fun _ : Fin sl => lo) (fun _ => hi) p *
+            (if GoodFull p then Fq (fun j => p (ι j)) else 0) := by
+      apply tsum_congr
+      intro p
+      by_cases hp : GoodFull p <;> simp [GoodFull, hp, hFfull]
+    _ = ∑' p : Fin T.q → ℕ,
+          independentPrimePoolMass (fun _ : Fin T.q => lo) (fun _ => hi) p *
+            (if GoodQ p then Fq p else 0) := by
+      exact pkgB_primePoolAverage_embedding ι lo hi hMass
+        (fun p => if GoodQ p then Fq p else 0)
+    _ = _ := by
+      apply tsum_congr
+      intro p
+      by_cases hp : GoodQ p
+      · simp [GoodQ, lo, hi, hp, hinnerGood p hp]
+      · simp [GoodQ, lo, hi, hp]
+
+private theorem pkgB_goodPrimeAverage_abs_pow_le_of_dom {q : ℕ}
+    (lo hi : Fin q → ℕ) (Good : (Fin q → ℕ) → Prop) [DecidablePred Good]
+    (hMass : ∀ i, 0 < primePoolMass (lo i) (hi i))
+    (hGood : 0 < independentPrimePoolProbability lo hi Good)
+    (F G : (Fin q → ℕ) → ℝ) (b : ℕ)
+    (hFG : ∀ p, Good p → |F p| ^ b ≤ G p) :
+    |(independentPrimePoolProbability lo hi Good)⁻¹ *
+      ∑' p : Fin q → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then F p else 0)| ^ b ≤
+      (independentPrimePoolProbability lo hi Good)⁻¹ *
+        ∑' p : Fin q → ℕ,
+          independentPrimePoolMass lo hi p * (if Good p then G p else 0) := by
+  classical
+  let S : Finset (Fin q → ℕ) :=
+    Fintype.piFinset (fun i => Finset.Ico (lo i) (hi i))
+  have hmassZero (p : Fin q → ℕ) (hp : p ∉ S) :
+      independentPrimePoolMass lo hi p = 0 := by
+    simpa [independentPrimePoolMass] using
+      (pkgB_primeTupleMass_zero_of_not_mem_pi lo hi p (by simpa [S] using hp))
+  have hmassNonneg (p : Fin q → ℕ) : 0 ≤ independentPrimePoolMass lo hi p := by
+    unfold independentPrimePoolMass
+    apply Finset.prod_nonneg
+    intro i hmem
+    exact pkgB_primePoolLaw_nonneg_of_mass_pos (lo i) (hi i) (p i) (hMass i)
+  have hzeroF (p : Fin q → ℕ) (hp : p ∉ S) :
+      independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0) = 0 := by
+    rw [hmassZero p hp]
+    ring
+  have hzeroG (p : Fin q → ℕ) (hp : p ∉ S) :
+      independentPrimePoolMass lo hi p * (if Good p then G p else 0) = 0 := by
+    rw [hmassZero p hp]
+    ring
+  have hsum :
+      (∑' p : Fin q → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0)) ≤
+      ∑' p : Fin q → ℕ,
+        independentPrimePoolMass lo hi p * (if Good p then G p else 0) := by
+    rw [tsum_eq_sum (s := S) hzeroF, tsum_eq_sum (s := S) hzeroG]
+    apply Finset.sum_le_sum
+    intro p hp
+    by_cases hgood : Good p
+    · simp only [if_pos hgood]
+      exact mul_le_mul_of_nonneg_left (hFG p hgood) (hmassNonneg p)
+    · simp [hgood]
+  have hJ := pkgB_goodPrimeAverage_abs_pow_le lo hi Good hMass hGood F b
+  have hPinv : 0 ≤ (independentPrimePoolProbability lo hi Good)⁻¹ :=
+    inv_nonneg.mpr hGood.le
+  calc
+    _ ≤ (independentPrimePoolProbability lo hi Good)⁻¹ *
+        ∑' p : Fin q → ℕ,
+          independentPrimePoolMass lo hi p * (if Good p then |F p| ^ b else 0) := hJ
+    _ ≤ (independentPrimePoolProbability lo hi Good)⁻¹ *
+        ∑' p : Fin q → ℕ,
+          independentPrimePoolMass lo hi p * (if Good p then G p else 0) :=
+      mul_le_mul_of_nonneg_left hsum hPinv
+
+private theorem pkgB_momentShiftExpansion_eq_activeTerms {K sl : ℕ}
+    {As : Finset ℚ} {Dm : Finset (IntegerPolynomial sl)}
+    (MS : MasterScales K As sl Dm) (B : Block K) (T : CubeTemplate) (l : Fin K)
+    (J0 N b : ℕ) (p : Fin T.q → ℕ) :
+    Emu MS.core.parameters N B.1 (fun y =>
+      (1 + nu MS.core.parameters N B y) *
+        ((T.length (corrScales MS) l J0 N p : ℝ) ^
+          (2 * Fintype.card (Fin T.d) * b))⁻¹ *
+          ∑ v ∈ Fintype.piFinset (fun _ : Fin b => pkgB_shiftSupport T.d
+            (T.length (corrScales MS) l J0 N p)),
+            ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+              (1 + nu MS.core.parameters N B
+                (y + (T.modulus (corrScales MS) N p : ℤ) *
+                  ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0)))) =
+    ∑ active ∈ (Finset.univ : Finset
+      (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset,
+      Emu MS.core.parameters N B.1
+        (pkgB_momentActiveShiftTerm MS B T l J0 N b p active) := by
+  classical
+  let L := T.length (corrScales MS) l J0 N p
+  let c := ((L : ℝ) ^ (2 * Fintype.card (Fin T.d) * b))⁻¹
+  let S : Finset (Fin b → Fin T.d → Fin 2 → ℕ) :=
+    Fintype.piFinset (fun _ : Fin b => pkgB_shiftSupport T.d L)
+  let Pow : Finset (Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :=
+    (Finset.univ : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))).powerset
+  let rowValue (y : ℤ) (v : Fin b → Fin T.d → Fin 2 → ℕ)
+      (r : Fin (Fintype.card (MomentRowIndex b T.d))) : ℤ :=
+    (linearRowValue (momentRowCoeff MS b T l) N
+      (pkgB_momentPrimeRepeat (b := b) p) r (momentBaseEncode y v)).num
+  let activeProduct (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d))))
+      (y : ℤ) (v : Fin b → Fin T.d → Fin 2 → ℕ) : ℝ :=
+    ∏ r ∈ A, nu MS.core.parameters N B (rowValue y v r)
+  let cubeProduct (y : ℤ) (v : Fin b → Fin T.d → Fin 2 → ℕ) : ℝ :=
+    ∏ k : Fin b, ∏ ω ∈ (Finset.univ : Finset (Finset (Fin T.d))).erase ∅,
+      (1 + nu MS.core.parameters N B
+        (y + (T.modulus (corrScales MS) N p : ℤ) *
+          ∑ j ∈ ω, ((v k j 1 : ℤ) - v k j 0)))
+  have hSsupport : S = momentReplicaShiftSupportNat b T.d L := by
+    ext v
+    simp [S, momentReplicaShiftSupportNat, pkgB_shiftSupport]
+  have hExpand (y : ℤ) (v : Fin b → Fin T.d → Fin 2 → ℕ) :
+      (1 + nu MS.core.parameters N B y) * cubeProduct y v =
+        ∑ A ∈ Pow, activeProduct A y v := by
+    simpa [cubeProduct, activeProduct, rowValue, Pow, pkgB_momentPrimeRepeat,
+      pkgB_momentModulus_repeat] using
+      (pkgB_momentAllRows_one_add_expand MS B b T l N
+        (pkgB_momentPrimeRepeat (b := b) p) y v)
+  have hpoint (y : ℤ) :
+      (1 + nu MS.core.parameters N B y) * (c * ∑ v ∈ S, cubeProduct y v) =
+        c * ∑ v ∈ S, (1 + nu MS.core.parameters N B y) * cubeProduct y v := by
+    calc
+      _ = c * ((1 + nu MS.core.parameters N B y) * ∑ v ∈ S, cubeProduct y v) := by ring
+      _ = _ := by rw [Finset.mul_sum]
+  have hcommute (A : Finset (Fin (Fintype.card (MomentRowIndex b T.d)))) :
+      c * ∑ v ∈ S, Emu MS.core.parameters N B.1 (fun y => activeProduct A y v) =
+        Emu MS.core.parameters N B.1
+          (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) := by
+    unfold pkgB_momentActiveShiftTerm
+    rw [Emu_mul_left, Emu_finset_sum]
+    rw [hSsupport]
+  calc
+    _ = Emu MS.core.parameters N B.1 (fun y =>
+          c * ∑ v ∈ S, (1 + nu MS.core.parameters N B y) * cubeProduct y v) := by
+      apply congrArg (Emu MS.core.parameters N B.1)
+      funext y
+      calc
+        _ = (1 + nu MS.core.parameters N B y) *
+              (c * ∑ v ∈ S, cubeProduct y v) := by ring
+        _ = _ := by simpa [c, S, cubeProduct, L] using hpoint y
+    _ = c * Emu MS.core.parameters N B.1
+          (fun y => ∑ v ∈ S, (1 + nu MS.core.parameters N B y) * cubeProduct y v) :=
+        Emu_mul_left MS.core.parameters N B.1 c _
+    _ = c * ∑ v ∈ S,
+          Emu MS.core.parameters N B.1
+            (fun y => (1 + nu MS.core.parameters N B y) * cubeProduct y v) := by
+      rw [Emu_finset_sum]
+    _ = c * ∑ v ∈ S, ∑ A ∈ Pow,
+          Emu MS.core.parameters N B.1 (fun y => activeProduct A y v) := by
+      congr 1
+      apply Finset.sum_congr rfl
+      intro v hv
+      rw [← Emu_finset_sum]
+      apply congrArg (Emu MS.core.parameters N B.1)
+      funext y
+      exact hExpand y v
+    _ = c * ∑ A ∈ Pow, ∑ v ∈ S,
+          Emu MS.core.parameters N B.1 (fun y => activeProduct A y v) := by
+      rw [Finset.sum_comm]
+    _ = ∑ A ∈ Pow, Emu MS.core.parameters N B.1
+          (pkgB_momentActiveShiftTerm MS B T l J0 N b p A) := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro A hA
+      exact hcommute A
 
 end Prediction
 
