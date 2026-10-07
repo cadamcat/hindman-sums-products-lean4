@@ -3554,6 +3554,59 @@ theorem rowForm_update_mul_singleton {m q : ℕ}
   simp [Function.update_self]
   ring
 
+theorem pkgMask_chainWeight_scaleBranchP_eq {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (d : Fin m) (c : Fin m → ℚ)
+    (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
+    (z : Fin m → ℤ)
+    (hpar : (T.scaleBranchP u).Parallel (T.scaleBranchQ u))
+    (hc : c u ≠ 0) (hp₁ : (p 1).Prime)
+    (hV₁ : masterScaleV S.core.parameters N C.gap < p 1)
+    (hdenBranch :
+      (rowForm c (T.scaleBranchP u) p fun k => (z k : ℚ)).den = 1)
+    (hdenOld :
+      (rowForm c T (dropPrimeTuple2 p) fun k => (z k : ℚ)).den = 1) :
+    chainWeight S.core.parameters C N d
+        (rowForm c (T.scaleBranchP u) p (fun k => (z k : ℚ))).num =
+      chainWeight S.core.parameters C N d
+        (rowForm c T (dropPrimeTuple2 p) (fun k => (z k : ℚ))).num := by
+  let oldp := dropPrimeTuple2 p
+  let zQ : Fin m → ℚ := fun k => (z k : ℚ)
+  let value := rowForm c T oldp zQ
+  let branchValue := rowForm c (T.scaleBranchP u) p zQ
+  have hrowUpdate := rowForm_scaleBranchP_tuple2 c T u p z
+  have hbranchNum : (branchValue.num : ℚ) = branchValue :=
+    (Rat.den_eq_one_iff branchValue).mp (by simpa [branchValue] using hdenBranch)
+  have holdNum : (value.num : ℚ) = value :=
+    (Rat.den_eq_one_iff value).mp (by simpa [value, oldp, zQ] using hdenOld)
+  rcases T.scaleBranches_parallel_support u hpar with hu | hsingle
+  · have hEq : branchValue = value := by
+      dsimp [branchValue, value, oldp, zQ] at *
+      rw [hrowUpdate]
+      exact rowForm_update_of_not_mem_support c T (dropPrimeTuple2 p)
+        (fun k => (z k : ℚ)) u ((p 1 : ℚ) * (z u : ℚ)) hu
+    have hnumQ : (branchValue.num : ℚ) = (value.num : ℚ) := by
+      calc
+        (branchValue.num : ℚ) = branchValue := hbranchNum
+        _ = value := hEq
+        _ = (value.num : ℚ) := holdNum.symm
+    have hnum : branchValue.num = value.num := by exact_mod_cast hnumQ
+    rw [hnum]
+  · have hEq : branchValue = (p 1 : ℚ) * value := by
+      dsimp [branchValue, value, oldp, zQ] at *
+      rw [hrowUpdate]
+      exact rowForm_update_mul_singleton c T (dropPrimeTuple2 p)
+        (fun k => (z k : ℚ)) u (p 1 : ℚ) hsingle hc
+    have hnumQ : (branchValue.num : ℚ) = ((p 1 : ℤ) * value.num : ℤ) := by
+      calc
+        (branchValue.num : ℚ) = branchValue := hbranchNum
+        _ = (p 1 : ℚ) * value := hEq
+        _ = (p 1 : ℚ) * (value.num : ℚ) := by rw [holdNum]
+        _ = ((p 1 : ℤ) * value.num : ℤ) := by norm_cast
+    have hnum : branchValue.num = (p 1 : ℤ) * value.num := by exact_mod_cast hnumQ
+    rw [hnum]
+    exact chainWeight_mul_eq_of_prime_gt S C N d (p 1) hp₁ hV₁ value.num
+
 theorem RowTemplate.scaleBranch_parallel_factor_eq {m q : ℕ}
     (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ)
     (hp : ∀ i, p i ≠ 0)
