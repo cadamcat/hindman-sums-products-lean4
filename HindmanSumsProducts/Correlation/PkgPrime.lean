@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Correlation.Defs
 import HindmanSumsProducts.Correlation.Outside
 
-/-! Helper lemmas for the §4 proof package `Prime` (owned by its proof lane). -/
+/-! Helper lemmas for §4 (part Prime). -/
 
 namespace HindmanSumsProducts
 

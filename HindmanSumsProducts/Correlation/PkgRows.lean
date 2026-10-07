@@ -2,7 +2,7 @@ import HindmanSumsProducts.Correlation.Defs
 import HindmanSumsProducts.Correlation.Outside
 import Mathlib.Algebra.Polynomial.Roots
 
-/-! Helper lemmas for the §4 proof package `Rows` (owned by its proof lane). -/
+/-! Helper lemmas for §4 (part Rows). -/
 
 namespace HindmanSumsProducts
 

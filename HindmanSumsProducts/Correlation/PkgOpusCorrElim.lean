@@ -7,7 +7,7 @@ import HindmanSumsProducts.Correlation.PkgVarS
 import HindmanSumsProducts.Correlation.PkgRootS
 import HindmanSumsProducts.Correlation.PkgRows
 
-/-! Helpers of lane `opus-corr` for the weighted Cauchy–Schwarz part of additive elimination
+/-! Helpers for the weighted Cauchy–Schwarz part of additive elimination
 (04:442–509): the box integrands `Φ_E`, the averaging identities over one shift coordinate, and
 the step `|E Φ_E|² ≤ (E Ω)·E Φ_{E∪{R}}`. -/
 

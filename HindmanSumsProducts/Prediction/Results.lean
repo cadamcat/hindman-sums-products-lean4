@@ -106,7 +106,7 @@ theorem direction_integers (d : ℕ) (ω : Finset (Fin d)) (hω : ω.Nonempty) :
     apply hneZero
     linarith
 
-/-! ### Parts of `dual_products_orthogonal` (lane opus-dpo split)
+/-! ### Parts of `dual_products_orthogonal`
 
 The proof of (eq:prediction-dual-products) is assembled below from these part lemmas.  The
 nonflat case uses the `PkgB2` state machinery: independent prime replicas in disjoint master

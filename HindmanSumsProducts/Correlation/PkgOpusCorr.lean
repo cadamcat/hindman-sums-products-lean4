@@ -3,7 +3,7 @@ import HindmanSumsProducts.Correlation.Outside
 import HindmanSumsProducts.Correlation.PkgMask
 import HindmanSumsProducts.Correlation.PkgPrime
 
-/-! Helpers of lane `opus-corr` for weighted mask removal (04:135–308) and weighted additive
+/-! Helpers for weighted mask removal (04:135–308) and weighted additive
 elimination (04:418–572). -/
 
 open scoped BigOperators Topology
@@ -1500,7 +1500,7 @@ theorem opus_corr_balanced_pointwise {r' : ℕ}
 end BalancedNext
 
 
-/-! ## The invariant-weight average (copied from lane c-mask 124a319, names `opus_corr_`) -/
+/-! ## The invariant-weight average (adapted from `PkgMask.lean`, names `opus_corr_`) -/
 
 theorem opus_corr_independentPrimePoolMass_eq_zero {q : ℕ} (lo hi : Fin q → ℕ)
     (p : Fin q → ℕ) (hp : p ∉ independentPrimePoolSupport lo hi) :

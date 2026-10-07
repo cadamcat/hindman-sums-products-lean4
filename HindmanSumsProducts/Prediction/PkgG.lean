@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Prediction.Projections
 import HindmanSumsProducts.Concatenation
 
-/-! Helper lemmas for the §5 proof package S5-G (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-G). -/
 
 namespace HindmanSumsProducts
 

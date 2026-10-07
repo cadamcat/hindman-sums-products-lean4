@@ -1,7 +1,7 @@
 import HindmanSumsProducts.Prediction.Outside
 import OAI.Combinatorics.SumProduct.Alignment.RawHarmonic01
 
-/-! Helper lemmas for the §5 proof package S5-D (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-D). -/
 
 namespace HindmanSumsProducts
 

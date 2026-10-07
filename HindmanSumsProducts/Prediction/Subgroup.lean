@@ -7,7 +7,7 @@ import HindmanSumsProducts.Prediction.PkgG3
 /-!
 # Subgroup cubes and the inverse theorem (§5.3, `05_prediction.tex` 432–683)
 
-Lemma `lem:subgroup-inverse` with the two coordinator decisions applied:
+Lemma `lem:subgroup-inverse` with two replacements:
 
 * Tao–Ziegler's Bessel inequality is replaced by `SubgroupBox.combine_subgroups`
   (`Concatenation.lean`): the global norm has degree `t = 2^k − 1` with `k = 2^d`

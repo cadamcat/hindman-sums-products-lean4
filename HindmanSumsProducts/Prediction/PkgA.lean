@@ -1,6 +1,6 @@
 import HindmanSumsProducts.Prediction.Defs
 
-/-! Helper lemmas for the §5 proof package S5-A (owned by its proof lane). -/
+/-! Helper lemmas for §5 (part S5-A). -/
 
 namespace HindmanSumsProducts
 
