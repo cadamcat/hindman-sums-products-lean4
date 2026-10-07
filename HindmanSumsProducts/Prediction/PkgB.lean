@@ -3893,6 +3893,76 @@ private theorem momentPrimePoolCRTProjectionLaw_eq {w e V lo hi : ℕ}
         intro a ha
         rw [← Finset.sum_mul, momentPrimePoolResidueLaw_eq_sum]
 
+private noncomputable def momentPrimePoolCRTActualLaw (w V lo hi : ℕ)
+    (r : CRTResidues w V) : ℝ :=
+  ∑' n : ℕ, primePoolLaw lo hi n *
+    (if integerCRTResidues w V n = r then (1 : ℝ) else 0)
+
+private theorem momentPrimeTupleCRTLaw_eq_prod {m w V : ℕ}
+    (lo upper : Fin m → ℕ) (r : Fin m → CRTResidues w V) :
+    primeTupleCRTLaw lo upper w V r =
+      ∏ i : Fin m, momentPrimePoolCRTActualLaw w V (lo i) (upper i) (r i) := by
+  classical
+  let S : Fin m → Finset ℕ := fun i => momentPrimePoolSupport (lo i) (upper i)
+  let T : Finset (Fin m → ℕ) := Fintype.piFinset S
+  let f : Fin m → ℕ → ℝ := fun i n => primePoolLaw (lo i) (upper i) n *
+    (if integerCRTResidues w V n = r i then (1 : ℝ) else 0)
+  have hindicator (p : Fin m → ℕ) :
+      (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) =
+        ∏ i : Fin m, if integerCRTResidues w V (p i) = r i then (1 : ℝ) else 0 := by
+    by_cases hEq : (fun i => integerCRTResidues w V (p i)) = r
+    · subst r
+      simp
+    · have hne : ∃ i, integerCRTResidues w V (p i) ≠ r i := by
+        by_contra h
+        apply hEq
+        funext i
+        exact not_ne_iff.mp (not_exists.mp h i)
+      obtain ⟨i, hrow⟩ := hne
+      simp only [if_neg hEq]
+      exact (Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hrow])).symm
+  have hterm (p : Fin m → ℕ) :
+      independentPrimePoolMass lo upper p *
+        (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) =
+      ∏ i : Fin m, f i (p i) := by
+    unfold independentPrimePoolMass
+    rw [hindicator]
+    rw [← Finset.prod_mul_distrib]
+  have hzero (p : Fin m → ℕ) (hp : p ∉ T) :
+      independentPrimePoolMass lo upper p *
+        (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) = 0 := by
+    rw [hterm p]
+    have hnot : ¬∀ i : Fin m, p i ∈ S i := by simpa [T] using hp
+    obtain ⟨i, hmem⟩ := not_forall.mp hnot
+    have hlaw : primePoolLaw (lo i) (upper i) (p i) = 0 :=
+      momentPrimePoolLaw_zero_of_not_mem (lo i) (upper i) (p i)
+        (by simpa [S] using hmem)
+    have hfi : f i (p i) = 0 := by simp [f, hlaw]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) hfi
+  calc
+    _ = ∑ p ∈ T, independentPrimePoolMass lo upper p *
+          (if (fun i => integerCRTResidues w V (p i)) = r then (1 : ℝ) else 0) := by
+        unfold primeTupleCRTLaw
+        rw [tsum_eq_sum (s := T) hzero]
+    _ = ∑ p ∈ T, ∏ i : Fin m, f i (p i) := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        exact hterm p
+    _ = ∏ i : Fin m, ∑ n ∈ S i, f i n := by
+        symm
+        exact Finset.prod_univ_sum S f
+    _ = ∏ i : Fin m, momentPrimePoolCRTActualLaw w V (lo i) (upper i) (r i) := by
+        apply Finset.prod_congr rfl
+        intro i himem
+        unfold momentPrimePoolCRTActualLaw
+        symm
+        apply tsum_eq_sum (s := S i)
+        intro n hn
+        have hlaw : primePoolLaw (lo i) (upper i) n = 0 :=
+          momentPrimePoolLaw_zero_of_not_mem (lo i) (upper i) n
+            (by simpa [S] using hn)
+        simp [f, hlaw]
+
 end Prediction
 
 end HindmanSumsProducts
