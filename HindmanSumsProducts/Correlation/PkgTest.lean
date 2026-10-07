@@ -2232,4 +2232,52 @@ theorem correlationRoot_expected_test_bound
     _ ≤ M * Eroot + M * Eres := add_le_add hRootGapBound hMixTest
     _ = M * (Eroot + Eres) := by ring
 
+theorem dominates_nat_of_log_dominates {x : ℕ → ℕ} {S : ℕ → ℝ}
+    (hS : ∀ n, 0 < S n)
+    (hDom : OAI.MicrocellScale.Dominates (fun n => Real.log (x n : ℝ)) S) :
+    OAI.MicrocellScale.Dominates (fun n => (x n : ℝ)) S := by
+  intro C hC
+  have hle : (fun n => Real.log (x n : ℝ) / (S n) ^ C) ≤ᶠ[Filter.atTop]
+      (fun n => (x n : ℝ) / (S n) ^ C) := by
+    filter_upwards [] with n
+    exact div_le_div_of_nonneg_right
+      (Real.log_le_self (by exact_mod_cast (Nat.zero_le (x n))))
+      (Real.rpow_pos_of_pos (hS n) C).le
+  exact Filter.tendsto_atTop_mono' Filter.atTop hle (hDom C hC)
+
+theorem dominates_weaken_target {f S T : ℕ → ℝ}
+    (hF : ∀ n, 0 ≤ f n) (hS : ∀ n, 0 < S n) (hT : ∀ n, 0 < T n)
+    (hTS : ∀ n, T n ≤ S n)
+    (hDom : OAI.MicrocellScale.Dominates f S) :
+    OAI.MicrocellScale.Dominates f T := by
+  intro C hC
+  have hle : (fun n => f n / (S n) ^ C) ≤ (fun n => f n / (T n) ^ C) := by
+    intro n
+    rw [div_le_div_iff₀ (Real.rpow_pos_of_pos (hS n) C)
+      (Real.rpow_pos_of_pos (hT n) C)]
+    exact mul_le_mul_of_nonneg_left
+      (Real.rpow_le_rpow (le_of_lt (hT n)) (hTS n) hC.le) (hF n)
+  exact Filter.tendsto_atTop_mono hle (hDom C hC)
+
+theorem dominates_weaken_target_sq {f S T : ℕ → ℝ}
+    (hF : ∀ n, 0 ≤ f n) (hS : ∀ n, 1 ≤ S n) (hT : ∀ n, 0 < T n)
+    (hTS : ∀ n, T n ≤ (S n) ^ (2 : ℝ))
+    (hDom : OAI.MicrocellScale.Dominates f S) :
+    OAI.MicrocellScale.Dominates f T := by
+  intro C hC
+  have hC2 : 0 < 2 * C := mul_pos (by norm_num) hC
+  have hle : (fun n => f n / (S n) ^ (2 * C)) ≤
+      (fun n => f n / (T n) ^ C) := by
+    intro n
+    rw [div_le_div_iff₀ (Real.rpow_pos_of_pos (by linarith [hS n] : 0 < S n) (2 * C))
+      (Real.rpow_pos_of_pos (hT n) C)]
+    have hpow : (T n) ^ C ≤ (S n) ^ (2 * C) := by
+      calc
+        (T n) ^ C ≤ ((S n) ^ (2 : ℝ)) ^ C :=
+          Real.rpow_le_rpow (le_of_lt (hT n)) (hTS n) hC.le
+        _ = (S n) ^ (2 * C) :=
+          (Real.rpow_mul (by linarith [hS n] : 0 ≤ S n) (2 : ℝ) C).symm
+    exact mul_le_mul_of_nonneg_left hpow (hF n)
+  exact Filter.tendsto_atTop_mono hle (hDom (2 * C) hC2)
+
 end HindmanSumsProducts
