@@ -41,7 +41,7 @@ theorem prime_insertion_average {K s : ℕ} {Aset : Finset ℚ}
         poolAverage S l N fun p =>
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
             F ((p : ℤ) * y)| ≤ ε := by
-  sorry
+  exact prime_insertion_average_aux S l i hli A
 
 /-- Equation `eq:prime-fixed-dilation`: for `k` coprime to `W` and at most `(P_l^++V_l)^B`,
 uniformly in `k`, the total mass `‖Law(kY)-k1_{k∣Y}μ_i‖₁` is smaller than every fixed negative
@@ -65,7 +65,7 @@ theorem prime_insertion_fixed_dilation {K s : ℕ} {Aset : Finset ℚ}
             F ((k : ℤ) * y)) -
           ∑' y : ℤ, harmonicLaw (S.core.parameters.X N i) (primorial (N + 1)) y *
             ((if (k : ℤ) ∣ y then (k : ℝ) else 0) * F y)| ≤ ε := by
-  sorry
+  exact prime_insertion_fixed_dilation_aux S l i hli B
 
 /-- Lemma `lem:prime-insertion` (04:61–111), both assertions. -/
 theorem prime_insertion {K s : ℕ} {Aset : Finset ℚ}
