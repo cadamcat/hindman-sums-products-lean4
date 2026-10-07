@@ -184,7 +184,7 @@ theorem chain_selection (m r : ℕ) : ∃ n : ℕ, ∀ (χ : ℕ → Fin r) (x :
       obtain ⟨F, hF⟩ := finite_sums_finite_form m r
       let k : ℕ := 2 * F
       obtain ⟨N, hNk, hRamsey⟩ :=
-        OAI.MarkovSuperreflexivity.finite_ramsey_simultaneous_subsets
+        HindmanSumsProducts.FiniteRamsey.finite_ramsey_simultaneous_subsets
           (k + 1) k (fun _ : Fin (k + 1) => r) (by intro q; exact hrpos)
       refine ⟨N, ?_⟩
       intro χ x

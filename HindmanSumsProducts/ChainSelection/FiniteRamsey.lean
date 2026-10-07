@@ -5,9 +5,9 @@ import Mathlib.Data.Finset.Lattice.Fold
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Lean.Elab.Tactic.Omega
 
-namespace OAI
+namespace HindmanSumsProducts
 
-namespace MarkovSuperreflexivity
+namespace FiniteRamsey
 
 open scoped BigOperators
 
@@ -239,6 +239,6 @@ theorem finite_ordered_simultaneous_ramsey
   have hcolor := hHmono m A hAH hAcard D hDH hDcard
   simpa only [χset, dite_eq_left hAcard, dite_eq_left hDcard, hAenum, hDenum] using hcolor
 
-end MarkovSuperreflexivity
+end FiniteRamsey
 
-end OAI
+end HindmanSumsProducts
