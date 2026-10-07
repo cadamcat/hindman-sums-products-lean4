@@ -3419,6 +3419,26 @@ theorem dropPrimeTuple2_extend {q : ℕ} (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
   funext i
   simp [dropPrimeTuple2, extendPrimeTuple]
 
+theorem pkgMask_gapSlotMass_extend2 {K s m q : ℕ} {Aset : Finset ℚ}
+    {Dm : Finset (IntegerPolynomial s)} (S : MasterScales K Aset s Dm)
+    (C : MasterChain K m) (N : ℕ) (p : Fin q → ℕ) (p₁ p₀ : ℕ) :
+    gapSlotMass S C.gap N (extendPrimeTuple (extendPrimeTuple p p₁) p₀) =
+      gapSlotMass S C.gap N p *
+        primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper p₁ *
+        primePoolLaw (S.primeStage.pool N C.gap).lower
+          (S.primeStage.pool N C.gap).upper p₀ := by
+  unfold gapSlotMass independentPrimePoolMass
+  rw [Fin.prod_univ_succ, Fin.prod_univ_succ]
+  have hslot₁ :
+      (extendPrimeTuple (extendPrimeTuple p p₁) p₀)
+        (Fin.succ (0 : Fin (q + 1))) = p₁ := by
+    change (extendPrimeTuple p p₁) 0 = p₁
+    rfl
+  rw [hslot₁]
+  simp [extendPrimeTuple]
+  ring
+
 theorem rowForm_scaleBranchP_tuple2 {m q : ℕ} (c : Fin m → ℚ)
     (T : RowTemplate m q) (u : Fin m) (p : Fin (q + 2) → ℕ) (z : Fin m → ℤ) :
     rowForm c (T.scaleBranchP u) p (fun k => (z k : ℚ)) =
