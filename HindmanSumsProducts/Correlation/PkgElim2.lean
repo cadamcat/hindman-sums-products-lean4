@@ -532,6 +532,65 @@ theorem c_elim2_shiftAverage_eq_uniformFintypeAverage {α : Type u} [Fintype α]
   unfold shiftAverage c_elim2_uniformFintypeAverage
   rw [hsum, hcardR]
 
+theorem c_elim2_shiftAverage_const {α : Type u} [Fintype α] [DecidableEq α]
+    (L : ℕ) (hL : 0 < L) (x : ℝ) :
+    shiftAverage α L (fun _ => x) = x := by
+  letI : Nonempty (α → Fin 2 → Fin L) := ⟨fun _ _ => ⟨0, hL⟩⟩
+  rw [c_elim2_shiftAverage_eq_uniformFintypeAverage]
+  exact c_elim2_uniformFintypeAverage_const x
+
+theorem c_elim2_goodRowCorrelation_eq_eliminationAverage
+    {K m q r s : ℕ} {Aset : Finset ℚ} {Dm : Finset (IntegerPolynomial s)}
+    (S : FromArithmetic.MasterScales K Aset s Dm) (C : MasterChain K m)
+    (a : Fin m → ℚ) (N : ℕ) {Sh : RowShape m q r}
+    (dirs : RowDirections Sh) (tests : Finset (IntegerPolynomial q)) (J0 : ℕ)
+    (f : Fin r → (Fin q → ℕ) → ℤ → ℝ)
+    (hL : ∀ p, GoodTuple S C.gap N tests dirs.poly p →
+      0 < shiftLength S C.gap J0 N dirs.poly p) :
+    goodRowCorrelation S C a N dirs tests f =
+      eliminationAverage S C N dirs tests J0 (fun p z _ =>
+        ∏ R, atQ (f R p)
+          (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p z)) := by
+  classical
+  let Good : (Fin q → ℕ) → Prop := GoodTuple S C.gap N tests dirs.poly
+  let G (p : Fin q → ℕ) (z : Fin m → ℚ) :=
+    ∏ R, atQ (f R p) (rowForm (chainScale S.core.parameters C a N) (Sh.row R) p z)
+  unfold goodRowCorrelation eliminationAverage goodSlotAverage
+  congr 1
+  apply tsum_congr
+  intro p
+  by_cases hp : Good p
+  · simp only [Good, if_pos hp]
+    congr 1
+    apply tsum_congr
+    intro z
+    rw [c_elim2_shiftAverage_const (shiftLength S C.gap J0 N dirs.poly p)
+      (hL p hp) (G p (fun k => (z k : ℚ)))]
+  · simp [hp, Good]
+
+theorem c_elim2_arithmeticL1_translation_le_uniformError
+    {X W H : ℕ} (hW : 0 < W) (hX : 2 ≤ X)
+    (hlog : Real.log (X : ℝ) > (W : ℝ) / X) {h : ℤ}
+    (hdiv : ∃ m : ℤ, h = (W : ℤ) * m)
+    (hh : |(h : ℝ)| ≤ (H : ℝ)) :
+    arithmeticL1 (translatedLaw (harmonicLaw X W) h) (harmonicLaw X W) ≤
+      FromArithmetic.harmonicTranslationUniformError X W H := by
+  have hbound := (FromArithmetic.sampling_pointwise_claim X W hW hX hlog).translation
+    hX hlog h hdiv
+  unfold FromArithmetic.harmonicTranslationUniformError
+  calc
+    arithmeticL1 (translatedLaw (harmonicLaw X W) h) (harmonicLaw X W) ≤
+        min 2 (2 * |(h : ℝ)| / ((X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X))) := hbound
+    _ ≤ min 2 (2 * (H : ℝ) / ((X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X))) := by
+      apply min_le_min
+      · exact le_rfl
+      · have hden : 0 ≤ (X : ℝ) * (Real.log (X : ℝ) - (W : ℝ) / X) := by
+          apply mul_nonneg
+          · positivity
+          · linarith
+        exact div_le_div_of_nonneg_right
+          (mul_le_mul_of_nonneg_left hh (by norm_num)) hden
+
 noncomputable def c_elim2_shiftCoordPartitionEquiv {α : Type u}
     [DecidableEq α] (E : Finset α) :
     (α × Fin 2) ≃ c_elim2_ShiftCoord E ⊕ {i : α // i ∉ E} := by
@@ -3114,6 +3173,57 @@ theorem c_elim2_fintype_outer_average_abs_le
           rw [Finset.sum_mul]
         _ = (∑ p, ∑ u, wP p * wU u) * δ := by rw [Finset.sum_mul]
         _ = δ := by rw [hweights]; ring
+
+theorem c_elim2_sigma_outer_average_abs_le
+    {P Z : Type*} [Fintype P] [Fintype Z]
+    (U : P → Type*) [∀ p, Fintype (U p)]
+    (wP : P → ℝ) (wZ : Z → ℝ) (wU : ∀ p, U p → ℝ)
+    (F : ∀ p, Z → U p → ℝ) (δ : ℝ)
+    (hPnonneg : ∀ p, 0 ≤ wP p) (hPsum : ∑ p, wP p = 1)
+    (hUnonneg : ∀ p u, 0 ≤ wU p u) (hUsum : ∀ p, ∑ u, wU p u = 1)
+    (hinner : ∀ p u, |∑ z, wZ z * F p z u| ≤ δ) :
+    |∑ p, ∑ z, ∑ u, wP p * wZ z * wU p u * F p z u| ≤ δ := by
+  classical
+  let PState := Σ p, U p
+  let wState : PState → ℝ := fun x => wP x.1 * wU x.1 x.2
+  let FState : PState → Z → Unit → ℝ := fun x z _ => F x.1 z x.2
+  have hStateNonneg : ∀ x, 0 ≤ wState x := by
+    intro x
+    exact mul_nonneg (hPnonneg x.1) (hUnonneg x.1 x.2)
+  have hStateSum : ∑ x : PState, wState x = 1 := by
+    unfold wState PState
+    rw [Fintype.sum_sigma]
+    calc
+      _ = ∑ p, wP p * ∑ u, wU p u := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        rw [Finset.mul_sum]
+      _ = 1 := by simp [hPsum, hUsum]
+  have hUnitNonneg : ∀ u : Unit, 0 ≤ (1 : ℝ) := by intro _; norm_num
+  have hUnitSum : (∑ _u : Unit, (1 : ℝ)) = 1 := by simp
+  have hbound := c_elim2_fintype_outer_average_abs_le wState wZ
+    (fun _ : Unit => 1) FState δ hStateNonneg hStateSum hUnitNonneg hUnitSum
+    (by intro x _; exact hinner x.1 x.2)
+  have hsum :
+      (∑ p, ∑ z, ∑ u, wP p * wZ z * wU p u * F p z u) =
+        ∑ x : PState, ∑ z, ∑ u : Unit,
+          wState x * wZ z * (1 : ℝ) * FState x z u := by
+    calc
+      _ = ∑ p, ∑ u, ∑ z, wP p * wZ z * wU p u * F p z u := by
+        apply Finset.sum_congr rfl
+        intro p hp
+        exact Finset.sum_comm
+      _ = _ := by
+        simp only [PState, Fintype.sum_sigma, wState, FState, Fintype.sum_unique]
+        apply Finset.sum_congr rfl
+        intro p hp
+        apply Finset.sum_congr rfl
+        intro u hu
+        apply Finset.sum_congr rfl
+        intro z hz
+        ring
+  rw [hsum]
+  exact hbound
 
 theorem c_elim2_arithmeticL1_product_le_sum
     {ι : Type*} [Fintype ι] [DecidableEq ι]
