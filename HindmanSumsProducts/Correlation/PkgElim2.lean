@@ -634,8 +634,9 @@ structure c_elim2_AdditiveBoxData (α β : Type u) [Fintype α] [DecidableEq α]
 abbrev c_elim2_BoxBranch {α : Type u} (E : Finset α) :=
   {i : α // i ∈ E} → Fin 2
 
-abbrev c_elim2_BoxRetainedBranch {α : Type u} (E : Finset α) (I : α) :=
-  {i : α // i ∈ E ∧ i ≠ I} → Fin 2
+abbrev c_elim2_BoxRetainedBranch {α : Type u} [DecidableEq α]
+    (E : Finset α) (I : α) :=
+  c_elim2_BoxBranch (E.erase I)
 
 def c_elim2_boxBranchFull {α : Type u} [DecidableEq α] (E : Finset α)
     (ω : c_elim2_BoxBranch E) : α → Fin 2 :=
@@ -643,7 +644,7 @@ def c_elim2_boxBranchFull {α : Type u} [DecidableEq α] (E : Finset α)
 
 def c_elim2_boxRetainedBranchFull {α : Type u} [DecidableEq α]
     (E : Finset α) (I : α) (η : c_elim2_BoxRetainedBranch E I) : α → Fin 2 :=
-  fun i => if hi : i ∈ E then if hne : i ≠ I then η ⟨i, hi, hne⟩ else 0 else 0
+  c_elim2_boxBranchFull (E.erase I) η
 
 def c_elim2_boxShiftValue {α : Type u} [DecidableEq α]
     (E : Finset α) {L : ℕ} (u : c_elim2_ShiftCoord E → Fin L)
@@ -824,6 +825,40 @@ noncomputable def c_elim2_boxBranchInsertEquiv {α : Type u} [Fintype α]
     ((Equiv.sumArrowEquivProdArrow {i : α // i ∈ E} PUnit.{u + 1} (Fin 2)).trans
       (Equiv.prodCongr (Equiv.refl (c_elim2_BoxBranch E))
         (Equiv.punitArrowEquiv (Fin 2))) )
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_old {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch (insert R E)) (i : {i : α // i ∈ E}) :
+    (c_elim2_boxBranchInsertEquiv E R hR ω).1 i =
+      ω ⟨i.val, Finset.mem_insert_of_mem i.property⟩ := by
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_apply_new {α : Type u} [Fintype α]
+    [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch (insert R E)) :
+    (c_elim2_boxBranchInsertEquiv E R hR ω).2 =
+      ω ⟨R, Finset.mem_insert_self R E⟩ := by
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
+    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_old {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch E) (b : Fin 2) (i : {i : α // i ∈ E}) :
+    ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))
+        ⟨i.val, Finset.mem_insert_of_mem i.property⟩ = ω i := by
+  have hne : i.val ≠ R := by
+    intro heq
+    exact hR (heq ▸ i.property)
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
+    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv, hne]
+
+@[simp] theorem c_elim2_boxBranchInsertEquiv_symm_apply_new {α : Type u}
+    [Fintype α] [DecidableEq α] (E : Finset α) (R : α) (hR : R ∉ E)
+    (ω : c_elim2_BoxBranch E) (b : Fin 2) :
+    ((c_elim2_boxBranchInsertEquiv E R hR).symm (ω, b))
+        ⟨R, Finset.mem_insert_self R E⟩ = b := by
+  simp [c_elim2_boxBranchInsertEquiv, c_elim2_finsetSubtypeInsertEquiv,
+    Equiv.sumArrowEquivProdArrow, Equiv.punitArrowEquiv]
 
 /-- The pointwise target-cube product is bounded by its product of divisor weights. -/
 theorem c_elim2_target_cube_product_abs_le_targetBound
