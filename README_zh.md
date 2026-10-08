@@ -2,7 +2,7 @@
 
 # Lean 4 中的 Hindman 有限和与有限积定理
 
-对正整数作任意有限着色，都存在一个恰有 `m` 个元素的集合，使其每个非空子集的和与积都具有同一种颜色。
+对正整数作任意有限着色，都存在一个恰有 `m` 个元素的集合，使其每个非空子集的和与积都具有同一种颜色。这是 Justin Sun Prize 目录中的 JSP-000168，也是 [Erdős 第 172 号问题](https://www.erdosproblems.com/172)的有限情形。形式化陈述即此猜想；OpenAI 论文的主定理另含一个间隔条件和一个推论，这两部分未作形式化（[详见](docs/mathematics.md)）。
 
 - **作者：** Yao Xu ([@cadamcat](https://github.com/cadamcat))；见[作者与署名说明](AUTHORS.md)。
 - **数学结果：** OpenAI，[*Monochromatic finite sums and products in the positive integers*](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf)。
@@ -27,7 +27,7 @@ lake exe cache get
 lake build
 ```
 
-OpenAI 的 `lake update` hook 会在解析依赖并写入 `lake-manifest.json` 后报错，错误以 `iut: Lake resolved an unexpected checkout at …` 开头。随后运行补丁脚本；它会应用 OpenAI 的 Lean 4.34.1 兼容补丁，也可在再次运行 `lake update` 后重新运行。
+OpenAI 的 `lake update` hook 会在解析依赖并写入 `lake-manifest.json` 后报错，错误以 `iut: Lake resolved an unexpected checkout at …` 开头。随后运行补丁脚本；它会应用 OpenAI 的 Lean 4.34.1 兼容补丁，也可在再次运行 `lake update` 后重新运行。补丁会修改随后编译的依赖源码（其中 PrimeNumberTheoremAnd 的补丁最大），因此构建检查的是打过补丁的源码，而不只是 `lake-manifest.json` 中记录的版本。
 
 若要构建定理、核对两处陈述并检查最终定理的公理，请运行 `LEAN_NUM_THREADS=4 ./scripts/verify.sh`。证明尚未完成时，脚本会报告 `sorryAx` 并以状态码 2 退出。详见[验证说明](docs/verification.md)。在一台新的 Linux 机器上，`v1.0.0` 的全新克隆按上述步骤构建成功，通过了 `leanchecker --fresh` 内核重放和 Comparator 检查，结果见[独立检查](docs/verification.md#independent-check-of-v100)。
 

@@ -8,3 +8,9 @@ library is licensed under the Apache License, Version 2.0. Each adapted
 block identifies its upstream path in the source; THIRD_PARTY.md records
 the files, line ranges, and imported OpenAI modules. The upstream repository
 has no separate NOTICE file.
+
+audit/OpusFidelityProbes.lean copies one statement from Google DeepMind's
+Formal Conjectures (https://github.com/google-deepmind/formal-conjectures),
+commit 9d259649abe0b02d7a25f7589b872db679b35e21,
+FormalConjectures/ErdosProblems/172.lean, Copyright 2025 The Formal
+Conjectures Authors, licensed under the Apache License, Version 2.0.

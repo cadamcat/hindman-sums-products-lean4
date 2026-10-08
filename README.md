@@ -2,7 +2,7 @@
 
 # Hindman sums and products in Lean 4
 
-Every finite colouring of the positive integers contains, for each `m`, an `m`-element set whose nonempty subset sums and products all have one colour.
+Every finite colouring of the positive integers contains, for each `m`, an `m`-element set whose nonempty subset sums and products all have one colour. This is problem JSP-000168 of the Justin Sun Prize catalog and the finite case of [Erdős Problem #172](https://www.erdosproblems.com/172). The formal statement is this conjecture; the main theorem of OpenAI's paper adds a separation clause and a corollary, which are not formalized ([details](docs/mathematics.md)).
 
 - **Author:** Yao Xu ([@cadamcat](https://github.com/cadamcat)); see [authors and attribution](AUTHORS.md).
 - **Mathematical result:** OpenAI, [*Monochromatic finite sums and products in the positive integers*](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf).
@@ -27,7 +27,7 @@ lake exe cache get
 lake build
 ```
 
-OpenAI's `lake update` hook exits with an error beginning `iut: Lake resolved an unexpected checkout at …` after resolving dependencies and writing `lake-manifest.json`. Run the patch script next; it applies OpenAI's Lean 4.34.1 compatibility patches and can be run again after another `lake update`.
+OpenAI's `lake update` hook exits with an error beginning `iut: Lake resolved an unexpected checkout at …` after resolving dependencies and writing `lake-manifest.json`. Run the patch script next; it applies OpenAI's Lean 4.34.1 compatibility patches and can be run again after another `lake update`. The patches change the dependency sources that are then compiled (the PrimeNumberTheoremAnd patch is the largest), so a build checks the patched sources, not the revisions in `lake-manifest.json` alone.
 
 To build the theorem and check both statements and the final theorem's axioms, run `LEAN_NUM_THREADS=4 ./scripts/verify.sh`. An open proof is reported as `sorryAx` and causes the script to exit with status 2. Verification details are in [docs/verification.md](docs/verification.md). A fresh clone of release `v1.0.0` on a new Linux machine also built with these steps, replayed in the kernel with `leanchecker --fresh`, and passed Comparator; the [independent check](docs/verification.md#independent-check-of-v100) lists the results.
 

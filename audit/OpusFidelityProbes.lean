@@ -105,7 +105,8 @@ theorem indep_imp_target (H : IndepPNat.{0}) : Target := by
     · rw [hprod]; exact hχp
 
 /-- P3. Target ⇒ the Formal Conjectures statement of Erdős Problem 172 (right-hand side of
-`Erdos172.erdos_172` at google-deepmind/formal-conjectures 9d25964, copied verbatim). -/
+`Erdos172.erdos_172` at google-deepmind/formal-conjectures 9d25964, copied verbatim; Copyright 2025
+The Formal Conjectures Authors, Apache-2.0, see THIRD_PARTY.md). -/
 theorem target_imp_fc172 (H : Target) :
     ∀ (n : ℕ) (color : ℕ → Fin n) (m), ∃ (A : Finset ℕ), A.card ≥ m ∧ ∃ c, ∀ (S : Finset A),
     S.Nonempty → color (∑ x ∈ S, x) = c ∧ color (∏ x ∈ S, x) = c := by

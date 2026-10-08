@@ -114,7 +114,8 @@ review:
     Verification/MainStatement.lean, and Challenge.lean is unchanged since
     the target was reviewed. Every intermediate statement was frozen with
     a hash of its elaborated type before its proof, and all frozen records
-    were checked again on the release commit. On a new Linux machine, a
+    were checked again on the release commit; these records are development
+    records and are not published in this repository. On a new Linux machine, a
     fresh clone of v1.0.0 built with the documented steps, passed
     scripts/verify.sh, replayed in the kernel (leanchecker --fresh) and
     passed Comparator with Challenge.json; docs/verification.md records

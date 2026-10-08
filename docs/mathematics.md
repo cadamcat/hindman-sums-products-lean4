@@ -18,6 +18,8 @@ The main theorem in OpenAI's paper also asserts a separation clause. The conject
 
 ## Proof organization
 
+Some source comments cite planning notes under `research/`; those notes are development records and are not part of this repository.
+
 The proof follows the paper's deduction from the Prediction and Alignment principles:
 
 | Part | Lean development | Paper |
