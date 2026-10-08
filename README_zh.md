@@ -29,7 +29,7 @@ lake build
 
 OpenAI 的 `lake update` hook 会在解析依赖并写入 `lake-manifest.json` 后报错，错误以 `iut: Lake resolved an unexpected checkout at …` 开头。随后运行补丁脚本；它会应用 OpenAI 的 Lean 4.34.1 兼容补丁，也可在再次运行 `lake update` 后重新运行。
 
-若要构建定理、核对两处陈述并检查最终定理的公理，请运行 `LEAN_NUM_THREADS=4 ./scripts/verify.sh`。证明尚未完成时，脚本会报告 `sorryAx` 并以状态码 2 退出。详见[验证说明](docs/verification.md)。
+若要构建定理、核对两处陈述并检查最终定理的公理，请运行 `LEAN_NUM_THREADS=4 ./scripts/verify.sh`。证明尚未完成时，脚本会报告 `sorryAx` 并以状态码 2 退出。详见[验证说明](docs/verification.md)。在一台新的 Linux 机器上，`v1.0.0` 的全新克隆按上述步骤构建成功，通过了 `leanchecker --fresh` 内核重放和 Comparator 检查，结果见[独立检查](docs/verification.md#independent-check-of-v100)。
 
 ## 固定依赖
 

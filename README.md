@@ -29,7 +29,7 @@ lake build
 
 OpenAI's `lake update` hook exits with an error beginning `iut: Lake resolved an unexpected checkout at …` after resolving dependencies and writing `lake-manifest.json`. Run the patch script next; it applies OpenAI's Lean 4.34.1 compatibility patches and can be run again after another `lake update`.
 
-To build the theorem and check both statements and the final theorem's axioms, run `LEAN_NUM_THREADS=4 ./scripts/verify.sh`. An open proof is reported as `sorryAx` and causes the script to exit with status 2. Verification details are in [docs/verification.md](docs/verification.md).
+To build the theorem and check both statements and the final theorem's axioms, run `LEAN_NUM_THREADS=4 ./scripts/verify.sh`. An open proof is reported as `sorryAx` and causes the script to exit with status 2. Verification details are in [docs/verification.md](docs/verification.md). A fresh clone of release `v1.0.0` on a new Linux machine also built with these steps, replayed in the kernel with `leanchecker --fresh`, and passed Comparator; the [independent check](docs/verification.md#independent-check-of-v100) lists the results.
 
 ## Fixed dependencies
 

@@ -86,7 +86,7 @@ automation:
         three standard axioms, up to frozen statements still open.
       cost:
         spend_usd: "subscription-based usage"
-        hardware: "API-only models; local builds on an Apple Silicon Mac; a fresh-clone build and kernel replay on a compute cluster"
+        hardware: "API-only models; local builds on an Apple Silicon Mac; a fresh-clone build, kernel replay and Comparator run on a cloud virtual machine"
   spend_usd: "subscription-based usage"
   notes: >-
     The author is responsible for the content. Model agreement was not
@@ -114,10 +114,11 @@ review:
     Verification/MainStatement.lean, and Challenge.lean is unchanged since
     the target was reviewed. Every intermediate statement was frozen with
     a hash of its elaborated type before its proof, and all frozen records
-    were checked again on the release commit. A fresh-clone build, a
-    kernel replay (leanchecker --fresh) and a Comparator run with
-    Challenge.json on Linux follow the release; their results are recorded
-    in docs/verification.md. No independent human expert has reviewed the
+    were checked again on the release commit. On a new Linux machine, a
+    fresh clone of v1.0.0 built with the documented steps, passed
+    scripts/verify.sh, replayed in the kernel (leanchecker --fresh) and
+    passed Comparator with Challenge.json; docs/verification.md records
+    the results. No independent human expert has reviewed the
     formalization.
 
 alignment:
