@@ -43,6 +43,8 @@ This project uses [`openai/math`](https://github.com/openai/math/tree/adc7f1241b
 
 [`audit/OpusFidelityProbes.lean`](audit/OpusFidelityProbes.lean) (theorem `target_imp_fc172`) copies the right-hand side of `Erdos172.erdos_172` from Google DeepMind's [Formal Conjectures](https://github.com/google-deepmind/formal-conjectures/tree/9d259649abe0b02d7a25f7589b872db679b35e21), commit `9d259649abe0b02d7a25f7589b872db679b35e21`, file `FormalConjectures/ErdosProblems/172.lean`, Copyright 2025 The Formal Conjectures Authors, under the Apache-2.0 license. The file is an audit probe and is not part of the Lake build.
 
+[`audit/Erdos172.lean`](audit/Erdos172.lean) (theorem `Erdos172.erdos_172_rhs`) copies the same right-hand side from the same commit and file, under the same license, and proves it from `HindmanSumsProducts.hindman_finite_sums_products`. It is not part of the Lake build either; run `lake env lean audit/Erdos172.lean` after the build.
+
 ## Other Lean dependencies
 
 The formalization also imports Mathlib, PrimeNumberTheoremAnd, and StrongPNT. OpenAI's library pins PrimeNumberTheoremAnd at `c39a751132c88b6e8080b74c74023fd95b3d8be0` and StrongPNT at `2f5835c322314f55f1026ec2f139d704b7c45c69`; Mathlib is fixed at `d13f23b723b8a846827a245b89c10fc7d3f11612`. The [Lake manifest](lake-manifest.json) records the remaining transitive packages and their exact revisions. Their source licenses and notices remain with those dependency packages.
