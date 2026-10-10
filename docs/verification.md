@@ -47,3 +47,9 @@ On 7–8 October 2026 (UTC), release `v1.0.0` (commit `5d18600a4518d42d5b1e916e9
 | Comparator with [Challenge.json](../Challenge.json) | exit 0; the solution's statement matches the challenge and the Lean kernel accepts the solution |
 
 Comparator was [`leanprover/comparator`](https://github.com/leanprover/comparator) at `ca04cfc`, with `lean4export` at `076e8e5` (the `v4.34.0` source) built with the project toolchain `v4.34.1`. It ran with comparator's development stand-in for the `landrun` sandbox, so it checked the statement match and kernel acceptance without isolating the build from the code it checks.
+
+## Second kernel check of v1.0.0
+
+On 10 October 2026 (UTC), `v1.0.0` (commit `5d18600a4518d42d5b1e916e908e50330eb38456`) was cloned again from GitHub onto a 32-core Linux machine and built with the steps above; `lake update` again ended with the hook error described above and left `lake-manifest.json` unchanged. Comparator at `ca04cfc` then ran with [Challenge.json](../Challenge.json) and `"enable_nanoda": true`, which also replays the solution in [nanoda](https://github.com/ammkrn/nanoda_lib) (at `3a24072`), an independent type checker for Lean written in Rust, reading the export of `lean4export` at `076e8e5`. Comparator exited with status 0: the statement matches the challenge, and both nanoda and the Lean kernel accept the solution. The sandbox was again comparator's development stand-in for `landrun`. Before the run, comparator's own test suite passed on the same machine, and nanoda rejected an export that uses `sorryAx` and an export with an altered numeral.
+
+To repeat it, install nanoda (`cargo build --release` in a checkout of `nanoda_lib`), set `"enable_nanoda": true` in a copy of `Challenge.json`, and run comparator as before with `COMPARATOR_NANODA` pointing to `target/release/nanoda_bin`.
