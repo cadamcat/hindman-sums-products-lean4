@@ -13,8 +13,7 @@ import HindmanSumsProducts.InverseBridge.Assembly
 OpenAI's library proves an inverse theorem on cyclic groups with polynomial nilsequences
 (`OAI.Erdos3.exists_cyclicNativeInverse_positive`). The paper's §5 (`05_prediction.tex` 472–489,
 631–674) needs it with linear orbits on one finite charted menu, the menu type that OpenAI's
-charted Alignment theorem consumes. Design: `research/blueprint/INVERSE-BRIDGE.md` (consumer §0,
-ledger §1, sketches §2, construction §4). The menu step is `2 * (t - 1)`: linearizing a polynomial
+charted Alignment theorem consumes. The menu step is `2 * (t - 1)`: linearizing a polynomial
 orbit doubles the step.
 -/
 

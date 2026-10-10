@@ -3,8 +3,7 @@ import HindmanSumsProducts.Arithmetic
 /-!
 # The §3 results used by §4 (copies)
 
-§4 may import only the frozen `HindmanSumsProducts.Arithmetic.Defs`; the other §3 files are still
-being proved or repaired. This file copies the §3 declarations that §4 states or proves against,
+This file copies the §3 declarations that §4 states or proves against,
 in the namespace `HindmanSumsProducts.FromArithmetic`, so it elaborates next to
 `HindmanSumsProducts.Arithmetic` without a name clash.
 

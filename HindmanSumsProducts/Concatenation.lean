@@ -5,7 +5,7 @@ import Mathlib
 
 Replaces the Tao–Ziegler concatenation theorem used in the paper at `05_prediction.tex` 450–470 and
 580–595, by the subgroup form of Kravitz–Kuca–Leng (arXiv:2407.08636, Lemma 6.1) and a two-call
-recursion. Blueprint and proofs: `research/blueprint/CONCATENATION.md` (§3 mathematics, §5 ledger).
+recursion.
 -/
 
 open scoped BigOperators

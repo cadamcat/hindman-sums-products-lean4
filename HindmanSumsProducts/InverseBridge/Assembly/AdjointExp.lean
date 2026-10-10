@@ -231,7 +231,7 @@ theorem lieBCH_conj_eq_commutator_exp {A : Type*} [Ring A] [Algebra ℚ A]
         ((LieAlgebra.ad ℚ A a) ^ j) b := by
       simp only [r, ← had]
 
-/-- Local transfer helper for assembly; see the cycle note in `NOTES.md`. -/
+/-- Local transfer helper for assembly. -/
 theorem lieBCH_conj_eq_exp_ad_aux {M : Type*} [LieRing M] [LieAlgebra ℚ M] {S : ℕ}
     (hnil : LieModule.lowerCentralSeries ℚ M M S = ⊥) (a b : M) :
     lieBCH S (lieBCH S a b) (-a) =

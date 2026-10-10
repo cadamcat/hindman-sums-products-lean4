@@ -4,8 +4,7 @@ import OAI.Combinatorics.Progressions.Estimates.NativeModelOrbit
 /-!
 Canonical finite base models for the inverse-theorem bridge.
 
-The code in this file follows IB.c1--c4 in
-`research/blueprint/INVERSE-BRIDGE.md`.  `BaseData` records the rational Lie
+`BaseData` records the rational Lie
 bracket, all filtered layer bases in the ambient coordinates, and the lattice
 grid.  Padding rows by zero makes the record independent of the individual
 rank indices.
