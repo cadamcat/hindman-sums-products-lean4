@@ -29,6 +29,10 @@ The accepted axiom set is `propext`, `Classical.choice`, and `Quot.sound`. If th
 
 The Lean checks run with `--trust=0`. They check the project modules and the statement correspondence; they do not rebuild all upstream dependencies from source. `lake exe cache get` obtains compiled dependency artifacts for the pinned sources.
 
+## Non-vacuity checks
+
+[audit/NonVacuity.lean](../audit/NonVacuity.lean) checks that the theorem is not vacuous and says what the problem asks. It shows that the hypotheses can be met and that the definitions take the intended values on small inputs. It derives from `hindman_finite_sums_products` the forms for colourings by an arbitrary finite type and for colourings of `ℕ+`, and applies the theorem to the parity colouring with `m = 3`, where `{1, 2, 3}` is shown not to work. It also shows that the statement becomes false without the `B.Nonempty` guard. Run `lake env lean audit/NonVacuity.lean` after the build; it prints the axioms of each of its theorems, all among `propext`, `Classical.choice` and `Quot.sound`.
+
 ## Independent check of v1.0.0
 
 On 7–8 October 2026 (UTC), release `v1.0.0` (commit `5d18600a4518d42d5b1e916e908e50330eb38456`) was cloned from GitHub onto a new Google Cloud virtual machine (`c4d-standard-32`, 32 cores, Ubuntu 24.04 LTS, with only `elan` installed) and checked with the steps above, in order: Commit hashes were renumbered on 10 October 2026, when local file paths were removed from older commits of the history; the files of `v1.0.0` did not change (tree `1d77b96857b4c6d6566b8306e93793b3ce66c3ed`), so this check applies to the current tag.
