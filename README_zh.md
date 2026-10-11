@@ -16,6 +16,8 @@
 
 证明见 [HindmanSumsProducts/Main.lean](HindmanSumsProducts/Main.lean)。对应的挑战陈述见 [Challenge.lean](Challenge.lean)；[Challenge.json](Challenge.json) 配置 Comparator 对这两个陈述进行比较。陈述细节及证明与论文的关系见[数学指南](docs/mathematics.md)。
 
+Google DeepMind 的 Formal Conjectures 仓库已将 Erdős 第 172 号问题（`Erdos172.erdos_172`）标记为已解决、答案为 `True`，并把 [audit/Erdos172.lean](audit/Erdos172.lean) 链接为它的形式化证明；该文件从上面的定理推出 Formal Conjectures 陈述的右端（[172.lean](https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/172.lean)，[PR #7127](https://github.com/google-deepmind/formal-conjectures/pull/7127)）。
+
 ## 构建与验证
 
 环境要求：Git、Python 3 和 [elan](https://github.com/leanprover/elan)，并确保 `lake` 已加入 `PATH`。在全新检出版本的仓库根目录运行：

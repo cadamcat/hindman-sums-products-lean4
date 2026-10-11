@@ -16,6 +16,8 @@ Every finite colouring of the positive integers contains, for each `m`, an `m`-e
 
 The proof is in [HindmanSumsProducts/Main.lean](HindmanSumsProducts/Main.lean). The corresponding challenge statement is in [Challenge.lean](Challenge.lean); [Challenge.json](Challenge.json) configures Comparator to compare them. See [the mathematical guide](docs/mathematics.md) for the statement's details and the proof's relation to the paper.
 
+Google DeepMind's Formal Conjectures marks Erdős Problem 172 (`Erdos172.erdos_172`) as solved with answer `True` and links [audit/Erdos172.lean](audit/Erdos172.lean) as its formal proof; that file derives the right-hand side of the Formal Conjectures statement from the theorem above ([172.lean](https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/172.lean), [PR #7127](https://github.com/google-deepmind/formal-conjectures/pull/7127)).
+
 ## Build and verify
 
 Requirements: Git, Python 3, and [elan](https://github.com/leanprover/elan), with `lake` available on `PATH`. From the repository root, a fresh checkout is prepared with:
