@@ -2,7 +2,7 @@
 
 # Hindman sums and products in Lean 4
 
-Every finite colouring of the positive integers contains, for each `m`, an `m`-element set whose nonempty subset sums and products all have one colour. This is problem JSP-000168 of the Justin Sun Prize catalog and the finite case of [Erdős Problem #172](https://www.erdosproblems.com/172). The formal statement is this conjecture; the main theorem of OpenAI's paper adds a separation clause and a corollary, which are not formalized ([details](docs/mathematics.md)).
+Every finite colouring of the positive integers contains, for each `m`, an `m`-element set whose nonempty subset sums and products all have one colour. This is the finite case of [Erdős Problem #172](https://www.erdosproblems.com/172). The formal statement is this conjecture; the main theorem of OpenAI's paper adds a separation clause and a corollary, which are not formalized ([details](docs/mathematics.md)).
 
 - **Author:** Yao Xu ([@cadamcat](https://github.com/cadamcat)); see [authors and attribution](AUTHORS.md).
 - **Mathematical result:** OpenAI, [*Monochromatic finite sums and products in the positive integers*](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Monochromatic-finite-sums-and-products-in-the-positive-integers-September-23-2026/paper.pdf).
